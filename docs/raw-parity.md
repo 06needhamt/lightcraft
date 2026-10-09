@@ -122,6 +122,7 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | NEF | High Efficiency / HE★ (JPEG XS) | ⬜ | named, preview (#193); needs a JPEG XS decoder |
 | ARW | uncompressed, cRAW (ARW2), lossless LJ92 (L / M / S) | ✅ | 86 bodies (#535); M/S black level 1024 |
 | ARW | packed 12-bit (A900) | ✅ | one CC0 file; A850 unmeasured |
+| ARW | ARW6 Compressed / HQ (compression 32766; ILCE-7RM6) | ✅ | 8 CC0 files; 12-bit mode unsupported; `docs/arw6-compression.md` |
 | ARW | 12-bit compressed of DSLR-A200…A390 | ⬜ | preview (#535) |
 | ARW | A100 ARW; SRF (F828, V3) | ⬜ | refused (#702); SRF not imported |
 | ARW | ARQ pixel shift | ⬜ | no code |

@@ -775,6 +775,67 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "https://raw.pixls.us/getfile.php/7807/nice/Fujifilm%20-%20X-T50%20-%2014bit%20compressed%20%283:2%29.RAF",
         "3a8a9ac6d92274969aaa1f55ea669191b98bb8f588d00ec8ec17afd8b3963dea",
     ),
+    // Sony ILCE-7RM6: ARW6 Compressed (RAW-C) / Compressed HQ (RAW-C-HD) and the lossless siblings; CC0 1.0, RawDB.
+    (
+        "arw6-sony-ilce7rm6-apsc-land-hq.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_APSC_land_RAW-C-HD.ARW",
+        "b60a7e752d2a8102ccbe6eebcfdbf533c6b0f2545739090873e9e8eb32cc0637",
+    ),
+    (
+        "arw6-sony-ilce7rm6-apsc-land-c.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_APSC_land_RAW-C.ARW",
+        "1c803304e63ec508b2b5f9d59d4a7e30ed279315b35fa4c5d75f959bed62198b",
+    ),
+    (
+        "arw6-sony-ilce7rm6-apsc-port-hq.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_APSC_port_RAW-C-HD.ARW",
+        "0b6d782571e86868670f613de9fa1f1364623b24fbfd21b704b2c516d7a1c1cb",
+    ),
+    (
+        "arw6-sony-ilce7rm6-apsc-port-c.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_APSC_port_RAW-C.ARW",
+        "c41674a485ffcf6d873e20e545ae62936192d94e95be3d53548e93bc543ecfd4",
+    ),
+    (
+        "arw6-sony-ilce7rm6-ff-land-hq.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_FF_land_RAW-C-HD.ARW",
+        "559fa26501d7813e56afecde2aea3d9965a99228162b194752d986193abb172c",
+    ),
+    (
+        "arw6-sony-ilce7rm6-ff-land-c.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_FF_land_RAW-C.ARW",
+        "d900d6cbe838be864269ad54de4a33fcac7eb3a3d4f91009739f770b8f85a23b",
+    ),
+    (
+        "arw6-sony-ilce7rm6-ff-port-hq.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_FF_port_RAW-C-HD.ARW",
+        "81c709633cb8f6340e612c3f53bb6ec6b0cccfe5b713c67efb1e977ece9e266d",
+    ),
+    (
+        "arw6-sony-ilce7rm6-ff-port-c.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_FF_port_RAW-C.ARW",
+        "f4448485629c3f82ff1955fd046404350e9a1f09b346038574b89c074d7c50fd",
+    ),
+    (
+        "arw-sony-ilce7rm6-apsc-land-lossless.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/raw_modes/ILCE-7RM6_APSC_land_RAW.ARW",
+        "7aaf0b3941509d7364a6f03844783155ebc912d246d1c456e5cdb4693ec09fbc",
+    ),
+    (
+        "arw-sony-ilce7rm6-apsc-port-lossless.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/raw_modes/ILCE-7RM6_APSC_port_RAW.ARW",
+        "0f011933ee96525a39710daa50b59d39702b4ec5934fa0206742e2128c55f366",
+    ),
+    (
+        "arw-sony-ilce7rm6-ff-land-lossless.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/raw_modes/ILCE-7RM6_FF_land_RAW.ARW",
+        "5cb3c870bc961cf6b079d56c860d0cdf11acd1afd04e5fb8dbe041bcfd2d6201",
+    ),
+    (
+        "arw-sony-ilce7rm6-ff-port-lossless.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/raw_modes/ILCE-7RM6_FF_port_RAW.ARW",
+        "b1a4026aa6adbaa27973b8b3426d8b4aa0c1cae1845cf5102359327d3b069691",
+    ),
     (
         "rw2-panasonic-g9-b.rw2",
         "https://raw.pixls.us/getfile.php/2348/nice/Panasonic%20-%20DC-G9%20-%204:3.RW2",
