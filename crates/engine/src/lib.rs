@@ -55,6 +55,7 @@ pub mod presets;
 pub mod rename;
 pub mod segment;
 pub mod sidecar;
+pub mod slideshow;
 pub mod smart;
 pub mod sync;
 mod view;
@@ -271,6 +272,8 @@ pub struct Session {
     pub import_defaults: import::ImportDefaults,
     /// Disk budget of the library's thumbnail cache in MB (0 = default; persisted in prefs.json).
     pub cache_mb: u32,
+    /// Slideshow playback settings (`slideshow.playback`; persisted in prefs.json).
+    pub slideshow: slideshow::PlaybackSettings,
     /// Where smart previews are kept when not in the library folder (persisted in prefs.json).
     pub smart_previews_dir: Option<std::path::PathBuf>,
     /// Untouched Local records of folders not browsed for this many days are forgotten when the
@@ -353,6 +356,7 @@ impl Session {
             preview_build: None,
             import_defaults: import::ImportDefaults::default(),
             cache_mb: 0,
+            slideshow: slideshow::PlaybackSettings::default(),
             smart_previews_dir: None,
             forget_local_days: lightcraft_catalog::DEFAULT_FORGET_DAYS,
         }

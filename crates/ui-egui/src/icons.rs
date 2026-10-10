@@ -83,6 +83,10 @@ pub enum Icon {
     Chat,
     /// Face boxes on/off: four corner brackets round a small face.
     FaceBox,
+    /// Play (a triangle pointing right).
+    Play,
+    /// Pause (two bars).
+    Pause,
 }
 
 struct Pen<'a> {
@@ -422,6 +426,11 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.circle(10.0, 7.0, 3.0);
             pen.arc(10.0, 18.0, 6.5, 200.0, 340.0);
             pen.rect(2.5, 2.5, 17.5, 17.5, 2.0);
+        }
+        Play => pen.fill(&[(6.0, 4.0), (6.0, 16.0), (16.0, 10.0)], color),
+        Pause => {
+            pen.rect_fill(5.0, 4.0, 8.5, 16.0, 0.5);
+            pen.rect_fill(11.5, 4.0, 15.0, 16.0, 0.5);
         }
         FaceBox => {
             pen.line(&[(2.5, 7.0), (2.5, 2.5), (7.0, 2.5)]);

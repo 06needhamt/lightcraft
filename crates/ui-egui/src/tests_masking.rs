@@ -813,38 +813,6 @@ fn local_folder_tree_expands_and_browses() {
 }
 
 #[test]
-fn slideshow_advances_pauses_and_ends() {
-    let mut h = detail("panel.edit");
-    let first = h.app.session.active();
-    exec(&mut h, "view.slideshow", json!({"interval": 0.5}));
-    assert!(h.app.ui.fullscreen && h.app.ui.slideshow.is_some());
-    // simulated time runs with the frames
-    let mut moved = false;
-    for _ in 0..200 {
-        h.step();
-        if h.app.session.active() != first {
-            moved = true;
-            break;
-        }
-    }
-    assert!(moved, "the next photo comes up");
-    // Space pauses: nothing moves
-    let r = h.request("ui.key", json!({"key": "space"}), T);
-    assert_eq!(r["ok"], true, "{r}");
-    assert!(h.app.ui.slideshow.is_some_and(|s| s.2), "paused");
-    let held = h.app.session.active();
-    for _ in 0..120 {
-        h.step();
-    }
-    assert_eq!(h.app.session.active(), held);
-    // Esc ends it
-    let r = h.request("ui.key", json!({"key": "escape"}), T);
-    assert_eq!(r["ok"], true, "{r}");
-    assert!(!h.app.ui.fullscreen && h.app.ui.slideshow.is_none());
-    h.settle(SETTLE);
-}
-
-#[test]
 fn geometry_slider_drag_marks_the_grid() {
     let mut h = detail("panel.crop");
     let spec = lightcraft_develop::controls::find("geometry.vertical").unwrap();

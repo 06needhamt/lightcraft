@@ -2,6 +2,16 @@
 
 ## October 2026
 
+### Slideshow playback
+- View ▸ Slideshow (⌥⌘↩) now plays with Lightroom Classic's Playback settings: how long each slide stays up, a fade
+  between slides (a crossfade, or through black, white or any colour; 0 cuts), random order (every photo once per
+  pass, a new order each time round), repeat (off: the slideshow ends after the last photo) and preparing previews in
+  advance (the next two slides render while the current one is up, so a fade never waits or flashes).
+- Change them in Settings ▸ Slideshow (View ▸ Slideshow Options…); they are saved with the library. Agents use
+  `slideshow.playback`; `view.slideshow` takes any of them for one run (`interval` still sets the slide duration).
+- While it plays, moving the pointer shows a small control bar: previous, play / pause, next, the slide number and
+  end. Space pauses, ← / → step (a cut), Esc ends. A slide's time starts once it is shown sharp.
+
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
   folder scans, exports (and the contact sheet PDF), Synchronize Folder, Build / Smart Previews, Lightroom catalog import, Photo Merge, model downloads, the face scan,

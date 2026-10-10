@@ -42,15 +42,15 @@ and prints the summary; `cargo xtask parity --write` refreshes the summary table
 | S. Export (EXP) | 15 | 2 | 1 | 0 | 7/7 (100%) | 7/7 (100%) |
 | T. Share (SHARE) | 0 | 0 | 0 | 4 | — | — |
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
-| V. Preferences (PREF) | 7 | 1 | 2 | 2 | 1/1 (100%) | 5/5 (100%) |
+| V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
 | X. Cross-cutting behaviours (BEHAV) | 18 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
 | Y. Menus | 82 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 75 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 32 | 11 | 39 | 9 | — | 22/24 (92%) |
-| **Total** | 393 | 39 | 84 | 36 | 192/200 (96%) | 142/152 (93%) |
+| Lightroom Classic extras | 33 | 16 | 34 | 9 | — | 23/25 (92%) |
+| **Total** | 397 | 50 | 72 | 36 | 192/200 (96%) | 143/155 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **79.9%** of 516 in-scope rows — P0 98.0% of 200 · P1 95.7% of 152 · P2 42.9% of 163.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.3%** of 519 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 47.5% of 163.
 <!-- /parity:summary -->
 
 ## Top gaps
@@ -200,7 +200,7 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 | LR-VIEW-COMPARE | Compare two photos | P1 | ✅ | `cmd:view.compare`, `cmd:compare.swap`, `cmd:compare.makeSelect`, `crates/ui-egui/src/panels/compare.rs` | select / candidate, synced zoom + pan, arrows move the candidate; no zoom-link toggle |
 | LR-VIEW-SURVEY | Survey view [Classic] | P2 | ✅ | `cmd:view.survey`, `crates/ui-egui/src/panels/compare.rs` | selection tiled (≤ 48), keys act on the active photo, hover × removes |
 | LR-VIEW-INFOOVERLAY | Info overlay on the photo | P1 | ✅ | `cmd:view.infoOverlay` | off / file + date + size / exposure + camera; ⌘I cycles (I in full screen; elsewhere I stays the Info panel) |
-| LR-VIEW-SLIDESHOW | Slideshow | P2 | ✅ | `cmd:view.slideshow` | View ▸ Slideshow (⌥⌘↩): the photos in view full screen, every 4 s (`interval`), wrapping; Space pauses, ←/→ step, Esc ends |
+| LR-VIEW-SLIDESHOW | Slideshow | P2 | ✅ | `cmd:view.slideshow` | View ▸ Slideshow (⌥⌘↩): the photos in view full screen from the selected one, played with the library's playback settings (see LRC-SS-PLAYBACK: fades, random order, repeat, previews prepared ahead; `interval` / any setting overrides one run); Space pauses, ←/→ step (a cut), Esc ends; playback controls on pointer movement |
 | LR-VIEW-SECONDWINDOW | Second display window [Classic] | P2 | ✅ | `cmd:view.secondWindow`, `crates/ui-egui/src/panels/second.rs` | Window ▸ Second Window (⌘F11): the active photo fitted in its own native window with its own render (a floating panel where there are no native windows); loupe view only (no grid / compare / survey there) |
 | LR-VIEW-CLIPPING | Clipping indicators | P0 | ✅ | `cmd:view.clipping` | |
 | LR-VIEW-HISTOGRAM | Histogram | P0 | ✅ | `cmd:view.histogram`, `crates/ui-egui/src/panels/edit.rs` | no drag-to-adjust on the histogram |
@@ -800,7 +800,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-SS-BACKDROP | Slideshow backdrop | P2 | ⬜ | | |
 | LRC-SS-TITLES | Slideshow titles | P2 | ⬜ | | |
 | LRC-SS-MUSIC | Slideshow music | P2 | ⬜ | | |
-| LRC-SS-PLAYBACK | Slideshow playback | P2 | ⬜ | | |
+| LRC-SS-PLAYBACK | Slideshow playback | P2 | 🟡 | `cmd:slideshow.playback`, `cmd:view.slideshowOptions`, `cmd:slideshow.togglePause`, `cmd:slideshow.next`, `cmd:slideshow.previous`, `cmd:slideshow.end` | Playback settings (library preference, `slideshow.playback`; Settings ▸ Slideshow, View ▸ Slideshow Options…): slide duration 0.5–120 s, fade 0–10 s (≤ slide; 0 = cut) as a crossfade or through a colour, random order (seeded shuffle, every photo once per pass, a new order each pass), repeat (off: ends after the last slide), prepare previews in advance (the next 2 slides render off the UI thread; a transition never starts before its slide is rendered — the current one is held). Space / ←/→ (cut) / Esc and a control bar (previous, play/pause, next, n / N, end) that shows on pointer movement. Missing: the Slideshow module view and its "preview in the view" (phase 2 of the module plan), music and sync to music (LRC-SS-MUSIC), pan & zoom, manual-advance mode, choosing the screen to play on, slides composed with layout/overlays/backdrop (LRC-SS-LAYOUT…) |
 | LRC-SS-EXPORT | Slideshow export | P2 | ⬜ | | |
 | LRC-PRINT-LAYOUTSTYLE | Print layout styles | P2 | 🟡 | `cmd:dialog.contactSheet`, `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | paginated contact sheets; single-image/custom package layouts missing |
 | LRC-PRINT-IMAGESETTINGS | Print image settings | P2 | ⬜ | | |

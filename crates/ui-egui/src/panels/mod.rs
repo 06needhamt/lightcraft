@@ -27,6 +27,7 @@ pub mod right;
 pub mod rules_editor;
 pub mod second;
 pub mod settings;
+pub mod slideshow;
 pub mod strip;
 pub mod topbar;
 pub mod unnamed;

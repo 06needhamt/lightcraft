@@ -52,6 +52,9 @@ pub enum Slot {
     Import(u32),
     /// The second window's view of the active photo.
     Second,
+    /// A slideshow slide (the one up, the one fading out, the next ones prepared in advance; see
+    /// [`crate::panels::slideshow`]).
+    Slide(PhotoId),
 }
 
 pub struct Tex {
@@ -206,6 +209,8 @@ pub struct Renderer {
     variant_want: usize,
     /// Frames polled so far.
     frame: u64,
+    /// Slideshow slides may be held ([`Self::release_slides`] has something to do).
+    slides_live: bool,
     /// Stage caches cleared to stay in budget (see [`stage_trim_order`]).
     stages_trimmed: u64,
     /// A budget other than the memory budget's share (tests).
@@ -267,6 +272,7 @@ impl Renderer {
             variant_used: HashMap::new(),
             variant_want: 0,
             frame: 0,
+            slides_live: false,
             stages_trimmed: 0,
             #[cfg(test)]
             stage_budget_override: None,
@@ -310,7 +316,7 @@ impl Renderer {
     /// Views that render straight into the display profile's primaries (wide gamut); everything
     /// else is rendered for sRGB and converted ([`lightcraft_engine::display::present`]).
     fn renders_for_display(slot: Slot) -> bool {
-        matches!(slot, Slot::Main | Slot::Region | Slot::Before | Slot::RegionBefore | Slot::Hover | Slot::Compare(_) | Slot::Second)
+        matches!(slot, Slot::Main | Slot::Region | Slot::Before | Slot::RegionBefore | Slot::Hover | Slot::Compare(_) | Slot::Second | Slot::Slide(_))
     }
 
     /// `job` as [`Self::request`] would run it for `slot` (its key included): views render for
@@ -384,6 +390,9 @@ impl Renderer {
 
     /// Request a render for `slot` (no-op if already current or pending at the same priority).
     pub fn request(&mut self, slot: Slot, job: RenderJob, priority: u32) {
+        if matches!(slot, Slot::Slide(_)) {
+            self.slides_live = true;
+        }
         let mut job = self.job_for(slot, job);
         if !self.request_needed(slot, job.key, priority) {
             return;
@@ -440,6 +449,23 @@ impl Renderer {
         self.request_ids.insert(slot, job.request_id);
         let key = job.key;
         self.pool.submit(slot, key, priority, Box::new(move || lightcraft_engine::memory::in_background(|| job.run())));
+    }
+
+    /// Drop the slideshow slides other than `keep`: their textures and their requests that have
+    /// not started (a slide that is no longer near is not worth rendering).
+    pub fn release_slides(&mut self, keep: &[PhotoId]) {
+        if !self.slides_live {
+            return;
+        }
+        let gone = |s: &Slot| matches!(s, Slot::Slide(id) if !keep.contains(id));
+        self.textures.retain(|s, _| !gone(s));
+        let _ = self.pool.reprioritize(|s, p| if gone(s) { None } else { Some(p) });
+        self.queue.retain(|q| !gone(&q.slot));
+        // (a render already running finishes unclaimed: its result is dropped)
+        self.pending.retain(|s, _| !gone(s));
+        self.request_ids.retain(|s, _| !gone(s));
+        self.failed.retain(|s, _| !gone(s));
+        self.slides_live = !keep.is_empty();
     }
 
     /// Is a request for `slot` queued or running?
