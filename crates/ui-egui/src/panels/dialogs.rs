@@ -666,7 +666,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             ui,
                             "Position",
                             "exportWmAnchor",
-                            &[(P::TopLeft, "↖"), (P::TopRight, "↗"), (P::Center, "•"), (P::BottomLeft, "↙"), (P::BottomRight, "↘")],
+                            &WM_POSITIONS,
                             &mut wm.anchor,
                         );
                         let mut size = wm.size as f64 * 100.0;
@@ -1508,6 +1508,17 @@ fn export_size(ui: &mut egui::Ui, full: &mut bool, r: &mut lightcraft_engine::ex
         *ppi = p as u16;
     }
 }
+/// All nine positions supported by both the text and graphic watermark renderer.
+/// Keep them in grid order so bottom-centre and edge-centre anchors are available in Export.
+const WM_POSITIONS: [(lightcraft_engine::export::Anchor, &str); 9] = {
+    use lightcraft_engine::export::Anchor::*;
+    [
+        (TopLeft, "↖"), (Top, "↑"), (TopRight, "↗"),
+        (Left, "←"), (Center, "•"), (Right, "→"),
+        (BottomLeft, "↙"), (Bottom, "↓"), (BottomRight, "↘"),
+    ]
+};
+
 const WM_IMAGE_WIDTH: ControlSpec = spec("export.watermarkImageWidth", "Width (% of photo)", 2.0, 100.0, 20.0, 1.0);
 const WM_SIZE: ControlSpec = spec("export.watermarkSize", "Size (% of short edge)", 1.0, 15.0, 3.5, 0.5);
 const WM_OPACITY: ControlSpec = spec("export.watermarkOpacity", "Opacity (%)", 5.0, 100.0, 70.0, 1.0);
@@ -1576,4 +1587,23 @@ fn just_opened(ui: &egui::Ui, key: &str) -> bool {
     let last: Option<u64> = ui.data_mut(|d| d.get_temp(id));
     ui.data_mut(|d| d.insert_temp(id, pass));
     last.and_then(|l| l.checked_add(1)) != Some(pass)
+}
+
+#[cfg(test)]
+mod watermark_position_tests {
+    use super::WM_POSITIONS;
+    use lightcraft_engine::export::Anchor;
+
+    #[test]
+    fn export_dialog_offers_every_rendered_anchor_exactly_once() {
+        let anchors = [
+            Anchor::TopLeft, Anchor::Top, Anchor::TopRight,
+            Anchor::Left, Anchor::Center, Anchor::Right,
+            Anchor::BottomLeft, Anchor::Bottom, Anchor::BottomRight,
+        ];
+        assert_eq!(WM_POSITIONS.len(), anchors.len());
+        for anchor in anchors {
+            assert_eq!(WM_POSITIONS.iter().filter(|(position, _)| *position == anchor).count(), 1);
+        }
+    }
 }
