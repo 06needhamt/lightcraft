@@ -1023,6 +1023,18 @@ mod tests {
         assert_eq!(decoded(e, 12, 160, 3).unwrap(), d12);
     }
 
+    /// Z 6II "Packed 14 bits" (maker note 0x93 = 10, issue #769): 6064x4040, 14-bit, one strip of 4040 rows of 10624
+    /// bytes (6064 * 14 / 8 = 10612, padded to a multiple of 16). Four rows keep the real stride.
+    #[test]
+    fn packed_14_bit_z6ii_geometry_with_row_padding() {
+        let (w, h) = (6064usize, 4usize);
+        let d14 = samples(w * h, 14);
+        let s = strip(&d14, w, 12, |r| pack_lsb(r, 14));
+        assert_eq!(s.len(), 10624 * h);
+        assert_eq!(decoded(s, 14, w as u32, h as u32).unwrap(), d14);
+        assert_eq!(packed_layout(6064, 4040, 14, 42_920_960), Some(PackedLayout::Lsb { stride: 10624 }));
+    }
+
     #[test]
     fn packed_d100_rows_carry_extra_columns() {
         // IFD width 154, rows hold 160 samples (16 chunks); the last 6 are dropped
