@@ -55,6 +55,9 @@ pub enum Slot {
     /// A slideshow slide (the one up, the one fading out, the next ones prepared in advance; see
     /// [`crate::panels::slideshow`]).
     Slide(PhotoId),
+    /// The small composed slide in Settings ▸ Slideshow (the active photo with the layout being
+    /// edited).
+    SlidePreview,
 }
 
 pub struct Tex {

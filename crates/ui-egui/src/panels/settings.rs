@@ -68,7 +68,7 @@ pub(super) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
 }
 
-fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.horizontal(|ui| {
         ui.allocate_ui_with_layout(egui::vec2(LABEL_W, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_min_width(LABEL_W);
@@ -642,7 +642,32 @@ fn duration_slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &s
     }
 }
 
+/// Width of the Slideshow tab's settings column (the slide preview is beside it).
+const SLIDESHOW_COLUMN_W: f32 = 480.0;
+
 fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    // the settings scroll on the left, the composed slide stays in view on the right
+    let top_down = egui::Layout::top_down(egui::Align::Min);
+    // as tall as the window allows (the dialog's title, tabs and Close button take ~260 pt)
+    let tall = (ui.ctx().content_rect().height() - 260.0).clamp(300.0, 760.0);
+    ui.horizontal_top(|ui| {
+        ui.allocate_ui_with_layout(egui::vec2(SLIDESHOW_COLUMN_W, tall), top_down, |ui| {
+            ui.set_width(SLIDESHOW_COLUMN_W);
+            egui::ScrollArea::vertical().id_salt("settingsSlideshowScroll").max_height(tall).auto_shrink([false, true]).show(ui, |ui| {
+                playback_section(app, ui, t);
+                ui.add_space(6.0);
+                super::slide_layout::sections(app, ui, t);
+            });
+        });
+        ui.add_space(12.0);
+        ui.allocate_ui_with_layout(egui::vec2(super::slide_layout::PREVIEW_W, tall), top_down, |ui| {
+            ui.set_width(super::slide_layout::PREVIEW_W);
+            super::slide_layout::preview(app, ui, t)
+        });
+    });
+}
+
+fn playback_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     use lightcraft_engine::slideshow::{FADE_MAX, SLIDE_MAX, SLIDE_MIN};
     heading(ui, t, crate::i18n::tr("Playback"));
     let s = app.session.slideshow.clone();

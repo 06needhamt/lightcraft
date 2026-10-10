@@ -49,6 +49,8 @@ mode ([mcp.md](mcp.md)) is a thin layer over this channel. Implementation:
 | `engine.execute {command: "activity.list"}` | — | The long-running tasks in flight (imports, exports, preview builds, downloads, the face scan…), oldest first: `{tasks: [{id, kind, label, done, total, unit, detail, cancellable, cancelling, ageMs}]}`; `total` 0 = not known yet; `unit` is `count`, `bytes` or `percent`; `label` is English (the app shows it translated) |
 | `engine.execute {command: "activity.cancel"}` | `{id}` or `{all: true}` | Asks the task (or every cancellable one) to stop at its next file or photo → `{cancelled: n}`; an unknown id (it may have just finished) or a task that can't be cancelled is an error |
 | `ui.render` | `{id?, size?, path?}` | Render a photo (PNG to `path`), `{width, height}` |
+| `engine.execute {command: "slideshow.layout"}` | `{margins?, marginLeft?, …, zoomToFill?, strokeBorder?, castShadow?, backdropColor?, colorWash?, backgroundImage?, …}` (see `engine.commands`) | The slideshow's slide layout (Layout, Options, Backdrop), saved with the library; omitted keys keep their value, `{}` reads it; out-of-range numbers are clamped, a wrong type or unknown key is refused and nothing changes |
+| `engine.execute {command: "slideshow.preview"}` | `{id?, width?, height?, path?}` | One slide composed with the layout, as the slideshow plays it: a PNG written to `path`, or returned base64 in `png` without one; `{id, width, height, cell, photo}` (`cell` and `photo` are `[x0, y0, x1, y1]` in slide pixels). Sides 16–4096; one side given takes the other from the aspect preview |
 | `app.quit` | — | Close the app |
 
 Image navigation is also available directly as the UI command `view.navigate`, with

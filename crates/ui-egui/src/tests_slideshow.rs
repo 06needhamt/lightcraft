@@ -240,3 +240,107 @@ fn a_photo_deleted_while_it_plays_does_not_stall_the_slideshow() {
     assert!(photos.len() > 3);
     h.settle(SETTLE);
 }
+
+fn painted(img: &egui::ColorImage, x: usize, y: usize) -> [u8; 3] {
+    let c = img.pixels[y * img.size[0] + x];
+    [c.r(), c.g(), c.b()]
+}
+
+#[test]
+fn a_composed_slide_shows_during_playback() {
+    let mut h = grid();
+    let r = run(&mut h, "slideshow.layout", json!({"margins": 0.1, "backdropColor": "#ff0000"}));
+    assert_eq!(r["marginTop"], 0.1);
+    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0}));
+    let current = play(&h).current();
+    assert!(h.step_until(SETTLE, |h| has_slide(h, current)), "the slide is composed and ready");
+    h.step();
+    let tex = h.app.renderer.textures.get(&Slot::Slide(current)).unwrap();
+    assert_eq!(tex.size, [1000, 700], "a composed slide fills the screen");
+    let img = h.paint();
+    assert_eq!(img.size, [1000, 700]);
+    // 10 % of the 700 px short side = 70 px of red backdrop around the image cell
+    for (x, y) in [(5, 5), (995, 5), (500, 30), (500, 690), (30, 350), (985, 350)] {
+        assert_eq!(painted(&img, x, y), [255, 0, 0], "margin at ({x}, {y})");
+    }
+    let mid = painted(&img, 500, 350);
+    assert_ne!(mid, [255, 0, 0], "the photo in the cell");
+    // the next slide is composed too, and stepping shows it
+    let next = play(&h).upcoming(1)[0];
+    assert!(h.step_until(SETTLE, |h| has_slide(h, next)));
+    run(&mut h, "slideshow.next", json!({}));
+    h.step();
+    assert_eq!(painted(&h.paint(), 5, 5), [255, 0, 0]);
+    h.settle(SETTLE);
+}
+
+#[test]
+fn the_default_layout_plays_the_photo_as_before() {
+    let mut h = grid();
+    assert!(h.app.session.slide_layout.is_plain());
+    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0}));
+    let current = play(&h).current();
+    assert!(h.step_until(SETTLE, |h| has_slide(h, current)));
+    h.step();
+    // the photo's own render (its aspect, not the screen's), fitted on black, as before
+    let tex = h.app.renderer.textures.get(&Slot::Slide(current)).unwrap();
+    let aspect = h.app.session.slide_photo_aspect(current).unwrap();
+    let tex_aspect = tex.size[0] as f64 / tex.size[1] as f64;
+    assert!((tex_aspect - aspect).abs() < 0.02, "{tex_aspect} vs {aspect}");
+    assert_ne!(tex.size, [1000, 700]);
+    let img = h.paint();
+    let r = crate::panels::detail::fit_texture_rect(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0)), tex.size);
+    if r.left() > 2.0 {
+        assert_eq!(painted(&img, 1, 350), [0, 0, 0], "black beside the photo");
+    }
+    if r.top() > 2.0 {
+        assert_eq!(painted(&img, 500, 1), [0, 0, 0], "black above the photo");
+    }
+    h.settle(SETTLE);
+}
+
+#[test]
+fn settings_shows_the_slide_layout_and_a_live_preview() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    h.step();
+    let has = |h: &Headless, w: &str| h.app.widgets.iter().any(|(id, _)| id == w);
+    for w in [
+        "slider:slideshowMargins",
+        "check:settings.slideshowZoomToFill",
+        "check:settings.slideshowStroke",
+        "check:settings.slideshowShadow",
+        "button:slideshowBackdropColor",
+        "check:settings.slideshowWash",
+        "slideshow:preview",
+    ] {
+        assert!(has(&h, w), "{w}");
+    }
+    // the preview is the composed slide, rendered off the UI thread
+    assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).is_some_and(|t| t.photo == first)));
+    // a checkbox goes through slideshow.layout, and its controls appear (scrolled into view)
+    let r = h.request("ui.hoverWidget", json!({"id": "check:settings.slideshowRandom"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.scroll", json!({"dy": -600}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..30 {
+        h.step();
+    }
+    let r = h.request("ui.clickWidget", json!({"id": "check:settings.slideshowShadow"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.session.slide_layout.cast_shadow);
+    assert!(has(&h, "slider:slideshowShadowAngle"));
+    // a changed layout renders the preview again (once it has settled)
+    let before = h.app.renderer.textures.get(&Slot::SlidePreview).map(|t| t.key);
+    run(&mut h, "slideshow.layout", json!({"margins": 0.2, "backdropColor": "#00ff00"}));
+    assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).map(|t| t.key) != before));
+    h.step();
+    let rect = h.app.widgets.iter().find(|(id, _)| id == "slideshow:preview").map(|(_, r)| *r).unwrap();
+    let img = h.paint();
+    let c = painted(&img, (rect.left() + 3.0) as usize, (rect.center().y) as usize);
+    assert!(c[1] > 200 && c[0] < 60, "the green backdrop in the preview margin: {c:?}");
+    h.settle(SETTLE);
+}

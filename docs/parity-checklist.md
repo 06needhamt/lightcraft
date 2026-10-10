@@ -52,10 +52,10 @@ cited here still exists. Formerly docs/parity.md.
 | X. Cross-cutting behaviours (BEHAV) | 18 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
 | Y. Menus | 82 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 75 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 33 | 16 | 34 | 9 | — | 23/25 (92%) |
-| **Total** | 397 | 50 | 72 | 36 | 192/200 (96%) | 143/155 (92%) |
+| Lightroom Classic extras | 35 | 17 | 31 | 9 | — | 23/25 (92%) |
+| **Total** | 399 | 51 | 69 | 36 | 192/200 (96%) | 143/155 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.3%** of 519 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 47.5% of 163.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.8%** of 519 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 49.1% of 163.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -728,13 +728,13 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-BOOK-VIEWS | Book views | P2 | ⬜ | | |
 | LRC-BOOK-EXPORT | Book export (PDF/JPEG) | P2 | ⬜ | | |
 | LRC-SS-TEMPLATES | Slideshow templates | P2 | ⬜ | | |
-| LRC-SS-OPTIONS | Slideshow options | P2 | ⬜ | | |
-| LRC-SS-LAYOUT | Slideshow layout | P2 | ⬜ | | |
+| LRC-SS-OPTIONS | Slideshow options | P2 | ✅ | `cmd:slideshow.layout`, `cmd:slideshow.preview`, `path:crates/slideshow/src/compose.rs` | Zoom to Fill Frame (the photo covers its image cell, cropped to it; off: fits inside), Stroke Border (colour, width as a share of the slide's shorter side, drawn around the photo), Cast Shadow (opacity, offset, radius, angle; a blurred offset rectangle under the photo and its stroke). Composed by `lightcraft-slideshow` (CPU, no UI) for playback, the Settings ▸ Slideshow preview and `slideshow.preview`; edited in Settings ▸ Slideshow until the Slideshow module view exists |
+| LRC-SS-LAYOUT | Slideshow layout | P2 | 🟡 | `cmd:slideshow.layout`, `cmd:slideshow.preview`, `path:crates/ui-egui/src/panels/slide_layout.rs` | Margins left / right / top / bottom (linked or each on its own; shares of the slide's shorter side, so any screen or output size looks the same), Show Guides, Aspect Preview (Screen, 16:9, 4:3). Missing: the Slideshow module's slide editor — guides are drawn only in the Settings ▸ Slideshow preview and can't be dragged to set the margins; the aspect preview applies to that preview and `slideshow.preview` (playback always fills the screen, as in Classic) |
 | LRC-SS-OVERLAYS | Slideshow overlays | P2 | ⬜ | | |
-| LRC-SS-BACKDROP | Slideshow backdrop | P2 | ⬜ | | |
+| LRC-SS-BACKDROP | Slideshow backdrop | P2 | ✅ | `cmd:slideshow.layout`, `path:crates/slideshow/src/compose.rs` | Background colour, Color Wash (a gradient from a second colour, full at the side its angle points to, at an opacity), Background Image (a library photo filling the slide at an opacity: "Use selected photo" in Settings ▸ Slideshow, `backgroundImage` in `slideshow.layout`; rendered once and shared by the slides). In the web build the composition runs on the main thread when a worker's render comes back |
 | LRC-SS-TITLES | Slideshow titles | P2 | ⬜ | | |
 | LRC-SS-MUSIC | Slideshow music | P2 | ⬜ | | |
-| LRC-SS-PLAYBACK | Slideshow playback | P2 | 🟡 | `cmd:slideshow.playback`, `cmd:view.slideshowOptions`, `cmd:slideshow.togglePause`, `cmd:slideshow.next`, `cmd:slideshow.previous`, `cmd:slideshow.end` | Playback settings (library preference, `slideshow.playback`; Settings ▸ Slideshow, View ▸ Slideshow Options…): slide duration 0.5–120 s, fade 0–10 s (≤ slide; 0 = cut) as a crossfade or through a colour, random order (seeded shuffle, every photo once per pass, a new order each pass), repeat (off: ends after the last slide), prepare previews in advance (the next 2 slides render off the UI thread; a transition never starts before its slide is rendered — the current one is held). Space / ←/→ (cut) / Esc and a control bar (previous, play/pause, next, n / N, end) that shows on pointer movement. Missing: the Slideshow module view and its "preview in the view" (phase 2 of the module plan), music and sync to music (LRC-SS-MUSIC), pan & zoom, manual-advance mode, choosing the screen to play on, slides composed with layout/overlays/backdrop (LRC-SS-LAYOUT…) |
+| LRC-SS-PLAYBACK | Slideshow playback | P2 | 🟡 | `cmd:slideshow.playback`, `cmd:view.slideshowOptions`, `cmd:slideshow.togglePause`, `cmd:slideshow.next`, `cmd:slideshow.previous`, `cmd:slideshow.end` | Playback settings (library preference, `slideshow.playback`; Settings ▸ Slideshow, View ▸ Slideshow Options…): slide duration 0.5–120 s, fade 0–10 s (≤ slide; 0 = cut) as a crossfade or through a colour, random order (seeded shuffle, every photo once per pass, a new order each pass), repeat (off: ends after the last slide), prepare previews in advance (the next 2 slides render off the UI thread; a transition never starts before its slide is rendered — the current one is held). Space / ←/→ (cut) / Esc and a control bar (previous, play/pause, next, n / N, end) that shows on pointer movement. Missing: the Slideshow module view and its "preview in the view" (phase 2 of the module plan), music and sync to music (LRC-SS-MUSIC), pan & zoom, manual-advance mode, choosing the screen to play on, overlays and titles on the slides (LRC-SS-OVERLAYS, LRC-SS-TITLES). Slides are composed with the layout, options and backdrop (LRC-SS-LAYOUT / OPTIONS / BACKDROP) |
 | LRC-SS-EXPORT | Slideshow export | P2 | ⬜ | | |
 | LRC-PRINT-LAYOUTSTYLE | Print layout styles | P2 | 🟡 | `cmd:dialog.contactSheet`, `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | paginated contact sheets; single-image/custom package layouts missing |
 | LRC-PRINT-IMAGESETTINGS | Print image settings | P2 | ⬜ | | |

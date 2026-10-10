@@ -55,6 +55,7 @@ pub mod presets;
 pub mod rename;
 pub mod segment;
 pub mod sidecar;
+pub mod slide;
 pub mod slideshow;
 pub mod smart;
 pub mod sync;
@@ -274,6 +275,11 @@ pub struct Session {
     pub cache_mb: u32,
     /// Slideshow playback settings (`slideshow.playback`; persisted in prefs.json).
     pub slideshow: slideshow::PlaybackSettings,
+    /// Slideshow slide layout: Layout, Options and Backdrop (`slideshow.layout`; persisted in
+    /// prefs.json).
+    pub slide_layout: slide::SlideSettings,
+    /// The background image the slides last rendered (shared by slide jobs: rendered once).
+    pub slide_backdrop: std::sync::Arc<slide::BackdropCache>,
     /// Where smart previews are kept when not in the library folder (persisted in prefs.json).
     pub smart_previews_dir: Option<std::path::PathBuf>,
     /// Untouched Local records of folders not browsed for this many days are forgotten when the
@@ -357,6 +363,8 @@ impl Session {
             import_defaults: import::ImportDefaults::default(),
             cache_mb: 0,
             slideshow: slideshow::PlaybackSettings::default(),
+            slide_layout: slide::SlideSettings::default(),
+            slide_backdrop: Default::default(),
             smart_previews_dir: None,
             forget_local_days: lightcraft_catalog::DEFAULT_FORGET_DAYS,
         }
@@ -909,6 +917,8 @@ mod tests_process;
 mod tests_segment;
 #[cfg(test)]
 mod tests_settings_files;
+#[cfg(test)]
+mod tests_slide;
 #[cfg(test)]
 mod tests_spots;
 #[cfg(test)]

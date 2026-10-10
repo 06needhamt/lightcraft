@@ -12,8 +12,10 @@
 //! transition until the next slide's texture exists ([`ready`]): the current slide is held
 //! instead of flashing a stand-in. With it off, a slide is rendered when it is due.
 //!
-//! Which picture a slide shows comes from one place, [`slide_job`], so a later slide composer
-//! (layout, overlays, backdrop) replaces that function and the playback stays as it is.
+//! Which picture a slide shows comes from one place, [`slide_job`]: the photo itself with the
+//! plain layout, else the slide composed with the library's layout (`slideshow.layout`: margins,
+//! zoom to fill, stroke, shadow, backdrop) by `lightcraft-slideshow` on the render worker. A
+//! composed slide is a screen-sized texture; the playback (fades, controls) is the same.
 
 use egui::{Align2, Color32, Pos2, Rect, pos2, vec2};
 use lightcraft_catalog::PhotoId;
@@ -167,19 +169,45 @@ pub fn tick(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
 }
 
-/// The render that shows slide `id` in `area` (logical points at `ppp`): the photo as developed,
-/// fitted to the screen. The one place that decides what a slide's picture is.
+/// The render that shows slide `id` in `area` (logical points at `ppp`). The one place that
+/// decides what a slide's picture is:
+/// - with the plain layout (no margins, border, shadow or backdrop: [`SlideSettings::is_plain`])
+///   the photo as developed, fitted to the screen (drawn over black);
+/// - otherwise the slide composed with the library's layout (`slideshow.layout`) at the screen's
+///   pixels: the photo rendered at its image cell's size, then composed on the render worker, so
+///   a slide is ready (and fades) like any other texture.
+///
+/// [`SlideSettings::is_plain`]: lightcraft_engine::slide::SlideSettings::is_plain
 fn slide_job(app: &mut LightcraftApp, id: PhotoId, area: Rect, ppp: f32, texture_side: usize) -> Option<lightcraft_engine::RenderJob> {
     let photo = app.session.catalog.photo(id)?.clone();
     let frame = Frame::with_lens(photo.width.max(1) as usize, photo.height.max(1) as usize, &photo.develop, true, photo.embedded_lens.as_ref());
+    let native = super::detail::output_px(&frame);
+    if !app.session.slide_layout.is_plain() {
+        let (w, h) = slide_px(area, ppp, texture_side);
+        let edge = app.ui.settings.loupe_edge(w.max(h) as f32, native[0].max(native[1]), texture_side);
+        return app.session.slide_job(id, w, h, Some(edge));
+    }
     let aspect = frame.aspect() as f32;
     let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.5 };
     let fit = (area.width() / aspect).min(area.height());
     let drawn_long = fit.max(fit * aspect) * ppp;
-    let native = super::detail::output_px(&frame);
     let edge = app.ui.settings.loupe_edge(drawn_long, native[0].max(native[1]), texture_side);
     let (w, h) = if aspect >= 1.0 { (edge, (edge as f32 / aspect) as usize) } else { ((edge as f32 * aspect) as usize, edge) };
     app.session.loupe_job(id, w.max(8), h.max(8), true)
+}
+
+/// A composed slide's size in pixels: `area` at `ppp`, its long side at most the texture side
+/// (and the composer's limit), at least 16 × 16.
+pub fn slide_px(area: Rect, ppp: f32, texture_side: usize) -> (usize, usize) {
+    let px = |v: f32| if v.is_finite() { (v * ppp).round().max(16.0) as usize } else { 16 };
+    let (w, h) = (px(area.width()), px(area.height()));
+    let cap = texture_side.clamp(16, lightcraft_slideshow::MAX_SIDE);
+    let long = w.max(h);
+    if long <= cap {
+        return (w, h);
+    }
+    let k = cap as f64 / long as f64;
+    (((w as f64 * k).round() as usize).max(16), ((h as f64 * k).round() as usize).max(16))
 }
 
 /// The slides to keep rendered now, most wanted first, with their render priority.

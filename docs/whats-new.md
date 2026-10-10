@@ -2,6 +2,18 @@
 
 ## 2026-10-10
 
+### Slideshow layout, options and backdrop
+- Slides can now be laid out like Lightroom Classic's Slideshow Layout, Options and Backdrop panels: margins (all four
+  linked, or each on its own), Zoom to Fill Frame (crop the photo to fill its cell), a stroke border (colour, width),
+  a cast shadow (opacity, offset, radius, angle), and a backdrop colour with an optional colour wash (a gradient from a
+  second colour, at an angle and opacity) and a background image (a photo from the library, at an opacity).
+- Set them in Settings ▸ Slideshow, which now shows the selected photo as a slide as you change them (with the margin
+  guides, at the screen's aspect or 16:9 / 4:3). Sizes are a share of the slide, so a slide looks the same on any
+  screen. They are saved with the library.
+- View ▸ Slideshow plays the composed slides, prepared ahead off the UI thread like before, so fades and the playback
+  controls work as they did. With the default layout (no margins, border, shadow or backdrop) it plays the photos as
+  before. Agents use `slideshow.layout`, and `slideshow.preview` returns one composed slide as a PNG.
+
 ### Slideshow playback
 - View ▸ Slideshow (⌥⌘↩) now plays with Lightroom Classic's Playback settings: how long each slide stays up, a fade
   between slides (a crossfade, or through black, white or any colour; 0 cuts), random order (every photo once per
