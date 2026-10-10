@@ -861,19 +861,13 @@ fn corpus_fujifilm_compressed_samples() {
     eprintln!("verified {seen} Fujifilm compressed sensor arrays");
 }
 
-/// Checks each available `(name, width, height, sum, weighted)` case against the pinned SHA-256 in `checksums`
-/// and the decoder's sensor array; absent corpus files are skipped. Returns how many were verified.
-fn verify_sensor_arrays(checksums: &str, cases: &[(&str, usize, usize, u64, u64)]) -> usize {
-    use sha2::{Digest, Sha256};
+/// Checks each available `(name, width, height, sum, weighted)` case against the decoder's sensor array (the file's
+/// identity is checked by `cargo xtask corpus --download`); absent corpus files are skipped. Returns how many were verified.
+fn verify_sensor_arrays(cases: &[(&str, usize, usize, u64, u64)]) -> usize {
     let dir = corpus_root().join("raw");
     let mut seen = 0;
     for &(name, width, height, sum, weighted) in cases {
-        let path = format!("corpus/raw/{name}");
-        let checksum = checksums.lines().filter_map(|s| s.split_once("  ")).find(|(_, p)| *p == path).unwrap().0;
-        assert_eq!(checksum.len(), 64, "{name}: missing published SHA-256");
         let Ok(bytes) = std::fs::read(dir.join(name)) else { continue };
-        let actual_sha: String = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(actual_sha, checksum, "{name}: corpus file differs from its pinned identity");
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!((img.width, img.height), (width, height), "{name}");
         let lightcraft_raw::RawData::U16(data) = img.data else { panic!("{name}: float data") };
@@ -900,7 +894,7 @@ fn corpus_sony_arw6_samples() {
         ("arw6-sony-ilce7rm6-ff-port-hq.arw", 10016, 6672, 242772794178, 8043470668590476975),
         ("arw6-sony-ilce7rm6-ff-port-c.arw", 10016, 6672, 241868995482, 8014659803009871380),
     ];
-    let seen = verify_sensor_arrays(include_str!("../../../docs/arw6-corpus.sha256"), cases);
+    let seen = verify_sensor_arrays(cases);
     eprintln!("verified {seen} Sony ARW6 sensor arrays");
 }
 
@@ -914,7 +908,7 @@ fn corpus_sony_ilce7rm6_lossless_samples() {
         ("arw-sony-ilce7rm6-ff-land-lossless.arw", 10240, 7168, 128728791716, 4922490451480041632),
         ("arw-sony-ilce7rm6-ff-port-lossless.arw", 10240, 7168, 120718314835, 4098302368966213583),
     ];
-    let seen = verify_sensor_arrays(include_str!("../../../docs/arw6-corpus.sha256"), cases);
+    let seen = verify_sensor_arrays(cases);
     eprintln!("verified {seen} Sony ILCE-7RM6 lossless sensor arrays");
 }
 
