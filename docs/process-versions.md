@@ -32,7 +32,7 @@ Today there is one process, **V1**: LightCraft's rendering from before process v
    passing: settings saved without the field must stay V1, not become the new latest. That is the
    field's `#[serde(default = "ProcessVersion::legacy")]`; the struct-level `Default` gives new
    settings the latest instead.
-4. Render a few procedural scenes on both processes and compare, and update `docs/parity.md`.
+4. Render a few procedural scenes on both processes and compare, and update `docs/parity-checklist.md`.
 
 ## What gets which process
 

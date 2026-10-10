@@ -1,7 +1,15 @@
-# Lightroom parity tracker
+# Lightroom parity checklist
 
-A living checklist of every Lightroom feature LightCraft aims to match, what we have, and what is missing. Agents and
-humans pick work from **[Top gaps](#top-gaps)**; whoever lands a feature updates its row in the same commit.
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-10 · **Change:** minor (renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+
+The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
+have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
+enough to replace Lightroom is assessed in [target-app-parity.md](target-app-parity.md), and the work
+list is [gaps.md](gaps.md). Whoever lands a feature updates its row in the same commit.
+
+The rows are maintained by hand; the summary block is generated (`cargo xtask parity --write`), and
+`cargo xtask parity` (part of `cargo xtask ci`) checks that every command id, control id and path
+cited here still exists. Formerly docs/parity.md.
 
 - **Ids** come from the (local, gitignored) reference in `plan/lightroom/`: `LR-…` = feature catalog (03),
   `MENU-…` = menu items (04), `KEY-…` / `KEYC-…` = keyboard shortcuts (06, desktop / Classic), `LRC-…` = Classic
@@ -12,9 +20,6 @@ humans pick work from **[Top gaps](#top-gaps)**; whoever lands a feature updates
 - **Evidence**: `cmd:<id>` = command id (engine `command_specs()` or UI `UI_COMMANDS`), `ctl:<id>` = develop control
   id (`lightcraft-cli controls`), plus source files. A trailing `*` matches a prefix (`ctl:mixer.*`).
 - Feature names and notes are our own words. No Adobe text, screenshots or assets belong here.
-
-`cargo xtask parity` checks that every `cmd:`/`ctl:` id and file path below still exists (part of `cargo xtask ci`)
-and prints the summary; `cargo xtask parity --write` refreshes the summary table below.
 
 ## Summary
 
@@ -42,92 +47,21 @@ and prints the summary; `cargo xtask parity --write` refreshes the summary table
 | S. Export (EXP) | 15 | 2 | 1 | 0 | 7/7 (100%) | 7/7 (100%) |
 | T. Share (SHARE) | 0 | 0 | 0 | 4 | — | — |
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
-| V. Preferences (PREF) | 7 | 1 | 2 | 2 | 1/1 (100%) | 5/5 (100%) |
+| V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
 | X. Cross-cutting behaviours (BEHAV) | 18 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
 | Y. Menus | 82 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 75 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 32 | 11 | 39 | 9 | — | 22/24 (92%) |
-| **Total** | 393 | 39 | 84 | 36 | 192/200 (96%) | 142/152 (93%) |
+| Lightroom Classic extras | 33 | 15 | 35 | 9 | — | 23/25 (92%) |
+| **Total** | 397 | 49 | 73 | 36 | 192/200 (96%) | 143/155 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **79.9%** of 516 in-scope rows — P0 98.0% of 200 · P1 95.7% of 152 · P2 42.9% of 163.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.2%** of 519 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 47.2% of 163.
 <!-- /parity:summary -->
 
-## Top gaps
+## Top gaps and shortcut notes
 
-Ordered by user impact, then tier, then effort. The checklist above counts features that *exist*; these are the gaps
-that decide whether a photographer can switch (see the honest assessment in [ROADMAP.md](../ROADMAP.md#where-we-stand)).
-Take the first one nobody is working on.
-
-1. **LR-PROF-CAMERACOLOR** (P0): our own camera colour calibration. Sony ARW, Nikon NEF and Panasonic RW2 now get a guarded file-local fit to their own embedded JPEG (colour matrix + hue/saturation/value table + tone and chroma curves, relative WB; per-model profiles pooled from many photos via `lightcraft-cli calibrate` for ARW and NEF; ARW: 7 of 10 public samples accepted, mean ΔE vs the camera JPEG 17–26 → 3–10; NEF: 13 of 13 decodable samples from 6 bodies accepted, ΔE 13–46 → 3–8, one mixed-light scene 13 → 12; RW2: 140 of 174 public samples accepted, from 93 of the 114 bodies with a preview, median ΔE 5.0); Nikon CropArea and untagged-preview ColorSpace metadata are respected; measured calibration and fidelity remain missing. Other non-DNG raws and rejected fits still use a neutral matrix. Expand validated preview fitting and use matrices the files carry themselves; never Adobe data.
-2. **LR-IMP-FORMATS** (P0): **CR3** first (every Canon body since ~2018), then compressed RAF / ORF, Nikon
-1. **LR-PROF-CAMERACOLOR** (P0): our own camera colour calibration. Sony ARW, Nikon NEF, Panasonic RW2 and Fujifilm RAF now get a guarded file-local fit to their own embedded JPEG (colour matrix + hue/saturation/value table + tone and chroma curves, relative WB; per-model profiles pooled from many photos via `lightcraft-cli calibrate` for ARW, NEF and RAF; ARW: 7 of 10 public samples accepted, mean ΔE vs the camera JPEG 17–26 → 3–10; NEF: 13 of 13 decodable samples from 6 bodies accepted, ΔE 13–46 → 3–8, one mixed-light scene 13 → 12; RW2: 140 of 174 public samples accepted, from 93 of the 114 bodies with a preview, median ΔE 5.0; RAF: 23 of 24 references accepted with bundled X-H2S/X-T4 profiles; 150 withheld-file tests improve mean ΔE slightly over per-file fitting); measured calibration and fidelity remain missing. Other non-DNG raws and rejected fits still use a neutral matrix. Expand validated preview fitting and use matrices the files carry themselves; never Adobe data.
-2. **LR-IMP-FORMATS** (P0): **CR3** first (every Canon body since ~2018), then compressed ORF, Nikon
-1. **LR-PROF-CAMERACOLOR** (P0): our own camera colour calibration. Sony ARW, Nikon NEF and Panasonic RW2 now get a guarded file-local fit to their own embedded JPEG (colour matrix + hue/saturation/value table + tone and chroma curves, relative WB; per-model profiles pooled from many photos via `lightcraft-cli calibrate` for ARW and NEF; ARW: 7 of 10 public samples accepted, mean ΔE vs the camera JPEG 17–26 → 3–10; NEF: 13 of 13 decodable samples from 6 bodies accepted, ΔE 13–46 → 3–8, one mixed-light scene 13 → 12; RW2: 140 of 174 public samples accepted, from 93 of the 114 bodies with a preview, median ΔE 5.0); measured calibration and fidelity remain missing. Other non-DNG raws and rejected fits still use a neutral matrix. Expand validated preview fitting and use matrices the files carry themselves; never Adobe data.
-2. **LR-IMP-FORMATS** (P0): CR3 lossless Bayer and version 0x100/0x200 C-RAW now decodes (M50/R100/R8 full sensor exact). Remaining unverified CRX variants, compressed RAF / ORF, Nikon
-   Canon sRAW; AVIF decode (HEIC decodes behind the codecs' non-default `heif` feature:
-   the optional `lightcraft-heif` crate on heic-rs, the same decoder and policy as PhotoCraft). Clean-room, from prose descriptions only (see
-   `crates/raw/src/vendor/nefc.rs` for how compressed NEF was done). Until decoded, such photos are `preview_only`.
-3. **LR-IMP-CAMERA-COVERAGE** (P0): per-model verification; grow the CC0 corpus and fix per-model bugs (like the CR2
-   colour-filter layout, fixed in #85 by reading the file's own tag).
-4. **LR-BEHAV-RENDER-FIDELITY** (P1): a side-by-side fidelity suite against Lightroom renders (kept local in `plan/`),
-   then tune tone, highlights, texture/clarity/dehaze, NR and sharpening against it. A retune that changes how existing
-   settings render ships as a new process version, so existing edits keep their look (`docs/process-versions.md`).
-4b. **LR-VIEW-ZOOM** (P0): finish the sharp zoomed views of issue #323: windows for compare, overlays and soft proofing
-   (Before/After has them); check sharpness and the wide-stage margin on real raw photos (only synthetic scenes so far).
-5. **LR-EDIT-OPTICS-PROFILE** (P1): a lens-profile database of our own (corrections embedded in DNG files and the
-   distortion correction Panasonic / Leica cameras record in RW2 / RWL files work today; issue #256). Sony ILCE-7RM4A Bayer
-   ARW 16-sample tables in native 3:2 framing now feed the same distortion path; broader coverage and Sony
-   vignetting / lateral CA remain (see `docs/sony-lens-corrections.md`).
-6. **AI masks and Enhance** (LR-MASK-SUBJECT / SKY / PEOPLE / OBJECTS, LR-EDIT-DETAIL-DENOISE, SUPERRES, LENSBLUR):
-   Object and Describe masks run SAM 3 in pure Rust (`crates/segment`); the weights (SAM License) are never bundled:
-   the app offers a consented, verified download, but **LightCraft's CDN mirrors are not configured yet** (the
-   built-in list is empty, so today users need their own mirror or a manual install). Subject / Sky / People could
-   use the same model with fixed prompts; denoise / super-resolution models remain a maintainer decision.
-7. **HDR** (Q. HDR, LR-EXP-HDR), **video** (R. Video), **Classic output modules** (Map view, Book, Slideshow module,
-   Print, publish): large, well understood, lower priority than 1–5. Contact-sheet PDF export now covers a
-   basic Print workflow; custom picture packages, printer integration and print colour management remain open.
-8. **LR-VIEW-ZOOM** (P0): pinch zoom and two-finger pan now work, with stable image cursors between gesture events.
-   The whole-image preview is still capped by
-   Settings → Performance → Preview size (2,560 px by default). Render visible regions at native resolution so
-   100% can reliably show original-pixel detail on larger photos.
-
-Recognition runtime gap closed (LR-PREF-PEOPLE): the pinned SFace and AuraFace models now run on the shared pure-Rust
-CPU engine and agree with an independent reference runtime on public crops. Live-face threshold calibration, small-face
-coverage and separated clusters remain open; see [faces.md](faces.md).
-
-## Shortcuts: conflicts and missing bindings
-
-Compared `plan/lightroom/06-shortcuts.md` (desktop part) with our bindings: command specs in `crates/engine/src/cmd/`,
-`UI_COMMANDS` in `crates/ui-egui/src/menus.rs` and secondary bindings (`ALIASES`) in `crates/ui-egui/src/shortcuts.rs`.
-`no_conflicting_bindings` (same file) fails when one key fires two actions.
-
-**Fixed (M16.1):** added Lightroom-desktop keys as secondary bindings for existing commands — ⌘D Select None, ⇧E
-Export dialog, Space Toggle zoom, ⇧M Create Version, ⇧X Reject + advance, ⇧U Unflag + advance. `⇧Y` fired both
-Before/After Split and the History panel; History lost the binding. `W` and `⇧⌘I` also fired the engine command
-under the UI command that wraps it (a no-op error); the UI command now wins.
-
-**Deliberate differences (our key → Lightroom desktop key)** — each is a conflict with another binding we have:
-
-| Action | Ours | Lightroom desktop | Why |
-|---|---|---|---|
-| Pick flag | P | Z | Z = toggle zoom (Classic convention); P is the Classic pick key |
-| Photos panel (left) | ⌘⇧L | P | P = pick |
-| Expand/collapse edit sections | ⌘⌥1–5 | ⌘1–6 | ⌘0 = Zoom to Fit, ⌘1 = Zoom 100 %; Geometry lives in the Crop panel |
-| Histogram | ⌘⇧H | ⌘0 | ⌘0 = Zoom to Fit |
-| Square Grid | ⇧G | (none; ⇧G = Guided Upright) | Guided Upright is a button in the Crop panel |
-| Export dialog | ⌘⇧E (+ ⇧E) | ⇧E | ⌘⇧E is "Edit in Photoshop" there; no external-editor command yet |
-| Crop overlay cycle | ⇧O | O | O = mask overlay; ⇧O (mask colour / overlay orientation) unused otherwise |
-| Create Version | ⌘⇧S (+ ⇧M) | ⇧M (Windows: Ctrl+⇧S) | — |
-| Select None | ⌘⇧A (+ ⌘D) | ⌘D | — |
-
-**Library culling (KEYC-RATING):** `0–5`, `6–9` and `P/X/U` reach egui on macOS even when displayed in the native menu (adapted from PR #261; issue #283). `Shift+0–9` applies and advances once; `Shift+P` picks and advances in Photo Grid / Square Grid and retains Presets elsewhere. See [library shortcuts](library-shortcuts.md) for the verified Classic mapping and regression coverage. Remaining Classic gaps: rating `[` / `]`, flag cycling and filter-bar keys.
-
-**Still missing / broken:**
-- No command yet: F1 help (verify the rest of the old list: full screen, settings, stacks,
-  visualize spots and merges have commands now).
-- `H` opens Remove; Lightroom also uses it (Classic) to hide pins — pins toggle from View → Show Mask Pins.
-- ⌘M / ⌘H / ⌘Q / ⌘W rely on the platform window defaults (unverified).
+Moved on 2026-10-10: the ranked gaps are in [gaps.md](gaps.md); shortcut conflicts, deliberate
+differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 <!-- Sections below hold one row per id. Keep the column order: Id | Feature | Tier | Status | Evidence | Notes. -->
 
@@ -644,7 +578,7 @@ visible menu bar yet: the menu model is only exposed through the control channel
 ## Z. Keyboard shortcuts (desktop)
 
 From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained in
-[Shortcuts: conflicts and missing bindings](#shortcuts-conflicts-and-missing-bindings).
+[UI parity → Shortcuts](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
@@ -837,3 +771,10 @@ dialog offers Horizontal/Vertical and multiline text. Japanese glyphs fall back 
 Mincho faces (BIZ UDMincho; on the web build, BIZ UDPGothic) when built with `CRAFT_FONTS_DIR`. Vertical lettering uses upright em cells and right-to-left newline columns;
 Latin stays upright. Advanced Japanese composition remains open. Regression coverage:
 `export::tests::japanese_watermarks_support_vertical_columns`, `japanese_watermark_options_and_legacy_defaults`, `watermarks_work_without_craft_fonts`.
+
+## Revision history
+
+| Date | Change | Summary |
+|---|---|---|
+| 2026-10-10 | minor | Renamed from `parity.md` (progress-docs standard); Top gaps moved to gaps.md (its duplicated items 1–2 from a bad merge resolved there), shortcut notes moved to ui-parity.md. Rows unchanged; a recount of the rows gives 81.1% of 517 in-scope rows (P0 98.0%, P1 95.1%, P2 46.9%), so the generated summary above is due a `cargo xtask parity --write` |
+| 2026-09-30 – 2026-10-10 | — | Rows added and updated with each feature (see `git log -- docs/parity.md docs/parity-checklist.md`) |
