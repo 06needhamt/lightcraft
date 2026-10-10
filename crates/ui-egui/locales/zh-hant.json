@@ -1884,5 +1884,6 @@
   "Downloading model": "正在下載模型",
   "Finding faces": "正在尋找臉孔",
   "Synchronizing folder": "正在同步資料夾",
-  "Looking for changes": "正在尋找變更"
+  "Looking for changes": "正在尋找變更",
+  "Content-Aware": "內容感知"
 }
