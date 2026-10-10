@@ -153,9 +153,6 @@ pub(crate) fn pan_image(app: &mut LightcraftApp, area: Rect, img: Rect, delta: e
     let _ = app.run("view.navigate", json!({"pan": pan}));
 }
 
-/// Zoom factor of one mouse-wheel notch.
-const WHEEL_ZOOM_STEP: f32 = 1.15;
-
 /// Net vertical notches (up is positive) of unmodified line/page-unit wheel events: a real mouse wheel, not a trackpad.
 fn wheel_notches(events: &[egui::Event]) -> f32 {
     events
@@ -178,11 +175,21 @@ pub(crate) fn navigate_gesture(app: &mut LightcraftApp, ui: &mut egui::Ui, resp:
     }
     let (mut factor, mut delta, anchor) =
         ui.input(|i| (i.zoom_delta(), i.translation_delta(), i.multi_touch().map(|t| t.center_pos).or(i.pointer.hover_pos())));
-    // A notched mouse wheel (line/page units, no modifier) zooms around the pointer; trackpads report points and still pan.
-    let notches = ui.input(|i| wheel_notches(&i.events));
-    if notches != 0.0 {
-        factor *= WHEEL_ZOOM_STEP.powf(notches);
-        delta = egui::Vec2::ZERO;
+    // A notched mouse wheel (line/page units, no modifier) zooms around the pointer, through egui's smoothed wheel
+    // delta like Ctrl+wheel (so it glides instead of jumping); trackpads report points and still pan.
+    let wheel_id = egui::Id::new("loupe-wheel-zoom");
+    if ui.input(|i| wheel_notches(&i.events)) != 0.0 {
+        ui.data_mut(|d| d.insert_temp(wheel_id, true));
+    }
+    if ui.data(|d| d.get_temp::<bool>(wheel_id)).unwrap_or(false) {
+        let smooth = ui.input(|i| i.smooth_scroll_delta.y);
+        let speed = ui.ctx().options(|o| o.input_options.scroll_zoom_speed);
+        if smooth == 0.0 {
+            ui.data_mut(|d| d.remove_temp::<bool>(wheel_id));
+        } else {
+            factor *= (speed * smooth).exp();
+            delta = egui::Vec2::ZERO;
+        }
     }
     if !factor.is_finite() || factor <= 0.0 || !delta.is_finite() || (factor == 1.0 && delta == egui::Vec2::ZERO) {
         return false;
