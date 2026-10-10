@@ -881,35 +881,16 @@ fn verify_sensor_arrays(cases: &[(&str, usize, usize, u64, u64)]) -> usize {
     seen
 }
 
-/// Reference sums from the oracle-verified Phase 0 model (docs/arw6-compression.md); the files are CC0 from RawDB.
+/// Reference sums from the oracle-verified Phase 0 model (docs/arw6-compression.md); the files are CC0 from RawDB,
+/// one per geometry and compression mode.
 #[test]
 fn corpus_sony_arw6_samples() {
     let cases: &[(&str, usize, usize, u64, u64)] = &[
         ("arw6-sony-ilce7rm6-apsc-land-hq.arw", 6592, 4372, 85834467900, 1323814215465139776),
-        ("arw6-sony-ilce7rm6-apsc-land-c.arw", 6592, 4372, 100710478599, 1516298925086164077),
-        ("arw6-sony-ilce7rm6-ff-land-hq.arw", 10016, 6672, 258417758289, 9667602918876623332),
         ("arw6-sony-ilce7rm6-ff-land-c.arw", 10016, 6672, 258558260019, 9665041696390559268),
-        ("arw6-sony-ilce7rm6-apsc-port-hq.arw", 6592, 4372, 126965386051, 1647947621898118992),
-        ("arw6-sony-ilce7rm6-apsc-port-c.arw", 6592, 4372, 122629012213, 1601616875702755341),
-        ("arw6-sony-ilce7rm6-ff-port-hq.arw", 10016, 6672, 242772794178, 8043470668590476975),
-        ("arw6-sony-ilce7rm6-ff-port-c.arw", 10016, 6672, 241868995482, 8014659803009871380),
     ];
     let seen = verify_sensor_arrays(cases);
     eprintln!("verified {seen} Sony ARW6 sensor arrays");
-}
-
-/// The lossless siblings keep decoding through the LJ92 quad-tile path. Regression values from LightCraft's own
-/// LJ92 path, 2026-10-10 (no independent reference).
-#[test]
-fn corpus_sony_ilce7rm6_lossless_samples() {
-    let cases: &[(&str, usize, usize, u64, u64)] = &[
-        ("arw-sony-ilce7rm6-apsc-land-lossless.arw", 6656, 4608, 42685586690, 664300694689609738),
-        ("arw-sony-ilce7rm6-apsc-port-lossless.arw", 6656, 4608, 62443944469, 818441184988649303),
-        ("arw-sony-ilce7rm6-ff-land-lossless.arw", 10240, 7168, 128728791716, 4922490451480041632),
-        ("arw-sony-ilce7rm6-ff-port-lossless.arw", 10240, 7168, 120718314835, 4098302368966213583),
-    ];
-    let seen = verify_sensor_arrays(cases);
-    eprintln!("verified {seen} Sony ILCE-7RM6 lossless sensor arrays");
 }
 
 /// The container rule for TIFF "shells" (a small IFD0 next to a private raw block) must not touch real

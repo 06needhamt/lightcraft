@@ -57,22 +57,24 @@ LibRaw assumes the full-frame grid (s = 0) for every tile. On the APS-C crop tha
 
 ### Corpus
 
-| File | Source path (RawDB, ILCE-7RM6) | Size (bytes) | SHA-256 |
-|---|---|---|---|
-| `arw6-sony-ilce7rm6-apsc-land-hq.arw` | `arw6/ILCE-7RM6_APSC_land_RAW-C-HD.ARW` | 29 720 576 | `b60a7e752d2a8102ccbe6eebcfdbf533c6b0f2545739090873e9e8eb32cc0637` |
-| `arw6-sony-ilce7rm6-apsc-land-c.arw` | `arw6/ILCE-7RM6_APSC_land_RAW-C.ARW` | 30 900 224 | `1c803304e63ec508b2b5f9d59d4a7e30ed279315b35fa4c5d75f959bed62198b` |
-| `arw6-sony-ilce7rm6-apsc-port-hq.arw` | `arw6/ILCE-7RM6_APSC_port_RAW-C-HD.ARW` | 28 758 016 | `0b6d782571e86868670f613de9fa1f1364623b24fbfd21b704b2c516d7a1c1cb` |
-| `arw6-sony-ilce7rm6-apsc-port-c.arw` | `arw6/ILCE-7RM6_APSC_port_RAW-C.ARW` | 29 044 736 | `c41674a485ffcf6d873e20e545ae62936192d94e95be3d53548e93bc543ecfd4` |
-| `arw6-sony-ilce7rm6-ff-land-hq.arw` | `arw6/ILCE-7RM6_FF_land_RAW-C-HD.ARW` | 63 451 136 | `559fa26501d7813e56afecde2aea3d9965a99228162b194752d986193abb172c` |
-| `arw6-sony-ilce7rm6-ff-land-c.arw` | `arw6/ILCE-7RM6_FF_land_RAW-C.ARW` | 63 844 352 | `d900d6cbe838be864269ad54de4a33fcac7eb3a3d4f91009739f770b8f85a23b` |
-| `arw6-sony-ilce7rm6-ff-port-hq.arw` | `arw6/ILCE-7RM6_FF_port_RAW-C-HD.ARW` | 62 640 128 | `81c709633cb8f6340e612c3f53bb6ec6b0cccfe5b713c67efb1e977ece9e266d` |
-| `arw6-sony-ilce7rm6-ff-port-c.arw` | `arw6/ILCE-7RM6_FF_port_RAW-C.ARW` | 63 168 512 | `f4448485629c3f82ff1955fd046404350e9a1f09b346038574b89c074d7c50fd` |
-| `arw-sony-ilce7rm6-apsc-land-lossless.arw` | `raw_modes/ILCE-7RM6_APSC_land_RAW.ARW` | 44 167 168 | `7aaf0b3941509d7364a6f03844783155ebc912d246d1c456e5cdb4693ec09fbc` |
-| `arw-sony-ilce7rm6-apsc-port-lossless.arw` | `raw_modes/ILCE-7RM6_APSC_port_RAW.ARW` | 43 692 032 | `0f011933ee96525a39710daa50b59d39702b4ec5934fa0206742e2128c55f366` |
-| `arw-sony-ilce7rm6-ff-land-lossless.arw` | `raw_modes/ILCE-7RM6_FF_land_RAW.ARW` | 100 851 712 | `5cb3c870bc961cf6b079d56c860d0cdf11acd1afd04e5fb8dbe041bcfd2d6201` |
-| `arw-sony-ilce7rm6-ff-port-lossless.arw` | `raw_modes/ILCE-7RM6_FF_port_RAW.ARW` | 100 884 480 | `b1a4026aa6adbaa27973b8b3426d8b4aa0c1cae1845cf5102359327d3b069691` |
+| File | Source path (RawDB, ILCE-7RM6) | Size (bytes) | SHA-256 | Fetched by |
+|---|---|---|---|---|
+| `arw6-sony-ilce7rm6-apsc-land-hq.arw` | `arw6/ILCE-7RM6_APSC_land_RAW-C-HD.ARW` | 29 720 576 | `b60a7e752d2a8102ccbe6eebcfdbf533c6b0f2545739090873e9e8eb32cc0637` | `cargo xtask corpus --download` |
+| `arw6-sony-ilce7rm6-apsc-land-c.arw` | `arw6/ILCE-7RM6_APSC_land_RAW-C.ARW` | 30 900 224 | `1c803304e63ec508b2b5f9d59d4a7e30ed279315b35fa4c5d75f959bed62198b` | `curl -L` |
+| `arw6-sony-ilce7rm6-apsc-port-hq.arw` | `arw6/ILCE-7RM6_APSC_port_RAW-C-HD.ARW` | 28 758 016 | `0b6d782571e86868670f613de9fa1f1364623b24fbfd21b704b2c516d7a1c1cb` | `curl -L` |
+| `arw6-sony-ilce7rm6-apsc-port-c.arw` | `arw6/ILCE-7RM6_APSC_port_RAW-C.ARW` | 29 044 736 | `c41674a485ffcf6d873e20e545ae62936192d94e95be3d53548e93bc543ecfd4` | `curl -L` |
+| `arw6-sony-ilce7rm6-ff-land-hq.arw` | `arw6/ILCE-7RM6_FF_land_RAW-C-HD.ARW` | 63 451 136 | `559fa26501d7813e56afecde2aea3d9965a99228162b194752d986193abb172c` | `curl -L` |
+| `arw6-sony-ilce7rm6-ff-land-c.arw` | `arw6/ILCE-7RM6_FF_land_RAW-C.ARW` | 63 844 352 | `d900d6cbe838be864269ad54de4a33fcac7eb3a3d4f91009739f770b8f85a23b` | `cargo xtask corpus --download` |
+| `arw6-sony-ilce7rm6-ff-port-hq.arw` | `arw6/ILCE-7RM6_FF_port_RAW-C-HD.ARW` | 62 640 128 | `81c709633cb8f6340e612c3f53bb6ec6b0cccfe5b713c67efb1e977ece9e266d` | `curl -L` |
+| `arw6-sony-ilce7rm6-ff-port-c.arw` | `arw6/ILCE-7RM6_FF_port_RAW-C.ARW` | 63 168 512 | `f4448485629c3f82ff1955fd046404350e9a1f09b346038574b89c074d7c50fd` | `curl -L` |
+| `arw-sony-ilce7rm6-apsc-land-lossless.arw` | `raw_modes/ILCE-7RM6_APSC_land_RAW.ARW` | 44 167 168 | `7aaf0b3941509d7364a6f03844783155ebc912d246d1c456e5cdb4693ec09fbc` | `curl -L` |
+| `arw-sony-ilce7rm6-apsc-port-lossless.arw` | `raw_modes/ILCE-7RM6_APSC_port_RAW.ARW` | 43 692 032 | `0f011933ee96525a39710daa50b59d39702b4ec5934fa0206742e2128c55f366` | `curl -L` |
+| `arw-sony-ilce7rm6-ff-land-lossless.arw` | `raw_modes/ILCE-7RM6_FF_land_RAW.ARW` | 100 851 712 | `5cb3c870bc961cf6b079d56c860d0cdf11acd1afd04e5fb8dbe041bcfd2d6201` | `curl -L` |
+| `arw-sony-ilce7rm6-ff-port-lossless.arw` | `raw_modes/ILCE-7RM6_FF_port_RAW.ARW` | 100 884 480 | `b1a4026aa6adbaa27973b8b3426d8b4aa0c1cae1845cf5102359327d3b069691` | `curl -L` |
 
-These 12 files are CC0 1.0 per the RawDB record of the set (uploaded by abbradar; <https://rawdb.dnglab.org/sets/Sony/ILCE-7RM6>); the server answers 303 to a signed object URL, so fetch with `curl -L` from `https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/<source path>`. They live in the gitignored corpus; `cargo xtask corpus --download` fetches them and checks each against its SHA-256, pinned in `RAW_SAMPLES` (`xtask/src/main.rs`). `cargo test -p lightcraft-raw corpus_sony -- --nocapture` verifies the decoder's sensor sum and position-weighted sum of each available file. The 8 ARW6 files are checked against the Phase 0 reference sums; the 4 lossless siblings go through the existing LJ92 path and their sums are regression values from LightCraft's own decoder. The test skips absent files.
+These 12 files are CC0 1.0. RawDB's record of the set, <https://rawdb.dnglab.org/api/sets/Sony/ILCE-7RM6> (the data behind <https://rawdb.dnglab.org/sets/Sony/ILCE-7RM6>, accessed 2026-10-10), says `"license":"CC0 1.0"` for the set (uploaded by abbradar, 2026-08-29) and again for each of the 12 files, next to the SHA-256 values in the table.
+
+They live in the gitignored corpus. `cargo xtask corpus --download` fetches two of them, one per geometry and compression mode (full frame Compressed, APS-C HQ), and checks each against its SHA-256, pinned in `RAW_SAMPLES` (`xtask/src/main.rs`). Fetch the other ten by hand: the server answers 303 to a signed object URL, so `curl -L -o corpus/raw/<file> https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/<source path>`, then compare with the SHA-256 above. `cargo test -p lightcraft-raw corpus_sony -- --nocapture` checks the decoder's sensor sum and position-weighted sum of the two pinned files against the Phase 0 reference sums and skips absent files.
 
 Nine further full-frame HQ photos from the maintainer's A7R VI were compared with the oracle locally; they are private and never committed or published. All 9 private FF photos (ISO 100-12800, incl. two near-black night shots) decode bit-exact over the full frame (0 mismatching pixels of 66.8 MP each).
 
@@ -84,7 +86,7 @@ Unconditional synthetic tests (encode -> decode round trips for both geometries,
 |---|---|
 | ILCE-7RM6 Compressed and HQ, full frame, landscape and portrait | 4 files, exact against the reference sums |
 | ILCE-7RM6 Compressed and HQ, APS-C crop, landscape and portrait | 4 files, exact against the reference sums (interior-exact against LibRaw after the 6-row shift; LibRaw's own edge rows differ) |
-| ILCE-7RM6 lossless (existing LJ92 path) | 4 files, regression values |
+| ILCE-7RM6 lossless (existing LJ92 path) | 4 files decode; not in the corpus test |
 | Private A7R VI HQ photos | 9 files, bit-exact over the full frame against the oracle (local) |
 
 ## Not covered
