@@ -47,6 +47,8 @@ mod tests_curve;
 #[cfg(test)]
 mod tests_date_picker;
 #[cfg(test)]
+mod tests_dialogs;
+#[cfg(test)]
 mod tests_filmstrip;
 #[cfg(test)]
 mod tests_grid;
@@ -1013,6 +1015,7 @@ impl LightcraftApp {
             ctx.request_repaint();
             return;
         }
+        panels::dialogs::prepare(self, ui);
         let t0 = now_ms();
         if std::mem::take(&mut self.ui.quit) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
