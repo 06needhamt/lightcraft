@@ -881,13 +881,14 @@ fn verify_sensor_arrays(cases: &[(&str, usize, usize, u64, u64)]) -> usize {
     seen
 }
 
-/// Reference sums from the oracle-verified Phase 0 model (docs/arw6-compression.md); the files are CC0 from RawDB,
-/// one per geometry and compression mode.
+/// Regression values from LightCraft's decoder with the derived companding curve; the 12-bit codes before the curve
+/// were verified against the black-box oracle in Phase 0 (docs/arw6-compression.md). The files are CC0 from RawDB, one
+/// per geometry and compression mode.
 #[test]
 fn corpus_sony_arw6_samples() {
     let cases: &[(&str, usize, usize, u64, u64)] = &[
-        ("arw6-sony-ilce7rm6-apsc-land-hq.arw", 6592, 4372, 85834467900, 1323814215465139776),
-        ("arw6-sony-ilce7rm6-ff-land-c.arw", 10016, 6672, 258558260019, 9665041696390559268),
+        ("arw6-sony-ilce7rm6-apsc-land-hq.arw", 6592, 4372, 85546367117, 1319631546150087499),
+        ("arw6-sony-ilce7rm6-ff-land-c.arw", 10016, 6672, 257718215153, 9636375794063042132),
     ];
     let seen = verify_sensor_arrays(cases);
     eprintln!("verified {seen} Sony ARW6 sensor arrays");

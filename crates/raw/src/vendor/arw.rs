@@ -658,7 +658,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         _ => BlackLevel::uniform((scale_bits >= 14).then(|| sr2().and_then(sr2_black)).flatten().unwrap_or(default_black)),
     };
     // ARW6 samples are in 2 x 14-bit units, so the file's 14-bit levels double; without the tag the white is the
-    // companding table's knot, 2 x 16383
+    // 14-bit white in those units, 2 x 16383
     let unit = if info.compression == 32766 { 2.0 } else { 1.0 };
     let white = if linear_rgb {
         YCBCR_WHITE + YCBCR_OFFSET

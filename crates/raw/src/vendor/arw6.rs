@@ -6,7 +6,7 @@
 //! names in italics below refer to it. No other raw decoder's source was consulted.
 
 use crate::llvc::{Bands3, Plane, band_rows, dequant, reconstruct3, vld_decode_line};
-use crate::vendor::arw6_curve::{ARW6_CURVE, CURVE_KNEE};
+use crate::vendor::arw6_curve::curve;
 use crate::vendor::pef::Bits;
 use crate::{RawError, Result};
 use rayon::prelude::*;
@@ -456,15 +456,6 @@ pub(crate) fn decode_tile_planes(tile: &[u8], tw: usize, th: usize) -> Result<Ti
     Ok(TilePlanes { m, c1, c2, res })
 }
 
-/// Companding curve: 12-bit code to output value (2 x 14-bit units).
-pub(crate) fn curve(code12: i32) -> u16 {
-    let c = code12.clamp(0, 4095) as usize;
-    match c.checked_sub(CURVE_KNEE) {
-        None => c as u16,
-        Some(i) => ARW6_CURVE.get(i).copied().unwrap_or(39002),
-    }
-}
-
 /// Colour reconstruction (*Colour reconstruction*, checked against Phase 0 oracle output): the planes give a
 /// `(2 W2) x (2 H2)` mosaic with R at (0,0), G1 (0,1), G2 (1,0), B (1,1) of every 2x2 cell, each value passed through
 /// [`curve`]. G1 comes from the green mean minus a residual average, G2 is predicted from the (unclipped) G1 plus the
@@ -829,17 +820,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn curve_anchors() {
-        assert_eq!(ARW6_CURVE.len(), 2668);
-        for (c, v) in [(0, 0), (1427, 1427), (1428, 1429), (1436, 1438), (2048, 2469), (3000, 8010), (4094, 38944), (4095, 39002)] {
-            assert_eq!(curve(c), v, "code {c}");
-        }
-        assert_eq!(curve(-5), 0);
-        assert_eq!(curve(5000), 39002);
-        assert!(ARW6_CURVE.windows(2).all(|w| w[0] < w[1]));
-    }
-
     fn plane(w: usize, v: &[i32]) -> Plane {
         Plane { width: w, height: v.len() / w, data: v.to_vec() }
     }
@@ -874,7 +854,7 @@ mod tests {
         let mut p = example();
         p.m.data[1] = 4100;
         let out = colour(&p).unwrap();
-        assert_eq!(out[3], 39002); // G1 = 4101 -> clipped output
+        assert_eq!(out[3], curve(4095)); // G1 = 4101 -> clipped output
         assert_eq!(out[6 + 2], curve(2554)); // G2 predicted from the unclipped G1
         assert_eq!(out[2], curve(3304)); // R = 2*(-10) + ((4095 + 2554) >> 1): chroma uses the clipped greens
     }
@@ -942,7 +922,7 @@ mod tests {
                     for x in 0..w2 {
                         let at = |dy: usize, dx: usize| out[(2 * j + dy) * 64 + 2 * x + dx];
                         assert_eq!(at(0, 0), at(1, 1), "R == B at ({x},{j})");
-                        assert!(at(0, 0) < 39002);
+                        assert!(at(0, 0) < curve(4095));
                     }
                 }
             }
