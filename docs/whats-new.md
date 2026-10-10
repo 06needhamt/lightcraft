@@ -103,16 +103,16 @@
   magnified preview isn't taken for the photo when checking focus at 1:1.
 
 ### Lens corrections
-- Sony A7R VI (ILCE-7RM6) raws are corrected for lens distortion and lateral chromatic aberration from the tables the
-  camera records in each file, under Optics ▸ Enable Lens Corrections, on by default for newly imported photos. On 33
-  photos shot with the camera's correction on (24–70 mm, 100 mm macro, 200–600 mm) the render lines up with the
-  camera's JPEG within 0.68 px at 1440 px at the corners, where it was up to 17 px off before. The camera's vignetting
-  table is read but not applied: its own JPEGs don't apply it either. This reaches lossless ARWs now; Compressed and
-  Compressed HQ ARWs (ARW 6.0) get it once their decoder (#625) lands, and until then open from their embedded JPEG.
-  The A7R IVA (ILCE-7RM4A) has its own distortion correction, checked against Sony's exports; other Sony bodies record
-  the same tables, but they stay uncorrected until they are checked the same way. Photos imported earlier get the
-  correction with Photo ▸ Reload from Disk (when still at their import settings). See
-  `docs/sony-ilce7rm6-lens-corrections.md`.
+- Sony A7R VI (ILCE-7RM6) raws are corrected for lens distortion from the table the camera records in each file,
+  under Optics ▸ Enable Lens Corrections, on by default for newly imported photos. On 33 photos shot with the camera's
+  correction on (24–70 mm, 100 mm macro, 200–600 mm) the render lines up with the camera's JPEG within 0.68 px at
+  1440 px at the corners, where it was up to 17 px off before. The camera's lateral chromatic aberration table is read
+  too, but not applied by default: our demosaic already hides most of that colour fringing, and the table on top made
+  it slightly worse. The vignetting table is read but not applied: the camera's own JPEGs don't apply it either. This
+  covers lossless, Compressed and Compressed HQ (ARW 6.0) ARWs alike. The A7R IVA (ILCE-7RM4A) has its own distortion
+  correction, checked against Sony's exports; other Sony bodies record the same tables, but they stay uncorrected until
+  they are checked the same way. Photos imported earlier get the correction with Photo ▸ Reload from Disk (when still
+  at their import settings). See `docs/sony-ilce7rm6-lens-corrections.md`.
 
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI

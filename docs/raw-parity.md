@@ -220,7 +220,7 @@ essentials user (the default look is what they keep).
 | Item | Adobe | LightCraft |
 |---|---|---|
 | Profile database | 3,635 profile files, 56 makers, auto-selected | **0** (Adobe LCPs never used; no database of our own) |
-| In-file corrections | ✅ | DNG opcodes (WarpRectilinear, FixVignetteRadial, GainMap…) applied; Panasonic / Leica RW2 distortion (79 photos, 13 bodies, 11 lenses); Sony tag 0x7037 distortion for the ILCE-7RM4A (2 lenses, checked against Sony's exports) and the ILCE-7RM6 (three lenses, a fourth, the 16–35 mm, only as a control with correction off; checked against the camera JPEG), with different conventions ([sony-ilce7rm6-lens-corrections.md](sony-ilce7rm6-lens-corrections.md#two-conventions)); the ILCE-7RM6's raw-IFD lateral CA table too (provisional unit, applied after demosaic), not its raw-IFD vignetting table |
+| In-file corrections | ✅ | DNG opcodes (WarpRectilinear, FixVignetteRadial, GainMap…) applied; Panasonic / Leica RW2 distortion (79 photos, 13 bodies, 11 lenses); Sony tag 0x7037 distortion for the ILCE-7RM4A (2 lenses, checked against Sony's exports) and the ILCE-7RM6 (three lenses, a fourth, the 16–35 mm, only as a control with correction off; checked against the camera JPEG), with different conventions ([sony-ilce7rm6-lens-corrections.md](sony-ilce7rm6-lens-corrections.md#two-conventions)); the ILCE-7RM6's raw-IFD lateral CA table is parsed but off by default (it overshoots after demosaic), its raw-IFD vignetting table not applied |
 | Vignetting / lateral CA from maker notes | ✅ | ⬜ |
 | Manual distortion, vignetting, CA, defringe | ✅ | ✅ |
 
@@ -282,6 +282,6 @@ Beyond decoding:
 | 2026-10-10 | minor | Compressed ORF: pointer to the two Olympus patents that describe the method, as a clean-room starting point |
 | 2026-10-12 | minor | PEF without area tags: masked border rows and columns trimmed against the BlackPoint (issue #1271; KP, KF, K-3 Mark III, K-70, K-1, K-1 Mark II, K-S1, K-S2, 645Z); counts unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II verified (CRX QP-map first literal and limited-length escape, odd-height Bayer planes; 4 CC0 files pinned, QP maps of 33,665 private files): 235 verified, 942 unverified; use-weighted 85% (42% on verified bodies); decoding 77%, RAW readiness unchanged at ~56% |
-| 2026-10-10 (later) | minor | Lens profiles: Sony ILCE-7RM6 in-file distortion and lateral CA next to the ILCE-7RM4A's distortion; lens score unchanged (~10%: one more body) |
+| 2026-10-10 (later) | minor | Lens profiles: Sony ILCE-7RM6 in-file distortion next to the ILCE-7RM4A's (its lateral CA parsed, off by default); lens score unchanged (~10%: one more body) |
 | 2026-10-10 (later) | major | Model-by-model measurement against Adobe's published list (1,446 models: 234 verified, 943 unverified, 233 preview, 36 unsupported); `docs/raw/` data and re-measure script; use-weighted share 84% (40% on verified bodies); variant matrix; colour and lens sections with scores; ranked next cameras; RAW readiness ~56% from written parts |
 | 2026-10-10 | major | Created: formats, makers, demosaic, colour and lens checklists; target counts from the installed Lightroom 9.6 bundle listing |

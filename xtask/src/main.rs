@@ -449,7 +449,7 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "ac7c1532df77c321e8010aa1be60c1b9f245b1ac0db6f38fe617a73aae81af50",
     ),
     // Sony ILCE-7RM6 lossless, CC0 1.0 (RawDB): the APS-C file, for its lens tables (`vendor::arw_lens_rm6`). The
-    // full-frame lossless file is not pinned (at most two pins per PR; #625 pins two Compressed ARW 6.0 files).
+    // full-frame lossless file is not pinned (at most two pins per PR); the two ARW6 pins below cover Compressed files.
     (
         "arw-sony-ilce7rm6-apsc-land-lossless.arw",
         "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/raw_modes/ILCE-7RM6_APSC_land_RAW.ARW",

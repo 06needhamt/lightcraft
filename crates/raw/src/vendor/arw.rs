@@ -875,7 +875,8 @@ mod tests {
     }
 
     /// The ILCE-7RM6's distortion table reaches `OpcodeList3`, in the headers-only probe and in the full decode, as
-    /// one plane, or three with the CA table; another body's tables don't (see [`super::super::arw_lens_rm6`]).
+    /// one plane, also with a CA table (lateral CA is off by default); another body's tables don't (see
+    /// [`super::super::arw_lens_rm6`]).
     #[test]
     fn lens_tables_reach_opcode_list3() {
         use lightcraft_tiff::{IfdBuilder, ImageData, TiffWriter, Value};
@@ -904,10 +905,10 @@ mod tests {
             TiffWriter::default().write(&[raw]).unwrap()
         };
         for mode in [Mode::Header, Mode::Full] {
-            for (ca, n) in [(false, 1), (true, 3)] {
+            for ca in [false, true] {
                 let list3 = |model| decode(&file(model, ca), mode).unwrap().opcodes.list3;
                 let ops = list3("ILCE-7RM6");
-                assert!(matches!(ops.as_slice(), [crate::Opcode::WarpRectilinear { planes, .. }] if planes.len() == n), "{mode:?} {ca}: {ops:?}");
+                assert!(matches!(ops.as_slice(), [crate::Opcode::WarpRectilinear { planes, .. }] if planes.len() == 1), "{mode:?} {ca}: {ops:?}");
                 assert!(list3("ILCE-7M4").is_empty(), "{mode:?} {ca}");
             }
         }
