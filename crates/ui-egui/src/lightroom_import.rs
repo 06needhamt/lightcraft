@@ -5,10 +5,11 @@
 //! data only on the owner thread, then finishes the archive index on a worker.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 
 use egui::Align2;
+use lightcraft_engine::lightroom_job::{LightroomProgress, LightroomStep};
 use serde_json::{Value, json};
 
 use crate::LightcraftApp;
@@ -39,8 +40,7 @@ pub struct LightroomTask {
     kind: Kind,
     path: PathBuf,
     cancel: Arc<AtomicBool>,
-    total: Arc<AtomicUsize>,
-    done: Arc<AtomicUsize>,
+    progress: LightroomProgress,
     rx: mpsc::Receiver<Message>,
     phase: Phase,
     cancelled: bool,
@@ -58,13 +58,21 @@ impl LightroomTask {
             Phase::Committing => "committing",
             Phase::Finalizing => "finalizing",
         };
+        let (step, done, total) = self.progress.step();
+        let step = match step {
+            LightroomStep::Catalog => "catalog",
+            LightroomStep::ReadPhotos => "readPhotos",
+            LightroomStep::AddPhotos => "addPhotos",
+        };
         json!({
             "running": true,
             "kind": kind,
             "path": self.path,
             "phase": phase,
-            "done": self.done.load(Ordering::Relaxed),
-            "total": self.total.load(Ordering::Relaxed),
+            "step": step,
+            "done": done,
+            "total": total,
+            "fraction": self.progress.fraction(),
             "cancelled": self.cancelled || self.cancel.load(Ordering::Relaxed),
         })
     }
@@ -106,8 +114,7 @@ fn busy(app: &LightcraftApp) -> Result<(), String> {
 fn spawn_inspect(
     path: PathBuf,
     cancel: Arc<AtomicBool>,
-    total: Arc<AtomicUsize>,
-    done: Arc<AtomicUsize>,
+    progress: LightroomProgress,
     tx: mpsc::Sender<Message>,
     ctx: egui::Context,
 ) -> Result<(), String> {
@@ -115,7 +122,7 @@ fn spawn_inspect(
         .name("lc-lightroom-inspect".into())
         .spawn(move || {
             let result = lightcraft_engine::guard::catch("Lightroom inspect", || {
-                lightcraft_engine::lightroom_catalog::read_with_progress(&path, &cancel, &total, &done)
+                lightcraft_engine::lightroom_catalog::read_with_progress(&path, &cancel, &progress.catalog_total, &progress.catalog_done)
             })
             .and_then(|r| r.map(inspect_report));
             let _ = tx.send(Message::Inspected(result));
@@ -231,12 +238,11 @@ fn terminal(app: &mut LightcraftApp, ctx: &egui::Context, kind: Kind, value: Val
 fn start_inspect(app: &mut LightcraftApp, path: PathBuf, ctx: &egui::Context) -> Result<Value, String> {
     busy(app)?;
     let cancel = Arc::new(AtomicBool::new(false));
-    let total = Arc::new(AtomicUsize::new(0));
-    let done = Arc::new(AtomicUsize::new(0));
+    let progress = LightroomProgress::default();
     let (tx, rx) = mpsc::channel();
-    spawn_inspect(path.clone(), cancel.clone(), total.clone(), done.clone(), tx, ctx.clone())?;
+    spawn_inspect(path.clone(), cancel.clone(), progress.clone(), tx, ctx.clone())?;
     app.lightroom_last = None;
-    app.lightroom = Some(LightroomTask { kind: Kind::Inspect, path: path.clone(), cancel, total, done, rx, phase: Phase::Reading, cancelled: false });
+    app.lightroom = Some(LightroomTask { kind: Kind::Inspect, path: path.clone(), cancel, progress, rx, phase: Phase::Reading, cancelled: false });
     Ok(json!({"running": true, "kind": "inspect", "path": path}))
 }
 
@@ -245,12 +251,11 @@ fn start_import(app: &mut LightcraftApp, path: PathBuf, update_existing: bool, c
     busy(app)?;
     let job = lightcraft_engine::lightroom_job::LightroomJob::new(&mut app.session, path.clone(), update_existing).map_err(|e| e.to_string())?;
     let cancel = Arc::new(AtomicBool::new(false));
-    let total = job.total_atomic();
-    let done = job.done_atomic();
+    let progress = job.progress();
     let (tx, rx) = mpsc::channel();
     spawn_prepare(job, cancel.clone(), tx, ctx.clone())?;
     app.lightroom_last = None;
-    app.lightroom = Some(LightroomTask { kind: Kind::Import, path: path.clone(), cancel, total, done, rx, phase: Phase::Reading, cancelled: false });
+    app.lightroom = Some(LightroomTask { kind: Kind::Import, path: path.clone(), cancel, progress, rx, phase: Phase::Reading, cancelled: false });
     Ok(json!({"running": true, "kind": "import", "path": path}))
 }
 
@@ -412,25 +417,43 @@ pub fn wait_for(_app: &mut LightcraftApp, _ctx: &egui::Context, _timeout: std::t
 /// The progress window for inspect/import, with cancellation.
 pub fn progress(app: &mut LightcraftApp, ctx: &egui::Context) {
     let Some(task) = app.lightroom.as_ref() else { return };
-    let total = task.total.load(Ordering::Relaxed);
-    let done = task.done.load(Ordering::Relaxed);
+    let (step, done, total) = task.progress.step();
     let title = match task.kind {
         Kind::Inspect => crate::i18n::tr("Inspecting Lightroom Catalog"),
         Kind::Import => crate::i18n::tr("Importing Lightroom Catalog"),
     };
-    let text = match task.phase {
-        Phase::Reading if total == 0 => crate::i18n::tr("Reading Lightroom catalog…").into(),
-        Phase::Reading => crate::i18n::tr_format!("Reading Lightroom catalog… {done} of {total}", done = done, total = total),
-        Phase::Committing => crate::i18n::tr("Adding Lightroom photos…").into(),
-        Phase::Finalizing => crate::i18n::tr("Saving Lightroom import index…").into(),
+    // The step under way, with its own count: reading the photos takes nearly all of an import.
+    let text = match (task.phase, step) {
+        (Phase::Reading, LightroomStep::Catalog) if total == 0 => crate::i18n::tr("Reading Lightroom catalog…").into(),
+        (Phase::Reading, LightroomStep::Catalog) => {
+            crate::i18n::tr_format!("Reading Lightroom catalog… {done} of {total}", done = done, total = total)
+        }
+        (Phase::Reading, LightroomStep::ReadPhotos) => crate::i18n::tr_format!("Reading photos… {} of {}", done, total),
+        (Phase::Reading, LightroomStep::AddPhotos) => crate::i18n::tr_format!("Adding photos… {} of {}", done, total),
+        (Phase::Committing, _) => crate::i18n::tr("Adding Lightroom photos…").into(),
+        (Phase::Finalizing, _) => crate::i18n::tr("Saving Lightroom import index…").into(),
+    };
+    // Two bars: the whole task above, the step named by `text` below. Inspecting is one step.
+    let reading = task.phase == Phase::Reading;
+    let step_fraction = if reading { done as f32 / total.max(1) as f32 } else { 1.0 };
+    let whole = match task.kind {
+        Kind::Import if reading => Some(task.progress.fraction()),
+        Kind::Import => Some(1.0),
+        Kind::Inspect => None,
     };
     let mut cancel = false;
     let t = Tokens::get(ctx);
-    egui::Window::new(title).title_bar(false).resizable(false).anchor(Align2::CENTER_BOTTOM, [0.0, -80.0]).fixed_size([360.0, 92.0]).show(
+    let height = if whole.is_some() { 140.0 } else { 92.0 };
+    egui::Window::new(title).title_bar(false).resizable(false).anchor(Align2::CENTER_BOTTOM, [0.0, -80.0]).fixed_size([360.0, height]).show(
         ctx,
         |ui| {
+            if let Some(whole) = whole {
+                ui.label(egui::RichText::new(title).color(t.text).strong());
+                ui.add(egui::ProgressBar::new(whole).desired_width(340.0).show_percentage());
+                ui.add_space(4.0);
+            }
             ui.label(egui::RichText::new(text).color(t.text));
-            ui.add(egui::ProgressBar::new(done as f32 / total.max(1) as f32).desired_width(340.0));
+            ui.add(egui::ProgressBar::new(step_fraction).desired_width(340.0));
             let r =
                 ui.add_enabled(task.phase == Phase::Reading && !task.cancel.load(Ordering::Relaxed), egui::Button::new(crate::i18n::tr("Cancel")));
             register(ui.ctx(), "button:lightroomCancel", r.rect);
