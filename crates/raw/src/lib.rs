@@ -40,6 +40,7 @@ mod preview;
 pub mod profile;
 mod saturation;
 pub mod semantic;
+pub mod sparse;
 pub mod spectral;
 mod tiffraw;
 mod unpack;
