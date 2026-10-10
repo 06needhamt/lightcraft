@@ -80,6 +80,14 @@ On the public CC0 EOS R100 / RF-S 18–45 mm sample, the measured framing scale 
 
 This is a per-file camera-look estimate, **not measured spectral calibration or Lightroom parity**. Camera local tone, picture styles, noise reduction and lens warps cannot all be reproduced by a global matrix/curve; same-aspect crops may evade the aspect check. Skin, mixed-light scenes and saturated highlights can still differ from a supplied JPEG. Broader Sony, Nikon and Canon model/lighting coverage, chart-based calibration, absolute WB and other manufacturers remain unverified. Rejected fits and other RAW formats retain their existing behaviour.
 
+### Sony ILCE-7RM6 (A7R VI)
+
+Full-frame A7R VI files never reached the fit: their 66.5 MP embedded JPEG exceeded the fit's former 64 MP preview cap, so they opened in the neutral fallback. The cap is now 128 MP. On the full-frame corpus file the holdout RMS went from 0.124 to 0.062, and the render's mean RGB from 85/87/77 to 104/117/79 against the camera JPEG's 108/122/82.
+
+On a local set of 54 ARW6 and lossless ARW photos (the maintainer's own shots plus the 12 CC0 RawDB ILCE-7RM6 samples), 46 were fitted and 8 were rejected by the gates; the kinds of scene behind the rejections were not analysed. On 15 withheld photos (every third usable photo in sorted path order), mean CIE76 ΔE against the camera JPEG was 5.7 (render at 1200 px, comparison at 200 px, matching orientation); the APS-C corpus file scored 5.1 and the portrait RawDB files 4.6 and 6.0.
+
+A pooled profile was tried and is not bundled. Pooling the 46 photos (158,549 colour pairs) and validating on withheld photos (every third photo, N = 15, trained on the other 31) took mean ΔE from 5.71 with per-file fitting to 6.40 with the profile: 12 of 15 photos regressed, the largest by +4.68, and 2 of the 8 rejected files were newly accepted. Per-file fitting therefore ships for this body. The set is one photographer's scenes, mostly in the Standard creative style; revisit when a varied multi-photographer set exists.
+
 ## Camera profiles (pooled per model)
 
 One photo can show too little of a colour for its own fit to learn it: in a second shot of the lime shirt only a few dozen proxy pixels show it, next to a hillside of foliage at the same hue that the camera renders differently, and the shirt stayed yellow (hue 68° against the JPEG's 82°; a 192-pixel proxy only reached 74°). `lightcraft-cli calibrate [--max N] [--out DIR] FOLDERS…` therefore pools the colour pairs of many ARWs, NEFs or RAFs per camera model — each against its own embedded JPEG, at a 192-pixel proxy, at most 4000 pairs per photo, files spread evenly over the folders — and fits one matrix (from white-balanced camera RGB, so no single photo's white point is baked in) and one hue/saturation/value table. Models need at least 5 usable photos.
