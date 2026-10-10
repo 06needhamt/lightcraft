@@ -49,6 +49,8 @@ mod tests_date_picker;
 #[cfg(test)]
 mod tests_filmstrip;
 #[cfg(test)]
+mod tests_grading;
+#[cfg(test)]
 mod tests_grid;
 #[cfg(test)]
 mod tests_keymap;
