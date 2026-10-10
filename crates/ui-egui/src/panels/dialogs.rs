@@ -677,9 +677,16 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         if num(ui, &WM_OPACITY, &mut op) {
                             wm.opacity = (op / 100.0) as f32;
                         }
-                        let mut inset = wm.inset as f64 * 100.0;
-                        if num(ui, &WM_INSET, &mut inset) {
-                            wm.inset = (inset / 100.0) as f32;
+                        // like Lightroom Classic: a margin from the side edges and one from the top and bottom
+                        // edges, each unused (greyed) when the position is centred along that axis
+                        use lightcraft_engine::export::Anchor as P;
+                        let across = !matches!(wm.anchor, P::Top | P::Center | P::Bottom);
+                        if let Some(v) = crate::widgets::slider(ui, &WM_INSET_X, wm.inset_x as f64 * 100.0, across, None).value {
+                            wm.inset_x = (v / 100.0) as f32;
+                        }
+                        let down = !matches!(wm.anchor, P::Left | P::Center | P::Right);
+                        if let Some(v) = crate::widgets::slider(ui, &WM_INSET_Y, wm.inset_y as f64 * 100.0, down, None).value {
+                            wm.inset_y = (v / 100.0) as f32;
                         }
                         if !graphic {
                             ui.checkbox(&mut wm.shadow, crate::i18n::tr("Shadow"));
@@ -1516,17 +1523,16 @@ fn export_size(ui: &mut egui::Ui, full: &mut bool, r: &mut lightcraft_engine::ex
 /// Keep them in grid order so bottom-centre and edge-centre anchors are available in Export.
 const WM_POSITIONS: [(lightcraft_engine::export::Anchor, &str); 9] = {
     use lightcraft_engine::export::Anchor::*;
-    [
-        (TopLeft, "↖"), (Top, "↑"), (TopRight, "↗"),
-        (Left, "←"), (Center, "•"), (Right, "→"),
-        (BottomLeft, "↙"), (Bottom, "↓"), (BottomRight, "↘"),
-    ]
+    [(TopLeft, "↖"), (Top, "↑"), (TopRight, "↗"), (Left, "←"), (Center, "•"), (Right, "→"), (BottomLeft, "↙"), (Bottom, "↓"), (BottomRight, "↘")]
 };
 
 const WM_IMAGE_WIDTH: ControlSpec = spec("export.watermarkImageWidth", "Width (% of photo)", 2.0, 100.0, 20.0, 1.0);
 const WM_SIZE: ControlSpec = spec("export.watermarkSize", "Size (% of short edge)", 1.0, 15.0, 3.5, 0.5);
 const WM_OPACITY: ControlSpec = spec("export.watermarkOpacity", "Opacity (%)", 5.0, 100.0, 70.0, 1.0);
-const WM_INSET: ControlSpec = ControlSpec { decimals: 1, ..spec("export.watermarkInset", "Inset (% of short edge)", 0.0, 40.0, 2.5, 0.5) };
+const WM_INSET_X: ControlSpec =
+    ControlSpec { decimals: 1, ..spec("export.watermarkInsetX", "Horizontal inset (% of short edge)", 0.0, 40.0, 2.5, 0.5) };
+const WM_INSET_Y: ControlSpec =
+    ControlSpec { decimals: 1, ..spec("export.watermarkInsetY", "Vertical inset (% of short edge)", 0.0, 40.0, 2.5, 0.5) };
 
 /// A themed slider row editing `v`; true when it changed.
 fn num(ui: &mut egui::Ui, spec: &ControlSpec, v: &mut f64) -> bool {
@@ -1602,9 +1608,15 @@ mod watermark_position_tests {
     #[test]
     fn export_dialog_offers_every_rendered_anchor_exactly_once() {
         let anchors = [
-            Anchor::TopLeft, Anchor::Top, Anchor::TopRight,
-            Anchor::Left, Anchor::Center, Anchor::Right,
-            Anchor::BottomLeft, Anchor::Bottom, Anchor::BottomRight,
+            Anchor::TopLeft,
+            Anchor::Top,
+            Anchor::TopRight,
+            Anchor::Left,
+            Anchor::Center,
+            Anchor::Right,
+            Anchor::BottomLeft,
+            Anchor::Bottom,
+            Anchor::BottomRight,
         ];
         assert_eq!(WM_POSITIONS.len(), anchors.len());
         for anchor in anchors {
