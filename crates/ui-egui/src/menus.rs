@@ -27,7 +27,7 @@ pub const LANGUAGE_COMMANDS: &[UiCommand] = &[
 ];
 
 /// Every UI command: the languages, then everything else. `xtask parity` reads both tables from
-/// this file, so an id listed in `docs/parity.md` is checked wherever it is declared.
+/// this file, so an id listed in `docs/parity-checklist.md` is checked wherever it is declared.
 pub fn ui_commands() -> impl Iterator<Item = &'static UiCommand> {
     LANGUAGE_COMMANDS.iter().chain(UI_COMMANDS)
 }
