@@ -105,7 +105,7 @@ impl Session {
         let smart = self.media.smart_dir.clone();
         let plan = self
             .catalog
-            .forget_local_plan(&now, days, &|p| keep.contains(&p.id) || smart.as_ref().is_some_and(|d| d.join(crate::smart::file_name(p)).exists()));
+            .forget_local_plan(&now, days, &|p| keep.contains(&p.id) || smart.as_ref().is_some_and(|d| crate::smart::file_path(d, p).exists()));
         if dry_run {
             return plan;
         }

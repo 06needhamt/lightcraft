@@ -192,6 +192,12 @@ fn smart_run(
             break;
         }
         let _one = SMART_WRITE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Read either the new shard or a pre-upgrade flat file, without making new work
+        // depend on having the original online.
+        let path = if path.exists() { path } else {
+            let legacy = path.file_name().map(|name| dir.join(name));
+            legacy.filter(|old| old.exists()).unwrap_or(path)
+        };
         if discard {
             if std::fs::remove_file(&path).is_ok() {
                 n.removed += 1;
@@ -215,7 +221,14 @@ fn smart_run(
                     .ok_or_else(|| "nothing to build from".to_string())
                     .and_then(|s| s.load_source())
                     .and_then(|src| crate::smart::encode(&src.image, src.info_or(Default::default()).camera_tone.as_ref()))
-                    .and_then(|b| lightcraft_catalog::safe_file::write_atomic(&path, &b).map_err(|e| format!("{}: {e}", path.display())));
+                    .and_then(|b| {
+                        let parent = path.parent().ok_or_else(|| format!("{}: no parent folder", path.display()))?;
+                        // Only create the leaf shard: do not recreate a missing external drive.
+                        if !parent.is_dir() {
+                            std::fs::create_dir(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+                        }
+                        lightcraft_catalog::safe_file::write_atomic(&path, &b).map_err(|e| format!("{}: {e}", path.display()))
+                    });
                 match r {
                     Ok(()) => {
                         n.built += 1;
@@ -270,7 +283,7 @@ fn smart(s: &mut Session, p: &Value) -> Result<Value> {
         if !matches!(ph.source, lightcraft_catalog::Source::File { .. }) {
             continue;
         }
-        let path = dir.join(crate::smart::file_name(&ph));
+        let path = crate::smart::sharded_file_path(&dir, &ph);
         let source = (!discard).then(|| s.media.source_ref(&ph, crate::media::SourceLevel::Preview));
         jobs.push((id, path, source, ph.relative_wb()));
     }
@@ -316,7 +329,7 @@ pub(crate) fn refresh_stale_smart_previews(s: &mut Session) -> Option<std::threa
     let max_edge = crate::media::SourceLevel::Preview.max_edge();
     let photos: Vec<_> = s.catalog.photos().filter(|p| matches!(p.source, lightcraft_catalog::Source::File { .. }) && p.relative_wb()).collect();
     let jobs: Vec<SmartJob> =
-        photos.iter().map(|p| (p.id, dir.join(crate::smart::file_name(p)), Some(s.media.origin_ref(&p.source, max_edge)), true)).collect();
+        photos.iter().map(|p| (p.id, crate::smart::file_path(&dir, p), Some(s.media.origin_ref(&p.source, max_edge)), true)).collect();
     std::thread::Builder::new()
         .name("lc-smart-look".into())
         .spawn(move || refresh_stale(&dir, jobs))
@@ -410,7 +423,7 @@ fn smart_location(s: &mut Session, p: &Value) -> Result<Value> {
 /// Whether photo `id` has a smart preview.
 pub fn has_smart_preview(s: &Session, id: lightcraft_catalog::PhotoId) -> bool {
     match (&s.media.smart_dir, s.catalog.photo(id)) {
-        (Some(dir), Some(p)) => crate::smart::is_valid(&dir.join(crate::smart::file_name(p))),
+        (Some(dir), Some(p)) => crate::smart::is_valid(&crate::smart::file_path(dir, p)),
         _ => false,
     }
 }
