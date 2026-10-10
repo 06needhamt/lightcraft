@@ -74,9 +74,12 @@ fn next_slides_are_prepared_before_they_are_due() {
     let ahead = play(&h).upcoming(crate::panels::slideshow::AHEAD);
     assert_eq!(ahead.len(), 2);
     let start = h.time();
-    assert!(h.step_until(SETTLE, |h| ahead.iter().all(|id| has_slide(h, *id))), "the next two slides are rendered");
+    // the slide up and the next two; their renders can finish in any order
     let current = play(&h).current();
-    assert!(has_slide(&h, current));
+    assert!(
+        h.step_until(SETTLE, |h| has_slide(h, current) && ahead.iter().all(|id| has_slide(h, *id))),
+        "the slide up and the next two slides are rendered"
+    );
     assert!(h.time() - start < 60.0, "before the first is due");
     assert_eq!(play(&h).current(), current, "still on the first slide");
     h.settle(SETTLE);
