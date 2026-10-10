@@ -496,7 +496,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     ui.label("Choose a PDF destination after confirming. Print the PDF from your viewer.");
                 }
                 Dialog::Export { opts, full_size, resize, preset_name, limit_kb, dir } => {
-                    use lightcraft_engine::export::{Anchor as P, ExportFormat as F, MetadataPolicy as M, SharpenAmount as A, SharpenFor as S};
+                    use lightcraft_engine::export::{ExportFormat as F, MetadataPolicy as M, SharpenAmount as A, SharpenFor as S};
                     let n = app.session.selection.ids.len().max(1);
                     ui.label(egui::RichText::new(crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n)).color(t.text_dim));
                     // Preset: load a built-in or saved set of options into the dialog
@@ -676,6 +676,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         let mut op = wm.opacity as f64 * 100.0;
                         if num(ui, &WM_OPACITY, &mut op) {
                             wm.opacity = (op / 100.0) as f32;
+                        }
+                        let mut inset = wm.inset as f64 * 100.0;
+                        if num(ui, &WM_INSET, &mut inset) {
+                            wm.inset = (inset / 100.0) as f32;
                         }
                         if !graphic {
                             ui.checkbox(&mut wm.shadow, crate::i18n::tr("Shadow"));
@@ -1522,6 +1526,7 @@ const WM_POSITIONS: [(lightcraft_engine::export::Anchor, &str); 9] = {
 const WM_IMAGE_WIDTH: ControlSpec = spec("export.watermarkImageWidth", "Width (% of photo)", 2.0, 100.0, 20.0, 1.0);
 const WM_SIZE: ControlSpec = spec("export.watermarkSize", "Size (% of short edge)", 1.0, 15.0, 3.5, 0.5);
 const WM_OPACITY: ControlSpec = spec("export.watermarkOpacity", "Opacity (%)", 5.0, 100.0, 70.0, 1.0);
+const WM_INSET: ControlSpec = ControlSpec { decimals: 1, ..spec("export.watermarkInset", "Inset (% of short edge)", 0.0, 40.0, 2.5, 0.5) };
 
 /// A themed slider row editing `v`; true when it changed.
 fn num(ui: &mut egui::Ui, spec: &ControlSpec, v: &mut f64) -> bool {
