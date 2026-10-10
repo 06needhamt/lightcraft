@@ -540,12 +540,16 @@ fn smart_previews(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Monitor profile"));
     let current = app.renderer.display().cloned();
+    let screen = current.as_ref().is_some_and(|d| d.path == crate::SCREEN_PROFILE);
     row(ui, t, crate::i18n::tr("Profile"), |ui| {
         let name = match &current {
             Some(d) => d.profile.description.clone(),
             None => crate::i18n::tr("None (the display is treated as sRGB)").to_string(),
         };
         ui.label(RichText::new(name).color(t.text));
+        if screen {
+            hint(ui, t, crate::i18n::tr("this screen's profile"));
+        }
     });
     row(ui, t, "", |ui| {
         let can = app.services.pick_display_profile.is_some();
@@ -556,7 +560,9 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         {
             app.ui.settings.display_profile = path;
         }
-        let r = ui.add_enabled(!app.ui.settings.display_profile.is_empty(), egui::Button::new(crate::i18n::tr("Use sRGB")));
+        // with no profile chosen, previews follow the screen's own profile where the host knows it
+        let none = if app.services.screen_profile.is_some() { crate::i18n::tr("Use Screen Profile") } else { crate::i18n::tr("Use sRGB") };
+        let r = ui.add_enabled(!app.ui.settings.display_profile.is_empty(), egui::Button::new(none));
         register(ui.ctx(), "button:settingsDisplayProfileNone", r.rect);
         if r.clicked() {
             app.ui.settings.display_profile.clear();
@@ -570,9 +576,11 @@ fn display_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     }
     if let Some(d) = &current {
         let info = d.describe();
-        row(ui, t, crate::i18n::tr("File"), |ui| {
-            ui.label(RichText::new(&d.path).size(11.0).color(t.text_dim));
-        });
+        if !screen {
+            row(ui, t, crate::i18n::tr("File"), |ui| {
+                ui.label(RichText::new(&d.path).size(11.0).color(t.text_dim));
+            });
+        }
         row(ui, t, crate::i18n::tr("Type"), |ui| {
             let kind = match d.profile.kind {
                 lightcraft_engine::display::DisplayKind::MatrixTrc => crate::i18n::tr("Matrix/TRC"),
@@ -654,9 +662,11 @@ pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String>
 // ---------------------------------------------------------------------------- Display profile
 
 /// `app.displayProfile {path?: string | null}`: show previews through this monitor ICC profile
-/// (`""` or `null`: none, the display is treated as sRGB) and keep it as the setting; no `path`:
-/// report only. A file that can't be used is an error and changes nothing. Returns the profile in
-/// use: `{path, description, kind (matrix|lut), primaries {red, green, blue: [x, y]}}`.
+/// (`""` or `null`: none, the profile of the screen showing the window where the host knows it
+/// (macOS), else the display is treated as sRGB) and keep it as the setting; no `path`: report
+/// only. A file that can't be used is an error and changes nothing. Returns the profile in use:
+/// `{path, description, kind (matrix|lut), primaries {red, green, blue: [x, y]}}`, with
+/// `path: null, screen: true` for the screen's profile.
 pub fn display_profile(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
     let path = match p.get("path") {
         None => None,
@@ -670,8 +680,19 @@ pub fn display_profile(app: &mut LightcraftApp, p: &Value) -> Result<Value, Stri
         app.ui.settings.display_profile = path.clone();
         app.display_applied = Some(path);
         app.display_error = None;
+        app.screen_profile = None;
+        app.screen_profile_read = None;
+        if app.ui.settings.display_profile.is_empty() {
+            app.apply_screen_profile();
+        }
     }
     Ok(match app.renderer.display() {
+        Some(d) if d.path == crate::SCREEN_PROFILE => {
+            let mut v = d.describe();
+            v["path"] = Value::Null;
+            v["screen"] = json!(true);
+            v
+        }
         Some(d) => d.describe(),
         None => json!({"path": null, "description": "sRGB (no display profile)"}),
     })

@@ -102,6 +102,8 @@ pub use control::{ControlRequest, ControlResponse};
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
+/// The `path` of a display profile read from the screen rather than chosen as a file.
+pub const SCREEN_PROFILE: &str = "screen";
 
 pub type PickFiles = Box<dyn FnMut() -> Vec<String>>;
 /// A save dialog: suggested file name → chosen path (`None` = cancelled).
@@ -118,6 +120,9 @@ pub type RevealFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 pub type OpenUrlFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 /// Open a file in an application (`app` = "" for the system's default one).
 pub type OpenWithFn = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
+/// The ICC profile of the screen showing the window, as the system colour-manages it (`None`:
+/// not known).
+pub type ScreenProfileFn = Box<dyn FnMut() -> Option<Vec<u8>>>;
 /// Something the host does with the session (web: back up or restore the library in browser
 /// storage); the work may finish asynchronously.
 pub type HostAction = Box<dyn FnMut(&mut Session) -> Result<Value, String>>;
@@ -141,6 +146,9 @@ pub struct Services {
     pub pick_tracklog: Option<PickFiles>,
     /// Open dialog for a monitor ICC profile (`.icc` / `.icm`; Settings ▸ Display; desktop only).
     pub pick_display_profile: Option<PickFiles>,
+    /// The profile of the screen showing the window, used while none is chosen in Settings ▸
+    /// Display (macOS, whose windows aren't colour-managed: issue #787).
+    pub screen_profile: Option<ScreenProfileFn>,
     /// Save dialog for an exported `.lcpreset` file.
     pub save_preset_file: Option<SaveFile>,
     /// Open dialog for a keyword list file (`.txt`, Photo Supreme's `.utf8`; File ▸ Import Keywords…).
@@ -319,6 +327,10 @@ pub struct LightcraftApp {
     pub(crate) display_applied: Option<String>,
     /// Why the display profile setting could not be applied (shown in Settings ▸ Display).
     pub display_error: Option<String>,
+    /// The screen profile in use while no display profile is chosen (`services.screen_profile`),
+    /// and when it was last read (egui time, s).
+    pub(crate) screen_profile: Option<Vec<u8>>,
+    pub(crate) screen_profile_read: Option<f64>,
     /// The library failed to open at launch: the blocking window, then the temporary-session
     /// banner (issue #100). Cleared once a library opens.
     pub library_problem: Option<panels::library_problem::LibraryProblem>,
@@ -388,6 +400,8 @@ impl LightcraftApp {
             memory_applied: None,
             display_applied: None,
             display_error: None,
+            screen_profile: None,
+            screen_profile_read: None,
             library_problem: None,
             activity_expanded: false,
             model_setup: Default::default(),
@@ -946,6 +960,12 @@ impl LightcraftApp {
                 }
             }
             self.display_applied = Some(path);
+            // none chosen again: the screen's profile is read afresh
+            self.screen_profile = None;
+            self.screen_profile_read = None;
+        }
+        if self.ui.settings.display_profile.is_empty() {
+            self.follow_screen_profile(ctx);
         }
         if let Some(fs) = ctx.input(|i| i.viewport().fullscreen) {
             self.window_is_fullscreen = fs;
@@ -954,6 +974,37 @@ impl LightcraftApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on));
             self.window_is_fullscreen = on;
         }
+    }
+
+    /// While no display profile is chosen, show previews through the profile of the screen the
+    /// window is on (`services.screen_profile`), read about once a second so moving the window to
+    /// another screen is followed. Without the service (or a profile) the display is sRGB.
+    fn follow_screen_profile(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
+        if self.services.screen_profile.is_none() || self.screen_profile_read.is_some_and(|t| (0.0..1.0).contains(&(now - t))) {
+            return;
+        }
+        self.screen_profile_read = Some(now);
+        self.apply_screen_profile();
+    }
+
+    /// Read the screen's profile now and show previews through it (sRGB without one).
+    pub(crate) fn apply_screen_profile(&mut self) {
+        let Some(read) = self.services.screen_profile.as_mut() else { return };
+        let icc = read();
+        if icc == self.screen_profile {
+            return;
+        }
+        let display = icc.as_deref().and_then(|bytes| match lightcraft_engine::display::Display::from_bytes(SCREEN_PROFILE, bytes) {
+            Ok(d) => Some(std::sync::Arc::new(d)),
+            Err(msg) => {
+                // a profile we can't use: previews stay sRGB, as before #787
+                log::warn!("screen profile: {msg}");
+                None
+            }
+        });
+        self.renderer.set_display(display);
+        self.screen_profile = icc;
     }
 
     /// Inject synthetic events (pointer events one per frame; key sequences up to the release).

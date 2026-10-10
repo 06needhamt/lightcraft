@@ -28,6 +28,8 @@ mod dialog_filter;
 mod logging;
 #[cfg(target_os = "macos")]
 mod native_menu;
+#[cfg(target_os = "macos")]
+mod screen_profile;
 
 use dialog_filter::FileDialogExt as _;
 use lightcraft_engine::Session;
@@ -489,6 +491,11 @@ fn services(ctx: egui::Context, log_file: Option<&std::path::Path>) -> Services 
                 .map(|p| vec![p.to_string_lossy().to_string()])
                 .unwrap_or_default()
         })),
+        // macOS doesn't colour-manage the window: previews follow the screen's profile (#787)
+        #[cfg(target_os = "macos")]
+        screen_profile: Some(Box::new(screen_profile::icc)),
+        #[cfg(not(target_os = "macos"))]
+        screen_profile: None,
         pick_display_profile: Some(Box::new(|| {
             let mut d = rfd::FileDialog::new()
                 .set_title(lightcraft_ui_egui::i18n::tr("Choose Monitor Profile"))
