@@ -256,7 +256,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
             values: [a, b, c, d].iter().map(|v| (**v * black_scale) as f32).collect(),
             ..Default::default()
         },
-        _ => BlackLevel::uniform(nrw_black(mn.as_ref(), bits).unwrap_or(0.0)),
+        _ => BlackLevel::uniform(nrw_black(mn.as_ref(), bits).unwrap_or_else(|| be16_black(&info, bytes.len() as u64, mn.as_ref(), samples))),
     };
     let wb = mn
         .as_ref()
@@ -359,6 +359,9 @@ enum PackedLayout {
     /// D100: 16-byte chunks of fifteen data bytes holding ten MSB-first 12-bit samples, plus one zero pad byte. The
     /// rows carry more samples than the IFD width (3040 against 3034); the extra columns are not image.
     Chunked16 { stride: usize },
+    /// Coolpix NRW: one big-endian 16-bit word per pixel, rows `2w` bytes with no header or padding; the 12-bit sample
+    /// is the upper 12 bits of the word (the low nibble is zero, rarely 8).
+    Be16,
 }
 
 fn packed_layout(w: usize, h: usize, bits: u32, strip: u64) -> Option<PackedLayout> {
@@ -393,18 +396,50 @@ fn d100_layout(w: usize, h: usize, bits: u32, strip: u64) -> Option<PackedLayout
     (stride.is_multiple_of(16) && per_row >= w && per_row < w.checked_add(10)?).then_some(PackedLayout::Chunked16 { stride })
 }
 
+/// 12-bit strips of exactly `2 * w * h` bytes: big-endian 16-bit words (Coolpix P330, P7700, P7800 NRW, found by a
+/// clean-room black-box analysis of the CC0 files). Tried after the other layouts, whose strides (`1.5w` to
+/// `1.5w + 15`, or ten samples per 16 bytes) only reach `2w` for rows narrower than 40 samples, so it can't take a
+/// strip they handle.
+fn be16_layout(w: usize, h: usize, bits: u32, strip: u64) -> Option<PackedLayout> {
+    let want = w.checked_mul(h)?.checked_mul(2)?;
+    (bits == 12 && w > 0 && h > 0 && usize::try_from(strip).ok()? == want).then_some(PackedLayout::Be16)
+}
+
+/// Black level of the big-endian 16-bit layout, which carries neither `0x003d` nor an NRW block and has no masked
+/// pixels (the borders of the frame are image). The darkest samples of the three measured bodies are 214 (P330),
+/// 217 (P7700) and 201 (P7800, the only one with a dark enough frame: its per-channel 1st percentile is 209 / 225 /
+/// 223), and the other 12-bit Coolpix NRWs state 200 in their NRW block; so 200, never above the darkest sample.
+const BE16_BLACK: f32 = 200.0;
+
+fn be16_black(info: &ImageInfo, file_len: u64, mn: Option<&makernote::MakerNote>, samples: &[u16]) -> f32 {
+    let has_table = mn.is_some_and(|m| m.ifd.bytes(LINEARIZATION_TABLE).is_some());
+    let single = matches!(info.chunks(file_len).as_slice(), [c] if be16_layout(info.width as usize, info.height as usize, info.bits() as u32, c.len).is_some());
+    if info.compression != t::compression::NIKON || has_table || info.samples_per_pixel != 1 || !single {
+        return 0.0;
+    }
+    let darkest = samples.iter().copied().min().unwrap_or(0);
+    BE16_BLACK.min(f32::from(darkest))
+}
+
 /// Unpack a [`PackedLayout`] strip into `w * h` samples. Short input leaves the missing samples zero.
 fn unpack_packed(src: &[u8], w: usize, h: usize, bits: u32, layout: PackedLayout) -> Vec<u16> {
     use rayon::prelude::*;
     let mut out = vec![0u16; w * h];
     let stride = match layout {
         PackedLayout::Lsb { stride } | PackedLayout::Chunked16 { stride } => stride,
+        PackedLayout::Be16 => w.saturating_mul(2),
     };
     out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
         let Some(line) = src.get(y * stride..) else { return };
         let line = &line[..stride.min(line.len())];
         match layout {
             PackedLayout::Lsb { .. } => crate::unpack::unpack_lsb(line, bits, row),
+            PackedLayout::Be16 => {
+                let (words, _) = line.as_chunks::<2>();
+                for (dst, word) in row.iter_mut().zip(words) {
+                    *dst = u16::from_be_bytes(*word) >> 4;
+                }
+            }
             PackedLayout::Chunked16 { .. } => {
                 let mut samples = vec![0u16; line.len() / 16 * 10];
                 for (i, dst) in samples.chunks_mut(10).enumerate() {
@@ -453,7 +488,9 @@ fn packed(bytes: &[u8], info: &ImageInfo, rows: usize) -> Result<RawData> {
     let bits = info.bits() as u32;
     let chunks = info.chunks(bytes.len() as u64);
     let layout = match chunks.as_slice() {
-        [c] if info.samples_per_pixel == 1 => packed_layout(w, h, bits, c.len).or_else(|| d100_layout(w, h, bits, c.len)),
+        [c] if info.samples_per_pixel == 1 => {
+            packed_layout(w, h, bits, c.len).or_else(|| d100_layout(w, h, bits, c.len)).or_else(|| be16_layout(w, h, bits, c.len))
+        }
         _ => None,
     };
     let (Some(layout), [c]) = (layout, chunks.as_slice()) else {
@@ -1016,10 +1053,64 @@ mod tests {
         assert!(why.contains("sRAW"), "{why}");
     }
 
+    /// Big-endian 16-bit words holding the 12-bit samples in their upper bits.
+    fn be16(data: &[u16]) -> Vec<u8> {
+        data.iter().flat_map(|v| (v << 4).to_be_bytes()).collect()
+    }
+
+    #[test]
+    fn coolpix_be16_words_decode_and_wrong_sizes_are_refused() {
+        let (w, h) = (40usize, 6usize);
+        let d12 = samples(w * h, 12);
+        let good = be16(&d12);
+        assert_eq!(good.len(), 2 * w * h);
+        assert_eq!(decoded(good.clone(), 12, 40, 6).unwrap(), d12);
+        // a half-LSB in the low nibble does not change the sample
+        let mut half = good.clone();
+        for b in half.iter_mut().skip(1).step_by(2) {
+            *b |= 8;
+        }
+        assert_eq!(decoded(half, 12, 40, 6).unwrap(), d12);
+        // any other strip size, or another bit depth, is not this layout
+        for len in [good.len() - 2, good.len() - 1, good.len() + 1, good.len() + 2, good.len() + 16] {
+            let mut s = good.clone();
+            s.resize(len, 0);
+            assert!(matches!(decoded(s, 12, 40, 6), Err(RawError::Unsupported(_))), "len {len}");
+        }
+        assert!(matches!(decoded(good.clone(), 13, 40, 6), Err(RawError::Unsupported(_))));
+        // the black level is 200, but never above the darkest sample
+        let black = |data: &[u16]| crate::decode(&nef(34713, 12, vec![be16(data)], 40, 6, 6)).unwrap().black.values[0];
+        let mut d = d12.clone();
+        for v in &mut d {
+            *v = (*v).max(300);
+        }
+        assert_eq!(black(&d), 200.0);
+        d[5] = 150;
+        assert_eq!(black(&d), 150.0);
+    }
+
+    #[test]
+    fn coolpix_be16_does_not_take_other_layouts() {
+        // every width where another group's stride equals 2w must still go to that group (the narrow rows where they
+        // coincide are below the real-world widths; the other groups are tried first)
+        for w in (2..=400usize).step_by(2) {
+            let strip = 2 * w as u64 * 6;
+            let other = packed_layout(w, 6, 12, strip).or_else(|| d100_layout(w, 6, 12, strip));
+            if other.is_some() {
+                assert_eq!(packed_layout(w, 6, 12, strip).or_else(|| d100_layout(w, 6, 12, strip)).or_else(|| be16_layout(w, 6, 12, strip)), other);
+            }
+        }
+        assert_eq!(be16_layout(4032, 3024, 12, 24385536), Some(PackedLayout::Be16));
+        assert!(packed_layout(4032, 3024, 12, 24385536).is_none() && d100_layout(4032, 3024, 12, 24385536).is_none());
+        assert!(be16_layout(4032, 3024, 14, 24385536).is_none());
+        assert!(be16_layout(usize::MAX, usize::MAX, 12, u64::MAX).is_none());
+    }
+
     #[test]
     fn packed_34713_short_input_does_not_panic() {
         let (w, h) = (40usize, 6usize);
-        for layout in [PackedLayout::Lsb { stride: 64 }, PackedLayout::Lsb { stride: 80 }, PackedLayout::Chunked16 { stride: 64 }] {
+        for layout in [PackedLayout::Lsb { stride: 64 }, PackedLayout::Lsb { stride: 80 }, PackedLayout::Chunked16 { stride: 64 }, PackedLayout::Be16]
+        {
             for len in [0, 1, 15, 16, 17, 63, 64, 65, 200] {
                 let bits = if matches!(layout, PackedLayout::Lsb { stride: 80 }) { 14 } else { 12 };
                 assert_eq!(unpack_packed(&vec![0xFF; len], w, h, bits, layout).len(), w * h);
