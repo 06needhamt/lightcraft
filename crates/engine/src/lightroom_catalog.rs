@@ -8,7 +8,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 
-use crate::lightroom_sqlite::{Database, LiveTable, Value as SqlValue};
+use crate::lightroom_sqlite::{Database, FileSource, LiveTable, Value as SqlValue};
 use lightcraft_catalog::{Album, Flag, Op, Photo, PhotoId, Source};
 use lightcraft_geom::{Affine, Orientation, Point, Rect};
 use serde::{Deserialize, Serialize};
@@ -352,15 +352,15 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
     let before = std::fs::metadata(path).map_err(|e| e.to_string())?;
     let wal_path = PathBuf::from(format!("{}-wal", path.display()));
     let wal_before = std::fs::metadata(&wal_path).ok().map(|m| (m.len(), m.modified().ok()));
-    let main = bytes(path)?;
+    let main = FileSource::open(path)?;
     let wal = match std::fs::metadata(&wal_path) {
         Ok(_) => bytes(&wal_path)?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(e) => return Err(e.to_string()),
     };
-    let wal_len = committed_wal_len(&main, &wal)?;
+    let wal_len = committed_wal_len(main.header(), &wal)?;
     ensure_read_active(cancel)?;
-    let db = Database::open_with_wal(main, &wal[..wal_len]).map_err(|e| format!("invalid SQLite catalog: {e:?}"))?;
+    let db = Database::open_file_with_wal(main, &wal[..wal_len]).map_err(|e| format!("invalid SQLite catalog: {e:?}"))?;
     let after = std::fs::metadata(path).map_err(|e| e.to_string())?;
     let wal_after = std::fs::metadata(&wal_path).ok().map(|m| (m.len(), m.modified().ok()));
     if before.len() != after.len() || before.modified().ok() != after.modified().ok() || wal_before != wal_after {
@@ -471,6 +471,11 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         });
     }
     ensure_read_active(cancel)?;
+    reader.db.ensure_unchanged()?;
+    let wal_after = std::fs::metadata(&wal_path).ok().map(|m| (m.len(), m.modified().ok()));
+    if wal_before != wal_after {
+        return Err("catalog changed during reading; close Lightroom and retry".into());
+    }
     Ok(out)
 }
 
@@ -1302,6 +1307,30 @@ mod tests {
         assert_eq!(catalog.photos[0].uuid, "fixture-image");
         assert_eq!(number(&catalog.photos[0].image, "rating"), 5);
         assert!(catalog.photos[0].path.ends_with("test.ARW"));
+        // Put the required image table beyond the old 1 GiB cutoff without allocating it.
+        // A main-file-sized allocation would defeat the purpose of the page-backed reader.
+        // The large fixture relies on Unix sparse-file behavior; small parity runs everywhere.
+        #[cfg(unix)]
+        {
+            let far_offset = 1u64 << 30;
+            schema.last_mut().unwrap()[3] = I((far_offset / 2048 + 1) as i64);
+            leaf(&mut bytes[..2048], 100, &schema);
+            use std::io::{Seek, SeekFrom, Write};
+            let mut sparse = std::fs::OpenOptions::new().write(true).truncate(true).open(&path).unwrap();
+            sparse.write_all(&bytes).unwrap();
+            sparse.set_len(far_offset + 2048).unwrap();
+            sparse.seek(SeekFrom::Start(far_offset)).unwrap();
+            sparse.write_all(&bytes[4 * 2048..5 * 2048]).unwrap();
+            drop(sparse);
+            let large = read(&path).unwrap();
+            assert_eq!(serde_json::to_value(&large.photos).unwrap(), serde_json::to_value(&catalog.photos).unwrap());
+            let mut session = crate::Session::new();
+            session.execute("library.importLightroom", &json!({"path": path.to_string_lossy()})).unwrap();
+            assert_eq!(session.catalog.len(), 1);
+            assert_eq!(session.catalog.photos().next().unwrap().rating, 5);
+            session.execute("edit.undo", &json!({})).unwrap();
+            assert!(session.catalog.is_empty());
+        }
         std::fs::write(&path, b"bad catalog").unwrap();
         assert!(read(&path).is_err());
         std::fs::remove_file(path).unwrap();

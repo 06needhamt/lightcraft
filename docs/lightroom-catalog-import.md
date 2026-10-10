@@ -28,9 +28,16 @@ retained. Oldest managed archives are retired; legacy `.json` archives remain un
 `Interop/lightroom-index.json` records imported identities. Source catalogs and originals are
 never overwritten.
 
-Native import is bounded to a 1 GiB database/WAL, 16 MiB XMP packets and one million rows per
-table. The in-tree, read-only Rust SQLite B-tree reader follows SQLite’s public file-format
-specification; it introduces no dependency or C runtime. Table payloads are capped at 256 MiB.
+Native import reads referenced database pages on demand (at most 64 KiB per page), rather than
+loading the whole `.lrcat`. Database files are capped at 16 GiB and 16,777,216 pages; the WAL
+remains capped at 1 GiB. Tables still have a 256 MiB encoded-payload budget and one million rows,
+individual records are capped at 64 MiB, and XMP packets at 16 MiB. These limits can still reject
+large catalogs with dense tables; file size alone no longer determines the memory allocation.
+The open file and source path are checked again after all tables are read. Close Lightroom before
+importing: metadata checks detect ordinary concurrent changes, but are not SQLite snapshot isolation.
+
+The in-tree, read-only Rust SQLite B-tree reader follows SQLite's public file-format
+specification; it introduces no dependency or C runtime.
 Optional history, keyword and collection tables that exceed limits are skipped with warnings;
 required photo tables still report errors. Unrelated unsupported schemas are ignored. A needed
 WITHOUT ROWID or virtual table produces an explicit error, handled as a warning when optional.
