@@ -971,7 +971,7 @@
   "No edits yet.": "尚未編輯。",
   "No exposure information": "沒有曝光資訊",
   "No filter presets yet": "尚無篩選預設集",
-  "No lens data embedded in this file (DNG lens opcodes only).": "此檔案未內嵌鏡頭資料（僅支援 DNG 鏡頭操作碼）。",
+  "No lens data embedded in this file.": "此檔案未內嵌鏡頭資料。",
   "No masks yet. Choose a mask type above.": "尚無遮色片。請在上方選擇遮色片類型。",
   "No matching photos": "沒有符合的照片",
   "No metadata found": "找不到中繼資料",

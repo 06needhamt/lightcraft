@@ -1086,7 +1086,7 @@
   "No edits yet.": "Змін поки немає.",
   "No exposure information": "Немає інформації про експозицію",
   "No filter presets yet": "Наборів налаштувань фільтрів поки немає",
-  "No lens data embedded in this file (DNG lens opcodes only).": "У цьому файлі немає даних об’єктива (лише інструкції об’єктива DNG).",
+  "No lens data embedded in this file.": "У цьому файлі немає даних об’єктива.",
   "No masks yet. Choose a mask type above.": "Масок поки немає. Виберіть тип маски вище.",
   "No matching photos": "Немає відповідних фото",
   "No metadata found": "Метаданих не знайдено",
