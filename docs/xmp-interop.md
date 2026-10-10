@@ -75,7 +75,7 @@ have none. So saving one photo never overwrites the other's metadata (`Session::
 LightCraft reads face, pet, focus and barcode regions in the Metadata Working Group's region schema
 (`mwg-rs:Regions`, `http://www.metadataworkinggroup.com/schemas/regions/`), as Lightroom, digiKam, Picasa and others
 write them, from sidecars and from XMP embedded in the file. Named faces become people in the People view
-(LR-LIB-PEOPLE in [`parity.md`](parity.md)), and every region is drawn as a box in the loupe.
+(LR-LIB-PEOPLE in [`parity-checklist.md`](parity-checklist.md)), and every region is drawn as a box in the loupe.
 
 - **Read only.** LightCraft never writes `mwg-rs:Regions`; saving a sidecar keeps another application's regions byte
   for byte. Removing or resizing a box in the loupe changes the library only.
