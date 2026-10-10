@@ -2096,5 +2096,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Виберіть фото й увімкніть цей параметр, щоб заповнити ним тло за кожним фото.",
   "Reset layout": "Скинути макет",
   "Select a photo to preview its slide": "Виберіть фото, щоб переглянути його слайд",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Вибране фото як слайд. Під час відтворення слайд заповнює екран; попередній перегляд пропорцій змінює лише цей перегляд."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Вибране фото як слайд. Під час відтворення слайд заповнює екран; попередній перегляд пропорцій змінює лише цей перегляд.",
+  "Overlays": "Накладання",
+  "Identity plate": "Фірмова табличка",
+  "Your name or studio": "Ваше ім'я або студія",
+  "Anchored to": "Прив'язка до",
+  "Slide": "Слайд",
+  "Render behind image": "Малювати за зображенням",
+  "Rating stars": "Зірки рейтингу",
+  "Text overlays": "Текстові накладання",
+  "Add text overlay": "Додати текстове накладання",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Токени: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Решта тексту виводиться як написано.",
+  "Use export watermark": "Використати водяний знак експорту",
+  "The export watermark, drawn on the photo and sized relative to it.": "Водяний знак експорту, малюється на фото й масштабується відносно нього."
 }

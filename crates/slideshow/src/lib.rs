@@ -19,5 +19,5 @@
 mod compose;
 mod settings;
 
-pub use compose::{Layout, Rect, compose, layout, photo_size};
+pub use compose::{Layout, Rect, compose, compose_with, layout, photo_size};
 pub use settings::{Aspect, MARGIN_MAX, MAX_SIDE, SHADOW_OFFSET_MAX, SHADOW_RADIUS_MAX, STROKE_MAX, SlideSettings, hex, parse_color};

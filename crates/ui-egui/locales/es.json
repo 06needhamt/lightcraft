@@ -1902,5 +1902,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Selecciona una foto y activa esta opción para llenar con ella el fondo detrás de cada foto.",
   "Reset layout": "Restablecer diseño",
   "Select a photo to preview its slide": "Selecciona una foto para previsualizar su diapositiva",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "La foto seleccionada como diapositiva. La reproducción llena la pantalla; la vista previa de proporción solo cambia esta vista previa."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "La foto seleccionada como diapositiva. La reproducción llena la pantalla; la vista previa de proporción solo cambia esta vista previa.",
+  "Overlays": "Superposiciones",
+  "Identity plate": "Placa de identidad",
+  "Your name or studio": "Tu nombre o estudio",
+  "Anchored to": "Anclado a",
+  "Slide": "Diapositiva",
+  "Render behind image": "Representar detrás de la imagen",
+  "Rating stars": "Estrellas de valoración",
+  "Text overlays": "Superposiciones de texto",
+  "Add text overlay": "Añadir superposición de texto",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. El resto del texto se muestra tal cual.",
+  "Use export watermark": "Usar la marca de agua de exportación",
+  "The export watermark, drawn on the photo and sized relative to it.": "La marca de agua de exportación, dibujada sobre la foto y escalada respecto a ella."
 }

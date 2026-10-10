@@ -1,6 +1,7 @@
 //! Slideshow slides in the engine: the library's slide layout ([`SlideSettings`], Lightroom
-//! Classic's Layout, Options and Backdrop panels; the `slideshow.layout` command) and render jobs
-//! that compose a photo into its slide ([`SlideCompose`], [`crate::media::RenderJob::with_slide`]).
+//! Classic's Layout, Options and Backdrop panels; the `slideshow.layout` command), its overlays
+//! ([`crate::slide_overlay`], `slideshow.overlays`) and render jobs that compose a photo into its
+//! slide ([`SlideCompose`], [`crate::media::RenderJob::with_slide`]).
 //!
 //! The composer itself is `lightcraft-slideshow` (no UI, no catalog): playback, the Settings
 //! preview and `slideshow.preview` all compose through it, so they draw the same pixels.
@@ -50,6 +51,8 @@ pub struct SlideCompose {
     pub width: usize,
     pub height: usize,
     pub backdrop: Option<Backdrop>,
+    /// The overlays resolved for the slide's photo (`None`: none draw).
+    pub overlays: Option<Arc<crate::slide_overlay::SlideOverlays>>,
 }
 
 impl SlideCompose {
@@ -59,12 +62,19 @@ impl SlideCompose {
             ^ (self.width as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)
             ^ (self.height as u64).wrapping_mul(0xc2b2_ae3d_27d4_eb4f)
             ^ self.backdrop.as_ref().map_or(0, |b| b.job.key.rotate_left(29))
+            ^ self.overlays.as_ref().map_or(0, |o| o.key().rotate_left(43))
     }
 
     /// The slide showing `photo` (rendered at [`lightcraft_slideshow::photo_size`], or any size).
     pub fn compose(&self, photo: &Rgba8) -> Rgba8 {
         let bg = self.backdrop.as_ref().and_then(Backdrop::image);
-        lightcraft_slideshow::compose(photo, bg.as_deref(), &self.settings, self.width, self.height)
+        let Some(o) = &self.overlays else {
+            return lightcraft_slideshow::compose(photo, bg.as_deref(), &self.settings, self.width, self.height);
+        };
+        let (mut img, l) =
+            lightcraft_slideshow::compose_with(photo, bg.as_deref(), &self.settings, self.width, self.height, &mut |img, l| o.draw_behind(img, l));
+        o.draw_front(&mut img, &l);
+        img
     }
 }
 
@@ -83,9 +93,16 @@ impl crate::Session {
         Some(if a.is_finite() && a > 0.0 { a } else { 1.5 })
     }
 
+    /// Does a slide show nothing but the photo fitted on black (the plain layout and no
+    /// overlays)? Playback then shows the photo's own render.
+    pub fn slides_plain(&self) -> bool {
+        self.slide_layout.is_plain() && !self.slide_overlays.any()
+    }
+
     /// The composition of `settings` at `width × height`, with its background image's render job
-    /// (the photo `settings.background_image` names, when it is in the catalog).
-    pub fn slide_compose(&mut self, settings: &SlideSettings, width: usize, height: usize) -> Arc<SlideCompose> {
+    /// (the photo `settings.background_image` names, when it is in the catalog) and the library's
+    /// overlays resolved for `photo`.
+    pub fn slide_compose(&mut self, settings: &SlideSettings, width: usize, height: usize, photo: Option<PhotoId>) -> Arc<SlideCompose> {
         let settings = settings.clone().sanitized();
         let backdrop = settings.background_image.filter(|_| settings.background_opacity > 0.0).and_then(|bid| {
             let id = PhotoId(bid);
@@ -96,7 +113,11 @@ impl crate::Session {
             let job = self.render_job(id, w, h, false, true)?;
             Some(Backdrop { photo: id, job: Box::new(job), cache: self.slide_backdrop.clone() })
         });
-        Arc::new(SlideCompose { settings, width, height, backdrop })
+        let overlays = self.slide_overlays.any().then(|| {
+            let p = photo.and_then(|id| self.catalog.photo(id));
+            Arc::new(crate::slide_overlay::SlideOverlays::resolve(&self.slide_overlays, p.map(|p| &**p)))
+        });
+        Arc::new(SlideCompose { settings, width, height, backdrop, overlays })
     }
 
     /// A render job whose result is photo `id`'s slide at `width × height` with the library's
@@ -126,7 +147,7 @@ impl crate::Session {
             (w, h) = (((w as f64 * k).round() as usize).max(1), ((h as f64 * k).round() as usize).max(1));
         }
         let job = if view { self.loupe_job(id, w.max(8), h.max(8), true)? } else { self.render_job(id, w.max(8), h.max(8), false, true)? };
-        let compose = self.slide_compose(settings, width, height);
+        let compose = self.slide_compose(settings, width, height, Some(id));
         Some(job.with_slide(compose))
     }
 

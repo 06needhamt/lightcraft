@@ -1902,5 +1902,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Selecione uma foto e ative esta opção para preencher com ela o fundo atrás de cada foto.",
   "Reset layout": "Redefinir layout",
   "Select a photo to preview its slide": "Selecione uma foto para visualizar o slide dela",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "A foto selecionada como slide. A reprodução preenche a tela; a visualização da proporção muda só esta visualização."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "A foto selecionada como slide. A reprodução preenche a tela; a visualização da proporção muda só esta visualização.",
+  "Overlays": "Sobreposições",
+  "Identity plate": "Placa de identidade",
+  "Your name or studio": "Seu nome ou estúdio",
+  "Anchored to": "Ancorado em",
+  "Slide": "Slide",
+  "Render behind image": "Renderizar atrás da imagem",
+  "Rating stars": "Estrelas de classificação",
+  "Text overlays": "Sobreposições de texto",
+  "Add text overlay": "Adicionar sobreposição de texto",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. O restante do texto aparece como digitado.",
+  "Use export watermark": "Usar a marca d'água de exportação",
+  "The export watermark, drawn on the photo and sized relative to it.": "A marca d'água de exportação, desenhada sobre a foto e dimensionada em relação a ela."
 }

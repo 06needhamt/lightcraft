@@ -344,3 +344,86 @@ fn settings_shows_the_slide_layout_and_a_live_preview() {
     assert!(c[1] > 200 && c[0] < 60, "the green backdrop in the preview margin: {c:?}");
     h.settle(SETTLE);
 }
+
+#[test]
+fn overlays_show_during_playback() {
+    let mut h = grid();
+    assert!(h.app.session.slides_plain());
+    // the default layout with an identity plate: playback composes the slide to draw it
+    run(
+        &mut h,
+        "slideshow.overlays",
+        json!({"identityPlate": {"enabled": true, "text": "LC", "size": 0.12, "color": "#00ff00", "opacity": 1, "anchor": "topLeft", "offsetX": 0.02, "offsetY": 0.02}}),
+    );
+    assert!(!h.app.session.slides_plain());
+    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0}));
+    let current = play(&h).current();
+    assert!(h.step_until(SETTLE, |h| has_slide(h, current)), "the slide is composed and ready");
+    h.step();
+    assert_eq!(h.app.renderer.textures.get(&Slot::Slide(current)).unwrap().size, [1000, 700]);
+    let img = h.paint();
+    // the plate's box: 14 px in from the top-left corner, 84 px high
+    let green = (14..98).flat_map(|y| (14..120).map(move |x| (x, y))).filter(|&(x, y)| {
+        let c = painted(&img, x, y);
+        c[1] > 200 && c[0] < 80 && c[2] < 80
+    });
+    assert!(green.count() > 200, "the identity plate is on the slide");
+    h.settle(SETTLE);
+}
+
+#[test]
+fn settings_shows_the_overlays_and_the_preview_follows_them() {
+    let mut h = grid();
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).is_some_and(|t| t.photo == first)));
+    let has = |h: &Headless, w: &str| h.app.widgets.iter().any(|(id, _)| id == w);
+    // scroll down to the Overlays section
+    let r = h.request("ui.hoverWidget", json!({"id": "check:settings.slideshowRandom"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        let r = h.request("ui.scroll", json!({"dy": -800}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        for _ in 0..10 {
+            h.step();
+        }
+    }
+    for w in ["check:settings.slideshowPlate", "check:settings.slideshowStars", "button:slideshowAddText", "check:settings.slideshowWatermark"] {
+        assert!(has(&h, w), "{w}");
+    }
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowAddText"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(h.app.session.slide_overlays.texts.len(), 1);
+    h.step();
+    assert!(has(&h, "field:slideshowText0"), "the text overlay's template field");
+    // its rows are below the fold: scroll on down
+    for _ in 0..4 {
+        let r = h.request("ui.scroll", json!({"dy": -800}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        for _ in 0..10 {
+            h.step();
+        }
+    }
+    assert!(has(&h, "button:slideshowText0Anchor-4"), "its anchor grid");
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowText0Anchor-0"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(h.app.session.slide_overlays.texts[0].place.anchor, lightcraft_engine::export::Anchor::TopLeft, "picked in the grid");
+    // removed from its row the text overlay from its row
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowText0Remove"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.session.slide_overlays.texts.is_empty());
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "check:settings.slideshowPlate"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.session.slide_overlays.identity_plate.enabled);
+    // the preview is rendered again with the overlays
+    let before = h.app.renderer.textures.get(&Slot::SlidePreview).map(|t| t.key);
+    run(&mut h, "slideshow.overlays", json!({"identityPlate": {"text": "Studio", "color": "#ff00ff"}}));
+    assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).map(|t| t.key) != before));
+    h.settle(SETTLE);
+}

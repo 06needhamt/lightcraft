@@ -1902,5 +1902,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Sélectionnez une photo, puis activez cette option pour en remplir le fond derrière chaque photo.",
   "Reset layout": "Réinitialiser la disposition",
   "Select a photo to preview its slide": "Sélectionnez une photo pour prévisualiser sa diapositive",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "La photo sélectionnée en diapositive. La lecture remplit l’écran ; l’aperçu des proportions ne change que cet aperçu."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "La photo sélectionnée en diapositive. La lecture remplit l’écran ; l’aperçu des proportions ne change que cet aperçu.",
+  "Overlays": "Incrustations",
+  "Identity plate": "Plaque d'identification",
+  "Your name or studio": "Votre nom ou studio",
+  "Anchored to": "Ancré à",
+  "Slide": "Diapositive",
+  "Render behind image": "Afficher derrière l'image",
+  "Rating stars": "Étoiles de notation",
+  "Text overlays": "Incrustations de texte",
+  "Add text overlay": "Ajouter une incrustation de texte",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Jetons : {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Le reste du texte s'affiche tel quel.",
+  "Use export watermark": "Utiliser le filigrane d'exportation",
+  "The export watermark, drawn on the photo and sized relative to it.": "Le filigrane d'exportation, dessiné sur la photo et dimensionné par rapport à elle."
 }

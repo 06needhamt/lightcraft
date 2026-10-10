@@ -1,5 +1,6 @@
 //! Settings ▸ Slideshow: the slide's Layout, Options and Backdrop sections (Lightroom Classic's
-//! Slideshow panels of the same names) and a small live preview of the composed slide.
+//! Slideshow panels of the same names) and a small live preview of the composed slide (with the
+//! overlays of [`super::slide_overlays`]).
 //!
 //! Every control goes through `slideshow.layout` (validated there, saved with the library).
 //! Sliders change the layout in memory while dragged (the preview follows) and save it when let
@@ -177,7 +178,16 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     };
     let ppp = ui.ctx().pixels_per_point();
     let (pw, ph) = (((PREVIEW_W * ppp).round() as usize).max(16), ((h * ppp).round() as usize).max(16));
-    let key = s.pixel_key() ^ id.0.rotate_left(17) ^ ((pw as u64) << 32 | ph as u64);
+    // the overlays and what they show of the photo (its rating, its metadata) change it too
+    let shown = app.session.catalog.photo(id).filter(|_| app.session.slide_overlays.any()).map_or(0, |p| {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        p.rating.hash(&mut h);
+        serde_json::to_string(&p.meta).unwrap_or_default().hash(&mut h);
+        h.finish()
+    });
+    let overlays = if app.session.slide_overlays.any() { app.session.slide_overlays.pixel_key() ^ shown.rotate_left(5) } else { 0 };
+    let key = s.pixel_key() ^ id.0.rotate_left(17) ^ ((pw as u64) << 32 | ph as u64) ^ overlays.rotate_left(29);
     let now = ui.input(|i| i.time);
     let mem = egui::Id::new("settingsSlideshowPreviewKey");
     let (last, since) = ui.ctx().data(|d| d.get_temp::<(u64, f64)>(mem)).unwrap_or((0, f64::NEG_INFINITY));

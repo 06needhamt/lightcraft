@@ -2057,5 +2057,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Wählen Sie ein Foto aus und schalten Sie dies ein, um die Folie hinter jedem Foto damit zu füllen.",
   "Reset layout": "Layout zurücksetzen",
   "Select a photo to preview its slide": "Wählen Sie ein Foto, um seine Folie in der Vorschau zu sehen",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Das ausgewählte Foto als Folie. Die Wiedergabe füllt den Bildschirm; die Seitenverhältnis-Vorschau ändert nur diese Vorschau."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Das ausgewählte Foto als Folie. Die Wiedergabe füllt den Bildschirm; die Seitenverhältnis-Vorschau ändert nur diese Vorschau.",
+  "Overlays": "Überlagerungen",
+  "Identity plate": "Erkennungstafel",
+  "Your name or studio": "Ihr Name oder Studio",
+  "Anchored to": "Verankert an",
+  "Slide": "Folie",
+  "Render behind image": "Hinter dem Bild rendern",
+  "Rating stars": "Sternebewertung",
+  "Text overlays": "Textüberlagerungen",
+  "Add text overlay": "Textüberlagerung hinzufügen",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Token: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Anderer Text erscheint wie eingegeben.",
+  "Use export watermark": "Export-Wasserzeichen verwenden",
+  "The export watermark, drawn on the photo and sized relative to it.": "Das Export-Wasserzeichen, auf das Foto gezeichnet und relativ zu ihm skaliert."
 }

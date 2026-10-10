@@ -1902,5 +1902,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "選取一張照片，然後開啟此項，以它填滿每張照片後方的投影片背景。",
   "Reset layout": "重設版面",
   "Select a photo to preview its slide": "選取一張照片以預覽其投影片",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "將所選照片顯示為投影片。播放時會填滿螢幕；長寬比預覽只會改變此預覽。"
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "將所選照片顯示為投影片。播放時會填滿螢幕；長寬比預覽只會改變此預覽。",
+  "Overlays": "疊加",
+  "Identity plate": "身分標識",
+  "Your name or studio": "你的名字或工作室",
+  "Anchored to": "錨定到",
+  "Slide": "幻燈片",
+  "Render behind image": "在影像後方繪製",
+  "Rating stars": "評等星號",
+  "Text overlays": "文字疊加",
+  "Add text overlay": "新增文字疊加",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "標記：{file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}。其他文字按原樣顯示。",
+  "Use export watermark": "使用匯出浮水印",
+  "The export watermark, drawn on the photo and sized relative to it.": "匯出浮水印，繪製在照片上，大小相對於照片。"
 }

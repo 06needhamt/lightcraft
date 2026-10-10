@@ -200,7 +200,10 @@ Slideshow slides, for example: `cmd_slideshow_layout` reads or changes the slide
 zoom to fill, stroke border, cast shadow, backdrop colour, colour wash, background image; saved with
 the library) and `cmd_slideshow_preview {id?, width?, height?, path?}` composes one slide with it —
 written as a PNG to `path`, or returned as base64 PNG in `png` — so an agent can look at a layout
-before playing it. `cmd_slideshow_playback` sets the timing and fades.
+before playing it. `cmd_slideshow_playback` sets the timing and fades. `cmd_slideshow_overlays` sets the
+overlays drawn on every slide (identity plate text or image, rating stars, text overlays with tokens such as
+`{caption}` or `{exposure}`, the export watermark); its reply lists `warnings` (an unreadable plate image, tags that
+aren't tokens), and `cmd_slideshow_preview` returns each overlay's box.
 
 ## Resources
 

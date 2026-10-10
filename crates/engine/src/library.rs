@@ -162,6 +162,8 @@ struct PrefsFile {
     slideshow: crate::slideshow::PlaybackSettings,
     /// Slideshow slide layout (margins, options, backdrop).
     slide_layout: crate::slide::SlideSettings,
+    /// Slideshow overlays.
+    slide_overlays: crate::slide_overlay::OverlaySettings,
 }
 
 fn presets_json(s: &Session) -> String {
@@ -346,6 +348,7 @@ impl Session {
         self.cache_mb = prefs.cache_mb;
         self.slideshow = prefs.slideshow.sanitized();
         self.slide_layout = prefs.slide_layout.sanitized();
+        self.slide_overlays = prefs.slide_overlays.sanitized();
         self.forget_local_days = prefs.forget_local_days.unwrap_or(lightcraft_catalog::DEFAULT_FORGET_DAYS);
         self.smart_previews_dir = prefs.smart_previews_dir.filter(|_| on_disk).map(PathBuf::from);
         if let Some(d) = &self.smart_previews_dir {
@@ -584,6 +587,7 @@ impl Session {
             forget_local_days: Some(self.forget_local_days),
             slideshow: self.slideshow.clone(),
             slide_layout: self.slide_layout.clone(),
+            slide_overlays: self.slide_overlays.clone(),
         })
         .unwrap_or_default();
         let Some(lib) = self.library.as_mut() else { return Ok(()) };

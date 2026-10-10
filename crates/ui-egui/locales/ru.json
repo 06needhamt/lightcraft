@@ -1616,5 +1616,18 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "Выберите фото и включите этот параметр, чтобы заполнить им фон за каждым фото.",
   "Reset layout": "Сбросить макет",
   "Select a photo to preview its slide": "Выберите фото, чтобы увидеть его слайд",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Выбранное фото в виде слайда. При воспроизведении слайд заполняет экран; предпросмотр пропорций меняет только этот предпросмотр."
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "Выбранное фото в виде слайда. При воспроизведении слайд заполняет экран; предпросмотр пропорций меняет только этот предпросмотр.",
+  "Overlays": "Наложения",
+  "Identity plate": "Фирменная табличка",
+  "Your name or studio": "Ваше имя или студия",
+  "Anchored to": "Привязка к",
+  "Slide": "Слайд",
+  "Render behind image": "Рисовать за изображением",
+  "Rating stars": "Звёзды рейтинга",
+  "Text overlays": "Текстовые наложения",
+  "Add text overlay": "Добавить текстовое наложение",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Токены: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Остальной текст выводится как написан.",
+  "Use export watermark": "Использовать водяной знак экспорта",
+  "The export watermark, drawn on the photo and sized relative to it.": "Водяной знак экспорта, рисуется на фото и масштабируется относительно него.",
+  "© Your Name": "© Ваше имя"
 }

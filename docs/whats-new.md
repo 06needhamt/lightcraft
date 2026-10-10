@@ -2,6 +2,19 @@
 
 ## 2026-10-10
 
+### Slideshow overlays
+- Slides can now carry Lightroom Classic's Slideshow overlays: an identity plate (a line of text in a colour, or an
+  image file such as a PNG logo with transparency, at a size and opacity, optionally drawn behind the photo), the
+  photo's rating as stars, and any number of text overlays (up to 16) built from tokens: `{caption}`, `{title}`,
+  `{file}`, `{date}`, `{exposure}` ("1/250 s at f/8"), `{iso}`, `{focal}`, `{camera}`, `{lens}`, `{rating}` and the
+  other file-naming tokens, with a size, colour, opacity and an optional soft shadow (opacity, offset, radius, angle).
+  Each sits at one of nine anchors of the slide or of the photo, moved by an offset, and never leaves the slide.
+- The export watermark can be drawn on every slide's photo too ("Use export watermark" takes the one you last
+  exported with).
+- Set them in Settings ▸ Slideshow ▸ Overlays; the slide preview there and View ▸ Slideshow show them. Sizes are a
+  share of the slide, so slides look the same on any screen. They are saved with the library. Agents use
+  `slideshow.overlays`; `slideshow.preview` now also returns where each overlay landed.
+
 ### Slideshow layout, options and backdrop
 - Slides can now be laid out like Lightroom Classic's Slideshow Layout, Options and Backdrop panels: margins (all four
   linked, or each on its own), Zoom to Fill Frame (crop the photo to fill its cell), a stroke border (colour, width),

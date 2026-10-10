@@ -182,7 +182,7 @@ fn slide_job(app: &mut LightcraftApp, id: PhotoId, area: Rect, ppp: f32, texture
     let photo = app.session.catalog.photo(id)?.clone();
     let frame = Frame::with_lens(photo.width.max(1) as usize, photo.height.max(1) as usize, &photo.develop, true, photo.embedded_lens.as_ref());
     let native = super::detail::output_px(&frame);
-    if !app.session.slide_layout.is_plain() {
+    if !app.session.slides_plain() {
         let (w, h) = slide_px(area, ppp, texture_side);
         let edge = app.ui.settings.loupe_edge(w.max(h) as f32, native[0].max(native[1]), texture_side);
         return app.session.slide_job(id, w, h, Some(edge));

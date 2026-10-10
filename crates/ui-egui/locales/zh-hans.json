@@ -1902,5 +1902,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "选择一张照片，然后打开此项，用它填充每张照片后面的幻灯片背景。",
   "Reset layout": "重置布局",
   "Select a photo to preview its slide": "选择一张照片以预览其幻灯片",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "将所选照片显示为幻灯片。播放时会填满屏幕；长宽比预览只改变此预览。"
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "将所选照片显示为幻灯片。播放时会填满屏幕；长宽比预览只改变此预览。",
+  "Overlays": "叠加",
+  "Identity plate": "身份标识",
+  "Your name or studio": "你的名字或工作室",
+  "Anchored to": "锚定到",
+  "Slide": "幻灯片",
+  "Render behind image": "在图像后面渲染",
+  "Rating stars": "评级星标",
+  "Text overlays": "文本叠加",
+  "Add text overlay": "添加文本叠加",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "标记：{file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}。其他文字按原样显示。",
+  "Use export watermark": "使用导出水印",
+  "The export watermark, drawn on the photo and sized relative to it.": "导出水印，绘制在照片上，大小相对于照片。"
 }

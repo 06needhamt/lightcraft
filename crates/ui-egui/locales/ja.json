@@ -1904,5 +1904,17 @@
   "Select a photo, then turn this on to fill the slide behind every photo with it.": "写真を選択してからこれをオンにすると、各写真の背後をその写真で埋めます。",
   "Reset layout": "レイアウトをリセット",
   "Select a photo to preview its slide": "写真を選択するとスライドをプレビューできます",
-  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "選択した写真をスライドとして表示します。再生では画面全体に表示され、縦横比プレビューはこのプレビューだけを変更します。"
+  "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.": "選択した写真をスライドとして表示します。再生では画面全体に表示され、縦横比プレビューはこのプレビューだけを変更します。",
+  "Overlays": "オーバーレイ",
+  "Identity plate": "ID プレート",
+  "Your name or studio": "あなたの名前またはスタジオ名",
+  "Anchored to": "基準",
+  "Slide": "スライド",
+  "Render behind image": "画像の背後に表示",
+  "Rating stars": "レーティングの星",
+  "Text overlays": "テキストオーバーレイ",
+  "Add text overlay": "テキストオーバーレイを追加",
+  "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "トークン: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}。その他の文字は入力どおりに表示されます。",
+  "Use export watermark": "書き出しの透かしを使用",
+  "The export watermark, drawn on the photo and sized relative to it.": "書き出しの透かし。写真の上に、写真に対する比率で描かれます。"
 }

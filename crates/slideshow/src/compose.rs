@@ -204,6 +204,20 @@ fn blurred_step(n: usize, a: f64, b: f64, sigma: f64) -> Vec<f32> {
 /// backdrop image (any size; it fills the slide) composed with `s` at `out_w × out_h` pixels
 /// (limited to [`MAX_SIDE`] a side, at least 1 × 1). An empty `photo` draws the backdrop alone.
 pub fn compose(photo: &Rgba8, backdrop_image: Option<&Rgba8>, s: &SlideSettings, out_w: usize, out_h: usize) -> Rgba8 {
+    compose_with(photo, backdrop_image, s, out_w, out_h, &mut |_, _| {}).0
+}
+
+/// [`compose`], calling `behind(slide, layout)` once the backdrop is drawn and before the shadow,
+/// the stroke and the photo (so it draws behind the photo: a slideshow identity plate with
+/// "render behind image"), and returning the layout it drew with (for overlays drawn on top).
+pub fn compose_with(
+    photo: &Rgba8,
+    backdrop_image: Option<&Rgba8>,
+    s: &SlideSettings,
+    out_w: usize,
+    out_h: usize,
+    behind: &mut dyn FnMut(&mut Rgba8, &Layout),
+) -> (Rgba8, Layout) {
     let s = s.clone().sanitized();
     let (w, h) = slide_size(out_w, out_h);
     let has_photo = photo.width > 0 && photo.height > 0 && photo.data.len() == photo.width * photo.height;
@@ -237,6 +251,7 @@ pub fn compose(photo: &Rgba8, backdrop_image: Option<&Rgba8>, s: &SlideSettings,
             }
         });
     }
+    behind(&mut out, &l);
     // cast shadow: a blurred rectangle (separable: the product of two blurred steps)
     if let Some((r, sigma)) = l.shadow {
         let op = s.shadow_opacity as f32;
@@ -261,7 +276,7 @@ pub fn compose(photo: &Rgba8, backdrop_image: Option<&Rgba8>, s: &SlideSettings,
     if has_photo {
         draw_image(&mut out, photo, &l.photo, &l.cell, 1.0);
     }
-    out
+    (out, l)
 }
 
 #[cfg(test)]
@@ -457,6 +472,19 @@ mod tests {
         for (x, y) in [(0, 0), (150, 100), (299, 199)] {
             assert_eq!(img.get(x + 10, y), photo.get(x, y), "unchanged pixels at ({x}, {y})");
         }
+    }
+
+    #[test]
+    fn behind_draws_under_the_photo_and_the_layout_comes_back() {
+        let s = with(json!({"margins": 0.2}));
+        let mut seen = None;
+        let (img, l) = compose_with(&solid(10, 10, GREEN), None, &s, 200, 100, &mut |out, l| {
+            seen = Some(*l);
+            out.data.fill([255, 0, 0, 255]);
+        });
+        assert_eq!(seen, Some(l), "the hook gets the layout the slide is drawn with");
+        assert_eq!(px(&img, 2, 2), RED, "the hook's paint stays on the backdrop");
+        assert_eq!(px(&img, 100, 50), GREEN, "and the photo covers it");
     }
 
     #[test]

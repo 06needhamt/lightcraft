@@ -137,3 +137,93 @@ fn a_background_image_and_the_slide_key() {
     let img = s.slide_now(&gone, photos[0], 320, 200).unwrap();
     assert_eq!(img.get(3, 3), [255, 0, 0, 255]);
 }
+
+#[test]
+fn slide_overlays_are_validated_and_persist_with_the_library() {
+    let lib = temp_dir("overlays");
+    {
+        let mut s = Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        let r = s.execute("slideshow.overlays", &json!({})).unwrap();
+        assert_eq!(r["identityPlate"]["enabled"], false, "defaults: {r}");
+        assert_eq!(r["texts"], json!([]));
+        assert!(s.slides_plain());
+        let r = s
+            .execute(
+                "slideshow.overlays",
+                &json!({"identityPlate": {"enabled": true, "text": "Studio Nord"}, "ratingStars": {"enabled": true}, "addText": {"text": "{caption} {bogus}"}, "showWatermark": true, "watermark": "© Ann"}),
+            )
+            .unwrap();
+        assert_eq!(r["texts"].as_array().map(Vec::len), Some(1));
+        assert_eq!(r["watermark"]["text"], "© Ann");
+        assert_eq!(r["warnings"].as_array().map(Vec::len), Some(1), "the unknown token is reported: {r}");
+        assert!(!s.slides_plain(), "overlays make playback compose its slides");
+        // a bad value changes nothing (the good keys beside it included)
+        for bad in
+            [json!({"identityPlate": {"size": "big"}, "showWatermark": false}), json!({"texts": [{"anchor": "nowhere"}]}), json!({"removeText": 5})]
+        {
+            assert!(s.execute("slideshow.overlays", &bad).is_err(), "{bad}");
+        }
+        assert!(s.slide_overlays.show_watermark);
+        drop(s);
+    }
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    let r = s.execute("slideshow.overlays", &json!({})).unwrap();
+    assert_eq!((r["identityPlate"]["text"].as_str(), r["texts"][0]["text"].as_str()), (Some("Studio Nord"), Some("{caption} {bogus}")));
+    // the layout beside it is untouched by an overlay change
+    let before = s.slide_layout.clone();
+    s.execute("slideshow.overlays", &json!({"removeText": 0})).unwrap();
+    assert_eq!(s.slide_layout, before);
+    drop(s);
+    // hand-edited values out of range are clamped when the library opens
+    std::fs::write(lib.join("prefs.json"), r#"{"slideOverlays": {"identityPlate": {"size": 1e9, "opacity": -2}, "texts": [{"size": 1e300}]}}"#)
+        .unwrap();
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    assert_eq!((s.slide_overlays.identity_plate.size, s.slide_overlays.identity_plate.opacity), (crate::slide_overlay::PLATE_SIZE_MAX, 0.0));
+    assert_eq!(s.slide_overlays.texts[0].size, crate::slide_overlay::TEXT_SIZE_MAX);
+    drop(s);
+    let _ = std::fs::remove_dir_all(&lib);
+}
+
+#[test]
+fn slide_preview_draws_the_overlays() {
+    let mut s = Session::with_demo();
+    let photos = s.visible_cloned();
+    s.execute("library.select", &json!({"ids": [photos[0].0]})).unwrap();
+    s.execute("photo.rate", &json!({"rating": 4, "ids": [photos[0].0]})).unwrap();
+    s.execute("slideshow.layout", &json!({"margins": 0.2, "backdropColor": "#000000"})).unwrap();
+    let before = s.slide_job(photos[0], 320, 200, None).unwrap().key;
+    let plain = s.slide_now(&s.slide_layout.clone(), photos[0], 640, 400).unwrap();
+    s.execute(
+        "slideshow.overlays",
+        &json!({
+            "identityPlate": {"enabled": true, "text": "LC", "size": 0.1, "color": "#00ff00", "opacity": 1, "anchor": "topLeft", "offsetX": 0.01, "offsetY": 0.01},
+            "ratingStars": {"enabled": true, "color": "#ffff00", "size": 0.05, "anchor": "bottomRight", "offsetX": -0.01, "offsetY": -0.01, "relativeTo": "slide"},
+            "addText": {"text": "{file}", "size": 0.05, "color": "#ffffff", "opacity": 1, "anchor": "bottom", "offsetX": 0, "offsetY": -0.01},
+        }),
+    )
+    .unwrap();
+    assert_ne!(s.slide_job(photos[0], 320, 200, None).unwrap().key, before, "overlays change the slide's render key");
+    let r = s.execute("slideshow.preview", &json!({"width": 640, "height": 400})).unwrap();
+    let kinds: Vec<&str> = r["overlays"].as_array().unwrap().iter().filter_map(|o| o["kind"].as_str()).collect();
+    assert_eq!(kinds, ["identityPlate", "ratingStars", "text0"]);
+    let img = s.slide_now(&s.slide_layout.clone(), photos[0], 640, 400).unwrap();
+    let count = |img: &lightcraft_raster::Rgba8, b: &serde_json::Value, want: fn([u8; 4]) -> bool| {
+        let v: Vec<usize> = (0..4).map(|i| b[i].as_f64().unwrap() as usize).collect();
+        (v[1]..v[3]).flat_map(|y| (v[0]..v[2]).map(move |x| (x, y))).filter(|&(x, y)| want(img.get(x, y))).count()
+    };
+    for (i, (kind, want)) in [
+        ("identityPlate", (|p: [u8; 4]| p[1] > 200 && p[0] < 60) as fn([u8; 4]) -> bool),
+        ("ratingStars", |p| p[0] > 200 && p[1] > 200 && p[2] < 60),
+        ("text0", |p| p[0] > 200 && p[1] > 200 && p[2] > 200),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let b = &r["overlays"][i]["box"];
+        assert!(count(&img, b, want) > 10, "{kind} is drawn in its box {b}");
+        assert_eq!(count(&plain, b, want), 0, "{kind}: not there without overlays");
+    }
+}
