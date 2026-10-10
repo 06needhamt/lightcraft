@@ -440,3 +440,66 @@ fn hdr_avif_export_is_pq_rec2020() {
     // a photo without an HDR edit exports as an ordinary (sRGB) AVIF
     assert!(nclx(&sdr.bytes).is_none_or(|c| c[3] != 16));
 }
+
+/// "Remove location info" holds for the file-copying formats too: the sidecar and the DNG's
+/// packet carry no location, and an original that embeds GPS is refused rather than copied.
+#[test]
+fn remove_location_holds_for_original_and_dng_exports() {
+    let dir = temp_dir("export-noloc");
+    let gps =
+        lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 48.85, longitude: 2.35, altitude: None }), ..Default::default() };
+    // a raw with no embedded GPS, located in the catalog
+    let raw = dir.join("Raw.dng");
+    std::fs::write(&raw, synthetic_dng_with(None, Default::default())).unwrap();
+    // a JPEG with GPS in its EXIF
+    let jpg = dir.join("Geo.jpg");
+    let img = lightcraft_raster::Rgba8::from_fn(32, 24, |x, y| [(x * 8) as u8, (y * 10) as u8, 90, 255]);
+    let exif = lightcraft_meta::write_exif(&gps);
+    let meta = lightcraft_codecs::EncodeMeta { exif: Some(&exif), ..Default::default() };
+    std::fs::write(&jpg, lightcraft_codecs::encode_jpeg(&lightcraft_codecs::EncodeImage::rgba8(&img), 90, Default::default(), &meta).unwrap())
+        .unwrap();
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [raw.to_string_lossy(), jpg.to_string_lossy()]})).unwrap();
+    let id = |s: &Session, n: &str| s.catalog.photos().find(|p| p.file_name == n).unwrap().id;
+    let (rid, jid) = (id(&s, "Raw.dng"), id(&s, "Geo.jpg"));
+    s.execute("photo.setMeta", &json!({"ids": [rid.0, jid.0], "gps": [48.85, 2.35], "city": "Paris"})).unwrap();
+    let opts = |f: &str, remove: bool| ExportOptions::from_json(&json!({"format": f, "removeLocation": remove}));
+
+    // original raw: the sidecar keeps the location unless it is removed
+    let side = |e: &crate::export::Exported| lightcraft_meta::parse_xmp(std::str::from_utf8(&e.sidecars[0].1).unwrap()).unwrap().metadata;
+    let kept = side(&export_photo(&mut s, rid, &opts("original", false), 1).unwrap());
+    assert!(kept.gps.is_some() && kept.city.is_some());
+    let gone = side(&export_photo(&mut s, rid, &opts("original", true), 1).unwrap());
+    assert!(gone.gps.is_none() && gone.city.is_none(), "{gone:?}");
+
+    // dng: the embedded packet
+    let e = export_photo(&mut s, rid, &opts("dng", false), 1).unwrap();
+    assert!(lightcraft_meta::extract(&e.bytes).gps.is_some());
+    let e = export_photo(&mut s, rid, &opts("dng", true), 1).unwrap();
+    let m = lightcraft_meta::extract(&e.bytes);
+    assert!(m.gps.is_none() && m.city.is_none(), "{m:?}");
+
+    // original JPEG embedding GPS: copied as is normally, refused when the location must go
+    let e = export_photo(&mut s, jid, &opts("original", false), 1).unwrap();
+    assert!(lightcraft_meta::extract(&e.bytes).gps.is_some());
+    let err = export_photo(&mut s, jid, &opts("original", true), 1).err().unwrap();
+    assert!(err.contains("can't remove the location") && err.contains("export as JPEG"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An original raw whose own metadata holds GPS is refused under "Remove location info".
+#[test]
+fn remove_location_refuses_a_raw_that_embeds_gps() {
+    let dir = temp_dir("export-noloc-raw");
+    let gps = lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 10.0, longitude: 20.0, altitude: None }), ..Default::default() };
+    let raw = dir.join("Geo.dng");
+    let bytes = synthetic_dng_with(Some(&lightcraft_meta::write_xmp(&gps, None)), Default::default());
+    assert!(lightcraft_meta::extract(&bytes).gps.is_some(), "fixture embeds GPS");
+    std::fs::write(&raw, bytes).unwrap();
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [raw.to_string_lossy()]})).unwrap();
+    let id = s.catalog.photos().next().unwrap().id;
+    let err = export_photo(&mut s, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
+    assert!(err.contains("can't remove the location"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

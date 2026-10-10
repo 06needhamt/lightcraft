@@ -1294,6 +1294,12 @@ pub fn encode_deep(img: &DeepImage, o: &ExportOptions, meta: Option<&Metadata>) 
     r.map_err(|e| e.to_string())
 }
 
+/// Whether the export of `photo` under `o` leaves out its location (GPS and place names).
+/// (`photo` and `catalog` let library-level privacy rules add to the export option.)
+pub fn removes_location(_photo: &lightcraft_catalog::Photo, _catalog: &lightcraft_catalog::Catalog, o: &ExportOptions) -> bool {
+    o.remove_location
+}
+
 /// The metadata to embed for `photo` under `o.metadata` / `o.remove_location`. `None` = embed nothing.
 /// Keywords follow the catalog's keyword list (`Catalog::export_keywords`).
 pub fn export_metadata(photo: &lightcraft_catalog::Photo, catalog: &lightcraft_catalog::Catalog, o: &ExportOptions) -> Option<Metadata> {
@@ -1402,6 +1408,8 @@ enum Work {
         read: Option<crate::merge::ByteReader>,
         packet: String,
         dng: Option<DngCompression>,
+        /// The original must not carry a location ([`removes_location`]).
+        remove_location: bool,
         label: String,
         size: (usize, usize),
     },
@@ -1461,8 +1469,9 @@ fn prepare_guarded(
         let work = Work::File {
             path: path.clone(),
             read: session.media.file_bytes.clone(),
-            packet: crate::sidecar::sidecar_packet(p, &session.catalog),
+            packet: crate::sidecar::sidecar_packet_with(p, &session.catalog, removes_location(p, &session.catalog, o)),
             dng,
+            remove_location: removes_location(p, &session.catalog, o),
             label: p.file_name.clone(),
             size: (p.width as usize, p.height as usize),
         };
@@ -1499,12 +1508,18 @@ impl PreparedExport {
                 };
                 Ok(Exported { file_name, bytes, width: r.image.width, height: r.image.height, sidecars: Vec::new() })
             }
-            Work::File { path, read, packet, dng, label, size } => {
+            Work::File { path, read, packet, dng, label, size, remove_location } => {
                 let bytes = match &read {
                     Some(r) => r(&path)?,
                     None => std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?,
                 };
                 let Some(dng) = dng else {
+                    // the file is copied byte for byte: refuse rather than leak a location it embeds
+                    if remove_location && lightcraft_meta::extract(&bytes).gps.is_some() {
+                        return Err(format!(
+                            "{label}: can't remove the location from an original file that embeds GPS; export as JPEG, TIFF or DNG instead"
+                        ));
+                    }
                     return Ok(Exported { file_name, bytes, width: size.0, height: size.1, sidecars: vec![("xmp", packet.into_bytes())] });
                 };
                 if lightcraft_raw::probe(&bytes).is_none() {
