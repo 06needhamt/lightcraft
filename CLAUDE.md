@@ -5,12 +5,18 @@ LightCraft is a clean-room, open-source, pure-Rust photo library + non-destructi
 ## Start every session here
 1. Read `plan/STATUS.md` (current milestone, next unchecked task, blockers).
 2. Read the task in `plan/execution-plan.md` §3, the relevant section of `plan/architecture.md`, and the README/docs of the crate you touch. Behaviour/visual reference: `plan/lightroom/` (incl. `10-observed-ui.md` + screenshots).
-3. **Know where we stand:** read [`ROADMAP.md`](ROADMAP.md) → *Where we stand* (honest assessment by dimension and
-   by kind of user) and *Where we're going* (ordered priorities). The checklist counts features that *exist*; the real
-   gaps are quality and coverage: camera colour calibration, CR3 / compressed raws, per-model verification, render
-   fidelity against Lightroom, AI models, HDR / video / Classic modules. A ✅ row is not proof of parity — if you find a
-   ✅ feature that is wrong or incomplete, downgrade it to 🟡 with a note.
-4. **Pick work** from [`docs/parity.md`](docs/parity.md) → *Top gaps* (ordered by user impact; the tracker has one row per feature, menu item and shortcut). When you land a feature, update its row(s) and the gap list in the same commit, and the *Where we stand* / *Where we're going* sections of `ROADMAP.md` when a listed gap closes; `cargo xtask parity` (part of `ci`) checks that every `cmd:`/`ctl:` id and path the tracker cites still exists, and `cargo xtask parity --write` refreshes its summary.
+3. **Know where we stand:** read [`ROADMAP.md`](ROADMAP.md) (stage, headline numbers, every dimension) and, for
+   method and evidence, [`docs/target-app-parity.md`](docs/target-app-parity.md). The checklist counts features that
+   *exist*; the real gaps are quality and coverage: camera colour calibration, CR3 / compressed raws, per-model
+   verification, render fidelity against Lightroom, AI models, HDR / video / Classic modules (raw detail:
+   [`docs/raw-parity.md`](docs/raw-parity.md)). A ✅ row is not proof of parity — if you find a ✅ feature that is
+   wrong or incomplete, downgrade it to 🟡 with a note.
+4. **Pick work** from [`docs/gaps.md`](docs/gaps.md) (ranked by user impact; `B` marks beta blockers). The row-by-row
+   tracker is [`docs/parity-checklist.md`](docs/parity-checklist.md) (one row per feature, menu item and shortcut).
+   When you land a feature, update its row(s) and the gap entry in the same commit, and the numbers in `ROADMAP.md` /
+   `docs/target-app-parity.md` when a listed gap closes (bump each doc's *Last updated* line and revision history, per
+   craftrules `standards/progress-docs.md`); `cargo xtask parity` (part of `ci`) checks that every `cmd:`/`ctl:` id and
+   path the tracker cites still exists, and `cargo xtask parity --write` refreshes its summary.
 5. Follow the autonomous operation protocol (`plan/execution-plan.md` §7). Don't stop to ask unless §7 lists the decision as the user's.
 
 `plan/` is gitignored (local-only).
@@ -55,6 +61,10 @@ of it. Full standard: `../craftrules/standards/never-crash.md`
 - **Pure Rust** in the product. No C/C++ dependencies.
 - **Layering** (`plan/architecture.md` §3, enforced by `cargo xtask layers`): nothing below L5 depends on egui/eframe/winit/rfd.
 - **Everything is a command** (`crates/engine`): id, label, menu path, shortcut, params, enabled(), run(). UI, CLI, control channel and MCP all dispatch by id. Every slider is a `develop` control spec.
+- **Long-running work shows in the activity stack** ([`docs/background-tasks.md`](docs/background-tasks.md)): anything
+  that runs off the UI thread and can take more than a moment holds a `TaskGuard` from `session.activity.start(kind,
+  label, cancel)` for its whole run. It adopts the cancel flag the job already checks (`Cancel::Flag`), or uses
+  `Cancel::No` when the job can't stop. No progress window, panel or progress toast of its own; its tests assert the row.
 - **Resolution independence:** settings use normalized image coordinates and relative radii; previews and exports must match.
 - **Quality gates** before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, layers, assets, wasm).
 - **Commits:** one task id per commit (`M2.3: local Laplacian highlights/shadows`). Only green states. End messages with the attribution line required by the environment.

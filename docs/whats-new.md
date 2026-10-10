@@ -1,6 +1,17 @@
 # What's new in LightCraft
 
-## October 2026
+## 2026-10-10
+
+### Activity stack
+- Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
+  folder scans, exports (and the contact sheet PDF), Synchronize Folder, Build / Smart Previews, Lightroom catalog import, Photo Merge, model downloads, the face scan,
+  AI Denoise and Find Missing Photos. Each row has the task's name, a progress bar, the count and what it is working
+  on; ✕ stops the tasks that can stop. Three rows show, then "+N more". The separate export panel and the progress
+  windows and toasts are gone.
+- Quitting while a task that can be stopped is running asks first ("Quit Anyway" stops it).
+- Agents list and stop tasks with `activity.list` and `activity.cancel`; `ui.inspect` reports them as `activity`.
+
+## 2026-10-09
 
 ### Smart album rules
 - The rule editor's field menu is grouped: Rating, Pick Flag, Color Label and Any Searchable Text at the top, then
@@ -92,7 +103,7 @@
   file is gone, photos whose file was renamed or moved within the folder, and XMP sidecars changed by other apps; then
   choose what to do: import the new photos and relink the moved ones (the defaults), move the missing ones to Recently
   Deleted, read the metadata updates. A folder on a disk that isn't connected is reported as such. Synchronizing
-  runs in the background with a progress window and Cancel; everything it does is one undo step, and no file on disk
+  runs in the background with a row in the activity stack (✕ stops it); everything it does is one undo step, and no file on disk
   is touched. Agents use `folder.scanChanges` and `folder.synchronize`.
 
 ### Folder colour labels
@@ -119,6 +130,8 @@
 - Outside the crop box, where dragging rotates the photo, the pointer is a curved double arrow, and the angle is shown
   next to it while you rotate (issue #534). For an exact angle, type it in the new Angle field under Straighten and press Return
   (Esc keeps the old angle; a decimal comma works too), or click the Straighten value; hovering any slider's value now says it can be typed.
+
+## 2026-10-08
 
 ### Albums tree
 - Album folders fold with the same disclosure triangle as Local, By Date, Folders and Keywords.
@@ -149,6 +162,60 @@
   press the new keys (Esc cancels), × removes it, ↺ restores the original, Reset All undoes every change. A key that
   belonged to another command moves to the new one. Menus show the new keys; agents use `app.setShortcut`.
 
+### Formats
+- HEIC / HEIF photos (iPhone and Mac) open now: the optional `lightcraft-heif` crate (heic-rs, pure Rust) behind
+  codecs' `heif` feature — 8- and 10-bit, alpha, grid tiles, the container's rotation/mirror/crop, ICC, EXIF and XMP.
+  Off by default (HEVC patents are the distributor's call, same as PhotoCraft); official builds pass `--features heif`.
+- HEIC colours now match libheif to within one code value (they were up to ~10 off): the HEVC stream's own
+  full-range/matrix signalling is honoured (iPhone photos are full range), chroma is upsampled like libheif, grids
+  take their tiles' ICC profile, and `imir` mirrors the way libheif writes it. Importing a HEIC reads its size from
+  the container instead of decoding it; small previews use the file's embedded thumbnail. The release packages
+  (macOS, Windows, Linux, FreeBSD, Nix) now really are built with HEIC support; a build without it reports
+  "HEIC/HEIF support isn't included in this build" for each `.heic`/`.heif` at import.
+
+### Editing
+- The Tint slider works the right way round (issues #188, #321): left adds green, right adds magenta, as its track
+  shows and as in Lightroom, and Tint values in Lightroom XMP sidecars now render as they do there. A custom Tint
+  saved in an earlier version now shifts the other way; set it again (or re-run Auto / the white-balance picker).
+- White balance on DNGs (and other raws with a colour matrix) re-develops the photo for the new white through the
+  camera's own colour matrices, as Lightroom does, instead of shifting the colours of the as-shot rendering: a grey
+  lit by the chosen white comes out grey and saturated colours move as the camera records them. The eyedropper and
+  Auto use the same model. Custom white balances on these photos render slightly differently than before.
+- Crop (issue #295): a Lock toggle keeps the aspect ratio on every handle, Custom takes your own ratio (Apply), and
+  dragging a handle into the image edge stops there instead of pushing the crop out of shape.
+
+### Library and views
+- Trackpads: pinch to zoom around the pointer and scroll with two fingers to pan the photo; panning keeps the photo
+  inside the view. A plain mouse wheel over a zoomed photo pans it too.
+- A Folders section in the sidebar lists the folders your photos were imported from; choose one to see its photos.
+- Select All and multi-selection show every selected photo in the grid and filmstrip, not only the active one
+  (issues #187, #298). Importing files that are in Recently Deleted asks whether to leave them there, restore them
+  (with their edits) or import them as new; the trash view's Photo menu has Empty Recently Deleted.
+- The Import Photos review opens bigger and can be resized; its photo grid fills it (issue #337). Shift-click checks
+  or unchecks a range of photos (issue #338).
+- When a folder holds several file types, the Import Photos review has a toggle per type (`ARW · 120`, `JPG · 120`):
+  import only the raws and leave the JPEGs beside them (issue #344).
+
+### Languages
+- The interface is available in Spanish (issue #371), German and Russian (Edit ▸ Language), alongside English,
+  Chinese (Simplified and Traditional), Japanese and Brazilian Portuguese.
+
+### Editing
+- Type an exact value into any slider (issue #322): click the number next to its name, type (`1.5`, `-20`, `5600`)
+  and press Return; Esc keeps the old value.
+
+### Editing
+- The eye on the Light, Color and Detail section headers now hides their adjustments, as it already did for Effects,
+  Optics, Geometry and Calibration (issue #316).
+
+### Library
+- Choosing a date under By Date or a keyword under Keywords shows those photos from All Photos, as their counts
+  promise, instead of filtering whatever album or folder was open, which often showed nothing (issue #341).
+)
+)
+
+## 2026-10-07
+
 ### RAW decoding
 - Olympus ORF raws get the starting look fitted to the camera's own JPEG too, instead of opening flat and grey (the
   E-1, E-400 and XZ-2 corpus files: all accepted), with white balance relative to the as-shot look as for the other
@@ -157,6 +224,11 @@
 - Samsung SRW files without compression now open as raws: NX5, NX10, NX11, NX20, NX200, NX210, NX1000, NX1100, EX1
   and WB2000. The compressed ones (NX1, NX30, NX300, NX500, NX2000, NX3000, NX3300, NX mini) still open from their
   camera JPEG. Photos already imported pick the change up on Reload.
+- Raws from 52 camera models (22 Canon, 11 Nikon, 11 Sony, 3 Fujifilm and 5 others, plus their other names) whose
+  camera JPEG can't be fitted no longer open with the neutral fallback: they start from colour matrices fitted to the
+  camera's measured spectral sensitivities, from the Academy Software Foundation's rawtoaces-data. A camera profile
+  and the fit to the photo's own JPEG still come first, so photos that had a fitted look keep it. See
+  [camera preview colour](camera-preview-colour.md#spectral-camera-matrices-and-the-order-of-precedence).
 - Canon CR2 raws no longer open too dark with blocked-up shadows: the black level was measured over border columns
   that light already reaches (left of the image area Canon records), 4 % of the range too high on the EOS 6D. It is
   now measured on the masked columns alone (8 corpus bodies, EOS 40D to 5DS R). On a 6D photo the starting render
@@ -200,72 +272,7 @@
   existing LightCraft edits are preserved by default. Source settings/history are archived, unsupported
   fields are reported, and the original Lightroom database stays read-only. Rendering is approximate.
 
-### Formats
-- HEIC / HEIF photos (iPhone and Mac) open now: the optional `lightcraft-heif` crate (heic-rs, pure Rust) behind
-  codecs' `heif` feature — 8- and 10-bit, alpha, grid tiles, the container's rotation/mirror/crop, ICC, EXIF and XMP.
-  Off by default (HEVC patents are the distributor's call, same as PhotoCraft); official builds pass `--features heif`.
-- HEIC colours now match libheif to within one code value (they were up to ~10 off): the HEVC stream's own
-  full-range/matrix signalling is honoured (iPhone photos are full range), chroma is upsampled like libheif, grids
-  take their tiles' ICC profile, and `imir` mirrors the way libheif writes it. Importing a HEIC reads its size from
-  the container instead of decoding it; small previews use the file's embedded thumbnail. The release packages
-  (macOS, Windows, Linux, FreeBSD, Nix) now really are built with HEIC support; a build without it reports
-  "HEIC/HEIF support isn't included in this build" for each `.heic`/`.heif` at import.
-
-### Presets and profiles
-- Import presets from other editors: XMP presets, classic `.lrtemplate` files, "DNG presets" from mobile apps and `.zip`
-  bundles of any of these — whole folders at once, grouped by pack. Masks inside presets come along.
-- Luminar looks: `.lmp` files and `.mplumpack` collections import as presets (grouped by collection); the sliders
-  with a counterpart here come along, the rest is listed.
-- 23 new built-in presets: Portrait, Landscape, Urban, Food, Seasons, Vintage and B&W toners.
-- Importing XMP presets no longer lists bookkeeping fields (`Cluster`, `SortName`, `SupportsAmount2`, the as-shot
-  white, empty Point Color slots…) as settings that couldn't be carried over.
-- A preset whose lens-profile switch is off no longer turns off the lens corrections built into a DNG (iPhone ProRAW
-  and other files with embedded distortion / vignetting corrections), matching what the preset does elsewhere.
-- XMP presets apply their red / green / blue curves only when they also have the master curve and all three channel
-  curves, as Lightroom does: a preset with just one channel curve (or no master curve) leaves the channels alone.
-- Imported `.cube` LUT profiles appear in the Profile menu and the profile browser, grouped by their folder, and stay
-  favourites across restarts (issue #328).
-
-### Editing
-- The Tint slider works the right way round (issues #188, #321): left adds green, right adds magenta, as its track
-  shows and as in Lightroom, and Tint values in Lightroom XMP sidecars now render as they do there. A custom Tint
-  saved in an earlier version now shifts the other way; set it again (or re-run Auto / the white-balance picker).
-- White balance on DNGs (and other raws with a colour matrix) re-develops the photo for the new white through the
-  camera's own colour matrices, as Lightroom does, instead of shifting the colours of the as-shot rendering: a grey
-  lit by the chosen white comes out grey and saturated colours move as the camera records them. The eyedropper and
-  Auto use the same model. Custom white balances on these photos render slightly differently than before.
-- Crop (issue #295): a Lock toggle keeps the aspect ratio on every handle, Custom takes your own ratio (Apply), and
-  dragging a handle into the image edge stops there instead of pushing the crop out of shape.
-
-### Library and views
-- Trackpads: pinch to zoom around the pointer and scroll with two fingers to pan the photo; panning keeps the photo
-  inside the view. A plain mouse wheel over a zoomed photo pans it too.
-- A Folders section in the sidebar lists the folders your photos were imported from; choose one to see its photos.
-- Select All and multi-selection show every selected photo in the grid and filmstrip, not only the active one
-  (issues #187, #298). Importing files that are in Recently Deleted asks whether to leave them there, restore them
-  (with their edits) or import them as new; the trash view's Photo menu has Empty Recently Deleted.
-- The Import Photos review opens bigger and can be resized; its photo grid fills it (issue #337). Shift-click checks
-  or unchecks a range of photos (issue #338).
-- When a folder holds several file types, the Import Photos review has a toggle per type (`ARW · 120`, `JPG · 120`):
-  import only the raws and leave the JPEGs beside them (issue #344).
-
-### Languages
-- The interface is available in Spanish (issue #371), German and Russian (Edit ▸ Language), alongside English,
-  Chinese (Simplified and Traditional), Japanese and Brazilian Portuguese.
-
-### Editing
-- Type an exact value into any slider (issue #322): click the number next to its name, type (`1.5`, `-20`, `5600`)
-  and press Return; Esc keeps the old value.
-
-### Editing
-- The eye on the Light, Color and Detail section headers now hides their adjustments, as it already did for Effects,
-  Optics, Geometry and Calibration (issue #316).
-
-### Library
-- Choosing a date under By Date or a keyword under Keywords shows those photos from All Photos, as their counts
-  promise, instead of filtering whatever album or folder was open, which often showed nothing (issue #341).
-)
-)
+## 2026-10-05
 
 ### Reliability
 - The Windows installer asks where to install LightCraft (Program Files by default; upgrades keep the folder you
@@ -362,6 +369,23 @@
   for the session instead of being overwritten with defaults. The app settings (`ui.json`, which remembers your
   library) are written atomically and saved as soon as you open another library, not only at quit. Quitting while
   changes couldn't be saved tries once more, then asks: Try Saving Again, Quit Anyway or Cancel.
+
+## 2026-10-02
+
+### Presets and profiles
+- Import presets from other editors: XMP presets, classic `.lrtemplate` files, "DNG presets" from mobile apps and `.zip`
+  bundles of any of these — whole folders at once, grouped by pack. Masks inside presets come along.
+- Luminar looks: `.lmp` files and `.mplumpack` collections import as presets (grouped by collection); the sliders
+  with a counterpart here come along, the rest is listed.
+- 23 new built-in presets: Portrait, Landscape, Urban, Food, Seasons, Vintage and B&W toners.
+- Importing XMP presets no longer lists bookkeeping fields (`Cluster`, `SortName`, `SupportsAmount2`, the as-shot
+  white, empty Point Color slots…) as settings that couldn't be carried over.
+- A preset whose lens-profile switch is off no longer turns off the lens corrections built into a DNG (iPhone ProRAW
+  and other files with embedded distortion / vignetting corrections), matching what the preset does elsewhere.
+- XMP presets apply their red / green / blue curves only when they also have the master curve and all three channel
+  curves, as Lightroom does: a preset with just one channel curve (or no master curve) leaves the channels alone.
+- Imported `.cube` LUT profiles appear in the Profile menu and the profile browser, grouped by their folder, and stay
+  favourites across restarts (issue #328).
 
 ### Library
 - Photos in Recently Deleted can be restored from the app: right-click ▸ Restore (or Delete Permanently), also in the

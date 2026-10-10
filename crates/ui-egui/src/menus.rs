@@ -27,7 +27,7 @@ pub const LANGUAGE_COMMANDS: &[UiCommand] = &[
 ];
 
 /// Every UI command: the languages, then everything else. `xtask parity` reads both tables from
-/// this file, so an id listed in `docs/parity.md` is checked wherever it is declared.
+/// this file, so an id listed in `docs/parity-checklist.md` is checked wherever it is declared.
 pub fn ui_commands() -> impl Iterator<Item = &'static UiCommand> {
     LANGUAGE_COMMANDS.iter().chain(UI_COMMANDS)
 }
@@ -1212,7 +1212,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 }
             };
             app.ui.last_find_missing = None;
-            if let Err(e) = crate::tasks::spawn(app, LABEL, work, done) {
+            if let Err(e) = crate::tasks::spawn(app, LABEL, Some("findMissing"), work, done) {
                 return Some(Err(e));
             }
             if p.get("wait").and_then(Value::as_bool).unwrap_or(false) {
