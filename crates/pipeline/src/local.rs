@@ -210,6 +210,8 @@ pub fn log_lum(c: [f32; 3]) -> f32 {
 #[derive(Clone, Default)]
 pub(crate) struct Planes {
     pub key: u64,
+    /// The image's key without its noise reduction (`Plan::pre_nr_key`).
+    pub pre_nr: u64,
     pub log_l: Option<Arc<Plane>>,
     pub base: Option<(u32, Arc<Plane>)>,
     pub clarity: Option<(u32, Arc<Plane>)>,
@@ -218,6 +220,15 @@ pub(crate) struct Planes {
     pub dark: Option<(u32, Arc<Plane>, f32)>,
     /// Blurred chromaticity (local Moiré / Noise).
     pub chroma: Option<(u32, Arc<Rgb32f>)>,
+}
+
+impl Planes {
+    /// The planes that still fit an image differing from this one only in noise reduction, close
+    /// enough for a draft: the wide blurs (base, clarity, dehaze, chromaticity). Its `key` matches
+    /// no image, so only another draft takes them.
+    pub fn for_other_nr(self) -> Planes {
+        Planes { key: 0, pre_nr: self.pre_nr, log_l: None, texture: None, ..self }
+    }
 }
 
 /// Reuse `slot` if it was computed at `sigma`, else compute and store it.
