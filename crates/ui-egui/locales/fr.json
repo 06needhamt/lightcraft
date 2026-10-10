@@ -1884,5 +1884,10 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "Other…": "Autre…",
+  "Intent:": "Mode de rendu :",
+  "Perceptual": "Perceptif",
+  "Relative": "Relatif",
+  "Simulate Paper & Ink": "Simuler le papier et l'encre"
 }

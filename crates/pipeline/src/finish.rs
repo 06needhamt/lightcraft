@@ -583,6 +583,13 @@ pub(crate) fn finish_with<T: Copy + Default + Send>(
             // soft proofing maps into the proof space first and shows that in the output space
             let mut warn = None;
             let mut r = match &fp.proof {
+                Some(pp) if pp.table.is_some() => {
+                    let (q, dist) = pp.table.as_ref().map_or((d, 0.0), |t| t.sample(d));
+                    if pp.dest_warning && dist > crate::output::PROOF_GAMUT_TOLERANCE {
+                        warn = Some(crate::output::PROOF_DEST_WARNING);
+                    }
+                    mul3(to_out, q)
+                }
                 Some(pp) => {
                     let q0 = mul3(&pp.to_proof, d);
                     let (q, t) = gamut_map_to(q0, pp.luma, peak);
@@ -594,7 +601,7 @@ pub(crate) fn finish_with<T: Copy + Default + Send>(
                 None => mul3(to_out, d),
             };
             let (mapped, t) = gamut_map_to(r, *out_luma, peak);
-            if fp.proof.is_some_and(|pp| pp.display_warning) && warn.is_none() && out_of_gamut(r, t) {
+            if fp.proof.as_ref().is_some_and(|pp| pp.display_warning) && warn.is_none() && out_of_gamut(r, t) {
                 warn = Some(crate::output::PROOF_DISPLAY_WARNING);
             }
             r = mapped;

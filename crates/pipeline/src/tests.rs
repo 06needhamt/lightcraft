@@ -334,8 +334,13 @@ fn soft_proof_maps_into_the_proof_gamut_and_flags_what_does_not_fit() {
     let plain = render(&src, &info, &s, &req(OutputSpace::Srgb, None)).image;
     let same = render(&src, &info, &s, &req(OutputSpace::Srgb, Some(Proof { space: OutputSpace::Srgb, ..Default::default() }))).image;
     assert_eq!(plain, same);
-    let warned =
-        render(&src, &info, &s, &req(OutputSpace::Srgb, Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: false }))).image;
+    let warned = render(
+        &src,
+        &info,
+        &s,
+        &req(OutputSpace::Srgb, Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: false, profile: 0 })),
+    )
+    .image;
     let n = red(&warned);
     assert!(n > 0 && n < warned.len(), "{n}");
     // …and nothing is flagged on an unsaturated edit of a neutral ramp
@@ -344,7 +349,10 @@ fn soft_proof_maps_into_the_proof_gamut_and_flags_what_does_not_fit() {
         &grey,
         &info,
         &DevelopSettings::default(),
-        &RenderRequest { proof: Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: true }), ..RenderRequest::fit(64, 8) },
+        &RenderRequest {
+            proof: Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: true, profile: 0 }),
+            ..RenderRequest::fit(64, 8)
+        },
     );
     assert_eq!(red(&g.image) + blue(&g.image), 0);
 
@@ -353,9 +361,13 @@ fn soft_proof_maps_into_the_proof_gamut_and_flags_what_does_not_fit() {
     let proofed = render(&src, &info, &s, &req(OutputSpace::DisplayP3, Some(Proof { space: OutputSpace::Srgb, ..Default::default() }))).image;
     assert_ne!(wide, proofed);
     // proofing a wider space than the display: what the display can't show is flagged blue
-    let pro =
-        render(&src, &info, &s, &req(OutputSpace::Srgb, Some(Proof { space: OutputSpace::ProPhoto, dest_warning: true, display_warning: true })))
-            .image;
+    let pro = render(
+        &src,
+        &info,
+        &s,
+        &req(OutputSpace::Srgb, Some(Proof { space: OutputSpace::ProPhoto, dest_warning: true, display_warning: true, profile: 0 })),
+    )
+    .image;
     assert!(blue(&pro) > 0);
     assert!(red(&pro) < n, "ProPhoto holds more than sRGB");
 }
@@ -384,12 +396,47 @@ fn display_space_renders_like_the_matching_output_space() {
 
     // soft proofing on a display: the display gamut warning is about *this* display
     let blue = |img: &lightcraft_raster::Rgba8| img.data.iter().filter(|p| p[2] == 255 && p[0] == 0 && p[1] < 80).count();
-    let pro = Some(Proof { space: OutputSpace::ProPhoto, dest_warning: false, display_warning: true });
+    let pro = Some(Proof { space: OutputSpace::ProPhoto, dest_warning: false, display_warning: true, profile: 0 });
     let on_srgb = blue(&render(&src, &info, &s, &req(OutputSpace::Srgb, Some(DisplaySpace::of(OutputSpace::Srgb, 2).unwrap()), pro)).image);
     let on_wide = blue(&render(&src, &info, &s, &req(OutputSpace::Srgb, Some(DisplaySpace::of(OutputSpace::Rec2020, 3).unwrap()), pro)).image);
     assert!(on_srgb > 0 && on_wide < on_srgb, "{on_srgb} {on_wide}");
     let plain = blue(&render(&src, &info, &s, &req(OutputSpace::Srgb, None, pro)).image);
     assert_eq!(plain, on_srgb, "an sRGB display warns like no display profile");
+}
+
+/// Proofing against an output-device table: the table's colours are what the render shows, and its
+/// gamut distances drive the destination warning.
+#[test]
+fn soft_proof_through_a_device_table() {
+    use crate::{OutputSpace, Proof, ProofLut, register_proof_profile};
+    let n = 5;
+    // a "paper" that dims everything to 80 % and calls every non-grey colour out of gamut
+    let data: Vec<[f32; 4]> = (0..n * n * n)
+        .map(|i| {
+            let c = [i / (n * n), (i / n) % n, i % n].map(|k| lightcraft_color::transfer::srgb_to_linear(k as f32 / (n - 1) as f32));
+            let grey = c[0] == c[1] && c[1] == c[2];
+            [c[0] * 0.8, c[1] * 0.8, c[2] * 0.8, if grey { 0.0 } else { 1.0 }]
+        })
+        .collect();
+    assert!(ProofLut::new(n, data[1..].to_vec()).is_none());
+    assert!(ProofLut::new(n, vec![[f32::NAN; 4]; n * n * n]).is_none());
+    let id = register_proof_profile(0xfeed, ProofLut::new(n, data).unwrap());
+    let info = SourceInfo { raw: true, ..Default::default() };
+    let white = Rgb32f::from_fn(16, 4, |_, _| [100.0; 3]);
+    let req = |proof| RenderRequest { space: OutputSpace::Srgb, proof, ..RenderRequest::fit(16, 4) };
+    let plain = render(&white, &info, &DevelopSettings::default(), &req(None)).image;
+    let pr = Proof { profile: id, dest_warning: true, ..Default::default() };
+    let paper = render(&white, &info, &DevelopSettings::default(), &req(Some(pr))).image;
+    assert!(plain.data[0][0] > 250 && paper.data[0][0] < 240 && paper.data[0][0] > 200, "{:?} {:?}", plain.data[0], paper.data[0]);
+    // an unknown id falls back to the space proof (sRGB on sRGB: no change)
+    let none = render(&white, &info, &DevelopSettings::default(), &req(Some(Proof { profile: 12345, ..Default::default() }))).image;
+    assert_eq!(none, plain);
+    // saturated colours are flagged
+    let src = scene();
+    let mut s = DevelopSettings::default();
+    s.color.saturation = 100.0;
+    let warned = render(&src, &info, &s, &req(Some(pr))).image;
+    assert!(warned.data.iter().any(|p| p[..3] == [255, 0, 0]));
 }
 
 #[test]

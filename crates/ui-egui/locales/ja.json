@@ -1886,5 +1886,10 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "Other…": "その他…",
+  "Intent:": "マッチング方法：",
+  "Perceptual": "知覚的",
+  "Relative": "相対的",
+  "Simulate Paper & Ink": "紙とインキをシミュレート"
 }

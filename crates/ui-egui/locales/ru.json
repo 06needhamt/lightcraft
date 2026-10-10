@@ -1598,5 +1598,10 @@
   "Finding faces": "Поиск лиц",
   "Quit Anyway": "Всё равно выйти",
   "Synchronizing folder": "Синхронизация папки",
-  "Looking for changes": "Поиск изменений"
+  "Looking for changes": "Поиск изменений",
+  "Other…": "Другой…",
+  "Intent:": "Метод:",
+  "Perceptual": "Перцепционный",
+  "Relative": "Относительный",
+  "Simulate Paper & Ink": "Имитировать бумагу и краску"
 }

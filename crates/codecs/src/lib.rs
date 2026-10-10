@@ -29,6 +29,7 @@ pub mod jpeg_par;
 mod jxl;
 mod other;
 mod png_codec;
+pub mod proof;
 mod psd;
 mod sniff;
 pub mod space;

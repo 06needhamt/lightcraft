@@ -1884,5 +1884,10 @@
   "Downloading model": "正在下載模型",
   "Finding faces": "正在尋找臉孔",
   "Synchronizing folder": "正在同步資料夾",
-  "Looking for changes": "正在尋找變更"
+  "Looking for changes": "正在尋找變更",
+  "Other…": "其他…",
+  "Intent:": "方式：",
+  "Perceptual": "感知",
+  "Relative": "相對",
+  "Simulate Paper & Ink": "模擬紙張和油墨"
 }

@@ -1884,5 +1884,10 @@
   "Downloading model": "Descargando modelo",
   "Finding faces": "Buscando caras",
   "Synchronizing folder": "Sincronizando carpeta",
-  "Looking for changes": "Buscando cambios"
+  "Looking for changes": "Buscando cambios",
+  "Other…": "Otro…",
+  "Intent:": "Propósito:",
+  "Perceptual": "Perceptual",
+  "Relative": "Relativo",
+  "Simulate Paper & Ink": "Simular papel y tinta"
 }

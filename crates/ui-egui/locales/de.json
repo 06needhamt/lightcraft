@@ -2039,5 +2039,10 @@
   "Downloading model": "Modell wird heruntergeladen",
   "Finding faces": "Gesichter werden gesucht",
   "Synchronizing folder": "Ordner wird synchronisiert",
-  "Looking for changes": "Änderungen werden gesucht"
+  "Looking for changes": "Änderungen werden gesucht",
+  "Other…": "Andere…",
+  "Intent:": "Priorität:",
+  "Perceptual": "Perzeptiv",
+  "Relative": "Relativ",
+  "Simulate Paper & Ink": "Papier und Druckfarbe simulieren"
 }
