@@ -1,4 +1,5 @@
 //! Test-only ARW6 synthetic encoder pieces: forward 5/3 transforms (exact inverse of `llvc::inverse_*`) and `quantize`.
+//! Section names in italics refer to `docs/arw6-compression.md`.
 
 use crate::llvc::{Bands3, Plane, band_rows};
 use lightcraft_tiff::tags as t;
@@ -217,11 +218,11 @@ pub(crate) struct Qis {
 
 impl Qis {
     pub(crate) const ZERO: Qis = Qis { l1: [[0; 3]; 3], l2: [[0; 3]; 3], l3: [[0; 3]; 3], res: 0 };
-    /// The values seen in every real file (spec *Container*).
+    /// The values seen in every real file (*Container*).
     pub(crate) const REAL: Qis = Qis { l1: [[1, 1, 2], [2, 2, 3], [2, 2, 3]], l2: [[0, 0, 1]; 3], l3: [[0; 3]; 3], res: 2 };
 }
 
-/// One tile to encode: `s` is the anchor offset (spec *Frame geometry*), planes are W/2 x H/2.
+/// One tile to encode: `s` is the anchor offset (*Frame geometry*), planes are W/2 x H/2.
 pub(crate) struct TileSpec {
     pub s: u8,
     pub qi: Qis,
@@ -287,7 +288,7 @@ fn build_stream(halves: &[(Vec<u8>, Vec<u32>)]) -> Vec<u8> {
 }
 
 /// Encode one tile: forward 3-level 5/3 per component with the phases of `s`, quantise, pack every half in natural
-/// clipped order (spec *Frame geometry*), then add index tables, stream headers and the tile header.
+/// clipped order (*Frame geometry*), then add index tables, stream headers and the tile header.
 pub(crate) fn encode_tile(t: &TileSpec) -> Vec<u8> {
     let (vs, s) = (t.m.height, i32::from(t.s));
     let ntu = crate::vendor::arw6::tu_count(vs, t.s);

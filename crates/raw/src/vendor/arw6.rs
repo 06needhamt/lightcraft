@@ -2,8 +2,8 @@
 //!
 //! Clean-room. The layout comes from SMPTE RDD 34 (Picture_info in word 0) and from Phase 0 black-box
 //! inspection of real ILCE-7RM6 files (tile table, group size words, stream headers and index entries), each rule
-//! checked by re-serialising parsed tiles byte-for-byte; see `docs/superpowers/specs/2026-10-09-sony-arw6-decoder-design.md`
-//! (*Container (Sony)*). No other raw decoder's source was consulted.
+//! checked by re-serialising parsed tiles byte-for-byte. The format is described in `docs/arw6-compression.md`; section
+//! names in italics below refer to it. No other raw decoder's source was consulted.
 
 use crate::llvc::{Bands3, Plane, band_rows, dequant, reconstruct3, vld_decode_line};
 use crate::vendor::arw6_curve::{ARW6_CURVE, CURVE_KNEE};
@@ -48,7 +48,7 @@ pub(crate) struct TileEntry {
 /// Most tiles a strip may hold (real files have 1 or 4).
 const MAX_TILES: usize = 16;
 
-/// Parse the tile table at the start of the strip (file structure, spec *Container*): `u32` count, `u32` 0, then
+/// Parse the tile table at the start of the strip (file structure, *Container*): `u32` count, `u32` 0, then
 /// 24-byte entries `u64` offset (relative to the strip), `u32` x, y, width, height, all little-endian.
 pub(crate) fn parse_tile_table(strip: &[u8], width: usize, height: usize) -> Result<Vec<TileEntry>> {
     let count = u32_le(strip, 0).ok_or_else(|| corrupt("truncated tile table"))?;
@@ -136,7 +136,7 @@ fn field(w: &[u8], pos: usize, n: usize) -> Option<u32> {
 const GROUP_STREAMS: [usize; 5] = [3, 3, 3, 3, 1];
 
 /// Parse word 0 (RDD 34 `Picture_info`; every real file has HS = tile width, VS = tile height / 2, BBD 16, NC 3, NW 3,
-/// NP 1000000000b), the group size words 3..=7 and each stream's header word (spec *Container*, Phase 0).
+/// NP 1000000000b), the group size words 3..=7 and each stream's header word (*Container*, Phase 0).
 pub(crate) fn parse_tile_header(tile: &[u8], tw: usize, th: usize) -> Result<TileHeader> {
     let w0 = tile.get(..16).ok_or_else(|| corrupt("tile shorter than its picture header"))?;
     let f = |pos, n| field(w0, pos, n).map(|v| v as usize);
@@ -218,10 +218,10 @@ pub(crate) fn stream_halves(tile: &[u8], s: &StreamRef, ntu: usize) -> Result<Ve
     Ok(halves)
 }
 
-// ---- sensor-anchored frame geometry and tile reconstruction (spec *Frame geometry*) ----
+// ---- sensor-anchored frame geometry and tile reconstruction (*Frame geometry*) ----
 
 /// Halves of `vs` plane rows are anchored to the sensor: half `n` covers plane rows `8n - 6 + s .. 8n + 1 + s`, so
-/// `ceil((vs - 2 - s) / 8) + 1` halves are needed, two per TU (controller ruling, spec *Frame geometry*).
+/// `ceil((vs - 2 - s) / 8) + 1` halves are needed, two per TU (*Container*).
 pub(crate) fn tu_count(vs: usize, s: u8) -> usize {
     let halves = vs.saturating_sub(2usize.saturating_add(usize::from(s))).div_ceil(8).saturating_add(1);
     halves.div_ceil(2)
@@ -246,7 +246,7 @@ pub(crate) fn half_rows(n: usize, s: u8, rows: usize) -> Range<usize> {
 
 /// First half's frame rows `lines - 2`, read before the TU count is known from g4's first index entry alone
 /// (index table at word `g4.word + 1`, entry 0's `A` = big-endian u16; its bytes start after the index table).
-/// Residual lines are decoded while at least 8 bits remain and fewer than 8 lines were read (spec *Frame geometry*).
+/// Residual lines are decoded while at least 8 bits remain and fewer than 8 lines were read (*Frame geometry*).
 pub(crate) fn first_half_shift(tile: &[u8], g4: &StreamRef, width2: usize) -> Result<u8> {
     let idx = g4.word.checked_add(1).and_then(|w| w.checked_mul(16)).ok_or_else(|| corrupt("stream position"))?;
     let data = g4.index_words.checked_mul(16).and_then(|l| l.checked_add(idx)).ok_or_else(|| corrupt("stream position"))?;
@@ -365,7 +365,7 @@ fn put(plane: &mut Plane, row: usize, line: &[i32], mut f: impl FnMut(i32) -> i3
     Ok(())
 }
 
-/// Lay a half's lines into (band, rows, QI) in order: the natural clipped assignment of spec *Frame geometry*.
+/// Lay a half's lines into (band, rows, QI) in order: the natural clipped assignment of *Frame geometry*.
 fn fill(set: [(&mut Plane, &[usize], u32); 3], lines: &[Vec<i32>]) -> Result<()> {
     let mut it = lines.iter();
     for (plane, rows, qi) in set {
@@ -398,7 +398,8 @@ fn component(c: usize, streams: &[Vec<HalfLines>], layouts: &[HalfRows], vs: usi
     let grp = |g: usize, n: usize| streams.get(3 * g + c).and_then(|s| s.get(n)).ok_or_else(|| corrupt("missing half"));
     for (n, r) in layouts.iter().enumerate() {
         let (h0, l0) = grp(0, n)?;
-        // LL3: the nibble must be 0 (Phase 0: never seen otherwise); lines are DPCM from 2048 for the green mean (c = 0) and from 0 for the base-free chroma planes (spec *Container*).
+        // LL3: the nibble must be 0 (Phase 0: never seen otherwise); lines are DPCM from 2048 for the green mean (c = 0) and
+        // from 0 for the base-free chroma planes (*Entropy coding and dequantisation*).
         if h0.qi[0] != 0 {
             return Err(unsupported("LL3 quantiser index"));
         }
@@ -464,7 +465,7 @@ pub(crate) fn curve(code12: i32) -> u16 {
     }
 }
 
-/// Colour reconstruction (spec *Colour reconstruction*, checked against Phase 0 oracle output): the planes give a
+/// Colour reconstruction (*Colour reconstruction*, checked against Phase 0 oracle output): the planes give a
 /// `(2 W2) x (2 H2)` mosaic with R at (0,0), G1 (0,1), G2 (1,0), B (1,1) of every 2x2 cell, each value passed through
 /// [`curve`]. G1 comes from the green mean minus a residual average, G2 is predicted from the (unclipped) G1 plus the
 /// residual, and R/B are chroma plus the mean of the greens clamped to 0..=4095.
