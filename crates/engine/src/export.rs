@@ -215,6 +215,9 @@ pub struct Watermark {
     /// Margin from the top or bottom edge, as a fraction of the short edge (unused when the anchor
     /// is centred down: left, center, right).
     pub inset_y: f32,
+    /// Degrees clockwise: 0, 90, 180 or 270 (anything else draws unrotated). The watermark is
+    /// sized before it is turned, and the insets are measured to the turned watermark.
+    pub rotation: u16,
     /// sRGB colour.
     pub color: [u8; 3],
     /// Soft dark drop shadow for legibility on bright areas.
@@ -238,12 +241,36 @@ impl Default for Watermark {
             anchor: Anchor::BottomRight,
             inset_x: 0.025,
             inset_y: 0.025,
+            rotation: 0,
             color: [255; 3],
             shadow: true,
             image: String::new(),
             image_width: 0.2,
             target: None,
         }
+    }
+}
+
+impl Watermark {
+    /// `rotation` in clockwise quarter turns.
+    fn quarter_turns(&self) -> u8 {
+        match self.rotation {
+            90 => 1,
+            180 => 2,
+            270 => 3,
+            _ => 0,
+        }
+    }
+}
+
+/// Where the point `(x, y)` of a `w × h` box lands when the box is turned `turns` quarter turns
+/// clockwise (for pixel coordinates: the turned box is `h × w` for odd turns).
+fn turn(turns: u8, x: f32, y: f32, w: f32, h: f32) -> (f32, f32) {
+    match turns {
+        1 => (h - 1.0 - y, x),
+        2 => (w - 1.0 - x, h - 1.0 - y),
+        3 => (y, w - 1.0 - x),
+        _ => (x, y),
     }
 }
 
@@ -443,18 +470,21 @@ fn watermark_coverage(
         }
     }
     let (tw, th) = if wm.vertical { (columns as f32 * px, tw.max(y)) } else { (tw.max(x), y + px) };
+    // laid out unturned in a tw × th box, placed by the box it becomes
+    let turns = wm.quarter_turns();
+    let (bw, bh) = if turns % 2 == 1 { (th, tw) } else { (tw, th) };
     let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
     let (w, h) = (width as f32, height as f32);
     use Anchor::*;
     let ox = match wm.anchor {
         TopLeft | Left | BottomLeft => ix,
-        Top | Center | Bottom => (w - tw) / 2.0,
-        TopRight | Right | BottomRight => w - ix - tw,
+        Top | Center | Bottom => (w - bw) / 2.0,
+        TopRight | Right | BottomRight => w - ix - bw,
     };
     let oy = match wm.anchor {
         TopLeft | Top | TopRight => iy,
-        Left | Center | Right => (h - th) / 2.0,
-        BottomLeft | Bottom | BottomRight => h - iy - th,
+        Left | Center | Right => (h - bh) / 2.0,
+        BottomLeft | Bottom | BottomRight => h - iy - bh,
     };
     let alpha = wm.opacity.clamp(0.0, 1.0);
     let mut blend = |gx: i32, gy: i32, cov: f32, col: [u8; 3], a: f32| {
@@ -475,6 +505,8 @@ fn watermark_coverage(
                         Some((cx, cy)) => (cx - (sy - cy), cy + (sx - cx)),
                         None => (sx, sy),
                     };
+                    // turned with the box; the shadow still falls down and to the right
+                    let (sx, sy) = turn(turns, sx, sy, tw, th);
                     blend((ox + off + sx) as i32, (oy + off + sy) as i32, cov, col, a * alpha);
                 });
             }
@@ -521,7 +553,9 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
     let scaled = lightcraft_raster::resample::resize(&pre, lw, lh, lightcraft_raster::resample::Filter::Mitchell);
     let short = width.min(height) as f32;
     let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
-    let (w, h, lwf, lhf) = (width as f32, height as f32, lw as f32, lh as f32);
+    let turns = wm.quarter_turns();
+    let (bw, bh) = if turns % 2 == 1 { (lh, lw) } else { (lw, lh) };
+    let (w, h, lwf, lhf) = (width as f32, height as f32, bw as f32, bh as f32);
     use Anchor::*;
     let ox = match wm.anchor {
         TopLeft | Left | BottomLeft => ix,
@@ -541,7 +575,8 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         for x in 0..lw {
             let [r, g, b, a] = scaled.get(x, y);
             let a = a.clamp(0.0, 1.0);
-            let (px, py) = (ox + x, oy + y);
+            let (tx, ty) = turn(turns, x as f32, y as f32, lw as f32, lh as f32);
+            let (px, py) = (ox + tx as usize, oy + ty as usize);
             if a <= 1e-4 || px >= width || py >= height {
                 continue;
             }
@@ -676,7 +711,7 @@ pub const OPTION_PARAMS: &[&str] = &[
 /// The keys of a `watermark` object ([`Watermark`], camelCase). `inset` sets `insetX` and `insetY`
 /// together (what versions before the two margins wrote); either of those, when given, wins.
 pub const WATERMARK_PARAMS: &[&str] =
-    &["text", "vertical", "size", "opacity", "anchor", "insetX", "insetY", "inset", "color", "shadow", "image", "imageWidth"];
+    &["text", "vertical", "size", "opacity", "anchor", "insetX", "insetY", "inset", "rotation", "color", "shadow", "image", "imageWidth"];
 
 /// Text height as a fraction of the short edge: the range the renderer draws without clamping.
 pub const WATERMARK_SIZE_RANGE: (f32, f32) = (0.005, 0.5);
@@ -862,7 +897,7 @@ impl ExportOptions {
             Value::Object(o) => o,
             _ => {
                 return Err(bad(
-                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth}".into(),
+                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth}".into(),
                 ));
             }
         };
@@ -887,6 +922,11 @@ impl ExportOptions {
                 "opacity" => frac(k, v, (0.0, 1.0), "0 = invisible, 1 = solid")?,
                 "insetX" | "insetY" | "inset" => frac(k, v, WATERMARK_INSET_RANGE, "fraction of the short edge")?,
                 "imageWidth" => frac(k, v, WATERMARK_IMAGE_WIDTH_RANGE, "fraction of the photo's width")?,
+                "rotation" => {
+                    if !matches!(whole(v), Some(0 | 90 | 180 | 270)) {
+                        return Err(bad("`watermark.rotation` must be 0, 90, 180 or 270 (degrees clockwise)".into()));
+                    }
+                }
                 "anchor" => {
                     serde_json::from_value::<Anchor>(v.clone()).map_err(|_| {
                         bad("`watermark.anchor` must be one of topLeft|top|topRight|left|center|right|bottomLeft|bottom|bottomRight".into())
@@ -2051,6 +2091,40 @@ mod tests {
         assert_eq!(ExportOptions::from_json(&saved).watermark.map(|w| (w.inset_x, w.inset_y)), Some((0.05, 0.15)));
     }
 
+    /// A turned text watermark is placed by its turned box: taller than wide at 90° and 270°, the
+    /// same corner and insets, and an unknown angle draws it unturned.
+    #[test]
+    fn watermark_rotation_turns_the_text_in_its_corner() {
+        let lit = |wm: &Watermark| {
+            let mut img = Rgba8::new(400, 300);
+            draw_watermark(&mut img, wm);
+            let on: Vec<(usize, usize)> = (0..300).flat_map(|y| (0..400).map(move |x| (x, y))).filter(|&(x, y)| img.get(x, y)[0] > 128).collect();
+            let (x0, x1) = (on.iter().map(|p| p.0).min().unwrap(), on.iter().map(|p| p.0).max().unwrap());
+            let (y0, y1) = (on.iter().map(|p| p.1).min().unwrap(), on.iter().map(|p| p.1).max().unwrap());
+            (x0, x1, y0, y1, img)
+        };
+        let base = Watermark { text: "LightCraft".into(), size: 0.08, opacity: 1.0, shadow: false, inset_x: 0.0, inset_y: 0.0, ..Default::default() };
+        let (a0, a1, b0, b1, flat) = lit(&base);
+        assert!(a1 - a0 > 2 * (b1 - b0), "unturned text is wide");
+        for rotation in [90, 270] {
+            let (x0, x1, y0, y1, _) = lit(&Watermark { rotation, ..base.clone() });
+            assert!(y1 - y0 > 2 * (x1 - x0), "{rotation}°: tall");
+            assert!(x1 >= 390 && y1 >= 290, "{rotation}°: still in the bottom-right corner ({x1}, {y1})");
+            // 0.1 × 300 px further from the right edge
+            let (_, moved, ..) = lit(&Watermark { rotation, inset_x: 0.1, ..base.clone() });
+            assert!((x1 as i64 - moved as i64 - 30).abs() <= 1, "{rotation}°: {x1} → {moved}");
+        }
+        let (x0, x1, y0, y1, _) = lit(&Watermark { rotation: 180, ..base.clone() });
+        assert!(((x1 - x0) as i64 - (a1 - a0) as i64).abs() <= 2 && ((y1 - y0) as i64 - (b1 - b0) as i64).abs() <= 2, "180°: same size");
+        assert!(x1 >= 390 && y1 >= 290, "180°: same corner");
+        let (.., odd) = lit(&Watermark { rotation: 45, ..base.clone() });
+        assert_eq!(odd.data, flat.data, "an angle that isn't a quarter turn draws unturned");
+        // saved and read back; older settings have none
+        let o = ExportOptions { watermark: Some(Watermark { rotation: 270, ..base }), ..Default::default() };
+        assert_eq!(ExportOptions::from_json(&o.to_json()).watermark.map(|w| w.rotation), Some(270));
+        assert_eq!(ExportOptions::from_json(&json!({"watermark": {"text": "x"}})).watermark.map(|w| w.rotation), Some(0));
+    }
+
     fn vertical_japanese() -> Watermark {
         let options =
             ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
@@ -2241,6 +2315,23 @@ mod tests {
         assert!(img.get(272, 283)[0] > 200, "inside the moved logo: {:?}", img.get(272, 283));
         assert_eq!(img.get(267, 283), [0, 0, 0, 255], "left of the logo");
         assert_eq!(img.get(272, 288), [0, 0, 0, 255], "below the logo");
+        // turned: 180° puts the opaque half on the right; 90° clockwise puts it on top of a 50 × 100 box
+        let turned = |rotation: u16| {
+            let mut img = Rgba8::new(400, 300);
+            img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
+            draw_watermark(&mut img, &Watermark { rotation, ..wm.clone() });
+            img
+        };
+        let half = turned(180);
+        assert!(half.get(390, 280)[0] > 200 && half.get(310, 280) == [0, 0, 0, 255]);
+        let quarter = turned(90);
+        assert!(quarter.get(375, 220)[0] > 200, "top half of the turned logo: {:?}", quarter.get(375, 220));
+        assert_eq!(quarter.get(375, 280), [0, 0, 0, 255], "its transparent half below");
+        assert_eq!(quarter.get(340, 220), [0, 0, 0, 255], "left of the 50 px wide box");
+        assert!(quarter.get(352, 202)[0] > 200 && quarter.get(398, 248)[0] > 200, "the whole box is covered");
+        // three quarter turns: the opaque half at the bottom
+        let three = turned(270);
+        assert!(three.get(375, 280)[0] > 200 && three.get(375, 220) == [0, 0, 0, 255]);
         // an image-only watermark survives the params (no text needed)
         let o = ExportOptions::from_json(&json!({"watermark": {"image": logo_path.to_string_lossy(), "imageWidth": 0.1}}));
         assert_eq!(o.watermark.as_ref().map(|w| w.image_width), Some(0.1));
@@ -2580,10 +2671,10 @@ mod tests {
         use serde_json::json;
         let err = |w: serde_json::Value| ExportOptions::from_params(&json!({"watermark": w})).err().map(|e| e.to_string()).unwrap_or_default();
         assert!(err(json!(5)).contains(
-            "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth}"
+            "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth}"
         ));
         assert!(err(json!({"text": "x", "bogus": 1})).contains(
-            "unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth)"
+            "unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth)"
         ));
         assert!(err(json!({"text": "x", "sizee": 0.1})).contains("did you mean `size`"));
         for size in [json!(3), json!(0.5001), json!(0), json!("big")] {
@@ -2594,6 +2685,11 @@ mod tests {
         assert!(err(json!({"text": "x", "inset": -0.1})).contains("`watermark.inset` must be a number 0..0.4"));
         assert!(err(json!({"text": "x", "insetX": 0.5})).contains("`watermark.insetX` must be a number 0..0.4"));
         assert!(err(json!({"text": "x", "insetY": "far"})).contains("`watermark.insetY` must be a number 0..0.4"));
+        for rotation in [json!(45), json!(-90), json!(360), json!("90"), json!(90.5)] {
+            let e = err(json!({"text": "x", "rotation": rotation}));
+            assert!(e.contains("`watermark.rotation` must be 0, 90, 180 or 270 (degrees clockwise)"), "{rotation}: {e}");
+        }
+        assert!(ExportOptions::from_params(&json!({"watermark": {"text": "x", "rotation": 270}})).is_ok());
         assert!(err(json!({"image": "logo.png", "imageWidth": 2})).contains("`watermark.imageWidth` must be a number 0.01..1"));
         assert!(err(json!({"text": "x", "anchor": "middle"})).contains("`watermark.anchor` must be one of"));
         assert!(err(json!({"text": "x", "color": [255, 255]})).contains("`watermark.color` must be [r, g, b]"));
