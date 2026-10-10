@@ -158,8 +158,8 @@ pub(crate) fn warp_from_forward_map(corrected: &dyn Fn(f64) -> f64, t_max: f64, 
 
 /// Least-squares `source = u·(k0 + k1u² + k2u⁴ + k3u⁶)` through `source_of_u` sampled at `u = i/64`, i = 0..=64
 /// (`u` = output radius, `WarpRectilinear` units, so the result is directly a plane's `[k0, k1, k2, k3]`). `None` when
-/// a sample is not finite, the normal equations are singular, or the worst fit error at the samples with
-/// `u ≤ gate_until` (the radii the image shows; 1 = all) exceeds `max_fit_error`.
+/// a sample is not finite, the normal equations are singular, or the worst fit error at the samples up to the first
+/// one at or beyond `gate_until` (the radii the image shows; 1 = all) exceeds `max_fit_error`.
 pub(crate) fn fit_radial_warp(source_of_u: &dyn Fn(f64) -> f64, max_fit_error: f64, gate_until: f64) -> Option<[f64; 4]> {
     let samples: Vec<(f64, f64)> = (0..=DISTORTION_SAMPLES)
         .map(|i| {
@@ -187,6 +187,10 @@ pub(crate) fn fit_radial_warp(source_of_u: &dyn Fn(f64) -> f64, max_fit_error: f
     }
     let k = solve4(a, rhs)?;
     let fit = |u: f64| basis(u).iter().zip(&k).map(|(f, c)| f * c).sum::<f64>();
+    // rounded up to a sample, so the band between the last sample inside and `gate_until` itself is checked too;
+    // capped at 1 (`min` also turns a NaN into 1: every sample is gated)
+    let n = DISTORTION_SAMPLES as f64;
+    let gate_until = (gate_until * n).ceil().min(n) / n;
     let worst = samples.iter().filter(|&&(u, _)| u <= gate_until).map(|&(u, v)| (fit(u) - v).abs()).fold(0.0, f64::max);
     (worst <= max_fit_error).then_some(k)
 }
@@ -306,5 +310,12 @@ mod tests {
         let step = |u: f64| if u > 0.99 { 1.1 } else { u };
         assert!(fit_radial_warp(&step, 0.01, 1.0).is_none());
         assert_eq!(fit_radial_warp(&step, 0.01, 0.9), fit_radial_warp(&step, 1.0, 1.0), "gated only where shown");
+        // the first sample at or beyond `gate_until` is gated too (the band up to it is shown): 0.023 up to
+        // u = 62/64, 0.032 at 63/64
+        assert!(fit_radial_warp(&step, 0.03, 62.0 / 64.0).is_some(), "a sample exactly at the bound");
+        assert!(fit_radial_warp(&step, 0.03, 0.98).is_none(), "63/64 is the next sample beyond 0.98");
+        // capped at 1, and a NaN gates every sample (fails closed)
+        assert_eq!(fit_radial_warp(&step, 1.0, f64::INFINITY), fit_radial_warp(&step, 1.0, 1.0));
+        assert!(fit_radial_warp(&step, 0.01, f64::NAN).is_none(), "a NaN gate");
     }
 }

@@ -626,14 +626,14 @@ fn corpus_sony_16x9_crops() {
     eprintln!("Sony 16:9 crops checked on {seen} files");
 }
 
-/// Sony ILCE-7RM6: the distortion table in the raw IFD (`0x7037`) becomes a `WarpRectilinear` in `OpcodeList3`
-/// (`vendor::arw_lens_rm6`). Expected: the conversion recipe measured on 54 ILCE-7RM6 photos, evaluated in f64 for each
-/// file's decoded active area (the padded lossless tiles) and default crop. Both files carry distortion correction
-/// off in camera; the table is applied anyway.
+/// Sony ILCE-7RM6: the distortion and lateral CA tables in the raw IFD (`0x7037`, `0x7035`) become a three-plane
+/// (R, G, B) `WarpRectilinear` in `OpcodeList3` (`vendor::arw_lens_rm6`). Expected: the conversion recipe measured on 54
+/// ILCE-7RM6 photos, evaluated in f64 for each file's tables, decoded active area (the padded lossless tiles) and
+/// default crop. Both files carry distortion correction off in camera; the table is applied anyway.
 #[test]
 fn corpus_sony_lens_tables_become_opcodes() {
     let dir = corpus_root().join("raw");
-    // (file, active area, default crop x, y, width, height, opcode centre, G-plane k0..k3)
+    // (file, active area, default crop x, y, width, height, opcode centre, R, G, B planes k0..k3)
     let cases = [
         // not pinned in `cargo xtask corpus` (at most two pins per PR; #625 pins two Compressed ARW 6.0 files): checked
         // only where the file is present (RawDB `ILCE-7RM6_FF_land_RAW.ARW`, CC0)
@@ -642,7 +642,11 @@ fn corpus_sony_lens_tables_become_opcodes() {
             (10240, 7168),
             (12, 8, 9984, 6656),
             [0.488670768629749, 0.4653969582810102],
-            [0.9717033132764651, 0.023249297636569695, 0.008638979168841135, 0.003091041831374855],
+            [
+                [0.971770511193381, 0.023073568897462152, 0.00879158563716919, 0.0030468782543633132],
+                [0.9717033132764651, 0.023249297636569695, 0.008638979168841135, 0.003091041831374855],
+                [0.9716312798157171, 0.02356676356656341, 0.00830169937204417, 0.003182927930635947],
+            ],
         ),
         // pinned in `cargo xtask corpus` (RawDB `ILCE-7RM6_APSC_land_RAW.ARW`, CC0)
         (
@@ -650,7 +654,11 @@ fn corpus_sony_lens_tables_become_opcodes() {
             (6656, 4608),
             (16, 10, 6528, 4352),
             [0.49278737791134486, 0.4743868026915563],
-            [1.016366854640611, -0.0688824189782517, 0.03615745253291194, -0.009438825010476538],
+            [
+                [1.0165959888027158, -0.0690974265041942, 0.036328960724338874, -0.009486844437228997],
+                [1.016366854640611, -0.0688824189782517, 0.03615745253291194, -0.009438825010476538],
+                [1.0162457267369314, -0.0686225599869027, 0.035974238433727206, -0.009384155126102897],
+            ],
         ),
     ];
     let mut seen = 0;
@@ -679,10 +687,12 @@ fn corpus_sony_lens_tables_become_opcodes() {
             })
             .collect();
         let [(planes, got)] = warps.as_slice() else { panic!("{name}: {:?}", img.opcodes.list3) };
-        assert_eq!(planes.len(), 1, "{name}: one plane (G)");
+        assert_eq!(planes.len(), 3, "{name}: R, G, B planes");
         assert!((got[0] - center[0]).abs() < 1e-6 && (got[1] - center[1]).abs() < 1e-6, "{name}: centre {got:?}, want {center:?}");
-        for (i, want) in k.iter().enumerate() {
-            assert!((planes[0][i] - want).abs() < 1e-6, "{name}: k{i} {}, want {want}", planes[0][i]);
+        for (plane, (p, k)) in ["R", "G", "B"].iter().zip(planes.iter().zip(k)) {
+            for (i, want) in k.iter().enumerate() {
+                assert!((p[i] - want).abs() < 1e-6, "{name}: {plane} k{i} {}, want {want}", p[i]);
+            }
         }
         seen += 1;
     }

@@ -874,12 +874,12 @@ mod tests {
         TiffWriter::default().write(&[raw]).unwrap()
     }
 
-    /// The ILCE-7RM6's distortion table reaches `OpcodeList3`, in the headers-only probe and in the full decode;
-    /// another body's table doesn't (see [`super::super::arw_lens_rm6`]).
+    /// The ILCE-7RM6's distortion table reaches `OpcodeList3`, in the headers-only probe and in the full decode, as
+    /// one plane, or three with the CA table; another body's tables don't (see [`super::super::arw_lens_rm6`]).
     #[test]
     fn lens_tables_reach_opcode_list3() {
         use lightcraft_tiff::{IfdBuilder, ImageData, TiffWriter, Value};
-        let file = |model: &str| {
+        let file = |model: &str, ca: bool| {
             let mut raw = IfdBuilder::new();
             raw.set(t::MAKE, Value::Ascii("SONY".into()));
             raw.set(t::MODEL, Value::Ascii(model.into()));
@@ -893,14 +893,23 @@ mod tests {
             raw.set(TONE_CURVE, Value::Short(vec![8000, 10400, 12900, 14100]));
             let table = vec![16, 0, 2, 7, 16, 28, 43, 61, 83, 109, 139, 175, 217, 267, 325, 395, 479];
             raw.set(super::super::arw_lens_rm6::DISTORTION_PARAMS, Value::SShort(table));
+            if ca {
+                let table = vec![
+                    32, 242, 234, 224, 212, 196, 176, 154, 132, 108, 86, 66, 46, 30, 16, 8, 4, -276, -258, -238, -212, -184, -148, -114, -74, -40,
+                    -6, 20, 42, 56, 60, 54, 32,
+                ];
+                raw.set(super::super::arw_lens_rm6::CA_PARAMS, Value::SShort(table));
+            }
             raw.set_image(ImageData::Strips { rows_per_strip: 64, strips: vec![vec![0u8; 96 * 64]] });
             TiffWriter::default().write(&[raw]).unwrap()
         };
         for mode in [Mode::Header, Mode::Full] {
-            let list3 = |model| decode(&file(model), mode).unwrap().opcodes.list3;
-            let ops = list3("ILCE-7RM6");
-            assert!(matches!(ops.as_slice(), [crate::Opcode::WarpRectilinear { planes, .. }] if planes.len() == 1), "{mode:?}: {ops:?}");
-            assert!(list3("ILCE-7M4").is_empty(), "{mode:?}");
+            for (ca, n) in [(false, 1), (true, 3)] {
+                let list3 = |model| decode(&file(model, ca), mode).unwrap().opcodes.list3;
+                let ops = list3("ILCE-7RM6");
+                assert!(matches!(ops.as_slice(), [crate::Opcode::WarpRectilinear { planes, .. }] if planes.len() == n), "{mode:?} {ca}: {ops:?}");
+                assert!(list3("ILCE-7M4").is_empty(), "{mode:?} {ca}");
+            }
         }
     }
 
