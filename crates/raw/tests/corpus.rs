@@ -626,6 +626,69 @@ fn corpus_sony_16x9_crops() {
     eprintln!("Sony 16:9 crops checked on {seen} files");
 }
 
+/// Sony ILCE-7RM6: the distortion table in the raw IFD (`0x7037`) becomes a `WarpRectilinear` in `OpcodeList3`
+/// (`vendor::arw_lens_rm6`). Expected: the conversion recipe measured on 54 ILCE-7RM6 photos, evaluated in f64 for each
+/// file's decoded active area (the padded lossless tiles) and default crop. Both files carry distortion correction
+/// off in camera; the table is applied anyway.
+#[test]
+fn corpus_sony_lens_tables_become_opcodes() {
+    let dir = corpus_root().join("raw");
+    // (file, active area, default crop x, y, width, height, opcode centre, G-plane k0..k3)
+    let cases = [
+        // not pinned in `cargo xtask corpus` (at most two pins per PR; #625 pins two Compressed ARW 6.0 files): checked
+        // only where the file is present (RawDB `ILCE-7RM6_FF_land_RAW.ARW`, CC0)
+        (
+            "arw-sony-ilce7rm6-ff-land-lossless.arw",
+            (10240, 7168),
+            (12, 8, 9984, 6656),
+            [0.488670768629749, 0.4653969582810102],
+            [0.9717033132764651, 0.023249297636569695, 0.008638979168841135, 0.003091041831374855],
+        ),
+        // pinned in `cargo xtask corpus` (RawDB `ILCE-7RM6_APSC_land_RAW.ARW`, CC0)
+        (
+            "arw-sony-ilce7rm6-apsc-land-lossless.arw",
+            (6656, 4608),
+            (16, 10, 6528, 4352),
+            [0.49278737791134486, 0.4743868026915563],
+            [1.016366854640611, -0.0688824189782517, 0.03615745253291194, -0.009438825010476538],
+        ),
+    ];
+    let mut seen = 0;
+    for (name, (aw, ah), crop, center, k) in cases {
+        let bytes = match std::fs::read(dir.join(name)) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("skip: {name} absent");
+                continue;
+            }
+            Err(e) => panic!("{name}: {e}"),
+        };
+        let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let (a, c) = (img.active_area, img.crop);
+        eprintln!("{name}: active area {a:?}, crop {c:?}");
+        assert_eq!((a.x, a.y, a.width, a.height), (0, 0, aw, ah), "{name}: active area");
+        assert_eq!((c.x, c.y, c.width, c.height), crop, "{name}: default crop");
+        assert_eq!(probe_info(&bytes).unwrap().opcodes, img.opcodes, "{name}: the headers-only probe reads the same correction");
+        let warps: Vec<_> = img
+            .opcodes
+            .list3
+            .iter()
+            .filter_map(|op| match op {
+                lightcraft_raw::Opcode::WarpRectilinear { planes, center } => Some((planes, center)),
+                _ => None,
+            })
+            .collect();
+        let [(planes, got)] = warps.as_slice() else { panic!("{name}: {:?}", img.opcodes.list3) };
+        assert_eq!(planes.len(), 1, "{name}: one plane (G)");
+        assert!((got[0] - center[0]).abs() < 1e-6 && (got[1] - center[1]).abs() < 1e-6, "{name}: centre {got:?}, want {center:?}");
+        for (i, want) in k.iter().enumerate() {
+            assert!((planes[0][i] - want).abs() < 1e-6, "{name}: k{i} {}, want {want}", planes[0][i]);
+        }
+        seen += 1;
+    }
+    eprintln!("Sony lens tables checked on {seen} files");
+}
+
 /// The embedded JPEG as linear RGB, reduced to `gw × gh` cells.
 fn jpeg_cells(jpeg: &[u8], gw: usize, gh: usize) -> Vec<[f64; 3]> {
     use zune_core::{bytestream::ZCursor, colorspace::ColorSpace, options::DecoderOptions};

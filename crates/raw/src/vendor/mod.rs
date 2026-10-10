@@ -6,6 +6,7 @@ mod arw6_curve;
 #[cfg(test)]
 pub(crate) mod arw6_testenc;
 mod arw_lens;
+pub(crate) mod arw_lens_rm6;
 pub mod cr2;
 pub mod cr3;
 pub mod crx;
@@ -111,7 +112,7 @@ pub(crate) fn white_from_data(data: &[u16], bits: u32) -> f32 {
     }
 }
 
-/// Output radii sampled to fit the inverse mapping.
+/// Output radii sampled to fit a radial warp.
 const DISTORTION_SAMPLES: usize = 64;
 
 /// Least-squares radial warp from a camera's forward distortion map.
@@ -121,10 +122,10 @@ const DISTORTION_SAMPLES: usize = 64;
 /// from the centre to the **farthest** corner = 1) so the result is directly a `WarpRectilinear` plane. The map is
 /// scanned at 4096 points up to a source radius of `3 * t_max`: it must reach `t_max` within that range and rise at
 /// every scan point (monotonicity is checked only there), otherwise `None`; a NaN at a scan point is rejected the
-/// same way, other non-finite values are caught by the fit-error gate. The map is inverted by bisection and
-/// `source = u·(k0 + k1u² + k2u⁴ + k3u⁶)` is fitted over output radii `u·t_max`, `u` in [0, 1]: the returned
-/// `[k0, k1, k2, k3]` give the source radius in the caller's unit as a function of `u`. `None` too when the worst
-/// fit error exceeds `max_fit_error`.
+/// same way, other non-finite values by the fit. The map is inverted by bisection and
+/// `source = u·(k0 + k1u² + k2u⁴ + k3u⁶)` is fitted over output radii `u·t_max`, `u` in [0, 1] ([`fit_radial_warp`]):
+/// the returned `[k0, k1, k2, k3]` give the source radius in the caller's unit as a function of `u`. `None` too when
+/// the worst fit error exceeds `max_fit_error`.
 pub(crate) fn warp_from_forward_map(corrected: &dyn Fn(f64) -> f64, t_max: f64, max_fit_error: f64) -> Option<[f64; 4]> {
     if !(t_max.is_finite() && t_max > 0.0) {
         return None;
@@ -152,12 +153,23 @@ pub(crate) fn warp_from_forward_map(corrected: &dyn Fn(f64) -> f64, t_max: f64, 
         }
         0.5 * (lo + hi)
     };
+    fit_radial_warp(&|u| source(u * t_max), max_fit_error, 1.0)
+}
+
+/// Least-squares `source = u·(k0 + k1u² + k2u⁴ + k3u⁶)` through `source_of_u` sampled at `u = i/64`, i = 0..=64
+/// (`u` = output radius, `WarpRectilinear` units, so the result is directly a plane's `[k0, k1, k2, k3]`). `None` when
+/// a sample is not finite, the normal equations are singular, or the worst fit error at the samples with
+/// `u ≤ gate_until` (the radii the image shows; 1 = all) exceeds `max_fit_error`.
+pub(crate) fn fit_radial_warp(source_of_u: &dyn Fn(f64) -> f64, max_fit_error: f64, gate_until: f64) -> Option<[f64; 4]> {
     let samples: Vec<(f64, f64)> = (0..=DISTORTION_SAMPLES)
         .map(|i| {
             let u = i as f64 / DISTORTION_SAMPLES as f64;
-            (u, source(u * t_max))
+            (u, source_of_u(u))
         })
         .collect();
+    if samples.iter().any(|&(_, v)| !v.is_finite()) {
+        return None;
+    }
     let basis = |u: f64| {
         let u2 = u * u;
         [u, u * u2, u * u2 * u2, u * u2 * u2 * u2]
@@ -175,7 +187,7 @@ pub(crate) fn warp_from_forward_map(corrected: &dyn Fn(f64) -> f64, t_max: f64, 
     }
     let k = solve4(a, rhs)?;
     let fit = |u: f64| basis(u).iter().zip(&k).map(|(f, c)| f * c).sum::<f64>();
-    let worst = samples.iter().map(|&(u, v)| (fit(u) - v).abs()).fold(0.0, f64::max);
+    let worst = samples.iter().filter(|&&(u, _)| u <= gate_until).map(|&(u, v)| (fit(u) - v).abs()).fold(0.0, f64::max);
     (worst <= max_fit_error).then_some(k)
 }
 
@@ -280,5 +292,19 @@ mod tests {
         };
         assert!(warp_from_forward_map(&dip, 1.0, 1e-2).is_none());
         assert!(warp_from_forward_map(&|_| f64::NAN, 1.0, 1e-3).is_none());
+    }
+
+    #[test]
+    fn fit_radial_warp_identity_and_gate() {
+        let k = fit_radial_warp(&|u| u, 1e-9, 1.0).unwrap();
+        assert!((k[0] - 1.0).abs() < 1e-9 && k[1].abs() < 1e-9 && k[2].abs() < 1e-9 && k[3].abs() < 1e-9, "{k:?}");
+        assert!(fit_radial_warp(&|u| if u > 0.5 { f64::NAN } else { u }, 1.0, 1.0).is_none(), "a NaN sample");
+        assert!(fit_radial_warp(&|u| if u > 0.5 { f64::INFINITY } else { u }, 1.0, 1.0).is_none(), "an infinite sample");
+        assert!(fit_radial_warp(&|u: f64| u.sqrt(), 1.0, 1.0).is_some());
+        assert!(fit_radial_warp(&|u: f64| u.sqrt(), 0.0, 1.0).is_none(), "not a polynomial: the gate rejects it");
+        // a step at u = 1 alone: worst fit error 0.057 over all samples, 0.006 over u <= 0.9 (the fit is the same)
+        let step = |u: f64| if u > 0.99 { 1.1 } else { u };
+        assert!(fit_radial_warp(&step, 0.01, 1.0).is_none());
+        assert_eq!(fit_radial_warp(&step, 0.01, 0.9), fit_radial_warp(&step, 1.0, 1.0), "gated only where shown");
     }
 }
