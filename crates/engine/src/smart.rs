@@ -31,9 +31,18 @@ pub fn sharded_file_path(dir: &Path, p: &Photo) -> PathBuf {
 /// Read an existing proxy in either layout. New proxies use the sharded location; previews
 /// made by older releases still load and can be moved with smartPreviewsLocation.
 pub fn file_path(dir: &Path, p: &Photo) -> PathBuf {
-    let sharded = sharded_file_path(dir, p);
-    let legacy = dir.join(file_name(p));
-    if sharded.exists() || !legacy.exists() { sharded } else { legacy }
+    existing_file_path(dir, sharded_file_path(dir, p))
+}
+
+/// Resolve a sharded path to an older flat file when present. Call only off the UI thread:
+/// checking a removable drive synchronously could stall drawing.
+pub fn existing_file_path(dir: &Path, sharded: PathBuf) -> PathBuf {
+    if sharded.exists() {
+        return sharded;
+    }
+    let Some(name) = sharded.file_name() else { return sharded };
+    let legacy = dir.join(name);
+    if legacy.exists() { legacy } else { sharded }
 }
 
 /// The most header [`is_valid`] reads (the JSON line before the JPEG).
@@ -189,7 +198,7 @@ pub fn migrate(from: &Path, to: &Path, what: Existing) -> (usize, Vec<String>) {
         return (done, failed);
     }
     for src in files(from) {
-        let name = src.file_name().unwrap_or_default();
+        let Some(name) = src.file_name() else { continue };
         let dst = name.to_str().and_then(|n| n.strip_suffix(".lcsp")).filter(|stem| {
             stem.len() == 32 && stem.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
         }).map_or_else(|| to.join(name), |stem| to.join(&stem[..2]).join(name));

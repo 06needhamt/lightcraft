@@ -795,6 +795,13 @@ fn smart_previews_folder_is_chosen_per_library() {
     assert_eq!(loc["path"], lib.join("Smart Previews").to_string_lossy().as_ref());
     s.execute("library.smartPreviews", &json!({})).unwrap();
     assert_eq!(crate::smart::stats(&lib.join("Smart Previews")).0, 1);
+    // A flat proxy from older builds remains discoverable and migrates to the new sharded layout.
+    let dir = lib.join("Smart Previews");
+    let photo = s.catalog.photo(id).unwrap();
+    let shard = crate::smart::sharded_file_path(&dir, photo);
+    let flat = dir.join(crate::smart::file_name(photo));
+    std::fs::rename(&shard, &flat).unwrap();
+    assert_eq!(s.execute("photo.smartPreview", &json!({})).unwrap()["smartPreview"], true);
 
     // relative paths and missing drives are refused, and nothing is created on this drive
     assert!(s.execute("library.smartPreviewsLocation", &json!({"path": "rel/dir"})).is_err());

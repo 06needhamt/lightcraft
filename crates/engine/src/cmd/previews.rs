@@ -194,10 +194,7 @@ fn smart_run(
         let _one = SMART_WRITE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         // Read either the new shard or a pre-upgrade flat file, without making new work
         // depend on having the original online.
-        let path = if path.exists() { path } else {
-            let legacy = path.file_name().map(|name| dir.join(name));
-            legacy.filter(|old| old.exists()).unwrap_or(path)
-        };
+        let path = crate::smart::existing_file_path(dir, path);
         if discard {
             if std::fs::remove_file(&path).is_ok() {
                 n.removed += 1;
@@ -329,7 +326,7 @@ pub(crate) fn refresh_stale_smart_previews(s: &mut Session) -> Option<std::threa
     let max_edge = crate::media::SourceLevel::Preview.max_edge();
     let photos: Vec<_> = s.catalog.photos().filter(|p| matches!(p.source, lightcraft_catalog::Source::File { .. }) && p.relative_wb()).collect();
     let jobs: Vec<SmartJob> =
-        photos.iter().map(|p| (p.id, crate::smart::file_path(&dir, p), Some(s.media.origin_ref(&p.source, max_edge)), true)).collect();
+        photos.iter().map(|p| (p.id, crate::smart::sharded_file_path(&dir, p), Some(s.media.origin_ref(&p.source, max_edge)), true)).collect();
     std::thread::Builder::new()
         .name("lc-smart-look".into())
         .spawn(move || refresh_stale(&dir, jobs))
@@ -340,7 +337,11 @@ pub(crate) fn refresh_stale_smart_previews(s: &mut Session) -> Option<std::threa
 /// The body of [`refresh_stale_smart_previews`]: rebuild the stale proxies among `jobs`.
 #[cfg(not(target_arch = "wasm32"))]
 fn refresh_stale(dir: &std::path::Path, jobs: Vec<SmartJob>) {
-    let stale: Vec<SmartJob> = jobs.into_iter().filter(|(_, path, _, _)| crate::smart::is_stale(path)).collect();
+    let stale: Vec<SmartJob> = jobs
+        .into_iter()
+        .map(|(id, path, source, look)| (id, crate::smart::existing_file_path(dir, path), source, look))
+        .filter(|(_, path, _, _)| crate::smart::is_stale(path))
+        .collect();
     if !stale.is_empty() {
         // `custom`: the folder is there already, and must not be recreated if it went away since
         match smart_run(dir, true, false, stale, None) {
