@@ -192,7 +192,7 @@ pub fn format(m: Modifiers, k: Key) -> Option<String> {
 
 /// Secondary key bindings for commands that already exist: `(shortcut, command id, params JSON)`.
 /// They complement the primary shortcut declared on the command (Lightroom-desktop keys that our
-/// primary keymap assigns elsewhere, see docs/parity.md → Shortcuts). Shown in Help → Keyboard Shortcuts.
+/// primary keymap assigns elsewhere, see docs/ui-parity.md → Shortcuts). Shown in Help → Keyboard Shortcuts.
 pub const ALIASES: &[(&str, &str, &str)] = &[
     ("Cmd+D", "library.selectNone", "{}"),
     ("Shift+E", "dialog.export", "{}"),
