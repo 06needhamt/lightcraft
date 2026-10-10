@@ -135,7 +135,7 @@ pub fn probe_bytes(name: &str, bytes: &[u8]) -> Result<ProbeInfo, String> {
         // Vendor RGB multipliers do not identify an absolute illuminant without camera calibration.
         let relative = crate::camera_preview::file_local_look(raw.format) && !lightcraft_raw::color::has_matrix(&raw.color);
         let as_shot_wb = Some(if relative { (6500.0, 0.0) } else { (t.round(), tint.round()) });
-        let embedded_lens = embedded_lens(&raw);
+        let embedded_lens = crate::lens_profiles::for_raw(&raw, || m.clone());
         return Ok(ProbeInfo {
             embedded_lens,
             width: w,
@@ -365,7 +365,7 @@ fn load_bytes_now(
         // Embedded lens corrections are applied by the pipeline ("Enable Profile Corrections"), not baked in
         // (removed before the camera look's binned sensor proxy too, which needs an empty `OpcodeList3`).
         let info = raw.info();
-        let lens = embedded_lens(&info);
+        let lens = crate::lens_profiles::for_raw(&info, || lightcraft_meta::extract(&bytes));
         raw.opcodes.list3.retain(|op| !op.is_lens_correction());
         // Without colour matrices of its own, white balance is relative to the as-shot look (`Photo::relative_wb`).
         let own_matrix = lightcraft_raw::color::has_matrix(&raw.color);

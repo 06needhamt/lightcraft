@@ -11,8 +11,8 @@
 //! dimensionless scales), so a 400 px preview and a full-size export are warped identically.
 //!
 //! Also here: automatic lateral chromatic aberration estimation ([`estimate_lateral_ca`]) and [`defringe`].
-//! Profile corrections use only lens data embedded in the files: DNG `WarpRectilinear` / `FixVignetteRadial`, and the
-//! raw readers' equivalent of a camera's own correction (Panasonic / Leica RW2 distortion).
+//! Profile corrections use lens data embedded in the files (DNG `WarpRectilinear` / `FixVignetteRadial`, and the
+//! raw readers' equivalent of a camera's own correction), or a lens database profile in the same form (`lightcraft_lensdb`).
 
 use std::sync::Mutex;
 
