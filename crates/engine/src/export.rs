@@ -209,8 +209,12 @@ pub struct Watermark {
     /// 0..1.
     pub opacity: f32,
     pub anchor: Anchor,
-    /// Margin as a fraction of the short edge.
-    pub inset: f32,
+    /// Margin from the left or right edge, as a fraction of the short edge (unused when the anchor
+    /// is centred across: top, center, bottom).
+    pub inset_x: f32,
+    /// Margin from the top or bottom edge, as a fraction of the short edge (unused when the anchor
+    /// is centred down: left, center, right).
+    pub inset_y: f32,
     /// sRGB colour.
     pub color: [u8; 3],
     /// Soft dark drop shadow for legibility on bright areas.
@@ -232,7 +236,8 @@ impl Default for Watermark {
             size: 0.035,
             opacity: 0.7,
             anchor: Anchor::BottomRight,
-            inset: 0.025,
+            inset_x: 0.025,
+            inset_y: 0.025,
             color: [255; 3],
             shadow: true,
             image: String::new(),
@@ -438,18 +443,18 @@ fn watermark_coverage(
         }
     }
     let (tw, th) = if wm.vertical { (columns as f32 * px, tw.max(y)) } else { (tw.max(x), y + px) };
-    let inset = wm.inset.clamp(0.0, 0.4) * short;
+    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
     let (w, h) = (width as f32, height as f32);
     use Anchor::*;
     let ox = match wm.anchor {
-        TopLeft | Left | BottomLeft => inset,
+        TopLeft | Left | BottomLeft => ix,
         Top | Center | Bottom => (w - tw) / 2.0,
-        TopRight | Right | BottomRight => w - inset - tw,
+        TopRight | Right | BottomRight => w - ix - tw,
     };
     let oy = match wm.anchor {
-        TopLeft | Top | TopRight => inset,
+        TopLeft | Top | TopRight => iy,
         Left | Center | Right => (h - th) / 2.0,
-        BottomLeft | Bottom | BottomRight => h - inset - th,
+        BottomLeft | Bottom | BottomRight => h - iy - th,
     };
     let alpha = wm.opacity.clamp(0.0, 1.0);
     let mut blend = |gx: i32, gy: i32, cov: f32, col: [u8; 3], a: f32| {
@@ -514,19 +519,20 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         [p[0] as f32 * a, p[1] as f32 * a, p[2] as f32 * a, a]
     });
     let scaled = lightcraft_raster::resample::resize(&pre, lw, lh, lightcraft_raster::resample::Filter::Mitchell);
-    let inset = wm.inset.clamp(0.0, 0.4) * width.min(height) as f32;
+    let short = width.min(height) as f32;
+    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
     let (w, h, lwf, lhf) = (width as f32, height as f32, lw as f32, lh as f32);
     use Anchor::*;
     let ox = match wm.anchor {
-        TopLeft | Left | BottomLeft => inset,
+        TopLeft | Left | BottomLeft => ix,
         Top | Center | Bottom => (w - lwf) / 2.0,
-        TopRight | Right | BottomRight => w - inset - lwf,
+        TopRight | Right | BottomRight => w - ix - lwf,
     }
     .max(0.0) as usize;
     let oy = match wm.anchor {
-        TopLeft | Top | TopRight => inset,
+        TopLeft | Top | TopRight => iy,
         Left | Center | Right => (h - lhf) / 2.0,
-        BottomLeft | Bottom | BottomRight => h - inset - lhf,
+        BottomLeft | Bottom | BottomRight => h - iy - lhf,
     }
     .max(0.0) as usize;
     let space = wm.target.unwrap_or(OutputSpace::Srgb);
@@ -667,8 +673,10 @@ pub const OPTION_PARAMS: &[&str] = &[
     "hdr",
 ];
 
-/// The keys of a `watermark` object ([`Watermark`], camelCase).
-pub const WATERMARK_PARAMS: &[&str] = &["text", "vertical", "size", "opacity", "anchor", "inset", "color", "shadow", "image", "imageWidth"];
+/// The keys of a `watermark` object ([`Watermark`], camelCase). `inset` sets `insetX` and `insetY`
+/// together (what versions before the two margins wrote); either of those, when given, wins.
+pub const WATERMARK_PARAMS: &[&str] =
+    &["text", "vertical", "size", "opacity", "anchor", "insetX", "insetY", "inset", "color", "shadow", "image", "imageWidth"];
 
 /// Text height as a fraction of the short edge: the range the renderer draws without clamping.
 pub const WATERMARK_SIZE_RANGE: (f32, f32) = (0.005, 0.5);
@@ -708,6 +716,19 @@ fn unknown_key(what: &str, k: &str, known: &[&str]) -> String {
 /// A JSON integer (`92`; never `92.5` or `"92"`), as [`ExportOptions::from_json`] reads them.
 fn whole(v: &serde_json::Value) -> Option<i64> {
     v.as_i64()
+}
+
+/// A `watermark` object as a [`Watermark`]; a legacy `inset` fills whichever of `insetX` and
+/// `insetY` is missing.
+fn watermark_from_json(v: &serde_json::Value) -> serde_json::Result<Watermark> {
+    let mut v = v.clone();
+    if let Some(o) = v.as_object_mut()
+        && let Some(inset) = o.remove("inset")
+    {
+        o.entry("insetX").or_insert_with(|| inset.clone());
+        o.entry("insetY").or_insert(inset);
+    }
+    serde_json::from_value(v)
 }
 
 impl ExportOptions {
@@ -841,7 +862,7 @@ impl ExportOptions {
             Value::Object(o) => o,
             _ => {
                 return Err(bad(
-                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth}".into(),
+                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth}".into(),
                 ));
             }
         };
@@ -864,7 +885,7 @@ impl ExportOptions {
                 }
                 "size" => frac(k, v, WATERMARK_SIZE_RANGE, "fraction of the short edge")?,
                 "opacity" => frac(k, v, (0.0, 1.0), "0 = invisible, 1 = solid")?,
-                "inset" => frac(k, v, WATERMARK_INSET_RANGE, "fraction of the short edge")?,
+                "insetX" | "insetY" | "inset" => frac(k, v, WATERMARK_INSET_RANGE, "fraction of the short edge")?,
                 "imageWidth" => frac(k, v, WATERMARK_IMAGE_WIDTH_RANGE, "fraction of the photo's width")?,
                 "anchor" => {
                     serde_json::from_value::<Anchor>(v.clone()).map_err(|_| {
@@ -880,7 +901,7 @@ impl ExportOptions {
                 _ => return Err(bad(unknown_key("watermark key", k, WATERMARK_PARAMS))),
             }
         }
-        serde_json::from_value::<Watermark>(v.clone()).map(|_| ()).map_err(|e| bad(format!("`watermark`: {e}")))
+        watermark_from_json(v).map(|_| ()).map_err(|e| bad(format!("`watermark`: {e}")))
     }
 
     /// Read options from command params (`format`, `quality`, `limitKb`, `sharpen`, `sharpenAmount`,
@@ -923,7 +944,7 @@ impl ExportOptions {
             remove_location: p.get("removeLocation").and_then(Value::as_bool).unwrap_or(d.remove_location),
             watermark: match p.get("watermark") {
                 Some(Value::String(t)) => Some(Watermark { text: t.clone(), ..Default::default() }),
-                Some(v @ Value::Object(_)) => serde_json::from_value(v.clone()).ok(),
+                Some(v @ Value::Object(_)) => watermark_from_json(v).ok(),
                 _ => None,
             }
             .filter(|w: &Watermark| !w.text.trim().is_empty() || !w.image.trim().is_empty()),
@@ -1996,6 +2017,40 @@ mod tests {
         assert!(ExportOptions::from_json(&serde_json::json!({"watermark": ""})).watermark.is_none());
     }
 
+    /// Horizontal and vertical margins move a text watermark separately; settings saved with one
+    /// `inset` (before the two margins) read as both, and either new key overrides it.
+    #[test]
+    fn watermark_insets_are_horizontal_and_vertical() {
+        // gaps between the drawn text and the right and bottom edges of a 400 × 300 image
+        let gaps = |wm: &Watermark| {
+            let mut img = Rgba8::new(400, 300);
+            draw_watermark(&mut img, wm);
+            let lit: Vec<(usize, usize)> = (0..300).flat_map(|y| (0..400).map(move |x| (x, y))).filter(|&(x, y)| img.get(x, y)[0] > 128).collect();
+            let right = lit.iter().map(|p| p.0).max().unwrap();
+            let bottom = lit.iter().map(|p| p.1).max().unwrap();
+            (399 - right as i64, 299 - bottom as i64)
+        };
+        let base = Watermark { text: "LC".into(), size: 0.1, opacity: 1.0, shadow: false, inset_x: 0.0, inset_y: 0.0, ..Default::default() };
+        let (r0, b0) = gaps(&base);
+        // 0.2 and 0.1 of the 300 px short edge
+        let (r1, b1) = gaps(&Watermark { inset_x: 0.2, ..base.clone() });
+        assert!((r1 - r0 - 60).abs() <= 1 && (b1 - b0).abs() <= 1, "horizontal: {r0},{b0} → {r1},{b1}");
+        let (r2, b2) = gaps(&Watermark { inset_y: 0.1, ..base.clone() });
+        assert!((r2 - r0).abs() <= 1 && (b2 - b0 - 30).abs() <= 1, "vertical: {r0},{b0} → {r2},{b2}");
+        // the old single margin
+        let wm = |w: serde_json::Value| ExportOptions::from_json(&json!({"watermark": w})).watermark.unwrap();
+        let old = wm(json!({"text": "LC", "inset": 0.1}));
+        assert_eq!((old.inset_x, old.inset_y), (0.1, 0.1));
+        let mixed = wm(json!({"text": "LC", "inset": 0.1, "insetY": 0.3}));
+        assert_eq!((mixed.inset_x, mixed.inset_y), (0.1, 0.3));
+        assert!(ExportOptions::from_params(&json!({"watermark": {"text": "LC", "inset": 0.1}})).is_ok());
+        // saved and read back as the two margins
+        let o = ExportOptions { watermark: Some(Watermark { inset_x: 0.05, inset_y: 0.15, ..base }), ..Default::default() };
+        let saved = o.to_json();
+        assert!(saved["watermark"].get("inset").is_none(), "{saved}");
+        assert_eq!(ExportOptions::from_json(&saved).watermark.map(|w| (w.inset_x, w.inset_y)), Some((0.05, 0.15)));
+    }
+
     fn vertical_japanese() -> Watermark {
         let options =
             ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
@@ -2050,7 +2105,8 @@ mod tests {
             vertical: true,
             size: 0.1,
             anchor: Anchor::TopLeft,
-            inset: 0.0,
+            inset_x: 0.0,
+            inset_y: 0.0,
             shadow: false,
             opacity: 1.0,
             ..Default::default()
@@ -2075,7 +2131,8 @@ mod tests {
                 vertical: true,
                 size: 0.1,
                 anchor: Anchor::Center,
-                inset: 0.0,
+                inset_x: 0.0,
+                inset_y: 0.0,
                 shadow: false,
                 opacity: 1.0,
                 ..Default::default()
@@ -2137,7 +2194,7 @@ mod tests {
         let w = lit.iter().map(|p| p.0).max().unwrap() - lit.iter().map(|p| p.0).min().unwrap();
         let h = lit.iter().map(|p| p.1).max().unwrap() - lit.iter().map(|p| p.1).min().unwrap();
         assert!(h > w * 2, "vertical Japanese must extend down the column");
-        let two = Watermark { text: "日\n本".into(), anchor: Anchor::TopLeft, inset: 0.0, ..wm };
+        let two = Watermark { text: "日\n本".into(), anchor: Anchor::TopLeft, inset_x: 0.0, inset_y: 0.0, ..wm };
         img.data.fill([0, 0, 0, 255]);
         draw_watermark(&mut img, &two);
         for (text, dx) in [("本", 0), ("日", 30)] {
@@ -2163,13 +2220,27 @@ mod tests {
         std::fs::write(&logo_path, png).unwrap();
         let mut img = Rgba8::new(400, 300);
         img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
-        let wm = Watermark { image: logo_path.to_string_lossy().into(), image_width: 0.25, opacity: 1.0, inset: 0.0, ..Default::default() };
+        let wm = Watermark {
+            image: logo_path.to_string_lossy().into(),
+            image_width: 0.25,
+            opacity: 1.0,
+            inset_x: 0.0,
+            inset_y: 0.0,
+            ..Default::default()
+        };
         draw_watermark(&mut img, &wm);
         // 100 px wide × 50 px high in the bottom-right corner
         assert!(img.get(310, 280)[0] > 200, "opaque half: {:?}", img.get(310, 280));
         assert_eq!(img.get(390, 280), [0, 0, 0, 255], "transparent half leaves the photo");
         assert_eq!(img.get(310, 240), [0, 0, 0, 255], "above the logo");
         assert_eq!(img.get(10, 10), [0, 0, 0, 255]);
+        // 30 px from the right edge and 15 px from the bottom: x 270..370, y 235..285
+        let mut img = Rgba8::new(400, 300);
+        img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
+        draw_watermark(&mut img, &Watermark { inset_x: 0.1, inset_y: 0.05, ..wm.clone() });
+        assert!(img.get(272, 283)[0] > 200, "inside the moved logo: {:?}", img.get(272, 283));
+        assert_eq!(img.get(267, 283), [0, 0, 0, 255], "left of the logo");
+        assert_eq!(img.get(272, 288), [0, 0, 0, 255], "below the logo");
         // an image-only watermark survives the params (no text needed)
         let o = ExportOptions::from_json(&json!({"watermark": {"image": logo_path.to_string_lossy(), "imageWidth": 0.1}}));
         assert_eq!(o.watermark.as_ref().map(|w| w.image_width), Some(0.1));
@@ -2508,14 +2579,12 @@ mod tests {
     fn watermark_params_are_validated() {
         use serde_json::json;
         let err = |w: serde_json::Value| ExportOptions::from_params(&json!({"watermark": w})).err().map(|e| e.to_string()).unwrap_or_default();
-        assert!(
-            err(json!(5))
-                .contains("`watermark` must be text or an object {text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth}")
-        );
-        assert!(
-            err(json!({"text": "x", "bogus": 1}))
-                .contains("unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth)")
-        );
+        assert!(err(json!(5)).contains(
+            "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth}"
+        ));
+        assert!(err(json!({"text": "x", "bogus": 1})).contains(
+            "unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, insetX, insetY, inset, color, shadow, image, imageWidth)"
+        ));
         assert!(err(json!({"text": "x", "sizee": 0.1})).contains("did you mean `size`"));
         for size in [json!(3), json!(0.5001), json!(0), json!("big")] {
             let e = err(json!({"text": "x", "size": size}));
@@ -2523,6 +2592,8 @@ mod tests {
         }
         assert!(err(json!({"text": "x", "opacity": 1.5})).contains("`watermark.opacity` must be a number 0..1"));
         assert!(err(json!({"text": "x", "inset": -0.1})).contains("`watermark.inset` must be a number 0..0.4"));
+        assert!(err(json!({"text": "x", "insetX": 0.5})).contains("`watermark.insetX` must be a number 0..0.4"));
+        assert!(err(json!({"text": "x", "insetY": "far"})).contains("`watermark.insetY` must be a number 0..0.4"));
         assert!(err(json!({"image": "logo.png", "imageWidth": 2})).contains("`watermark.imageWidth` must be a number 0.01..1"));
         assert!(err(json!({"text": "x", "anchor": "middle"})).contains("`watermark.anchor` must be one of"));
         assert!(err(json!({"text": "x", "color": [255, 255]})).contains("`watermark.color` must be [r, g, b]"));
