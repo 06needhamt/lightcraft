@@ -370,7 +370,7 @@ CRAFT_FONTS_DIR=../craft-fonts cargo run --release -p lightcraft
 ```
 
 Without it LightCraft builds and runs the same, but Chinese and Japanese text have no glyphs. Fonts are never committed to this
-repo; see [craftrules `standards/fonts.md`](https://github.com/storytold/craftrules/blob/main/standards/fonts.md).
+repo — the standard for what goes there lives with it: see the [craft-fonts README](https://github.com/storytold/craft-fonts#readme).
 
 **Interface language:** **Edit → Language** (English, 简体中文, 繁體中文（台灣）, 日本語, Português (Brasil), Español, Deutsch, Русский, Français) or **Settings → General →
 Language**; the choice applies immediately and persists. See [docs/localization.md](docs/localization.md).
