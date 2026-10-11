@@ -1948,5 +1948,6 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "ファイルと XMP サイドカーをこのフォルダへ移動します。上書きはしません",
   "Appearance Settings…": "外観設定…",
   "Add to favorites": "お気に入りに追加",
-  "Remove from favorites": "お気に入りから削除"
+  "Remove from favorites": "お気に入りから削除",
+  "{n} photos opened for editing; each is stacked with its original": "{n}枚の写真を編集用に開きました。それぞれ元の写真とスタックされています"
 }

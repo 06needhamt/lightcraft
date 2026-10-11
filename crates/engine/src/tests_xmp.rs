@@ -696,6 +696,41 @@ fn external_edit_copy_is_stacked() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Issue #920: with several photos selected, each gets its own `-Edit` copy stacked on its
+/// original, the copies end up selected and are all reported; `ids` picks photos explicitly.
+#[test]
+fn external_edit_copies_every_selected_photo() {
+    let dir = temp_dir("extedit-many");
+    let paths: Vec<String> = ["a", "b", "c"]
+        .iter()
+        .map(|n| {
+            let p = dir.join(format!("{n}.png"));
+            write_png(&p, 9);
+            p.to_string_lossy().into_owned()
+        })
+        .collect();
+    let mut s = Session::new().with_fs();
+    let imported = s.execute("library.import", &json!({"paths": paths})).unwrap();
+    let originals: Vec<u64> = imported["imported"].as_array().unwrap().iter().filter_map(serde_json::Value::as_u64).collect();
+    assert_eq!(originals.len(), 3);
+    s.execute("library.select", &json!({"ids": originals})).unwrap();
+    let r = s.execute("photo.editExternal", &json!({})).unwrap();
+    let copies = r["copies"].as_array().unwrap();
+    assert_eq!(copies.len(), 3, "{r}");
+    for (copy, orig) in copies.iter().zip(&originals) {
+        assert_eq!(copy["original"].as_u64(), Some(*orig));
+        assert!(copy["path"].as_str().unwrap().ends_with("-Edit.tif"), "{copy}");
+        let new = lightcraft_catalog::PhotoId(copy["id"].as_u64().unwrap());
+        let st = s.catalog.stack_of(new).expect("stacked");
+        assert_eq!((st.top(), st.photos.contains(&lightcraft_catalog::PhotoId(*orig))), (new, true));
+        assert!(s.selection.contains(new), "the copies are selected");
+    }
+    assert_eq!(r["path"], copies[0]["path"], "the single-copy fields name the first copy");
+    let one = s.execute("photo.editExternal", &json!({"ids": [originals[1]]})).unwrap();
+    assert_eq!(one["copies"].as_array().map(Vec::len), Some(1));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Edit in PhotoCraft (engine half): a flat 16-bit PSD `-Edit` copy, which PhotoCraft saves back
 /// to in place (it writes a TIFF only through Save As); its saved pixels come back on Reload.
 #[test]

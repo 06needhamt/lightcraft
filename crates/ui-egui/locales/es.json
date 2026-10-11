@@ -1946,5 +1946,6 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "Mueve los archivos y sus archivos XMP auxiliares a esta carpeta; nunca sobrescribe",
   "Appearance Settings…": "Ajustes de apariencia…",
   "Add to favorites": "Añadir a favoritos",
-  "Remove from favorites": "Quitar de favoritos"
+  "Remove from favorites": "Quitar de favoritos",
+  "{n} photos opened for editing; each is stacked with its original": "{n} fotos abiertas para editar; cada una está apilada con su original"
 }

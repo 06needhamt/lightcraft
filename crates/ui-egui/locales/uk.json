@@ -2140,5 +2140,6 @@
   "Charcoal": "Графіт",
   "Midnight": "Опівніч",
   "Silver": "Срібло",
-  "Paper": "Папір"
+  "Paper": "Папір",
+  "{n} photos opened for editing; each is stacked with its original": "Відкрито для редагування фото: {n}; кожне об’єднано в стос з оригіналом"
 }

@@ -1946,5 +1946,6 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "將檔案及其 XMP 附屬檔案移至此資料夾；絕不覆寫",
   "Appearance Settings…": "外觀設定…",
   "Add to favorites": "加入最愛",
-  "Remove from favorites": "從最愛移除"
+  "Remove from favorites": "從最愛移除",
+  "{n} photos opened for editing; each is stacked with its original": "已開啟 {n} 張相片進行編輯；每張都與其原始相片堆疊在一起"
 }
