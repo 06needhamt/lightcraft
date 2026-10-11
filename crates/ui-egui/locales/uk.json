@@ -2084,5 +2084,7 @@
   "Recent Libraries": "Нещодавні бібліотеки",
   "Clear Recent Libraries": "Очистити список нещодавніх бібліотек",
   "No Recent Libraries": "Немає нещодавніх бібліотек",
-  "New Library: Choose Where to Put It": "Нова бібліотека: виберіть розташування"
+  "New Library: Choose Where to Put It": "Нова бібліотека: виберіть розташування",
+  "New Library": "Нова бібліотека",
+  "Library name": "Назва бібліотеки"
 }

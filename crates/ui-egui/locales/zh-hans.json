@@ -1890,5 +1890,7 @@
   "Recent Libraries": "最近的图库",
   "Clear Recent Libraries": "清除最近的图库",
   "No Recent Libraries": "没有最近的图库",
-  "New Library: Choose Where to Put It": "新建图库：选择存放位置"
+  "New Library: Choose Where to Put It": "新建图库：选择存放位置",
+  "New Library": "新建图库",
+  "Library name": "图库名称"
 }

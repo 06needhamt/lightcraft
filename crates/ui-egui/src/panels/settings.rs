@@ -660,12 +660,17 @@ pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String>
 fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> {
     let dir = lightcraft_engine::library::resolve_dir(std::path::Path::new(path)).map_err(|e| e.to_string())?;
     let path = dir.to_string_lossy().into_owned();
+    // the library being left goes in the list too (also when it was opened at launch)
+    let previous = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy().into_owned());
     app.session.close_library().map_err(|e| e.to_string())?;
     app.session.open_library(&dir, false).map_err(|e| format!("{path}: {e}"))?;
     app.lightroom_last = None;
     app.renderer.forget_all();
     app.ui.compare = None;
     app.ui.settings.library_path = path.clone();
+    if let Some(prev) = previous.filter(|p| p != &path && !app.ui.settings.recent_libraries.contains(p)) {
+        remember_library(&mut app.ui.settings.recent_libraries, &prev);
+    }
     remember_library(&mut app.ui.settings.recent_libraries, &path);
     Ok(json!({"path": path, "name": library_name(&dir), "photos": app.session.catalog.len()}))
 }
@@ -700,6 +705,19 @@ pub fn new_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> 
         Some(Value::String(s)) => Some(valid_library_name(s)?),
         Some(_) => return Err("app.newLibrary: name must be a string".into()),
     };
+    // from the menu: ask for the name first (default prefilled), then for the location
+    if name.is_none() && p.get("path").is_none() && app.services.pick_folder.is_some() {
+        crate::panels::dialogs::prompt(
+            app,
+            "New Library",
+            "Library name",
+            lightcraft_engine::library::DEFAULT_NAME,
+            "app.newLibrary",
+            json!({}),
+            "name",
+        );
+        return Ok(Value::Null);
+    }
     let (location, picked) = match p.get("path").and_then(Value::as_str) {
         Some(x) => (std::path::PathBuf::from(x), false),
         None => {

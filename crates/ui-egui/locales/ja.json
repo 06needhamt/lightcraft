@@ -1892,5 +1892,7 @@
   "Recent Libraries": "最近使ったライブラリ",
   "Clear Recent Libraries": "最近使ったライブラリを消去",
   "No Recent Libraries": "最近使ったライブラリはありません",
-  "New Library: Choose Where to Put It": "新しいライブラリ：保存場所を選択"
+  "New Library: Choose Where to Put It": "新しいライブラリ：保存場所を選択",
+  "New Library": "新しいライブラリ",
+  "Library name": "ライブラリ名"
 }

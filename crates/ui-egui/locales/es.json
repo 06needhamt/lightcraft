@@ -1890,5 +1890,7 @@
   "Recent Libraries": "Bibliotecas recientes",
   "Clear Recent Libraries": "Borrar bibliotecas recientes",
   "No Recent Libraries": "No hay bibliotecas recientes",
-  "New Library: Choose Where to Put It": "Nueva biblioteca: elige dónde guardarla"
+  "New Library: Choose Where to Put It": "Nueva biblioteca: elige dónde guardarla",
+  "New Library": "Nueva biblioteca",
+  "Library name": "Nombre de la biblioteca"
 }

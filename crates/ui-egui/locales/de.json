@@ -2045,5 +2045,7 @@
   "Recent Libraries": "Zuletzt verwendete Bibliotheken",
   "Clear Recent Libraries": "Liste leeren",
   "No Recent Libraries": "Keine zuletzt verwendeten Bibliotheken",
-  "New Library: Choose Where to Put It": "Neue Bibliothek: Speicherort wählen"
+  "New Library: Choose Where to Put It": "Neue Bibliothek: Speicherort wählen",
+  "New Library": "Neue Bibliothek",
+  "Library name": "Name der Bibliothek"
 }

@@ -114,6 +114,27 @@ fn new_library_creates_opens_and_is_remembered_and_named() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// From the menu, New Library… asks for a name (default prefilled), then where to put it.
+#[test]
+fn new_library_from_the_menu_asks_for_a_name_then_a_location() {
+    let dir = temp("newlibprompt");
+    let mut app = app_in(&dir);
+    let loc = dir.to_string_lossy().into_owned();
+    app.services.pick_folder = Some(Box::new(move || Some(loc.clone())));
+    app.run("app.newLibrary", json!({})).unwrap();
+    let Some(crate::state::Dialog::TextPrompt { value, command, key, .. }) = app.ui.dialog.as_mut() else {
+        panic!("no name prompt: {:?}", app.ui.dialog)
+    };
+    assert_eq!(value, lightcraft_engine::library::DEFAULT_NAME);
+    assert_eq!((command.as_str(), key.as_str()), ("app.newLibrary", "name"));
+    *value = "Wedding".into();
+    // what the dialog's OK runs
+    app.ui.dialog = None;
+    app.run("app.newLibrary", json!({"name": "Wedding"})).unwrap();
+    assert_eq!(app.session.library.as_ref().unwrap().dir, dir.join("Wedding"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// A remembered library that's gone is greyed out in the menu; opening it anyway is an error that
 /// keeps the current library open and drops it from the list. The list is capped.
 #[test]

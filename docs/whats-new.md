@@ -1,5 +1,16 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Switching libraries
+- File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
+- File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
+  out. Clear Recent Libraries empties the list.
+- The open library's name shows under My Photos at the top of the left panel and in the window title.
+- `lightcraft-cli --library` given a library's own file (`catalog.snap`) opens its folder instead of failing with
+  "File exists".
+- Agents use `app.newLibrary {path, name}`, `app.recentLibraries` and `app.clearRecentLibraries`.
+
 ## 2026-10-10
 
 ### Activity stack

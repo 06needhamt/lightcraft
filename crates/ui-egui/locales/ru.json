@@ -1604,5 +1604,7 @@
   "Recent Libraries": "Недавние библиотеки",
   "Clear Recent Libraries": "Очистить список недавних библиотек",
   "No Recent Libraries": "Нет недавних библиотек",
-  "New Library: Choose Where to Put It": "Новая библиотека: выберите расположение"
+  "New Library: Choose Where to Put It": "Новая библиотека: выберите расположение",
+  "New Library": "Новая библиотека",
+  "Library name": "Название библиотеки"
 }
