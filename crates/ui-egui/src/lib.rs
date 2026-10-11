@@ -1048,7 +1048,6 @@ impl LightcraftApp {
         raw.events.extend(self.synthetic.drain(..n));
     }
 
-    /// Frame timings once layout is done (`t0`: when layout started).
     /// Lights Out: veil everything but the photo (the loupe's image, or the grid / Compare /
     /// Survey area) in black. Painted above the panels, below dialogs and notices.
     fn lights_out(&self, ctx: &egui::Context) {
@@ -1073,6 +1072,7 @@ impl LightcraftApp {
         p.rect_filled(Rect::from_min_max(pos2(k.right(), k.top()), pos2(screen.right(), k.bottom())), 0.0, veil);
     }
 
+    /// Frame timings once layout is done (`t0`: when layout started).
     fn end_frame(&mut self, ctx: &egui::Context, t0: f64) {
         ctx.output(|o| {
             for c in &o.commands {
