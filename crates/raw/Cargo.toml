@@ -28,6 +28,8 @@ default = ["jxl"]
 jxl = ["dep:jxl-oxide"]
 
 [dev-dependencies]
+# tests record why they skip (`cargo xtask ci` lists the skips)
+lightcraft-testkit = { workspace = true }
 jpeg-encoder = { workspace = true }
 proptest = { workspace = true }
 zune-jpegxl = { workspace = true }

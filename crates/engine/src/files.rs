@@ -1133,7 +1133,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw");
         let Ok(gh1) = std::fs::read(dir.join("rw2-panasonic-gh1.rw2")) else {
-            eprintln!("skip: {} absent", dir.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
             return;
         };
         assert_eq!(probe_bytes("gh1.rw2", &gh1).unwrap().embedded_lens, None, "correction off: nothing to apply");
@@ -1484,7 +1484,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw");
         let Ok(bytes) = std::fs::read(dir.join("arw-sony-a7rm4-14bit-compressed.arw")) else {
-            eprintln!("skip: {} absent", dir.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
             return;
         };
         let (img, _) = load_bytes(&bytes, 1600).unwrap();

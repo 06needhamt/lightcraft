@@ -581,7 +581,7 @@ fn convert_raw_to_dng() {
     let r = s.execute("photo.convertToDng", &json!({})).unwrap();
     assert_eq!((r["converted"].as_array().unwrap().len(), r["skipped"].as_array().unwrap().len()), (0, 1));
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let nef = dir.join("shot.nef");
@@ -843,7 +843,7 @@ fn dng_export_compression_choices() {
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
         .join("raw/nef-nikon-d5100-uncompressed.nef");
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let mut s = Session::new().with_fs();

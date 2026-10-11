@@ -25,7 +25,7 @@ const KNOWN_UNSUPPORTED: &[&str] = &[
 fn corpus_raw_decodes() {
     let dir = corpus_root().join("raw");
     let Ok(rd) = std::fs::read_dir(&dir) else {
-        eprintln!("skip: {} absent", dir.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
         return;
     };
     let mut paths: Vec<PathBuf> = rd.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect();
@@ -159,7 +159,7 @@ fn corpus_cr2_cfa_patterns() {
     let mut seen = 0;
     for (name, want) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -189,7 +189,7 @@ fn corpus_cr2_as_shot_white_balance() {
         "cr2-canon-80d.cr2",
     ] {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let wb = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}")).wb_multipliers.unwrap_or_else(|| panic!("{name}: no as-shot WB"));
@@ -206,7 +206,7 @@ fn corpus_nef_compressed_matches_uncompressed() {
     let dir = corpus_root().join("raw");
     let (Ok(a), Ok(b)) = (std::fs::read(dir.join("nef-nikon-d5100-lossless.nef")), std::fs::read(dir.join("nef-nikon-d5100-uncompressed.nef")))
     else {
-        eprintln!("skip: D5100 NEF pair absent");
+        lightcraft_testkit::skip!(Corpus, "D5100 NEF pair absent");
         return;
     };
     let (a, b) = (decode(&a).unwrap(), decode(&b).unwrap());
@@ -231,7 +231,7 @@ fn corpus_nef_compressed_matches_uncompressed() {
 fn corpus_nef_high_efficiency_is_named() {
     let dir = corpus_root().join("raw");
     let (Ok(he), Ok(lossless)) = (std::fs::read(dir.join("nef-nikon-zf-he.nef")), std::fs::read(dir.join("nef-nikon-zf-lossless.nef"))) else {
-        eprintln!("skip: Z f samples absent");
+        lightcraft_testkit::skip!(Corpus, "Z f samples absent");
         return;
     };
     for result in [decode(&he).map(|_| ()), probe_info(&he).map(|_| ())] {
@@ -248,7 +248,7 @@ fn corpus_nef_12_bit_black_level_matches_14_bit() {
     let dir = corpus_root().join("raw");
     let (Ok(a), Ok(b)) = (std::fs::read(dir.join("nef-nikon-d7500-lossless12.nef")), std::fs::read(dir.join("nef-nikon-d7500-lossless14.nef")))
     else {
-        eprintln!("skip: D7500 NEF pair absent");
+        lightcraft_testkit::skip!(Corpus, "D7500 NEF pair absent");
         return;
     };
     let (a, b) = (decode(&a).unwrap(), decode(&b).unwrap());
@@ -278,7 +278,7 @@ fn corpus_nef_12_bit_black_level_matches_14_bit() {
 fn corpus_dngs_carry_profile_looks() {
     let dir = corpus_root().join("raw");
     let Ok(rd) = std::fs::read_dir(&dir) else {
-        eprintln!("skip: {} absent", dir.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
         return;
     };
     let mut seen = 0;
@@ -327,7 +327,7 @@ fn corpus_dngs_carry_profile_looks() {
 fn corpus_proraw_sky_matte() {
     let path = corpus_root().join("raw/dng-apple-iphone12pro-proraw.dng");
     let Ok(bytes) = std::fs::read(&path) else {
-        eprintln!("skip: {} absent", path.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
         return;
     };
     let t0 = Instant::now();
@@ -365,7 +365,7 @@ fn corpus_sony_pre2017_colour_metadata() {
     let mut seen = 0;
     for (name, black, [r, b], (cw, ch)) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -397,7 +397,7 @@ fn corpus_sony_a7cr_codings() {
         let bytes = match std::fs::read(dir.join(name)) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                eprintln!("skip: {name} absent");
+                lightcraft_testkit::skip!(Corpus, "{name} absent");
                 continue;
             }
             Err(e) => panic!("{name}: {e}"),
@@ -464,7 +464,7 @@ fn corpus_sony_a7cm2_codings() {
         let bytes = match std::fs::read(dir.join(name)) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                eprintln!("skip: {name} absent");
+                lightcraft_testkit::skip!(Corpus, "{name} absent");
                 continue;
             }
             Err(e) => panic!("{name}: {e}"),
@@ -509,7 +509,7 @@ fn corpus_sony_black_levels_sit_at_the_data_floor() {
         let bytes = match std::fs::read(dir.join(name)) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                eprintln!("skip: {name} absent");
+                lightcraft_testkit::skip!(Corpus, "{name} absent");
                 continue;
             }
             Err(e) => panic!("{name}: {e}"),
@@ -567,7 +567,7 @@ fn corpus_sony_sr2_white_balance() {
     let mut seen = 0;
     for (name, [r, b]) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -585,7 +585,7 @@ fn corpus_sony_sr2_white_balance() {
 fn corpus_sony_a900_packed12() {
     let name = "arw-sony-a900-packed12.arw";
     let Ok(bytes) = std::fs::read(corpus_root().join("raw").join(name)) else {
-        eprintln!("skip: {name} absent");
+        lightcraft_testkit::skip!(Corpus, "{name} absent");
         return;
     };
     let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -607,7 +607,7 @@ fn corpus_sony_16x9_crops() {
         let bytes = match std::fs::read(dir.join(name)) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                eprintln!("skip: {name} absent");
+                lightcraft_testkit::skip!(Corpus, "{name} absent");
                 continue;
             }
             Err(e) => panic!("{name}: {e}"),
@@ -727,7 +727,7 @@ fn corpus_panasonic_encodings() {
     let mut seen = 0;
     for (name, bits, black, (cw, ch), cfa) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -777,7 +777,7 @@ fn corpus_orf_cfa_patterns() {
     let mut seen = 0;
     for (name, cfa) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -812,7 +812,7 @@ fn corpus_samsung_srw() {
     let mut seen = 0;
     for (name, bits, active, crop, cfa, whole) in cases {
         let Ok(bytes) = std::fs::read(dir.join(name)) else {
-            eprintln!("skip: {name} absent");
+            lightcraft_testkit::skip!(Corpus, "{name} absent");
             continue;
         };
         let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
@@ -941,7 +941,7 @@ fn corpus_sony_arw6_samples() {
 fn corpus_raws_keep_their_container_and_are_not_thumbnail_shells() {
     let dir = corpus_root().join("raw");
     let Ok(rd) = std::fs::read_dir(&dir) else {
-        eprintln!("skip: {} absent", dir.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
         return;
     };
     let mut checked = 0;
@@ -1004,7 +1004,7 @@ fn sony_embedded_distortion_is_limited_to_validated_models() {
     ] {
         let path = root.join(name);
         if !path.exists() {
-            eprintln!("skip: {} absent", path.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
             continue;
         }
         let bytes = std::fs::read(&path).unwrap();
@@ -1026,7 +1026,7 @@ fn corpus_kodak_dcs520c() {
     let name = "2573_Kodak - DCS520C - 12bit (3_2).TIF";
     let candidates = [corpus_root().join("raw").join("kodak-dcs520c.tif"), Path::new("P:/raw-pixls/Kodak/DCS520C").join(name)];
     let Some(bytes) = candidates.iter().find_map(|p| std::fs::read(p).ok()) else {
-        eprintln!("skip: DCS520C sample absent");
+        lightcraft_testkit::skip!(Corpus, "DCS520C sample absent");
         return;
     };
     assert_eq!(probe(&bytes), Some(RawFormat::KodakDcs));

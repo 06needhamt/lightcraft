@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn thai_face_is_a_fallback_in_every_ui_family_when_craft_fonts_carry_one() {
         let Some(thai) = lightcraft_engine::CRAFT_FONTS.iter().find(|f| f.covers("Thai")) else {
-            eprintln!("no Thai face in craft-fonts: nothing to check");
+            lightcraft_testkit::skip!(Fonts, "no Thai face in craft-fonts");
             return;
         };
         set_language(Locale::En);

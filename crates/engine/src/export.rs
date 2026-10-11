@@ -2414,7 +2414,7 @@ mod tests {
     fn biz_ud_vertical_watermarks_place_punctuation_at_the_top_right() {
         use ab_glyph::Font;
         let Some(entry) = crate::fonts::CRAFT_FONTS.iter().find(|f| f.family == "BIZ UDMincho") else {
-            eprintln!("skipped: built without BIZ UDMincho from craft-fonts");
+            lightcraft_testkit::skip!(Fonts, "built without BIZ UDMincho from craft-fonts");
             return;
         };
         let font = ab_glyph::FontRef::try_from_slice(entry.bytes).unwrap();
@@ -2486,7 +2486,7 @@ mod tests {
                 compare(composed, decomposed, crate::fonts::CRAFT_FONTS);
             }
         } else {
-            eprintln!("skipped Japanese comparisons: built without BIZ UDMincho from craft-fonts");
+            lightcraft_testkit::skip!(Fonts, "Japanese comparisons: built without BIZ UDMincho from craft-fonts");
         }
     }
 
@@ -2510,7 +2510,7 @@ mod tests {
         use ab_glyph::Font;
         let fonts = watermark_fonts(crate::fonts::CRAFT_FONTS);
         if fonts.len() < 2 {
-            eprintln!("skipped: built without CRAFT_FONTS_DIR, so there is no Japanese watermark face");
+            lightcraft_testkit::skip!(Fonts, "built without CRAFT_FONTS_DIR, so there is no Japanese watermark face");
             return;
         }
         for c in "日本語の文字".chars() {
@@ -3090,7 +3090,7 @@ mod tests {
     #[test]
     fn a_batch_reports_a_gpu_fallback_on_the_file_it_hit() {
         if !lightcraft_gpu::available() {
-            eprintln!("skipped: no GPU adapter ({:?})", lightcraft_gpu::unavailable_reason());
+            lightcraft_testkit::skip!(Gpu, "no GPU adapter ({})", lightcraft_gpu::unavailable_reason().unwrap_or_default());
             return;
         }
         let mut s = crate::Session::with_demo();
