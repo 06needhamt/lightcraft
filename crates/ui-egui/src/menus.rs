@@ -623,13 +623,46 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(json!({"on": app.ui.hdr_visualize}))
         }
         "view.softProof" => {
-            // {on?, space?, destWarning?, displayWarning?}; no params toggles
+            // {on?, space?, profile?: ICC path | null, intent?: perceptual|relative, paperInk?,
+            // destWarning?, displayWarning?}; no params toggles
             let has = |k: &str| p.get(k).is_some();
             if let Some(s) = p.get("space").and_then(Value::as_str) {
                 match lightcraft_engine::pipeline::OutputSpace::parse(s) {
-                    Some(sp) => app.ui.proof.space = sp,
+                    Some(sp) => {
+                        app.ui.proof.space = sp;
+                        // a standard space replaces a device profile (unless one is given too)
+                        app.ui.proof_profile = None;
+                    }
                     None => return Some(Err(format!("view.softProof: unknown space {s:?} (srgb|displayP3|adobeRgb|proPhoto|rec2020)"))),
                 }
+            }
+            if let Some(i) = p.get("intent") {
+                match i.as_str().and_then(lightcraft_engine::proof::ProofIntent::parse) {
+                    Some(i) => app.ui.proof_intent = i,
+                    None => return Some(Err("view.softProof: intent must be perceptual or relative".into())),
+                }
+            }
+            if let Some(b) = p.get("paperInk").and_then(Value::as_bool) {
+                app.ui.proof_paper_ink = b;
+            }
+            let path = match p.get("profile") {
+                Some(Value::String(s)) => Some(s.clone()),
+                Some(Value::Null) => {
+                    app.ui.proof_profile = None;
+                    None
+                }
+                Some(_) => return Some(Err("view.softProof: profile must be an ICC file path or null".into())),
+                None => app.ui.proof_profile.as_ref().map(|(f, _)| f.clone()),
+            };
+            match path {
+                Some(path) => match lightcraft_engine::proof::load(&path, app.ui.proof_intent, app.ui.proof_paper_ink) {
+                    Ok(pp) => {
+                        app.ui.proof.profile = pp.id;
+                        app.ui.proof_profile = Some((path, pp.name));
+                    }
+                    Err(e) => return Some(Err(format!("view.softProof: {e}"))),
+                },
+                None => app.ui.proof.profile = 0,
             }
             if let Some(b) = p.get("destWarning").and_then(Value::as_bool) {
                 app.ui.proof.dest_warning = b;
@@ -639,14 +672,16 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             }
             app.ui.soft_proof = match p.get("on").and_then(Value::as_bool) {
                 Some(b) => b,
-                None if has("space") || has("destWarning") || has("displayWarning") => app.ui.soft_proof,
+                None if ["space", "destWarning", "displayWarning", "profile", "intent", "paperInk"].iter().any(|k| has(k)) => app.ui.soft_proof,
                 None => !app.ui.soft_proof,
             };
             if app.ui.soft_proof && !matches!(app.ui.view, ViewMode::Detail | ViewMode::Reference) {
                 app.ui.view = ViewMode::Detail;
             }
             let pr = app.ui.proof;
-            Ok(json!({"on": app.ui.soft_proof, "space": pr.space, "destWarning": pr.dest_warning, "displayWarning": pr.display_warning}))
+            let profile = app.ui.proof_profile.as_ref().map(|(f, n)| json!({"path": f, "name": n}));
+            Ok(json!({"on": app.ui.soft_proof, "space": pr.space, "profile": profile, "intent": app.ui.proof_intent.name(),
+                "paperInk": app.ui.proof_paper_ink, "destWarning": pr.dest_warning, "displayWarning": pr.display_warning}))
         }
         "view.histogram" => {
             app.ui.histogram = !app.ui.histogram;

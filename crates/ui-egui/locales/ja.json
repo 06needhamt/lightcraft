@@ -1904,5 +1904,10 @@
   "Looking up places": "場所を検索中",
   "Downloading place names": "地名データをダウンロード中",
   "Place names downloaded": "地名データをダウンロードしました",
-  "Place names download cancelled": "地名データのダウンロードを中止しました"
+  "Place names download cancelled": "地名データのダウンロードを中止しました",
+  "Other…": "その他…",
+  "Intent:": "マッチング方法：",
+  "Perceptual": "知覚的",
+  "Relative": "相対的",
+  "Simulate Paper & Ink": "紙とインキをシミュレート"
 }

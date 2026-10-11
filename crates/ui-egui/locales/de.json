@@ -2057,5 +2057,10 @@
   "Looking up places": "Orte werden nachgeschlagen",
   "Downloading place names": "Ortsnamen werden heruntergeladen",
   "Place names downloaded": "Ortsnamen heruntergeladen",
-  "Place names download cancelled": "Download der Ortsnamen abgebrochen"
+  "Place names download cancelled": "Download der Ortsnamen abgebrochen",
+  "Other…": "Andere…",
+  "Intent:": "Priorität:",
+  "Perceptual": "Perzeptiv",
+  "Relative": "Relativ",
+  "Simulate Paper & Ink": "Papier und Druckfarbe simulieren"
 }

@@ -2096,5 +2096,10 @@
   "Looking up places": "Пошук місць",
   "Downloading place names": "Завантаження назв місць",
   "Place names downloaded": "Назви місць завантажено",
-  "Place names download cancelled": "Завантаження назв місць скасовано"
+  "Place names download cancelled": "Завантаження назв місць скасовано",
+  "Other…": "Інший…",
+  "Intent:": "Метод:",
+  "Perceptual": "Перцепційний",
+  "Relative": "Відносний",
+  "Simulate Paper & Ink": "Імітувати папір і фарбу"
 }

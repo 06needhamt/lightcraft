@@ -1062,11 +1062,30 @@ fn soft_proofing_flags_out_of_gamut_colours_and_makes_proof_copies() {
     assert_eq!(r["ok"], true, "{r}");
     assert!(h.app.ui.soft_proof);
     let st = exec(&mut h, "view.softProof", json!({"space": "srgb", "destWarning": true}));
-    assert_eq!(st, json!({"on": true, "space": "srgb", "destWarning": true, "displayWarning": false}));
+    assert_eq!(
+        st,
+        json!({"on": true, "space": "srgb", "profile": null, "intent": "perceptual", "paperInk": false, "destWarning": true, "displayWarning": false})
+    );
     h.settle(SETTLE);
     assert!(red(&h) > before, "out-of-gamut colours are painted red");
     let r = h.request("engine.execute", json!({"command": "view.softProof", "params": {"space": "cmyk"}}), T);
     assert_ne!(r["ok"], true);
+    // a device (printer) profile, its intent and Simulate Paper & Ink
+    let dir = std::env::temp_dir().join(format!("proof-profile-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let icc = dir.join("printer.icc");
+    std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::Srgb)).unwrap();
+    let st = exec(&mut h, "view.softProof", json!({"profile": icc.to_string_lossy(), "intent": "relative", "paperInk": true}));
+    assert_eq!((st["intent"].as_str(), st["paperInk"].as_bool()), (Some("relative"), Some(true)), "{st}");
+    assert!(st["profile"]["name"].as_str().is_some_and(|n| !n.is_empty()), "{st}");
+    assert_ne!(h.app.ui.proof.profile, 0);
+    h.settle(SETTLE);
+    assert!(red(&h) > before, "the device gamut is flagged too");
+    let r = h.request("engine.execute", json!({"command": "view.softProof", "params": {"profile": "/nonexistent.icc"}}), T);
+    assert_ne!(r["ok"], true);
+    let st = exec(&mut h, "view.softProof", json!({"profile": null}));
+    assert_eq!((st["profile"].clone(), h.app.ui.proof.profile), (json!(null), 0));
+    let _ = std::fs::remove_dir_all(&dir);
     // Create Proof Copy: a virtual copy named after the proof
     let n = h.app.session.catalog.photos().count();
     let r = h.request("ui.clickWidget", json!({"id": "button:createProofCopy"}), T);

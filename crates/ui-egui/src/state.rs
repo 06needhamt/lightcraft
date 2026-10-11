@@ -357,6 +357,13 @@ pub struct UiState {
     /// Soft proofing (S in the loupe): render as `proof` would hold the photo.
     pub soft_proof: bool,
     pub proof: lightcraft_engine::pipeline::Proof,
+    /// Soft proofing against a printer / paper ICC profile: (file, name), the intent and Simulate
+    /// Paper & Ink. With a profile, `proof.profile` names its table.
+    #[serde(skip)]
+    pub proof_profile: Option<(String, String)>,
+    #[serde(skip)]
+    pub proof_intent: lightcraft_engine::proof::ProofIntent,
+    pub proof_paper_ink: bool,
     /// Masking: show the selected mask as a rendered overlay (O), how (`MaskView` name, ⇧O cycles),
     /// in which colour and opacity (0..100, colour views), and whether pins are drawn.
     pub mask_overlay: bool,
@@ -850,6 +857,9 @@ impl Default for UiState {
             histogram: true,
             soft_proof: false,
             proof: lightcraft_engine::pipeline::Proof { dest_warning: false, ..Default::default() },
+            proof_profile: None,
+            proof_intent: lightcraft_engine::proof::ProofIntent::Perceptual,
+            proof_paper_ink: false,
             mask_overlay: true,
             mask_overlay_mode: "color".into(),
             mask_overlay_color: [230, 30, 40],

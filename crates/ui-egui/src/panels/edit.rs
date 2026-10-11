@@ -625,18 +625,53 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(crate::i18n::tr("Profile:")).color(t.text_label));
             let cur = app.ui.proof.space;
-            egui::ComboBox::from_id_salt("proof-space").width(170.0).selected_text(cur.label()).show_ui(ui, |ui| {
+            let device = app.ui.proof_profile.as_ref().map(|(_, n)| n.clone());
+            let shown = device.clone().unwrap_or_else(|| cur.label().to_string());
+            let mut pick = false;
+            egui::ComboBox::from_id_salt("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
                 for s in OutputSpace::ALL {
-                    if ui.selectable_label(cur == s, s.label()).clicked() {
+                    if ui.selectable_label(device.is_none() && cur == s, s.label()).clicked() {
                         let _ = app.run("view.softProof", json!({"space": s}));
                     }
                 }
+                if let Some(n) = &device {
+                    let _ = ui.selectable_label(true, n);
+                }
+                if app.services.pick_display_profile.is_some() && ui.selectable_label(false, crate::i18n::tr("Other…")).clicked() {
+                    pick = true;
+                }
             });
+            if pick
+                && let Some(path) = app.services.pick_display_profile.as_mut().and_then(|pick| pick().into_iter().next())
+                && let Err(e) = app.run("view.softProof", json!({"profile": path}))
+            {
+                app.toast(ui.ctx(), e);
+            }
         });
+        if app.ui.proof_profile.is_some() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(crate::i18n::tr("Intent:")).color(t.text_label));
+                use lightcraft_engine::proof::ProofIntent;
+                for (i, label) in [(ProofIntent::Perceptual, "Perceptual"), (ProofIntent::Relative, "Relative")] {
+                    let r = ui.selectable_label(app.ui.proof_intent == i, crate::i18n::tr(label));
+                    register(ui.ctx(), format!("button:proofIntent-{}", i.name()), r.rect);
+                    if r.clicked() && app.ui.proof_intent != i {
+                        let _ = app.run("view.softProof", json!({"intent": i.name()}));
+                    }
+                }
+            });
+            let mut paper = app.ui.proof_paper_ink;
+            let r = ui.checkbox(&mut paper, crate::i18n::tr("Simulate Paper & Ink"));
+            register(ui.ctx(), "button:proofPaperInk", r.rect);
+            if r.changed() {
+                let _ = app.run("view.softProof", json!({"paperInk": paper}));
+            }
+        }
         let r = ui.button(crate::i18n::tr("Create Proof Copy"));
         register(ui.ctx(), "button:createProofCopy", r.rect);
         if r.clicked() {
-            let name = crate::i18n::tr_format!("Proof Copy ({})", app.ui.proof.space.label());
+            let target = app.ui.proof_profile.as_ref().map_or_else(|| app.ui.proof.space.label().to_string(), |(_, n)| n.clone());
+            let name = crate::i18n::tr_format!("Proof Copy ({})", target);
             if app.run("photo.virtualCopy", json!({"ids": [id.0], "name": name})).is_ok() {
                 app.toast(ui.ctx(), crate::i18n::tr("Proof copy created"));
             }

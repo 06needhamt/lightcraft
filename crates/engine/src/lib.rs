@@ -54,6 +54,7 @@ pub mod originals;
 pub mod preset_import;
 pub mod preset_luminar;
 pub mod presets;
+pub mod proof;
 pub mod rename;
 pub mod segment;
 pub mod sidecar;

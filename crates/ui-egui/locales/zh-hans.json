@@ -1902,5 +1902,10 @@
   "Looking up places": "正在查找地点",
   "Downloading place names": "正在下载地名数据",
   "Place names downloaded": "地名数据已下载",
-  "Place names download cancelled": "已取消下载地名数据"
+  "Place names download cancelled": "已取消下载地名数据",
+  "Other…": "其他…",
+  "Intent:": "方法：",
+  "Perceptual": "可感知",
+  "Relative": "相对",
+  "Simulate Paper & Ink": "模拟纸张和油墨"
 }

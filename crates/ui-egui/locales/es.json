@@ -1902,5 +1902,10 @@
   "Looking up places": "Buscando lugares",
   "Downloading place names": "Descargando nombres de lugares",
   "Place names downloaded": "Nombres de lugares descargados",
-  "Place names download cancelled": "Descarga de nombres de lugares cancelada"
+  "Place names download cancelled": "Descarga de nombres de lugares cancelada",
+  "Other…": "Otro…",
+  "Intent:": "Propósito:",
+  "Perceptual": "Perceptual",
+  "Relative": "Relativo",
+  "Simulate Paper & Ink": "Simular papel y tinta"
 }
