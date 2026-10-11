@@ -120,8 +120,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// Edit in an external editor, the engine half: render the photo with its edits as a 16-bit
-/// TIFF next to the original (`<name>-Edit.tif`, never overwriting), add it to the library and
-/// stack it on top of the original. The host opens the file in the editor.
+/// TIFF (or PSD, or 8-bit) next to the original (`<name>-Edit.tif`, never overwriting), add it to
+/// the library and stack it on top of the original. The host opens the file in the editor.
 fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "photo.editExternal";
     let id = s.active().ok_or_else(|| bad(C, "no active photo"))?;
@@ -139,9 +139,19 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
         "prophoto" | "proPhoto" => lightcraft_pipeline::OutputSpace::ProPhoto,
         _ => lightcraft_pipeline::OutputSpace::AdobeRgb,
     };
+    let format = match super::str_param(p, "format").unwrap_or("tiff") {
+        "tiff" | "tif" => crate::export::ExportFormat::Tiff,
+        "psd" => crate::export::ExportFormat::Psd,
+        f => return Err(bad(C, format!("format {f:?}: use tiff or psd"))),
+    };
+    let bit_depth = match p.get("bitDepth").and_then(Value::as_u64).unwrap_or(16) {
+        8 => 8,
+        16 => 16,
+        d => return Err(bad(C, format!("bitDepth {d}: use 8 or 16"))),
+    };
     let opts = crate::export::ExportOptions {
-        format: crate::export::ExportFormat::Tiff,
-        bit_depth: Some(16),
+        format,
+        bit_depth: Some(bit_depth),
         color_space: space,
         naming: "{name}-Edit".into(),
         conflict: crate::export::Conflict::Unique,
@@ -156,7 +166,8 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
     };
     let to = crate::export::Destination { dir, exact: None };
     crate::export::export_batch(s, &[id], &opts, &to, &mut write, &|path| Path::new(path).exists()).map_err(|e| bad(C, e))?;
-    let out = written.into_iter().find(|w| w.ends_with(".tif")).ok_or_else(|| bad(C, "nothing was written"))?;
+    let ext = format!(".{}", format.extension());
+    let out = written.into_iter().find(|w| w.ends_with(&ext)).ok_or_else(|| bad(C, "nothing was written"))?;
     let r = s.execute("library.import", &json!({"paths": [out]}))?;
     let new = r["imported"].get(0).and_then(Value::as_u64).ok_or_else(|| bad(C, "the edit copy could not be added"))?;
     // stack: the edit on top of the original, expanded so both show
@@ -229,6 +240,14 @@ pub(crate) fn lens_ops(id: lightcraft_catalog::PhotoId, ph: &lightcraft_catalog:
     ops
 }
 
+/// The op that gives a raw the as-shot white balance its file reads now (`info`, a fresh probe), or none when the
+/// catalog already has it or the photo is not a raw edited in Kelvin. A raw imported before its camera's matrices
+/// gave it a Kelvin scale keeps the relative scale's 6500 / 0 until a decode or Reload reads the file (issue #730).
+pub(crate) fn as_shot_wb_op(id: lightcraft_catalog::PhotoId, ph: &lightcraft_catalog::Photo, info: &crate::media::ProbeInfo) -> Option<Op> {
+    let read = info.as_shot_wb.filter(|(t, tint)| t.is_finite() && tint.is_finite())?;
+    (ph.develops_raw() && !ph.relative_wb() && ph.as_shot_wb != Some(read)).then_some(Op::SetAsShotWb { id, wb: Some(read) })
+}
+
 /// Re-read photos whose files changed on disk (an external editor saved them): new size,
 /// dimensions and content hash, cached sources dropped. → {reloaded: [ids]}
 fn reload(s: &mut Session, p: &Value) -> Result<Value> {
@@ -248,14 +267,16 @@ fn reload(s: &mut Session, p: &Value) -> Result<Value> {
         // camera fields the catalog lacks (e.g. a raw imported before its format was read) are filled in;
         // nothing already set is overwritten
         let meta_ops = fill_missing_meta(id, ph, &info);
-        let mut mine: Vec<Op> = content_op(id, ph, info.clone()).into_iter().chain(meta_ops).chain(lens_ops(id, ph, &info)).collect();
+        let mut mine: Vec<Op> =
+            content_op(id, ph, info.clone()).into_iter().chain(meta_ops).chain(lens_ops(id, ph, &info)).chain(as_shot_wb_op(id, ph, &info)).collect();
         if !mine.is_empty() {
             ops.append(&mut mine);
             reloaded.push(id);
         }
         // virtual copies share the file
         for c in s.catalog.photos().filter(|c| c.copy_of == Some(id)) {
-            let theirs: Vec<Op> = content_op(c.id, c, info.clone()).into_iter().chain(lens_ops(c.id, c, &info)).collect();
+            let theirs: Vec<Op> =
+                content_op(c.id, c, info.clone()).into_iter().chain(lens_ops(c.id, c, &info)).chain(as_shot_wb_op(c.id, c, &info)).collect();
             if !theirs.is_empty() {
                 ops.extend(theirs);
                 reloaded.push(c.id);
@@ -342,7 +363,7 @@ pub fn edit_specs() -> Vec<CommandSpec> {
             "Edit Copy for External Editor",
             [],
             None,
-            "{colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, dir?} — render the active photo with its edits as a 16-bit TIFF `<name>-Edit.tif` next to it, add it stacked on the original and select it → {path, id, original} (the app then opens it in the external editor)",
+            "{colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, format?: tiff (default) | psd, bitDepth?: 16 (default) | 8, dir?} — render the active photo with its edits as `<name>-Edit.tif` (or `.psd`, flat, which PhotoCraft saves back to in place) next to it, add it stacked on the original and select it → {path, id, original} (the app then opens it in the external editor)",
             has_active,
             edit_external
         ),
@@ -381,6 +402,7 @@ mod tests {
         lightcraft_develop::EmbeddedLens {
             warp: Some(lightcraft_develop::EmbeddedWarp { planes: [[1.0, -0.1, 0.03, 0.0, 0.0, 0.0]; 3], ..Default::default() }),
             vignette: None,
+            stages: Default::default(),
         }
     }
     fn old_rw2() -> lightcraft_catalog::Photo {

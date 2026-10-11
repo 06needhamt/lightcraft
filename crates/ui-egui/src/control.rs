@@ -316,6 +316,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
             ok(Value::Null)
         }
         "ui.set" => {
+            // an arrangement of the sidebar is checked, not made whole as a settings file's is
+            let sidebar = match p.get("sidebar").map(crate::sidebar::SidebarLayout::parse).transpose() {
+                Ok(s) => s,
+                Err(e) => return err(e),
+            };
             let mut v = serde_json::to_value(&app.ui).unwrap_or_default();
             lightcraft_develop::presets::deep_merge(&mut v, p);
             match serde_json::from_value::<crate::UiState>(v) {
@@ -323,6 +328,23 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                     if let Err(error) = crate::docking::set_widths(&mut u, p) {
                         return err(error);
                     }
+                    if let Some(sidebar) = sidebar {
+                        u.sidebar = sidebar;
+                    }
+                    // `collapsedSidebar`, as scripts from before `sidebar` set it: the folded sections
+                    if let Some(ids) = p.get("collapsedSidebar").and_then(Value::as_array) {
+                        use crate::sidebar::SidebarSection;
+                        if p.get("sidebar").is_some() {
+                            return err("ui.set: give `sidebar` or the older `collapsedSidebar`, not both".to_string());
+                        }
+                        if let Some(unknown) = ids.iter().find(|id| id.as_str().and_then(SidebarSection::from_id).is_none()) {
+                            return err(format!("ui.set: `collapsedSidebar`: unknown section {unknown} ({})", SidebarSection::ids()));
+                        }
+                        for section in SidebarSection::ALL {
+                            u.sidebar.set_collapsed(section, ids.iter().any(|id| id.as_str() == Some(section.id())));
+                        }
+                    }
+                    u.collapsed_sidebar.clear();
                     u.toast = app.ui.toast.clone();
                     u.dialog = app.ui.dialog.clone();
                     u.status = app.ui.status.clone();

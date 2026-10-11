@@ -39,6 +39,9 @@ pub enum Slot {
     Preview,
     Before,
     Compare(u8),
+    /// Compare or Reference zoomed past what `Compare(i)` holds: the window of pane `i`'s frame
+    /// that is on screen, drawn over it (see [`crate::region`] and `panels::compare`).
+    CompareRegion(u8),
     /// Background preparation of a neighbouring photo (no texture: its decoded source and view
     /// render are cached by the engine). 0 = next, 1 = previous.
     Prefetch(u8),
@@ -114,7 +117,7 @@ const HARD_FACTOR: usize = 4;
 pub(crate) fn stage_trim_order(sizes: &[(Slot, usize)], budget: usize) -> Vec<Slot> {
     let idle_rank = |s: Slot| match s {
         Slot::Hover => 0,
-        Slot::Compare(_) => 2,
+        Slot::Compare(_) | Slot::CompareRegion(_) => 2,
         Slot::Second => 3,
         _ => 5,
     };
@@ -316,7 +319,18 @@ impl Renderer {
     /// Views that render straight into the display profile's primaries (wide gamut); everything
     /// else is rendered for sRGB and converted ([`lightcraft_engine::display::present`]).
     fn renders_for_display(slot: Slot) -> bool {
-        matches!(slot, Slot::Main | Slot::Region | Slot::Before | Slot::RegionBefore | Slot::Hover | Slot::Compare(_) | Slot::Second | Slot::Slide(_))
+        matches!(
+            slot,
+            Slot::Main
+                | Slot::Region
+                | Slot::Before
+                | Slot::RegionBefore
+                | Slot::Hover
+                | Slot::Compare(_)
+                | Slot::CompareRegion(_)
+                | Slot::Second
+                | Slot::Slide(_)
+        )
     }
 
     /// `job` as [`Self::request`] would run it for `slot` (its key included): views render for

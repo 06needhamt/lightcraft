@@ -249,9 +249,17 @@ fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
     r
 }
 
+/// Whether an overlay can be rendered on a region tile without changing what the tile means.
+/// Mask overlays are evaluated from the same mask alpha as the full render; the other diagnostic
+/// overlays either need whole-frame context or deliberately replace the loupe.
+pub(crate) fn overlay_supports_window(overlay: lightcraft_pipeline::Overlay) -> bool {
+    matches!(overlay, lightcraft_pipeline::Overlay::None | lightcraft_pipeline::Overlay::Mask { .. })
+}
+
 /// What a window render of the loupe needs to know about the view it belongs to.
 struct WindowCtx {
     id: PhotoId,
+    overlay: lightcraft_pipeline::Overlay,
     /// Long edge of the frame the windows are cut from (`None`: no windows).
     frame_edge: Option<usize>,
     drawn_long: f32,
@@ -317,9 +325,15 @@ fn request_window(app: &mut LightcraftApp, c: &WindowCtx, v: &WindowView) -> Opt
         app.window_refused = Some((c.id, c.look, frame_edge));
         return None;
     };
-    // a drag renders drafts of the window, as it does of the whole frame
+    // a drag renders drafts of the window, as it does of the whole frame. The Before tile stays
+    // plain; the After tile carries the same mask overlay as the whole-frame render.
     let job = if c.interacting { job.draft() } else { job };
-    let look = job.settings.hash64();
+    let overlay = if v.before { lightcraft_pipeline::Overlay::None } else { c.overlay };
+    let job = if v.before { job } else { job.with_hidden_grading(app.ui.grading_hidden_for(c.id)) };
+    let job = job.with_overlay(overlay);
+    // The overlay is part of the tile's identity too, so changing mask view/colour never leaves a
+    // stale region tile on screen while its replacement renders.
+    let look = job.settings.hash64() ^ overlay.key().rotate_left(17);
     let view = crate::region::RegionView { photo: c.id, before: v.before, key: job.key, full: (fw, fh), window: win, settings: look };
     // windows of other photos, looks and zooms of this side can't be drawn any more
     app.region_tiles.retain(|(before, _), t| *before != v.before || t.is_current(c.id, (fw, fh), look, c.interacting));
@@ -428,15 +442,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let drawn_long = target_rect.width().max(target_rect.height()) * ppp;
     // the whole frame at about canvas size; the zoomed part of it is a window render (below)
     let look = d.hash64();
-    // (modes that draw another picture over the loupe, or reads too far for one window, have the
-    // whole frame rendered at the size it is drawn, as they did before windows)
+    let overlay = view_overlay(app, &d);
+    // Diagnostic views that need whole-frame context, soft proofing, or reads too far for one
+    // window still render the whole frame at the size it is drawn. A mask overlay is window-safe.
     let sizes = crate::region::ViewSizes {
         drawn_long,
         canvas_long: canvas.width().max(canvas.height()) * ppp,
         native_long,
         texture_side,
         draft_scale: scale,
-        windows: !app.ui.soft_proof && view_overlay(app, &d) == lightcraft_pipeline::Overlay::None,
+        windows: !app.ui.soft_proof && overlay_supports_window(overlay),
     };
     let mut plan = crate::region::plan(&app.ui.settings, sizes);
     if plan.window_edge.is_some_and(|edge| app.window_refused == Some((id, look, edge))) {
@@ -455,7 +470,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let (sw, sh) = if aspect >= 1.0 { (se, (se as f32 / aspect) as usize) } else { ((se as f32 * aspect) as usize, se) };
     if let Some(job) = app.session.loupe_job(id, rw.max(8), rh.max(8), !crop_tool) {
         let job = if interacting { job.draft() } else { job };
-        let job = job.with_overlay(view_overlay(app, &d)).with_proof(app.ui.soft_proof.then_some(app.ui.proof));
+        let job = job.with_overlay(overlay).with_proof(app.ui.soft_proof.then_some(app.ui.proof));
+        let job = job.with_hidden_grading(app.ui.grading_hidden_for(id));
         app.renderer.request(Slot::Main, job, 100);
     }
     // hovering a preset or profile: the photo with that look, shown instead of the loupe render
@@ -503,17 +519,14 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         app.renderer.request(Slot::Before, job, 90);
     }
     // zoomed past what the whole-frame render holds: also render the part on screen, at no more
-    // than 100 % (the GPU magnifies beyond that), for each side that is shown. Not while hovering a
-    // look or showing an overlay (those draw another image), nor where the shown picture isn't the
-    // frame's own (an unsupported raw's embedded JPEG with another crop: window coordinates are
-    // the frame's).
-    let plain_view = hover_key.is_none()
-        && !app.ui.soft_proof
-        && view_overlay(app, &d) == lightcraft_pipeline::Overlay::None
-        && crate::region::same_aspect(display_aspect, aspect);
+    // than 100 % (the GPU magnifies beyond that), for each side that is shown. Mask overlays use
+    // the same window; diagnostic overlays that need whole-frame context do not.
+    let windowable_view =
+        hover_key.is_none() && !app.ui.soft_proof && overlay_supports_window(overlay) && crate::region::same_aspect(display_aspect, aspect);
     let window_ctx = WindowCtx {
         id,
-        frame_edge: plan.window_edge.filter(|_| plain_view),
+        overlay,
+        frame_edge: plan.window_edge.filter(|_| windowable_view),
         drawn_long,
         aspect,
         ppp,
@@ -1253,25 +1266,12 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     let quad = frame_crop_quad(d, frame);
     let pts: Vec<Pos2> = quad.iter().map(|q| map.screen(*q)).collect();
     let p = ui.painter();
-    // darken outside the crop
-    let img = map.rect;
-    let shade = Color32::from_black_alpha(150);
-    let mut mesh = egui::epaint::Mesh::default();
-    let outer = [img.left_top(), img.right_top(), img.right_bottom(), img.left_bottom()];
-    // the box's corners in screen order (a flipped photo shows its top-left corner elsewhere)
-    let on_screen = flipped_corners(&pts, frame.flip_h, frame.flip_v);
-    for i in 0..4 {
-        let a = outer[i];
-        let b = outer[(i + 1) % 4];
-        let c = on_screen[(i + 1) % 4];
-        let dd = on_screen[i];
-        let base = mesh.vertices.len() as u32;
-        for v in [a, b, c, dd] {
-            mesh.vertices.push(egui::epaint::Vertex { pos: v, uv: Pos2::ZERO, color: shade });
-        }
-        mesh.indices.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+    // darken outside the crop (the box's corners in screen order: a flipped photo shows its
+    // top-left corner elsewhere)
+    let quad = flipped_corners(&pts, frame.flip_h, frame.flip_v);
+    if pts.len() == 4 {
+        p.add(outside_crop_mesh(map.rect, &quad, Color32::from_black_alpha(150)));
     }
-    p.add(mesh);
     p.add(egui::Shape::closed_line(pts.clone(), Stroke::new(1.0, Color32::WHITE)));
     // overlay guides
     let lerp = |a: Pos2, b: Pos2, t: f32| a + (b - a) * t;
@@ -1346,7 +1346,13 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     if resp.drag_started()
         && let Some(q) = resp.interact_pointer_pos()
     {
-        let _ = app.run("develop.beginInteraction", json!({"label": "Crop"}));
+        if let Err(e) = app.run("develop.beginInteraction", json!({"label": "Crop"})).and_then(|_| app.begin_crop().map(|_| serde_json::Value::Null))
+        {
+            app.ui.status = e;
+            let _ = app.session.cancel_interaction();
+            return;
+        }
+        let d = app.session.develop_of(id).unwrap_or_default();
         app.gesture = Some(match handles.iter().position(|h| h.distance(q) < 12.0) {
             Some(h) => Gesture::CropHandle { handle: h as u8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
             None if inside(q) => Gesture::CropHandle { handle: 8, start: d.crop.geometry.rect, angle: d.crop.geometry.angle },
@@ -1365,9 +1371,11 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                 // `lightcraft_geom::drag_crop`; the UI only reports where the pointer started and is.
                 let n = to_straight(map.norm(q), angle, frame);
                 let orig = ui.input(|i| i.pointer.press_origin()).map(|q0| to_straight(map.norm(q0), angle, frame)).unwrap_or(n);
+                // Shift keeps the current proportions for this drag only; the Lock toggle is untouched.
+                let keep_ratio = ui.input(|i| i.modifiers.shift);
                 let _ = app.run(
                     "crop.drag",
-                    json!({"handle": handle, "from": [orig.x, orig.y], "to": [n.x, n.y], "start": [start.x0, start.y0, start.x1, start.y1]}),
+                    json!({"handle": handle, "from": [orig.x, orig.y], "to": [n.x, n.y], "start": [start.x0, start.y0, start.x1, start.y1], "keepRatio": keep_ratio}),
                 );
             }
             Some(Gesture::CropRotate { start_angle, a0 }) => {
@@ -1527,6 +1535,62 @@ fn flipped_corners(pts: &[Pos2], flip_h: bool, flip_v: bool) -> [Pos2; 4] {
     order.map(at)
 }
 
+/// The dimming outside the crop box: the photo's rectangle minus the crop quad, as one mesh of
+/// non-overlapping convex pieces. The quad is a rotated rectangle, so its opposite sides are
+/// parallel and the plane outside it splits into four disjoint half-strips: outside edge `i`
+/// and inside edge `i + 1`. Each is clipped to the photo and fanned into triangles.
+///
+/// Issue #731: joining photo corner `i` to crop corner `i` with a quad per side only works while
+/// the two rectangles are aligned. Rotated, those quads cross themselves and each other, which
+/// showed as dimmed wedges inside the crop and doubly dark ones outside, growing with the angle.
+/// A degenerate quad (a point, a line, a non-finite corner) dims nothing.
+fn outside_crop_mesh(img: Rect, quad: &[Pos2; 4], color: Color32) -> egui::epaint::Mesh {
+    let mut mesh = egui::epaint::Mesh::default();
+    if !quad.iter().all(|q| q.x.is_finite() && q.y.is_finite()) || !img.is_finite() {
+        return mesh;
+    }
+    let centre = pos2((quad[0].x + quad[1].x + quad[2].x + quad[3].x) / 4.0, (quad[0].y + quad[1].y + quad[2].y + quad[3].y) / 4.0);
+    // signed distance from edge i's line, positive towards the crop's centre
+    let side = |i: usize, q: Pos2| -> Option<f32> {
+        let (a, b) = (quad[i % 4], quad[(i + 1) % 4]);
+        let n = vec2(a.y - b.y, b.x - a.x);
+        let orient = n.dot(centre - a);
+        // an edge the centre lies on: the box is flat
+        (orient.abs() > 1e-6 * n.length().max(1.0)).then(|| n.dot(q - a) * orient.signum())
+    };
+    // Sutherland–Hodgman: the part of a convex polygon where `keep` is at or above zero
+    let clip = |poly: &[Pos2], keep: &dyn Fn(Pos2) -> Option<f32>| -> Option<Vec<Pos2>> {
+        let mut out = Vec::with_capacity(poly.len() + 2);
+        for (k, &a) in poly.iter().enumerate() {
+            let b = *poly.get((k + 1) % poly.len())?;
+            let (da, db) = (keep(a)?, keep(b)?);
+            if da >= 0.0 {
+                out.push(a);
+            }
+            if (da < 0.0) != (db < 0.0) && (da - db).abs() > f32::EPSILON {
+                let t = da / (da - db);
+                out.push(a + (b - a) * t);
+            }
+        }
+        Some(out)
+    };
+    let photo = [img.left_top(), img.right_top(), img.right_bottom(), img.left_bottom()];
+    for i in 0..4 {
+        let outside = |q: Pos2| side(i, q).map(|d| -d);
+        let inside_next = |q: Pos2| side(i + 1, q);
+        let Some(strip) = clip(&photo, &outside).and_then(|poly| clip(&poly, &inside_next)) else { return egui::epaint::Mesh::default() };
+        if strip.len() < 3 {
+            continue;
+        }
+        let base = mesh.vertices.len() as u32;
+        mesh.vertices.extend(strip.iter().map(|&pos| egui::epaint::Vertex { pos, uv: Pos2::ZERO, color }));
+        for k in 1..(strip.len() as u32).saturating_sub(1) {
+            mesh.indices.extend([base, base + k, base + k + 1]);
+        }
+    }
+    mesh
+}
+
 fn frame_crop_quad(d: &DevelopSettings, frame: &Frame) -> [Point; 4] {
     let f = Frame { crop: d.crop.geometry, ..frame.clone() };
     f.crop_quad_norm()
@@ -1638,10 +1702,6 @@ fn color_range_pick(app: &mut LightcraftApp, ui: &egui::Ui, resp: &egui::Respons
 /// component (click selects its mask, drag moves the component), and brush painting. The mask
 /// itself shows as a rendered overlay ([`view_overlay`]).
 fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
-    let tint = {
-        let [r, g, b] = app.ui.mask_overlay_color;
-        Color32::from_rgba_unmultiplied(r, g, b, 110)
-    };
     let long = (map.rect.width().max(map.rect.height())) as f64;
     let active = app.session.active_mask;
     let clip = app.canvas_rect.unwrap_or(map.rect);
@@ -1778,15 +1838,29 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                 _ => app.gesture = Some(Gesture::Brush { points: vec![n] }),
             }
         }
-        // the stroke being painted (the render shows it once it's committed)
+        // the stroke being painted (the render shows it once it's committed), with the committed
+        // stroke's dab spacing, feather and flow (issue #517)
         if let Some(Gesture::Brush { points }) = &app.gesture {
-            for q in points {
-                p.circle_filled(map.screen(*q), r, tint);
-            }
+            let screen: Vec<Pos2> = points.iter().map(|q| map.screen(*q)).collect();
+            let opacity = if app.ui.mask_overlay && app.ui.mask_overlay_opacity > 0.0 { app.ui.mask_overlay_opacity / 100.0 } else { 110.0 / 255.0 };
+            let params = crate::brush_live::LiveParams {
+                clip,
+                scale: ui.ctx().pixels_per_point(),
+                r,
+                hard: r * (1.0 - (app.ui.brush_feather / 100.0).clamp(0.0, 1.0)),
+                flow: (app.ui.brush_flow / 100.0).clamp(0.0, 1.0),
+                density: 1.0,
+                color: app.ui.mask_overlay_color,
+                opacity: opacity.clamp(0.0, 1.0),
+            };
+            crate::brush_live::paint(&mut app.brush_live, ui.ctx(), p, params, &screen);
+        } else {
+            app.brush_live = None;
         }
         if (resp.drag_stopped() || resp.clicked())
             && let Some(Gesture::Brush { points }) = app.gesture.take()
         {
+            app.brush_live = None;
             let pts: Vec<[f64; 2]> = points.iter().map(|q| [q.x, q.y]).collect();
             // holding ⌥ (Alt) paints with the other mode: Erase while adding, Add while erasing
             let erase = app.ui.brush_erase != resp.ctx.input(|i| i.modifiers.alt);
@@ -1977,6 +2051,7 @@ fn remove_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respo
         let mode = match app.ui.tool.as_str() {
             "heal" => "heal",
             "clone" => "clone",
+            "fill" => "fill",
             _ => "remove",
         };
         let pts: Vec<[f64; 2]> = points.iter().map(|q| [q.x, q.y]).collect();
@@ -2284,8 +2359,94 @@ mod tests {
         assert!(near(super::rotate_cursor_turn(&tilted, rot(pos2(200.0, 60.0)), false), 30f32.to_radians()));
     }
 
-    use super::{film_label, flipped_corners, texture_side};
-    use egui::pos2;
+    use super::{film_label, flipped_corners, outside_crop_mesh, texture_side};
+    use egui::{Color32, Pos2, Rect, pos2};
+
+    /// A rotated `w` × `h` box centred on `centre`.
+    fn box_at(centre: Pos2, w: f32, h: f32, angle: f32) -> [Pos2; 4] {
+        let (s, c) = angle.to_radians().sin_cos();
+        [(-w, -h), (w, -h), (w, h), (-w, h)].map(|(x, y)| pos2(centre.x + (x * c - y * s) / 2.0, centre.y + (x * s + y * c) / 2.0))
+    }
+
+    /// Signed distances from a convex polygon's edges, positive inwards (its winding either way).
+    fn sides(poly: &[Pos2], p: Pos2) -> Vec<f32> {
+        let n = poly.len() as f32;
+        let centre = pos2(poly.iter().map(|q| q.x).sum::<f32>() / n, poly.iter().map(|q| q.y).sum::<f32>() / n);
+        (0..poly.len())
+            .map(|i| {
+                let (a, b) = (poly[i], poly[(i + 1) % poly.len()]);
+                let nrm = egui::vec2(a.y - b.y, b.x - a.x).normalized();
+                nrm.dot(p - a) * nrm.dot(centre - a).signum()
+            })
+            .collect()
+    }
+
+    /// Issue #731: the dimming is the photo minus the crop box at any angle. Every point of the
+    /// photo outside the box lies in exactly one of the mesh's triangles; no point inside the box
+    /// or outside the photo lies in any. (Four quads joining photo and box corners crossed and
+    /// overlapped once the box was rotated.)
+    #[test]
+    fn the_dimming_outside_a_rotated_crop_is_exactly_the_photo_minus_the_box() {
+        let img = Rect::from_min_max(pos2(100.0, 50.0), pos2(500.0, 650.0));
+        // boxes inside the photo, poking out of it, and bigger than it
+        for (w, h) in [(240.0, 360.0), (420.0, 300.0), (700.0, 900.0)] {
+            for angle in [0.0f32, 5.0, 15.0, 30.0, -45.0, 90.0, 137.0, 200.0] {
+                let quad = box_at(img.center() + egui::vec2(30.0, -20.0), w, h, angle);
+                let mesh = outside_crop_mesh(img, &quad, Color32::BLACK);
+                let tris: Vec<[Pos2; 3]> = mesh
+                    .indices
+                    .chunks(3)
+                    .map(|t| [mesh.vertices[t[0] as usize].pos, mesh.vertices[t[1] as usize].pos, mesh.vertices[t[2] as usize].pos])
+                    .collect();
+                let (mut inside, mut outside) = (0, 0);
+                let mut y = img.top() - 20.0;
+                while y < img.bottom() + 20.0 {
+                    let mut x = img.left() - 20.0;
+                    while x < img.right() + 20.0 {
+                        let p = pos2(x, y);
+                        let in_box = sides(&quad, p);
+                        let in_img = sides(&[img.left_top(), img.right_top(), img.right_bottom(), img.left_bottom()], p);
+                        // a pixel on an edge may fall either way: skip the boundaries themselves
+                        if in_box.iter().chain(&in_img).any(|d| d.abs() < 1.0) {
+                            x += 7.0;
+                            continue;
+                        }
+                        let expected = if in_img.iter().all(|d| *d > 0.0) && !in_box.iter().all(|d| *d > 0.0) { 1 } else { 0 };
+                        // a sample on the seam between two of a strip's fan triangles is in both
+                        // or in neither, depending on rounding: count it both ways
+                        let covered = |eps: f32| tris.iter().filter(|t| sides(*t, p).iter().all(|d| *d > eps)).count();
+                        let (at_least, at_most) = (covered(0.01), covered(-0.01));
+                        assert!(
+                            at_least <= expected && expected <= at_most,
+                            "{w}×{h} box at {angle}°: ({x}, {y}) lies in {at_least}..={at_most} triangle(s), not {expected}"
+                        );
+                        if expected == 1 {
+                            outside += 1
+                        } else if in_img.iter().all(|d| *d > 0.0) {
+                            inside += 1
+                        }
+                        x += 7.0;
+                    }
+                    y += 7.0;
+                }
+                // (a box bigger than the photo swallows it whole at some angles)
+                assert!(inside > 50 && (outside > 50 || w > img.width()), "{w}×{h} at {angle}°: {outside} dimmed, {inside} clear samples");
+            }
+        }
+    }
+
+    /// A flat or broken box dims nothing rather than something arbitrary (or panicking).
+    #[test]
+    fn a_degenerate_crop_box_dims_nothing() {
+        let img = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 300.0));
+        let point = [pos2(10.0, 10.0); 4];
+        let line = [pos2(10.0, 10.0), pos2(90.0, 10.0), pos2(90.0, 10.0), pos2(10.0, 10.0)];
+        let nan = [pos2(f32::NAN, 10.0), pos2(90.0, 10.0), pos2(90.0, 50.0), pos2(10.0, 50.0)];
+        for quad in [point, line, nan] {
+            assert!(outside_crop_mesh(img, &quad, Color32::BLACK).indices.is_empty(), "{quad:?}");
+        }
+        assert!(outside_crop_mesh(Rect::NAN, &box_at(pos2(50.0, 50.0), 20.0, 20.0, 10.0), Color32::BLACK).indices.is_empty());
+    }
 
     /// Issue #652: a native host reports the GPU's texture limit in the first frame's input only.
     /// The loupe must still know it in every later frame (it read the raw input, found nothing and
