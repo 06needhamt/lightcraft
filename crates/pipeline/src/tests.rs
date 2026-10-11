@@ -206,7 +206,13 @@ fn stage_cache_matches_uncached_render_through_a_slider_session() {
         for req in [&full, &draft] {
             let a = render_cached(&src, &info, &s, req, &cache).image;
             let b = render(&src, &info, &s, req).image;
-            assert_eq!(a, b, "step {i} {:?}", req.quality);
+            if req.quality == Quality::Draft && i == 6 {
+                // a draft while noise reduction changes keeps the wide planes of the image before it
+                let d = max_diff(&a, &b);
+                assert!(d <= 3, "step {i} draft: {d}");
+            } else {
+                assert_eq!(a, b, "step {i} {:?}", req.quality);
+            }
         }
     }
     assert_eq!(cache.len(), 2);
@@ -218,6 +224,35 @@ fn stage_cache_matches_uncached_render_through_a_slider_session() {
     // a different source buffer never hits another source's entries
     let other = Arc::new(Rgb32f::filled(src.width, src.height, [0.3, 0.3, 0.3]));
     assert_eq!(render_cached(&other, &info, &s, &full, &cache).image, render(&other, &info, &s, &full).image);
+}
+
+#[test]
+fn drafts_keep_wide_planes_across_a_noise_reduction_change_and_full_renders_do_not() {
+    use crate::{Quality, StageCache, render_cached};
+    use std::sync::Arc;
+    let src = Arc::new(scene());
+    let info = SourceInfo { raw: true, ..Default::default() };
+    let cache = StageCache::default();
+    let draft = RenderRequest { quality: Quality::Draft, ..RenderRequest::fit(160, 160) };
+    let full = RenderRequest { quality: Quality::Full, ..draft };
+    let mut s = typical_edits();
+    s.effects.clarity = 60.0;
+    render_cached(&src, &info, &s, &draft, &cache);
+    let clarity_plane = |c: &StageCache| c.entries.lock().unwrap().first().and_then(|e| e.planes.clarity.clone()).unwrap().1;
+    let first = clarity_plane(&cache);
+    s.detail.nr_luminance = 50.0;
+    render_cached(&src, &info, &s, &draft, &cache);
+    assert!(Arc::ptr_eq(&first, &clarity_plane(&cache)), "a draft redid the clarity plane for a noise-reduction change");
+    for v in [10.0, 45.0, 80.0] {
+        s.detail.nr_luminance = v;
+        s.detail.nr_color = v / 2.0;
+        let a = render_cached(&src, &info, &s, &draft, &cache).image;
+        let d = max_diff(&a, &render(&src, &info, &s, &draft).image);
+        // close to the exact draft (a few levels at edges, where clarity is strong)
+        assert!(d <= 8, "nr {v}: {d}");
+        // a full-quality render after the drafts is exact (it never takes the stand-in planes)
+        assert_eq!(render_cached(&src, &info, &s, &full, &cache).image, render(&src, &info, &s, &full).image, "nr {v}");
+    }
 }
 
 #[test]
