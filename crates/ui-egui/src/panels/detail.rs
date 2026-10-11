@@ -2180,7 +2180,11 @@ mod tests {
         assert!(near(turn(200.0, 230.0), PI), "below");
         assert!(near(turn(70.0, 150.0), -FRAC_PI_2), "left");
         assert!(near(turn(290.0, 60.0), 0.0), "above the top edge near its end: still up");
-        assert!(near(turn(320.0, 80.0), FRAC_PI_4), "off the top-right corner: diagonal");
+        // off each corner: diagonally out from it
+        assert!(near(turn(80.0, 80.0), -FRAC_PI_4), "top-left corner");
+        assert!(near(turn(320.0, 80.0), FRAC_PI_4), "top-right corner");
+        assert!(near(turn(320.0, 220.0), 3.0 * FRAC_PI_4), "bottom-right corner");
+        assert!(near(turn(80.0, 220.0), -3.0 * FRAC_PI_4), "bottom-left corner");
         assert!(near(super::rotate_cursor_turn(&pts, pos2(200.0, 110.0), true), 0.0), "dragged back over the top edge: still up");
         // a box turned 90°: its top edge is now on the right
         let turned = [pts[3], pts[0], pts[1], pts[2]].map(|p| pos2(400.0 - p.y, p.x));
