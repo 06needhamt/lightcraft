@@ -116,73 +116,73 @@ Apple	iPad mini (A17 Pro) Rear Camera	DNG	2024	unverified	DNG decoder (uncompres
 Canon	EOS-1D	TIF	2003	unsupported	TIF is not imported
 Canon	EOS-1D C	CR2	2012	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1D Mark II	CR2	2003	unverified	CR2 lossless JPEG decoder
-Canon	EOS-1D Mark II N	CR2	2005	unverified	CR2 lossless JPEG decoder
-Canon	EOS-1D Mark III	CR2	2007	unverified	CR2 lossless JPEG decoder
-Canon	EOS-1D Mark IV	CR2	2008	unverified	CR2 lossless JPEG decoder
+Canon	EOS-1D Mark II N	CR2	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS-1D Mark III	CR2	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS-1D Mark IV	CR2	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS-1Ds	TIF	2003	unsupported	TIF is not imported
 Canon	EOS-1Ds Mark II	CR2	2005	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1Ds Mark III	CR2	2007	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1D X	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS-1D X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS-1D X Mark II	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS-1D X Mark III	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS 5D	CR2	2005	unverified	CR2 lossless JPEG decoder
+Canon	EOS 5D	CR2	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 5D Mark II	CR2	2008	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS-5D Mark III	CR2	2012	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS-5D Mark IV (** see note)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 5DS	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS-5D Mark IV (** see note)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 5DS	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 5DS R	CR2	2015	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS 6D	CR2	2012	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS 6D Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS 6D Mark II	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 7D	CR2	2008	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS 7D Mark II	CR2	2013	unverified	CR2 lossless JPEG decoder
+Canon	EOS 7D Mark II	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 10D	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	EOS 20D	CR2	2003	unverified	CR2 lossless JPEG decoder
+Canon	EOS 20D	CR2	2003	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 20Da	CR2	2005	unverified	CR2 lossless JPEG decoder
-Canon	EOS 30D	CR2	2005	unverified	CR2 lossless JPEG decoder
+Canon	EOS 30D	CR2	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 40D	CR2	2007	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS 50D	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	EOS 60D	CR2	2010	unverified	CR2 lossless JPEG decoder
+Canon	EOS 50D	CR2	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 60D	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 60Da	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS 70D	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	EOS 77D (EOS 9000D)	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS 70D	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 77D (EOS 9000D)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 80D	CR2	2015	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS 90D	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS 200D (EOS Kiss X9, EOS Rebel SL2)	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS 200D (EOS Kiss X9, EOS Rebel SL2)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 250D (EOS Rebel SL3, EOS 200D II, EOS Kiss X10)	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	EOS D30	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	EOS D60	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	EOS 300D (EOS Digital Rebel, EOS Kiss Digital)	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	EOS 100D (EOS Digital Rebel SL1, EOS Kiss X7)	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS 500D (EOS Digital Rebel T1i, EOS Kiss X3 Digital)	CR2	2008	unverified	CR2 lossless JPEG decoder
+Canon	EOS 100D (EOS Digital Rebel SL1, EOS Kiss X7)	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 500D (EOS Digital Rebel T1i, EOS Kiss X3 Digital)	CR2	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 550D (EOS Digital Rebel T2i, EOS Kiss X4 Digital)	CR2	2010	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS 1100D (EOS Digital Rebel T3, EOS Kiss X50 Digital)	CR2	2010	unverified	CR2 lossless JPEG decoder
-Canon	EOS 600D (EOS Digital Rebel T3i, EOS Kiss X5 Digital)	CR2	2010	unverified	CR2 lossless JPEG decoder
-Canon	EOS 650D (EOS Digital Rebel T4i, EOS Kiss X4i)	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS 700D (EOS Digital Rebel T5i, EOS Kiss X7i)	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS 1200D (EOS Digital Rebel T5, EOS Kiss X70)	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	EOS 1300D (EOS Digital Rebel T6, EOS Kiss X80)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 1500D (EOS Rebel T7, EOS Kiss X90, EOS 2000D)	CR2	2017	unverified	CR2 lossless JPEG decoder
-Canon	EOS 3000D (EOS Rebel T100, EOS 4000D)	CR2	2017	unverified	CR2 lossless JPEG decoder
-Canon	EOS 750D (EOS Digital Rebel T6i, EOS Kiss X8i)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 760D (EOS Digital Rebel T6s, EOS Kiss 8000D)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 800D (EOS Digital Rebel T7i, EOS Kiss X9i)	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS 1100D (EOS Digital Rebel T3, EOS Kiss X50 Digital)	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 600D (EOS Digital Rebel T3i, EOS Kiss X5 Digital)	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 650D (EOS Digital Rebel T4i, EOS Kiss X4i)	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 700D (EOS Digital Rebel T5i, EOS Kiss X7i)	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 1200D (EOS Digital Rebel T5, EOS Kiss X70)	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 1300D (EOS Digital Rebel T6, EOS Kiss X80)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 1500D (EOS Rebel T7, EOS Kiss X90, EOS 2000D)	CR2	2017	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 3000D (EOS Rebel T100, EOS 4000D)	CR2	2017	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 750D (EOS Digital Rebel T6i, EOS Kiss X8i)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 760D (EOS Digital Rebel T6s, EOS Kiss 8000D)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 800D (EOS Digital Rebel T7i, EOS Kiss X9i)	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS 850D (EOS Kiss X10i, EOS Rebel T8i)	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS 1000D (EOS Digital Rebel XS, EOS Kiss F)	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	EOS 450D (EOS Digital Rebel XSi, EOS Kiss Digital X2)	CR2	2007	unverified	CR2 lossless JPEG decoder
-Canon	EOS 350D (EOS Digital Rebel XT, EOS Kiss Digital N)	CR2	2005	unverified	CR2 lossless JPEG decoder
-Canon	EOS 400D (EOS Digital Rebel XTi, EOS Kiss Digital X)	CR2	2005	unverified	CR2 lossless JPEG decoder
+Canon	EOS 1000D (EOS Digital Rebel XS, EOS Kiss F)	CR2	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 450D (EOS Digital Rebel XSi, EOS Kiss Digital X2)	CR2	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 350D (EOS Digital Rebel XT, EOS Kiss Digital N)	CR2	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS 400D (EOS Digital Rebel XTi, EOS Kiss Digital X)	CR2	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS C50	CR3	2025	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS M	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	EOS M2	CR2	2013	unverified	CR2 lossless JPEG decoder
+Canon	EOS M	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS M2	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS M200	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS M3	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS M5	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS M3	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	EOS M5	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS M50 Mark II	CR3	2020	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS M6	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS M6	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS M6 Mark II	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS M10	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	EOS M10	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS M50 (EOS Kiss M)	CR3	2017	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor hashes, docs/cr3.md)
-Canon	EOS M100	CR2	2017	unverified	CR2 lossless JPEG decoder
+Canon	EOS M100	CR2	2017	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	EOS R (** see note)	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	EOS R1	CR3	2023	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	EOS R3	CR3	2021	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
@@ -206,27 +206,27 @@ Canon	PowerShot 600	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot A5	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot A50	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot G1	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	PowerShot G1 X	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G1 X Mark II	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G1 X Mark III	CR2	2017	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G1 X	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G1 X Mark II	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G1 X Mark III	CR2	2017	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot G2	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot G3	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	PowerShot G3 X	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G3 X	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot G5	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	PowerShot G5 X	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G5 X	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot G5 X Mark II	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	PowerShot G6	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	PowerShot G7 X	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G7 X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G7 X	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G7 X Mark II	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot G7 X Mark III	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	PowerShot G9	CR2	2007	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G9X	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G9 X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G9	CR2	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G9X	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G9 X Mark II	CR2	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot G10	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G11	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G12	CR2	2010	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G15	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G16	CR2	2013	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot G11	CR2	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G12	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G15	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot G16	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot Pro 1	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot Pro70	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot Pro90 IS	CRW	2003	preview	CRW is opened from its embedded JPEG only
@@ -236,15 +236,15 @@ Canon	PowerShot S45	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot S50	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot S60	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot S90	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot S95	CR2	2010	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot S95	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot S70	CRW	2003	preview	CRW is opened from its embedded JPEG only
-Canon	PowerShot S100	CR2	2010	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot S100V	CR2	2010	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot S110	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot S120	CR2	2013	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot S100	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot S100V	CR2	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot S110	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot S120	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot SX1 IS	CR2	2008	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot SX50	CR2	2012	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot SX60 HS	CR2	2013	unverified	CR2 lossless JPEG decoder
+Canon	PowerShot SX50	CR2	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Canon	PowerShot SX60 HS	CR2	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Canon	PowerShot SX70 HS	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	PowerShot V1	CR3	2024	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Casio	EXILIM EX-10	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
@@ -1009,44 +1009,44 @@ Panasonic	LUMIX DC-ZS300 (DC-TZ300, DC-TX3)	RW2	2025	unverified	Panasonic decode
 Panasonic	LUMIX DC-L10	RW2	2025	unverified	Panasonic decoder, every raw format
 Parrot	Anafi	DNG	2017	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Parrot	ANAFI Ai	DNG	2020	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	645D	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	645Z	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	*ist D	PEF	2003	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	*ist DL	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
+Pentax	645D	DNG	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	645Z	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	*ist D	PEF	2003	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	*ist DL	PEF	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	*ist DL2	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	*ist DS	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
+Pentax	*ist DS	PEF	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	*ist DS2	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K-01	DNG	2012	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-1	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Pentax	K-01	DNG	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-1	DNG	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	K-1 II (* see note)	DNG	2017	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Pentax	K-3	DNG	2013	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Pentax	K-3 II († see note)	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-5	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-5 II	DNG	2012	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Pentax	K-3 II († see note)	DNG	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-5	DNG	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-5 II	DNG	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	K-5 IIs	DNG	2012	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Pentax	K-7	PEF	2008	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K-3 Mark III	DNG	2020	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-3 Mark III Monochrome	DNG	2022	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-30	DNG	2012	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-50	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-70	PEF	2015	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K-500	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	KP	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-r	PEF	2010	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K-S1	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-S2	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K-x	PEF	2008	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
+Pentax	K-7	PEF	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-3 Mark III	DNG	2020	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-3 Mark III Monochrome	DNG	2022	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash)
+Pentax	K-30	DNG	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-50	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-70	PEF	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-500	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	KP	DNG	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-r	PEF	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-S1	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-S2	DNG	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K-x	PEF	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	K10D	DNG	2005	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Pentax	K20D	DNG	2007	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K100D	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K100D Super	PEF	2007	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K110D	PEF	2005	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	K200D	DNG	2007	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	K2000 K-m	PEF	2008	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	KF	PEF	2022	unverified	PEF decoder (uncompressed, Huffman, packed 12-bit)
-Pentax	MX-1	DNG	2012	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	Q	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Pentax	Q7	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Pentax	K20D	DNG	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K100D	PEF	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K100D Super	PEF	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K110D	PEF	2005	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K200D	DNG	2007	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	K2000 K-m	PEF	2008	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	KF	PEF	2022	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	MX-1	DNG	2012	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	Q	DNG	2010	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Pentax	Q7	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Pentax	Q10	DNG	2012	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Pentax	QS-1	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Pixii	PIXII Camera (A1571)	DNG	2021	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
@@ -1078,10 +1078,10 @@ Phase One	P 40+	IIQ	2010	preview	IIQ is opened from its embedded JPEG only
 Phase One	P 45	TIF	2007	unsupported	TIF is not imported
 Phase One	P 45+	TIF	2007	unsupported	TIF is not imported
 Phase One	P 65+	IIQ	2010	preview	IIQ is opened from its embedded JPEG only
-Ricoh	GR	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Ricoh	GR II	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Ricoh	GR	DNG	2013	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
+Ricoh	GR II	DNG	2015	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Ricoh	GR III	DNG	2018	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Ricoh	GR IIIx	DNG	2021	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Ricoh	GR IIIx	DNG	2021	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Ricoh	GR III HDF	DNG	2023	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GR IIIx HDF	DNG	2023	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GR IV	DNG	2024	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
@@ -1091,7 +1091,7 @@ Ricoh	GR Digital II	DNG	2003	unverified	DNG decoder (uncompressed, LJ92, lossy, 
 Ricoh	GR Digital III	DNG	2008	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GR Digital IV	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GX100	DNG	2003	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Ricoh	GX200	DNG	2003	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
+Ricoh	GX200	DNG	2003	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash)
 Ricoh	GXR with GR LENS A12 28mm F2.5	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GXR with GR LENS A12 50mm F2.5 MACRO	DNG	2008	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Ricoh	GXR with GR LENS A16 24-85 F3.5-5.5	DNG	2010	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
