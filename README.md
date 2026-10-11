@@ -370,6 +370,13 @@ per CPU, otherwise exhaust RAM before any test runs. GPU coverage is unchanged. 
 `CARGO_PROFILE_DEV_DEBUG`, `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` settings
 override these defaults. Ordinary development commands keep their own settings.
 
+Tests that need a GPU, the corpus, the craft-fonts faces or a model pass without checking anything when
+those are missing (libtest has no "skipped" status), so `cargo xtask ci` lists them: tests record a skip
+with `lightcraft_testkit::skip!`, and the run ends with what the machine offered (OS, CPUs, RAM, GPU
+adapters per backend, corpus, fonts) and every skip by reason. It writes `target/ci/report.json` and
+`target/ci/summary.md`, a block to paste into a PR (`--summary-md` prints it); `--hardware` also runs the
+GPU tests on every backend that has a hardware adapter. Nothing is uploaded.
+
 **Chinese and Japanese text** need the shared font repo, an optional build input (official releases always include it):
 
 ```sh
