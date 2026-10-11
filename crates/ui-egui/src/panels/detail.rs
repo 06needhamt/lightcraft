@@ -531,7 +531,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let p = ui.painter_at(canvas);
     // what a view slot shows: its own render of this photo, else the stand-ins (no blank frame
     // between photos, and the full render replaces them in place)
-    let draw = |slot: Slot, r: Rect| -> &'static str {
+    let draw = |slot: Slot, r: Rect, clip: Rect| -> &'static str {
         let mine = |s: Slot| app.renderer.textures.get(&s).filter(|t| t.photo == id);
         let (tex, what) = if let Some(t) = mine(slot) {
             (t, "render")
@@ -543,7 +543,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             return "none";
         };
         let image_rect = fit_texture_rect(r, tex.size);
-        p.image(tex.tex.id(), image_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        p.with_clip_rect(clip).image(tex.tex.id(), image_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         what
     };
     // soft proofing: a paper-white surround and the proof's name, as Lightroom shows it
@@ -554,13 +554,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
     let shown;
     if split {
+        // each view stays in its pane: zoomed in, a photo reaches past it (and would cover the
+        // other view's margins with its whole-frame render, magnified and blurred)
         let br = fit_rect(areas[0], aspect, app.ui.zoom, native, ppp, app.ui.pan);
-        draw(Slot::Before, br);
-        shown = draw(Slot::Main, img_rect);
-        p.text(pos2(br.left(), br.bottom() + 14.0), Align2::LEFT_CENTER, crate::i18n::tr("Before"), t.font(12.0), t.text_dim);
-        p.text(pos2(img_rect.left(), img_rect.bottom() + 14.0), Align2::LEFT_CENTER, crate::i18n::tr("After"), t.font(12.0), t.text_dim);
+        draw(Slot::Before, br, areas[0]);
+        shown = draw(Slot::Main, img_rect, main_area);
+        // the labels under each photo, or under its pane when the photo reaches past it
+        let label_at = |r: Rect, pane: Rect| pos2(r.left().max(pane.left()), r.bottom().min(pane.bottom()) + 14.0);
+        p.text(label_at(br, areas[0]), Align2::LEFT_CENTER, crate::i18n::tr("Before"), t.font(12.0), t.text_dim);
+        p.text(label_at(img_rect, main_area), Align2::LEFT_CENTER, crate::i18n::tr("After"), t.font(12.0), t.text_dim);
     } else if show_before {
-        shown = draw(Slot::Before, img_rect);
+        shown = draw(Slot::Before, img_rect, canvas);
         p.text(pos2(img_rect.left() + 8.0, img_rect.top() + 14.0), Align2::LEFT_CENTER, crate::i18n::tr("Before"), t.font(12.0), t.text);
     } else if let Some((_key, label)) = &hover_key
         && let Some(tex) = app.renderer.textures.get(&Slot::Hover).filter(|t| t.photo == id)
@@ -573,7 +577,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         shown = "hover";
     } else {
-        shown = draw(Slot::Main, img_rect);
+        shown = draw(Slot::Main, img_rect, canvas);
         if shown == "none" {
             match app.renderer.failure(Slot::Main) {
                 Some(e) => {
