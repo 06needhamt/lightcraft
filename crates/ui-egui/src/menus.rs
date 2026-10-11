@@ -184,6 +184,10 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("app.quit", "Quit LightCraft", Some("Cmd+Q"), "File"),
     ("file.importPresets", "Import Profiles & Presets…", None, "File"),
     ("file.exportPresets", "Export Presets…", None, "File"),
+    // Masking panel ▸ Effect menu
+    ("dialog.saveMaskEffect", "Save Current Settings as New Effect Preset…", None, ""),
+    ("dialog.manageMaskEffects", "Manage Effect Presets…", None, ""),
+    ("file.exportMaskEffects", "Export Effect Presets…", None, ""),
     ("file.importKeywords", "Import Keywords…", None, "File"),
     ("file.exportKeywords", "Export Keywords…", None, "File"),
     // Edit panel ▸ Curve ▸ Point Curve dropdown
@@ -1562,7 +1566,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 // Lightroom local adjustment presets land in the Masking panel's Effect menu: part of the same toast
                 let effects = v["effects"].as_array().map_or(0, Vec::len);
                 if effects > 0 {
-                    parts.push(crate::i18n::tr_format!("Imported {e} mask effect{} (Masking ▸ Effect)", if effects == 1 { "" } else { "s" }, e = effects));
+                    parts.push(crate::panels::mask_effects::import_toast(v));
                 }
                 let profile_news = !parts.is_empty() || !problems.is_empty();
                 let msg = match (n, failed) {
@@ -1696,6 +1700,49 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             }
             return Some(r);
         }
+        "dialog.saveMaskEffect" => {
+            if app.session.active_mask.is_none() {
+                return Some(Err("select a mask first".into()));
+            }
+            crate::panels::mask_effects::open_save(app);
+            Ok(Value::Null)
+        }
+        "dialog.manageMaskEffects" => {
+            crate::panels::mask_effects::open_manage(app);
+            Ok(Value::Null)
+        }
+        "file.exportMaskEffects" => {
+            let path = match p.get("path").and_then(Value::as_str) {
+                Some(x) => Some(x.to_string()),
+                None => {
+                    let name = format!("{}.lceffect", p.get("group").and_then(Value::as_str).unwrap_or("Effect Presets"));
+                    let req = PickRequest::save(
+                        crate::i18n::tr("Export Effect Presets"),
+                        crate::i18n::tr("LightCraft Effect Presets"),
+                        &["lceffect"],
+                        name.clone(),
+                    );
+                    match crate::pick::ask(app, id, p, "path", req, |s| s.save_preset_file.as_mut().map(|f| f(&name).into_iter().collect())) {
+                        Picked::Now(v) => v.into_iter().next(),
+                        Picked::Later => return Some(Ok(Value::Null)),
+                        Picked::Unavailable => return Some(Err("no file dialog on this platform".into())),
+                    }
+                }
+            };
+            let Some(path) = path else { return Some(Ok(Value::Null)) };
+            let mut params = json!({"path": path});
+            for k in ["names", "group"] {
+                if let Some(v) = p.get(k) {
+                    params[k] = v.clone();
+                }
+            }
+            let r = app.session.execute("mask.exportEffects", &params).map_err(|e| e.to_string());
+            match &r {
+                Ok(v) => app.toast(&ctx, crate::i18n::tr_format!("Exported {} effect preset{}", v["count"], if v["count"] == 1 { "" } else { "s" })),
+                Err(e) => app.toast_error(&ctx, e.clone()),
+            }
+            return Some(r);
+        }
         "file.exportPresets" => {
             let group = p.get("group").and_then(Value::as_str).map(str::to_string);
             let path = match p.get("path").and_then(Value::as_str) {
@@ -1821,6 +1868,8 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
                     .is_some_and(|p| matches!(p.source, lightcraft_engine::catalog::Source::File { .. }))
         }
         "file.exportPresets" => app.session.presets.iter().any(|p| !p.builtin),
+        "file.exportMaskEffects" => !app.session.mask_effects.is_empty(),
+        "dialog.saveMaskEffect" => app.session.active().is_some() && app.session.active_mask.is_some(),
         "file.exportCurvePresets" => !app.session.curve_presets.is_empty(),
         "view.compare" => app.session.catalog.len() > 1,
         "view.fullScreenPreview" | "view.infoOverlay" | "view.navigator" => app.session.active().is_some() || app.ui.fullscreen,

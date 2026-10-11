@@ -244,5 +244,17 @@
   "not added to Apple Photos: {e}": "não adicionadas ao Fotos da Apple: {e}",
   "{n} added to Apple Photos album “{album}”": "{n} adicionadas ao álbum “{album}” do Fotos da Apple",
   "{n} added to Apple Photos": "{n} adicionadas ao Fotos da Apple",
-  "{n} photos opened for editing; each is stacked with its original": "{n} fotos abertas para edição; cada uma está empilhada com a original"
+  "{n} photos opened for editing; each is stacked with its original": "{n} fotos abertas para edição; cada uma está empilhada com a original",
+  " in {g} group{}": " em {g} grupo(s){:.0}",
+  " · kept, not applied: {}": " · mantido, não aplicado: {}",
+  " — kept but not applied: {}": " — mantidos, mas não aplicados: {}",
+  "Apply to “{mask}” on Selected Photos": "Aplicar a “{mask}” nas fotos selecionadas",
+  "Delete the effect preset “{name}”?": "Excluir a predefinição de efeito “{name}”?",
+  "Delete these {n} effect presets?": "Excluir estas {n} predefinições de efeito?",
+  "Delete {n} effect preset{}? This can't be undone.": "Excluir {n} predefinição(ões) de efeito?{:.0} Não é possível desfazer.",
+  "Effect: {name}": "Efeito: {name}",
+  "Exported {} effect preset{}": "Predefinições de efeito exportadas: {}{:.0}",
+  "Imported {e} mask effect{} (Masking ▸ Effect)": "{e} efeito(s) de máscara importado(s){:.0} (Máscaras → Efeito)",
+  "Update “{name}” with Current Settings": "Atualizar “{name}” com as configurações atuais",
+  "{n} preset{}": "{n} predefinição(ões){:.0}"
 }

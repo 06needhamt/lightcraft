@@ -137,9 +137,6 @@ fn new_brush_starts_a_separate_mask_in_paint_mode() {
 fn mask_adjustments_hide_overlay_without_disabling_the_mask() {
     use lightcraft_pipeline::Overlay;
     let mut h = detail("panel.masking");
-    // tall enough for the Exposure slider below the Effect menu to be on screen
-    let r = h.request("ui.resize", json!({"width": 1200, "height": 1000}), T);
-    assert_eq!(r["ok"], true, "{r}");
     exec(&mut h, "mask.add", json!({"kind": "linear", "start": [0.5, 0.2], "end": [0.5, 0.7]}));
     assert!(h.app.ui.mask_overlay);
 
@@ -1426,16 +1423,13 @@ fn effect_dropdown_applies_saves_and_shows_the_matching_effect() {
     exec(&mut h, "mask.add", json!({"kind": "radial"}));
     exec(&mut h, "mask.adjust", json!({"values": {"exposure": 0.7, "shadows": 25, "amount": 80}}));
     h.step();
-    // save the mask's sliders from the menu (name prompt)
+    // save the mask's sliders from the menu (the New Effect Preset dialog)
     click(&mut h, "dropdown:maskEffect");
     click(&mut h, "maskEffectMenu:save");
-    let mut dlg = h.app.ui.dialog.take().expect("a name prompt opens");
+    let mut dlg = h.app.ui.dialog.take().expect("the save dialog opens");
     match &mut dlg {
-        crate::state::Dialog::TextPrompt { command, value, .. } => {
-            assert_eq!(command, "mask.saveEffect");
-            *value = "Lift".into();
-        }
-        _ => panic!("a name prompt opens"),
+        crate::state::Dialog::SaveEffect { name, .. } => *name = "Lift".into(),
+        d => panic!("the save dialog opens: {d:?}"),
     }
     let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg);
     assert!(r.is_ok(), "{r:?}");

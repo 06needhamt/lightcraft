@@ -244,5 +244,17 @@
   "not added to Apple Photos: {e}": "Appleの写真に追加されませんでした：{e}",
   "{n} added to Apple Photos album “{album}”": "{n}件をAppleの写真のアルバム「{album}」に追加しました",
   "{n} added to Apple Photos": "{n}件をAppleの写真に追加しました",
-  "{n} photos opened for editing; each is stacked with its original": "{n}枚の写真を編集用に開きました。それぞれ元の写真とスタックされています"
+  "{n} photos opened for editing; each is stacked with its original": "{n}枚の写真を編集用に開きました。それぞれ元の写真とスタックされています",
+  " in {g} group{}": "（{g}グループ）{:.0}",
+  " · kept, not applied: {}": " · 保持（適用なし）：{}",
+  " — kept but not applied: {}": " — 保持（適用なし）：{}",
+  "Apply to “{mask}” on Selected Photos": "選択した写真の「{mask}」に適用",
+  "Delete the effect preset “{name}”?": "効果プリセット「{name}」を削除しますか？",
+  "Delete these {n} effect presets?": "これらの効果プリセット{n}件を削除しますか？",
+  "Delete {n} effect preset{}? This can't be undone.": "効果プリセット{n}件を削除しますか？{:.0}元に戻せません。",
+  "Effect: {name}": "効果：{name}",
+  "Exported {} effect preset{}": "効果プリセットを{}件書き出しました{:.0}",
+  "Imported {e} mask effect{} (Masking ▸ Effect)": "マスク効果を{e}件読み込みました{:.0}（マスク → 効果）",
+  "Update “{name}” with Current Settings": "「{name}」を現在の設定で更新",
+  "{n} preset{}": "{n}件のプリセット{:.0}"
 }

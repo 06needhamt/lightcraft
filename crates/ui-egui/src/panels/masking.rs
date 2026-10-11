@@ -16,56 +16,6 @@ const fn spec(id: &'static str, label: &'static str, min: f64, max: f64, step: f
     ControlSpec { id, label, section: Section::Light, min, max, default: 0.0, step, decimals, track }
 }
 
-/// The Effect menu above the mask's sliders: apply, save, import and delete effect presets.
-fn effect_row(app: &mut LightcraftApp, ui: &mut egui::Ui, adjust: &LocalAdjustments) {
-    use lightcraft_engine::cmd::mask_effects::matching_effect;
-    let t = Tokens::get(ui.ctx());
-    egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 2, bottom: 4 }).show(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(crate::i18n::tr("Effect")).font(t.font(12.0)).color(t.text_label));
-            let current = matching_effect(&app.session, adjust);
-            let label = current.clone().unwrap_or_else(|| crate::i18n::tr("Custom").to_string());
-            let r = crate::widgets::dropdown(ui, "maskEffect", &label, t.font(12.0), t.text);
-            egui::Popup::menu(&r).show(|ui| {
-                ui.set_min_width(220.0);
-                let effects: Vec<String> = app.session.mask_effects.iter().map(|e| e.name.clone()).collect();
-                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-                    for name in &effects {
-                        let r = ui.selectable_label(current.as_deref() == Some(name.as_str()), name);
-                        register(ui.ctx(), format!("maskEffect:{name}"), r.rect);
-                        if r.clicked() {
-                            let _ = app.run("mask.applyEffect", json!({"name": name}));
-                            ui.close();
-                        }
-                        r.context_menu(|ui| {
-                            if ui.button(crate::i18n::tr("Delete Preset")).clicked() {
-                                let _ = app.run("mask.deleteEffect", json!({"name": name}));
-                                ui.close();
-                            }
-                        });
-                    }
-                });
-                if !effects.is_empty() {
-                    ui.separator();
-                }
-                let r = ui.button(crate::i18n::tr("Save Current Settings as New Preset…"));
-                register(ui.ctx(), "maskEffectMenu:save", r.rect);
-                if r.clicked() {
-                    crate::panels::dialogs::prompt(app, "Save Effect Preset", "Preset name", "", "mask.saveEffect", json!({}), "name");
-                    ui.close();
-                }
-                if ui.add_enabled(app.services.pick_preset_files.is_some(), egui::Button::new(crate::i18n::tr("Import Presets…"))).clicked() {
-                    let _ = app.run("file.importPresets", json!({}));
-                    ui.close();
-                }
-                if !effects.is_empty() {
-                    ui.label(egui::RichText::new(crate::i18n::tr("Right-click a preset to delete it")).font(t.font(11.0)).color(t.text_dim));
-                }
-            });
-        });
-    });
-}
-
 /// Local adjustment sliders (key = `LocalAdjustments` field name).
 pub const LOCAL: &[ControlSpec] = &[
     spec("temp", "Temp", -100.0, 100.0, 1.0, 0, Track::Temp),
@@ -418,7 +368,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         brush_settings(app, ui);
     }
     divider(ui);
-    effect_row(app, ui, &m.adjust);
+    super::mask_effects::effect_row(app, ui, &m);
     for s in LOCAL {
         let v = local_get(&m.adjust, s.id);
         let out = slider(ui, s, v, true, None);

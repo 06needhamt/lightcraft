@@ -244,5 +244,17 @@
   "not added to Apple Photos: {e}": "не додано до Apple Фото: {e}",
   "{n} added to Apple Photos album “{album}”": "Додано до альбому Apple Фото «{album}»: {n}",
   "{n} added to Apple Photos": "Додано до Apple Фото: {n}",
-  "{n} photos opened for editing; each is stacked with its original": "Відкрито для редагування фото: {n}; кожне об’єднано в стос з оригіналом"
+  "{n} photos opened for editing; each is stacked with its original": "Відкрито для редагування фото: {n}; кожне об’єднано в стос з оригіналом",
+  " in {g} group{}": " у групах: {g}{:.0}",
+  " · kept, not applied: {}": " · збережено, не застосовується: {}",
+  " — kept but not applied: {}": " — збережено, але не застосовується: {}",
+  "Apply to “{mask}” on Selected Photos": "Застосувати до «{mask}» на вибраних фото",
+  "Delete the effect preset “{name}”?": "Видалити пресет ефекту «{name}»?",
+  "Delete these {n} effect presets?": "Видалити ці пресети ефектів ({n})?",
+  "Delete {n} effect preset{}? This can't be undone.": "Видалити пресети ефектів ({n})?{:.0} Це не можна скасувати.",
+  "Effect: {name}": "Ефект: {name}",
+  "Exported {} effect preset{}": "Експортовано пресетів ефектів: {}{:.0}",
+  "Imported {e} mask effect{} (Masking ▸ Effect)": "Імпортовано ефектів маски: {e}{:.0} (Маски → Ефект)",
+  "Update “{name}” with Current Settings": "Оновити «{name}» поточними налаштуваннями",
+  "{n} preset{}": "Пресетів: {n}{:.0}"
 }

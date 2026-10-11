@@ -244,5 +244,17 @@
   "not added to Apple Photos: {e}": "не добавлено в Apple Фото: {e}",
   "{n} added to Apple Photos album “{album}”": "Добавлено в альбом «{album}» Apple Фото: {n}",
   "{n} added to Apple Photos": "Добавлено в Apple Фото: {n}",
-  "{n} photos opened for editing; each is stacked with its original": "Открыто для редактирования фото: {n}; каждое объединено в стопку с оригиналом"
+  "{n} photos opened for editing; each is stacked with its original": "Открыто для редактирования фото: {n}; каждое объединено в стопку с оригиналом",
+  " in {g} group{}": " в группах: {g}{:.0}",
+  " · kept, not applied: {}": " · сохранено, не применяется: {}",
+  " — kept but not applied: {}": " — сохранено, но не применяется: {}",
+  "Apply to “{mask}” on Selected Photos": "Применить к «{mask}» на выбранных фото",
+  "Delete the effect preset “{name}”?": "Удалить пресет эффекта «{name}»?",
+  "Delete these {n} effect presets?": "Удалить эти пресеты эффектов ({n})?",
+  "Delete {n} effect preset{}? This can't be undone.": "Удалить пресеты эффектов ({n})?{:.0} Это нельзя отменить.",
+  "Effect: {name}": "Эффект: {name}",
+  "Exported {} effect preset{}": "Экспортировано пресетов эффектов: {}{:.0}",
+  "Imported {e} mask effect{} (Masking ▸ Effect)": "Импортировано эффектов маски: {e}{:.0} (Маски → Эффект)",
+  "Update “{name}” with Current Settings": "Обновить «{name}» текущими настройками",
+  "{n} preset{}": "Пресетов: {n}{:.0}"
 }

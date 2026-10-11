@@ -244,5 +244,17 @@
   "not added to Apple Photos: {e}": "nicht zu Apple Fotos hinzugefügt: {e}",
   "{n} added to Apple Photos album “{album}”": "{n} zum Apple-Fotos-Album „{album}“ hinzugefügt",
   "{n} added to Apple Photos": "{n} zu Apple Fotos hinzugefügt",
-  "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt"
+  "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt",
+  " in {g} group{}": " in {g} Gruppe(n){:.0}",
+  " · kept, not applied: {}": " · behalten, nicht angewendet: {}",
+  " — kept but not applied: {}": " — behalten, aber nicht angewendet: {}",
+  "Apply to “{mask}” on Selected Photos": "Auf „{mask}“ in den ausgewählten Fotos anwenden",
+  "Delete the effect preset “{name}”?": "Effektvorgabe „{name}“ löschen?",
+  "Delete these {n} effect presets?": "Diese {n} Effektvorgaben löschen?",
+  "Delete {n} effect preset{}? This can't be undone.": "{n} Effektvorgabe(n) löschen?{:.0} Dies kann nicht rückgängig gemacht werden.",
+  "Effect: {name}": "Effekt: {name}",
+  "Exported {} effect preset{}": "Exportierte Effektvorgaben: {}{:.0}",
+  "Imported {e} mask effect{} (Masking ▸ Effect)": "{e} Maskeneffekt(e) importiert{:.0} (Maskieren → Effekt)",
+  "Update “{name}” with Current Settings": "„{name}“ mit aktuellen Einstellungen aktualisieren",
+  "{n} preset{}": "{n} Vorgabe(n){:.0}"
 }
