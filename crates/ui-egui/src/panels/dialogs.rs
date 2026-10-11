@@ -54,14 +54,12 @@ pub(crate) fn rename_preview(
     (read(&rows), total)
 }
 
-/// Largest size of the Export dialog's watermark preview (points; fits the 380 pt dialog).
-const WM_PREVIEW_MAX: egui::Vec2 = egui::vec2(348.0, 200.0);
-
-/// The Export dialog's watermark preview: the first exported photo's thumbnail with the watermark
-/// drawn on it as the file will have it at size `resize` (`None` = full size). The thumbnail
-/// (cached, else rendered) is made on a worker thread once per photo and catalog change; the
-/// watermark is redrawn on a copy only when it or the output size changes, which is quick at
-/// thumbnail size, so the preview follows the sliders.
+/// The Export dialog's watermark preview: the first exported photo, as wide as the dialog whatever
+/// its shape, with the watermark drawn on it as the file will have it at size `resize` (`None` =
+/// full size). On a worker thread, once per photo, catalog change and size step, the cached
+/// thumbnail comes first (at once, a little soft) and then a render at the preview's own pixel size
+/// replaces it. The watermark is redrawn on a copy only when it, the output size or the picture
+/// changes, which is quick at this size, so the preview follows the sliders.
 fn watermark_preview(
     app: &mut LightcraftApp,
     ui: &mut egui::Ui,
@@ -69,15 +67,19 @@ fn watermark_preview(
     resize: Option<lightcraft_engine::export::Resize>,
 ) {
     use std::hash::{Hash, Hasher};
-    type Base = std::sync::Arc<std::sync::Mutex<Option<Result<lightcraft_raster::Rgba8, String>>>>;
-    type Shown = (u64, lightcraft_engine::export::Watermark, usize, egui::TextureHandle);
+    // (pictures received so far: 1 the thumbnail, 2 the sharp render; the latest, or why none came)
+    type Base = std::sync::Arc<std::sync::Mutex<(u8, Option<Result<lightcraft_raster::Rgba8, String>>)>>;
+    type Shown = (u64, u8, lightcraft_engine::export::Watermark, usize, egui::TextureHandle);
     let t = Tokens::get(ui.ctx());
     let Some(&id) = app.session.targets(&json!({})).first() else { return };
     let Some(photo) = app.session.catalog.photo(id).cloned() else { return };
     let (out_w, out_h) = lightcraft_engine::export::output_size(&photo, &lightcraft_engine::export::ExportOptions { resize, ..Default::default() });
     let export_short = out_w.min(out_h);
+    // pixels across the dialog, in steps so a scroll bar or a point of layout doesn't re-render
+    let step = 128.0;
+    let px = ((ui.available_width() * ui.ctx().pixels_per_point() / step).ceil() * step).clamp(step, 2048.0) as usize;
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    (id, app.session.catalog.revision).hash(&mut h);
+    (id, app.session.catalog.revision, px).hash(&mut h);
     let key = h.finish();
     let ctx = ui.ctx().clone();
     let (base_id, shown_id) = (egui::Id::new("export-wm-preview-base"), egui::Id::new("export-wm-preview-shown"));
@@ -85,33 +87,44 @@ fn watermark_preview(
         Some((k, base)) if k == key => base,
         _ => {
             let base: Base = Default::default();
-            match app.session.thumb_job(id, 512) {
-                Some(job) => {
-                    let (out, repaint) = (base.clone(), ctx.clone());
-                    let work = move || {
+            // the thumbnail, then as wide as the dialog (a tall photo up to three times that high)
+            let jobs: Vec<_> = [app.session.thumb_job(id, 512), app.session.render_job(id, px, px * 3, false, true)].into_iter().flatten().collect();
+            // the web build has no worker thread: a full render there would hold up the page
+            #[cfg(target_arch = "wasm32")]
+            let jobs: Vec<_> = jobs.into_iter().take(1).collect();
+            if jobs.is_empty() {
+                *base.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = (1, Some(Err("no such photo".into())));
+            } else {
+                let (out, repaint) = (base.clone(), ctx.clone());
+                let work = move || {
+                    for job in jobs {
                         let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job.run().rendered.map(|r| r.image)))
                             .unwrap_or_else(|_| Err("the preview failed unexpectedly".into()));
-                        *out.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(r);
-                        repaint.request_repaint();
-                    };
-                    #[cfg(not(target_arch = "wasm32"))]
-                    if let Err(e) = std::thread::Builder::new().name("lc-watermark-preview".into()).spawn(work) {
-                        log::warn!("watermark preview: {e}");
+                        let mut got = out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                        // a failed sharp render keeps the thumbnail
+                        if r.is_ok() || !matches!(got.1, Some(Ok(_))) {
+                            *got = (got.0.saturating_add(1), Some(r));
+                            repaint.request_repaint();
+                        }
                     }
-                    #[cfg(target_arch = "wasm32")]
-                    work();
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Err(e) = std::thread::Builder::new().name("lc-watermark-preview".into()).spawn(work) {
+                    log::warn!("watermark preview: {e}");
                 }
-                None => *base.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Err("no such photo".into())),
+                #[cfg(target_arch = "wasm32")]
+                work();
             }
             ctx.data_mut(|d| d.insert_temp(base_id, (key, base.clone())));
             base
         }
     };
     let shown = ctx.data(|d| d.get_temp::<Shown>(shown_id));
+    let stage = base.lock().unwrap_or_else(std::sync::PoisonError::into_inner).0;
     let tex = match shown {
-        Some((k, w, s, tex)) if k == key && &w == wm && s == export_short => tex,
+        Some((k, g, w, s, tex)) if k == key && g == stage && &w == wm && s == export_short => tex,
         _ => {
-            let photo_px = match &*base.lock().unwrap_or_else(std::sync::PoisonError::into_inner) {
+            let photo_px = match &base.lock().unwrap_or_else(std::sync::PoisonError::into_inner).1 {
                 Some(Ok(img)) => Ok(img.clone()),
                 Some(Err(e)) => Err(Some(e.clone())),
                 None => Err(None),
@@ -142,12 +155,12 @@ fn watermark_preview(
                 }
                 None => ctx.load_texture("export-wm-preview", color, egui::TextureOptions::LINEAR),
             };
-            ctx.data_mut(|d| d.insert_temp(shown_id, (key, wm.clone(), export_short, tex.clone())));
+            ctx.data_mut(|d| d.insert_temp(shown_id, (key, stage, wm.clone(), export_short, tex.clone())));
             tex
         }
     };
     let size = tex.size_vec2();
-    let scale = (WM_PREVIEW_MAX.x.min(ui.available_width()) / size.x).min(WM_PREVIEW_MAX.y / size.y);
+    let scale = ui.available_width() / size.x.max(1.0);
     let r = ui.vertical_centered(|ui| ui.add(egui::Image::new((tex.id(), size * scale)))).inner;
     crate::widgets::register(ui.ctx(), "image:exportWatermarkPreview", r.rect);
 }
