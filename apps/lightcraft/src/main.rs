@@ -24,6 +24,8 @@
 
 mod alloc_release;
 mod appearance;
+#[cfg(target_os = "linux")]
+mod colord;
 mod control_server;
 mod dialog_filter;
 mod editors;
@@ -525,7 +527,10 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
         // macOS doesn't colour-manage the window: previews follow the screen's profile (#787)
         #[cfg(target_os = "macos")]
         screen_profile: Some(Box::new(screen_profile::icc)),
-        #[cfg(not(target_os = "macos"))]
+        // Linux: the profile the desktop assigns in colord, read off the UI thread
+        #[cfg(target_os = "linux")]
+        screen_profile: Some(colord::service()),
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         screen_profile: None,
         pick_display_profile: Some(Box::new(|| {
             let mut d = file_dialog()
