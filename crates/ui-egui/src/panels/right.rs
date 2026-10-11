@@ -699,7 +699,11 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 .media
                 .smart_dir
                 .as_ref()
-                .is_some_and(|d| avail.exists(&d.join(lightcraft_engine::smart::file_name(&p)).to_string_lossy()) == Some(true));
+                .is_some_and(|d| {
+                    let shard = lightcraft_engine::smart::sharded_file_path(d, &p);
+                    let legacy = d.join(lightcraft_engine::smart::file_name(&p));
+                    avail.exists(&shard.to_string_lossy()) == Some(true) || avail.exists(&legacy.to_string_lossy()) == Some(true)
+                });
             if !online || smart {
                 let text = match (online, smart) {
                     (false, true) => "Original offline · editing the smart preview",

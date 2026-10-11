@@ -462,14 +462,14 @@ fn damaged_smart_previews_are_rebuilt_and_failed_writes_leave_none() {
     s.execute("library.import", &json!({"paths": [src.join("a.png").to_string_lossy()]})).unwrap();
     let id = s.active().unwrap();
     let dir = s.media.smart_dir.clone().unwrap();
-    let file = dir.join(crate::smart::file_name(s.catalog.photo(id).unwrap()));
+    let file = crate::smart::sharded_file_path(&dir, s.catalog.photo(id).unwrap());
     {
         let _fault = lightcraft_catalog::safe_file::fail_writes_after(64);
         let r = s.execute("library.smartPreviews", &json!({})).unwrap();
         assert_eq!((r["built"].as_u64(), r["failed"].as_array().map(Vec::len)), (Some(0), Some(1)), "{r}");
     }
     assert!(!file.exists(), "no partial proxy");
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "no temp file left");
+    assert_eq!(std::fs::read_dir(file.parent().unwrap()).unwrap().count(), 0, "no temp file left in shard");
     assert_eq!(s.execute("photo.smartPreview", &json!({})).unwrap()["smartPreview"], false);
 
     let r = s.execute("library.smartPreviews", &json!({})).unwrap();
@@ -795,6 +795,13 @@ fn smart_previews_folder_is_chosen_per_library() {
     assert_eq!(loc["path"], lib.join("Smart Previews").to_string_lossy().as_ref());
     s.execute("library.smartPreviews", &json!({})).unwrap();
     assert_eq!(crate::smart::stats(&lib.join("Smart Previews")).0, 1);
+    // A flat proxy from older builds remains discoverable and migrates to the new sharded layout.
+    let dir = lib.join("Smart Previews");
+    let photo = s.catalog.photo(id).unwrap();
+    let shard = crate::smart::sharded_file_path(&dir, photo);
+    let flat = dir.join(crate::smart::file_name(photo));
+    std::fs::rename(&shard, &flat).unwrap();
+    assert_eq!(s.execute("photo.smartPreview", &json!({})).unwrap()["smartPreview"], true);
 
     // relative paths and missing drives are refused, and nothing is created on this drive
     assert!(s.execute("library.smartPreviewsLocation", &json!({"path": "rel/dir"})).is_err());
@@ -1300,8 +1307,8 @@ fn smart_previews_from_an_older_look_fit_are_refreshed() {
     assert!(s.catalog.photo(id).unwrap().relative_wb() && !s.catalog.photo(png).unwrap().relative_wb());
     s.execute("library.select", &json!({"ids": [id.0, png.0], "active": id.0})).unwrap();
     let dir = s.media.smart_dir.clone().unwrap();
-    let file = dir.join(crate::smart::file_name(s.catalog.photo(id).unwrap()));
-    let png_file = dir.join(crate::smart::file_name(s.catalog.photo(png).unwrap()));
+    let file = crate::smart::sharded_file_path(&dir, s.catalog.photo(id).unwrap());
+    let png_file = crate::smart::sharded_file_path(&dir, s.catalog.photo(png).unwrap());
     let (old, new) = (test_tone(1.5), test_tone(3.5));
     let calls = std::sync::Arc::new(AtomicUsize::new(0));
     let plain = s.media.file_loader.clone().unwrap();

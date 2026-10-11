@@ -635,7 +635,9 @@ impl MediaCache {
         // be offline is tried first and its smart preview is the render worker's fallback.
         #[cfg(not(target_arch = "wasm32"))]
         if let (Source::File { path }, Some(dir)) = (&p.source, &self.smart_dir) {
-            let sp = dir.join(crate::smart::file_name(p));
+            let sharded = crate::smart::sharded_file_path(dir, p);
+            let legacy = dir.join(crate::smart::file_name(p));
+            let sp = if self.availability.exists(&sharded.to_string_lossy()) == Some(true) { sharded } else { legacy };
             // (a proxy cut short fails to load, like the offline original; the worker's fallback
             // in `SourceRef::load` only uses a proxy that passes `smart::is_valid`)
             if self.availability.is_offline(path) && self.availability.exists(&sp.to_string_lossy()) == Some(true) {
