@@ -105,6 +105,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("local.hide", "Remove from Local", None, ""),
     ("local.restoreHidden", "Show Hidden Local Locations", None, ""),
     ("view.fullScreenPreview", "Full Screen Preview", Some("F"), "View"),
+    ("view.lightsOut", "Lights Out", Some("Shift+L"), "View"),
     ("view.enterFullScreen", "Enter Full Screen", Some("Cmd+Shift+F"), "View"),
     ("view.infoOverlay", "Cycle Info Overlay", Some("Cmd+I"), "View"),
     ("view.navigator", "Navigator", None, "View"),
@@ -399,6 +400,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.back" => {
             if app.ui.dialog.is_some() {
                 app.ui.dialog = None;
+            } else if app.ui.lights_out != crate::state::LightsOut::On {
+                app.ui.lights_out = crate::state::LightsOut::On;
             } else if app.ui.keyword_painter.is_some() {
                 app.ui.keyword_painter = None;
             } else if app.ui.fullscreen {
@@ -454,6 +457,17 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 let _ = app.session.end_interaction();
             }
             Ok(json!({"fullscreen": app.ui.fullscreen}))
+        }
+        "view.lightsOut" => {
+            // {mode?: on | dim | off} (cycles when omitted)
+            match p.get("mode").and_then(Value::as_str) {
+                Some(m) => serde_json::from_value(json!(m)).map_err(|_| format!("unknown lights-out mode: {m} (on|dim|off)")),
+                None => Ok(app.ui.lights_out.next()),
+            }
+            .map(|mode| {
+                app.ui.lights_out = mode;
+                json!({"lightsOut": mode})
+            })
         }
         "view.enterFullScreen" => {
             // applied by the host's frame logic (it knows the window's current state)
