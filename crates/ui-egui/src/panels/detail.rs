@@ -437,11 +437,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // request renders: the loupe at display resolution (drafts during drags)
     let interacting = app.session.interaction.is_some();
     let overlay = view_overlay(app, &d);
-    // a drag drafts at full size where the GPU draws the view (soft proofs and the HDR range
-    // render on the CPU; `ready` first: `available` would wait for a device still being created)
+    // a drag drafts at full size where the GPU draws the view (by the GPU's own rule, `handles`;
+    // `ready` first: `available` would wait for a device still being created)
     let gpu = interacting
-        && !app.ui.soft_proof
-        && overlay != lightcraft_pipeline::Overlay::HdrRange
+        && lightcraft_engine::gpu::handles(lightcraft_pipeline::OutputDepth::U8, app.ui.soft_proof, overlay)
         && lightcraft_engine::gpu::ready()
         && lightcraft_engine::gpu::available();
     let shown = app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id && t.quick.is_none()).map(|t| (t.key, t.ms));
