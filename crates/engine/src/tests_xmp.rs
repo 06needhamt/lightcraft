@@ -566,6 +566,45 @@ fn external_edit_copy_is_stacked() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Edit in PhotoCraft (engine half): a flat 16-bit PSD `-Edit` copy, which PhotoCraft saves back
+/// to in place (it writes a TIFF only through Save As); its saved pixels come back on Reload.
+#[test]
+fn external_edit_copy_as_psd_round_trips() {
+    let dir = temp_dir("extedit-psd");
+    let src = dir.join("pier.png");
+    write_png(&src, 40);
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+    let orig = s.active().unwrap();
+    s.execute("develop.set", &json!({"control": "light.exposure", "value": 0.5})).unwrap();
+    let r = s.execute("photo.editExternal", &json!({"format": "psd", "bitDepth": 16})).unwrap();
+    let path = r["path"].as_str().unwrap().to_string();
+    assert!(path.ends_with("pier-Edit.psd"), "{path}");
+    let d = lightcraft_codecs::decode(&std::fs::read(&path).unwrap(), Default::default()).unwrap();
+    assert_eq!(d.bit_depth, 16);
+    assert!(d.icc.is_some(), "the colour space travels with the file");
+    let new = lightcraft_catalog::PhotoId(r["id"].as_u64().unwrap());
+    assert_eq!(s.catalog.stack_of(new).map(|st| (st.top(), st.photos.contains(&orig))), Some((new, true)));
+    // the editor saves the document back over the same file: Reload shows its pixels
+    let before = s.render_now(new, 16, 16).unwrap().image.data;
+    let (w, h) = (d.width as u32, d.height as u32);
+    let px = vec![1000u16; (w * h * 3) as usize];
+    let saved =
+        lightcraft_codecs::encode_psd(&lightcraft_codecs::EncodeImage::new(w, h, 3, lightcraft_codecs::Samples::U16(&px)), &Default::default())
+            .unwrap();
+    std::fs::write(&path, saved).unwrap();
+    assert_eq!(s.execute("photo.reload", &json!({"ids": [new.0]})).unwrap()["reloaded"], json!([new.0]));
+    assert_ne!(s.render_now(new, 16, 16).unwrap().image.data, before);
+    // 8-bit, and what it can't do
+    s.execute("library.select", &json!({"ids": [orig.0]})).unwrap();
+    let r8 = s.execute("photo.editExternal", &json!({"format": "psd", "bitDepth": 8})).unwrap();
+    let d8 = lightcraft_codecs::decode(&std::fs::read(r8["path"].as_str().unwrap()).unwrap(), Default::default()).unwrap();
+    assert_eq!(d8.bit_depth, 8);
+    assert!(s.execute("photo.editExternal", &json!({"format": "jpeg"})).is_err());
+    assert!(s.execute("photo.editExternal", &json!({"bitDepth": 32})).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Reload: a file changed on disk (an external editor saved it) gets its new size / hash, the
 /// cached source is dropped and renders change; unchanged files are left alone.
 #[test]
