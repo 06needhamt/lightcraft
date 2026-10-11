@@ -5,7 +5,9 @@
 //!
 //! Sources: GeoNames dump readme (prose); own design.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, PoisonError};
+use std::time::SystemTime;
 
 use serde_json::{Value, json};
 
@@ -21,12 +23,79 @@ fn dataset_dir(p: &Value) -> Option<PathBuf> {
     str_param(p, "dataset").map(PathBuf::from).or_else(|| crate::config::config_dir().map(|d| d.join("geonames")))
 }
 
-fn status(_s: &mut Session, p: &Value) -> Result<Value> {
+/// How a place-names download ended.
+#[derive(Clone, Debug, PartialEq)]
+pub enum DownloadOutcome {
+    /// Done: this many places.
+    Done(usize),
+    /// Failed, in words the user can act on.
+    Failed(String),
+    Cancelled,
+}
+
+#[derive(Default)]
+struct DownloadShared {
+    running: bool,
+    last: Option<DownloadOutcome>,
+    /// The last outcome, until the UI has shown it ([`PlaceNames::take_outcome`]).
+    unreported: Option<DownloadOutcome>,
+}
+
+/// The session's place names: the parsed gazetteer (kept while its file is unchanged) and the download state.
+#[derive(Default)]
+pub struct PlaceNames {
+    shared: Arc<Mutex<DownloadShared>>,
+    /// (cities file, its size, its modification time, the parsed names).
+    cache: Option<(PathBuf, u64, Option<SystemTime>, Arc<GeoNames>)>,
+}
+
+impl PlaceNames {
+    fn lock(&self) -> std::sync::MutexGuard<'_, DownloadShared> {
+        self.shared.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// A download that ended since the last call (the UI shows it once: an error stays readable as a toast).
+    pub fn take_outcome(&self) -> Option<DownloadOutcome> {
+        self.lock().unreported.take()
+    }
+
+    pub fn downloading(&self) -> bool {
+        self.lock().running
+    }
+
+    /// The gazetteer in `dir`, parsed once and re-read only when the cities file's size or time changes.
+    fn load(&mut self, dir: &Path) -> std::result::Result<Arc<GeoNames>, lightcraft_geocode::GeocodeError> {
+        let file = dir.join(GEONAMES_FILES[0]);
+        let meta = std::fs::metadata(&file).ok();
+        let (len, mtime) = (meta.as_ref().map_or(0, |m| m.len()), meta.as_ref().and_then(|m| m.modified().ok()));
+        if let Some((f, l, t, g)) = &self.cache
+            && meta.is_some()
+            && *f == file
+            && *l == len
+            && *t == mtime
+        {
+            return Ok(g.clone());
+        }
+        let g = Arc::new(GeoNames::load(dir)?);
+        self.cache = Some((file, len, mtime, g.clone()));
+        Ok(g)
+    }
+}
+
+fn status(s: &mut Session, p: &Value) -> Result<Value> {
     let dir = dataset_dir(p);
     let size = dir.as_ref().and_then(|d| std::fs::metadata(d.join(GEONAMES_FILES[0])).ok()).map(|m| m.len());
-    Ok(
-        json!({"downloaded": size.is_some(), "bytes": size, "path": dir, "attribution": GEONAMES_ATTRIBUTION, "source": lightcraft_geocode::GEONAMES_BASE}),
-    )
+    let sh = s.place_names.lock();
+    let (last, error) = match &sh.last {
+        None => (Value::Null, Value::Null),
+        Some(DownloadOutcome::Done(n)) => (json!({"places": n}), Value::Null),
+        Some(DownloadOutcome::Failed(e)) => (json!("failed"), json!(e)),
+        Some(DownloadOutcome::Cancelled) => (json!("cancelled"), Value::Null),
+    };
+    Ok(json!({
+        "downloaded": size.is_some(), "bytes": size, "path": dir, "downloading": sh.running, "lastDownload": last, "lastError": error,
+        "attribution": GEONAMES_ATTRIBUTION, "source": lightcraft_geocode::GEONAMES_BASE,
+    }))
 }
 
 /// Which place fields to write: a field is filled when it is empty, or always with `overwrite`.
@@ -59,7 +128,7 @@ fn reverse(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(C, "none of these photos has a GPS position"));
     }
     let dir = dataset_dir(p).ok_or_else(|| bad(C, "no settings folder: give `dataset`"))?;
-    let names = GeoNames::load(&dir).map_err(|e| bad(C, format!("{e}: download the place names first (Photo ▸ Download Place Names)")))?;
+    let names = s.place_names.load(&dir).map_err(|e| bad(C, format!("{e}: download the place names first (Photo ▸ Download Place Names)")))?;
     // a large selection shows in the activity stack and can be stopped
     let task = (todo.len() > 1).then(|| s.activity.start("geocode", "Looking up places", Cancel::Yes));
     let mut ops = Vec::new();
@@ -145,25 +214,43 @@ mod download {
         if !(base.starts_with("https://") || base.starts_with("http://127.0.0.1")) {
             return Err(bad(C, "`base` must be an https:// address"));
         }
+        let shared = s.place_names.shared.clone();
+        {
+            let mut sh = s.place_names.lock();
+            if sh.running {
+                return Err(bad(C, "the place names are already downloading"));
+            }
+            sh.running = true;
+        }
         let cancel = Arc::new(AtomicBool::new(false));
         let task = s.activity.start("download", "Downloading place names", Cancel::Flag(cancel.clone()));
         task.set_unit(Unit::Bytes);
         task.detail("GeoNames");
         let handle = task.handle();
         let thread_dir = dir.clone();
-        std::thread::Builder::new()
-            .name("place-names-download".into())
-            .spawn(move || {
-                // the activity row goes when the thread ends, however it ends
-                let _task = task;
-                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&base, &thread_dir, &cancel, &handle)));
-                match outcome {
-                    Ok(Ok(n)) => log::info!("place names: {n} places downloaded"),
-                    Ok(Err(e)) => log::warn!("place names download failed: {e}"),
-                    Err(_) => log::warn!("place names download stopped unexpectedly"),
-                }
-            })
-            .map_err(|e| bad(C, format!("could not start the download: {e}")))?;
+        let thread_shared = shared.clone();
+        let spawned = std::thread::Builder::new().name("place-names-download".into()).spawn(move || {
+            // the activity row goes when the thread ends, however it ends
+            let _task = task;
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(&base, &thread_dir, &cancel, &handle)));
+            let outcome = match outcome {
+                Ok(Ok(n)) => DownloadOutcome::Done(n),
+                _ if cancel.load(std::sync::atomic::Ordering::Relaxed) => DownloadOutcome::Cancelled,
+                Ok(Err(e)) => DownloadOutcome::Failed(format!("Could not download the place names: {e}. Check the connection and try again.")),
+                Err(_) => DownloadOutcome::Failed("The place names download stopped unexpectedly. Try again.".into()),
+            };
+            if let DownloadOutcome::Failed(e) = &outcome {
+                log::warn!("{e}");
+            }
+            let mut sh = thread_shared.lock().unwrap_or_else(PoisonError::into_inner);
+            sh.running = false;
+            sh.last = Some(outcome.clone());
+            sh.unreported = Some(outcome);
+        });
+        if let Err(e) = spawned {
+            shared.lock().unwrap_or_else(PoisonError::into_inner).running = false;
+            return Err(bad(C, format!("could not start the download: {e}")));
+        }
         Ok(json!({"started": true, "path": dir, "attribution": GEONAMES_ATTRIBUTION}))
     }
 }
@@ -263,10 +350,105 @@ mod tests {
         assert_eq!(st["downloaded"], false);
     }
 
+    #[test]
+    fn the_gazetteer_is_cached_until_its_file_changes() {
+        let dir = dataset("cache");
+        let mut names = PlaceNames::default();
+        let a = names.load(&dir).unwrap();
+        assert!(Arc::ptr_eq(&a, &names.load(&dir).unwrap()), "unchanged file: no re-read");
+        // a different size invalidates it (a new download)
+        std::fs::write(dir.join(GEONAMES_FILES[0]), "1\tRome\tRome\t\t41.9\t12.5\tP\tP\tIT\t\t07\n").unwrap();
+        let b = names.load(&dir).unwrap();
+        assert!(!Arc::ptr_eq(&a, &b));
+        assert_eq!(b.reverse(LatLon::new(41.9, 12.5)).unwrap().city, "Rome");
+        std::fs::remove_file(dir.join(GEONAMES_FILES[0])).unwrap();
+        assert!(names.load(&dir).is_err(), "a deleted file is not served from the cache");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A local HTTP server; the first path segment picks the behaviour: `good` (the synthetic dump), `garbage` (a zip
+    /// that isn't one), `short` (the body ends before its Content-Length), anything else 404.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn serve() -> String {
+        use std::io::{BufRead, BufReader, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let zip = lightcraft_geocode::unzip::make(GEONAMES_FILES[0], CITIES.as_bytes());
+        std::thread::spawn(move || {
+            for conn in l.incoming() {
+                let Ok(mut c) = conn else { continue };
+                let mut r = BufReader::new(c.try_clone().unwrap());
+                let mut line = String::new();
+                let _ = r.read_line(&mut line);
+                loop {
+                    let mut h = String::new();
+                    if r.read_line(&mut h).unwrap_or(0) == 0 || h.trim().is_empty() {
+                        break;
+                    }
+                }
+                let path = line.split(' ').nth(1).unwrap_or("").to_string();
+                let (status, body, len): (&str, Vec<u8>, Option<usize>) = match (path.split('/').nth(1).unwrap_or(""), path.ends_with(".zip")) {
+                    ("good", true) => ("200 OK", zip.clone(), None),
+                    ("good", false) if path.contains("countryInfo") => ("200 OK", b"FR\tFRA\t250\tFR\tFrance\n".to_vec(), None),
+                    ("garbage", true) => ("200 OK", b"<html>not a zip</html>".to_vec(), None),
+                    ("short", true) => ("200 OK", zip[..zip.len() / 2].to_vec(), Some(zip.len())),
+                    _ => ("404 Not Found", b"nope".to_vec(), None),
+                };
+                let n = len.unwrap_or(body.len());
+                let _ = c.write_all(format!("HTTP/1.1 {status}\r\nContent-Length: {n}\r\nConnection: close\r\n\r\n").as_bytes());
+                let _ = c.write_all(&body);
+            }
+        });
+        format!("http://127.0.0.1:{port}")
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn download(s: &mut Session, base: &str, dir: &Path) -> DownloadOutcome {
+        s.execute("metadata.downloadPlaceNames", &json!({"dataset": dir, "base": base})).unwrap();
+        assert!(s.place_names.downloading() || s.place_names.lock().unreported.is_some());
+        let started = std::time::Instant::now();
+        loop {
+            if let Some(o) = s.place_names.take_outcome() {
+                // the activity row ends with the thread
+                while !s.activity.list().is_empty() && started.elapsed().as_secs() < 30 {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                assert!(s.activity.list().is_empty());
+                return o;
+            }
+            assert!(started.elapsed().as_secs() < 60, "the download never ended");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
-    fn download_refuses_plain_http() {
+    fn download_end_to_end_and_its_failures() {
         let mut s = Session::with_demo();
-        assert!(s.execute("metadata.downloadPlaceNames", &json!({"dataset": "/nonexistent", "base": "http://example.com/"})).is_err());
+        let ids = s.visible_cloned();
+        let base = serve();
+        let dir = std::env::temp_dir().join(format!("lightcraft-geocode-dl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(s.execute("metadata.downloadPlaceNames", &json!({"dataset": dir, "base": "http://example.com/"})).is_err());
+
+        for bad in ["missing", "garbage", "short"] {
+            let o = download(&mut s, &format!("{base}/{bad}/"), &dir);
+            let DownloadOutcome::Failed(e) = o else { panic!("{bad}: {o:?}") };
+            assert!(e.contains("try again"), "{bad}: {e}");
+            let st = s.execute("metadata.placeNamesStatus", &json!({"dataset": dir})).unwrap();
+            assert_eq!((st["downloaded"].as_bool(), st["lastDownload"].as_str()), (Some(false), Some("failed")), "{bad}: {st}");
+            assert_eq!(st["lastError"].as_str(), Some(e.as_str()));
+            assert!(s.place_names.take_outcome().is_none(), "reported once");
+        }
+
+        assert_eq!(download(&mut s, &format!("{base}/good/"), &dir), DownloadOutcome::Done(2));
+        let st = s.execute("metadata.placeNamesStatus", &json!({"dataset": dir})).unwrap();
+        assert_eq!((st["downloaded"].as_bool(), st["lastError"].is_null(), st["lastDownload"]["places"].as_u64()), (Some(true), true, Some(2)));
+        set_gps(&mut s, ids[0], Some((48.86, 2.34)), "");
+        s.execute("metadata.reverseGeocode", &json!({"ids": [ids[0].0], "dataset": dir})).unwrap();
+        let m = s.catalog.photo(ids[0]).unwrap().meta.clone();
+        // admin1 was a 404 (optional): the state stays blank, the rest is filled
+        assert_eq!((m.city.as_str(), m.state.as_str(), m.country.as_str()), ("Paris", "", "France"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -1891,5 +1891,7 @@
   "Fill Location": "Preencher local",
   "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Preencher Cidade, Estado e País vazios pelo GPS (nomes de lugares GeoNames, offline)",
   "Looking up places": "Procurando lugares",
-  "Downloading place names": "Baixando nomes de lugares"
+  "Downloading place names": "Baixando nomes de lugares",
+  "Place names downloaded": "Nomes de lugares baixados",
+  "Place names download cancelled": "Download dos nomes de lugares cancelado"
 }

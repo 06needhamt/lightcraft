@@ -68,8 +68,9 @@ pub fn extract(zip: &[u8], name: &str, max: usize) -> Result<Vec<u8>, GeocodeErr
     Err(GeocodeError::Invalid(format!("{name} is not in the archive")))
 }
 
-#[cfg(test)]
-pub(crate) fn make(name: &str, data: &[u8]) -> Vec<u8> {
+/// A one-file deflated ZIP (test fixtures: the engine's download test serves one).
+#[doc(hidden)]
+pub fn make(name: &str, data: &[u8]) -> Vec<u8> {
     let c = miniz_oxide::deflate::compress_to_vec(data, 6);
     let mut z = Vec::new();
     z.extend_from_slice(b"PK\x03\x04");

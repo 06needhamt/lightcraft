@@ -19,7 +19,7 @@ pub(crate) mod face_detect;
 mod face_models;
 mod face_recognize;
 pub mod filters;
-mod geocode;
+pub mod geocode;
 pub mod keywords;
 pub mod library;
 pub mod lut_profiles;

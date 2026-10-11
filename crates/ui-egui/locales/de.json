@@ -2046,5 +2046,7 @@
   "Fill Location": "Ort ausfüllen",
   "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Leere Felder Stadt, Bundesland und Land aus GPS ausfüllen (GeoNames-Ortsnamen, offline)",
   "Looking up places": "Orte werden nachgeschlagen",
-  "Downloading place names": "Ortsnamen werden heruntergeladen"
+  "Downloading place names": "Ortsnamen werden heruntergeladen",
+  "Place names downloaded": "Ortsnamen heruntergeladen",
+  "Place names download cancelled": "Download der Ortsnamen abgebrochen"
 }
