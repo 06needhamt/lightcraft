@@ -287,6 +287,9 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
     if s.library.as_ref().is_some_and(|l| l.dir.starts_with(src) || src.starts_with(&l.dir)) {
         return Err("the library's own folders can't be moved here".into());
     }
+    // Repairs retain their exact old paths, including those on surviving history entries.
+    // Complete them before the directory moves; an unavailable repair leaves it in place.
+    s.repair_sidecars_with(&crate::rename::RealFs).map_err(|e| e.to_string())?;
     rename_folder_on_disk(from, to)?;
     let mut ops: Vec<Op> = s
         .catalog
