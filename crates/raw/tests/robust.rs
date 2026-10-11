@@ -75,7 +75,9 @@ proptest! {
 
 #[test]
 fn truncation_at_every_length() {
-    for comp in [DngCompression::Uncompressed, DngCompression::Lj92 { tile: 16 }] {
+    for comp in
+        [DngCompression::Uncompressed, DngCompression::Lj92 { tile: 16 }, DngCompression::LossyJpeg { tile: 16, quality: 80, long_edge: None }]
+    {
         let d = sample(comp);
         for n in (0..d.len()).step_by(7) {
             exercise(&d[..n]);

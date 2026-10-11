@@ -850,7 +850,7 @@ fn dng_export_compression_choices() {
     s.execute("library.import", &json!({"paths": [corpus.to_string_lossy()]})).unwrap();
     let id = s.active().unwrap();
     let mut sizes = Vec::new();
-    for c in ["lossless", "deflate", "uncompressed"] {
+    for c in ["lossless", "deflate", "uncompressed", "lossy"] {
         let o = crate::export::ExportOptions::from_json(&json!({"format": "dng", "dngCompression": c}));
         let mut out = Vec::new();
         let mut write = |_: &str, b: &[u8]| {
@@ -863,6 +863,7 @@ fn dng_export_compression_choices() {
         sizes.push((c, out.len()));
     }
     assert!(sizes[2].1 > sizes[0].1 && sizes[2].1 > sizes[1].1, "uncompressed is the biggest: {sizes:?}");
+    assert!(sizes[3].1 < sizes[0].1 / 2, "lossy is much smaller than lossless: {sizes:?}");
 }
 
 fn write_jpeg(path: &Path, capture: Option<&str>) {
@@ -1123,4 +1124,31 @@ fn files_sharing_a_stem_get_their_own_sidecars() {
     assert_eq!((s.catalog.photo(j).unwrap().rating, s.catalog.photo(p).unwrap().rating), (2, 5));
     let _ = std::fs::remove_dir_all(&src);
     let _ = std::fs::remove_dir_all(&lib);
+}
+
+/// Lossy DNG export: demosaiced JPEG tiles at the resize long edge, smaller than lossless, colour tags kept.
+#[test]
+fn lossy_dng_export_scales_and_shrinks() {
+    let src = temp_dir("lossydng");
+    std::fs::write(src.join("synth.dng"), synthetic_dng_with(None, Default::default())).unwrap();
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+    let id = s.catalog.photos().next().unwrap().id;
+    let mut export = |p: serde_json::Value| {
+        let o = crate::export::ExportOptions::from_json(&p);
+        let mut out = Vec::new();
+        let mut write = |_: &str, b: &[u8]| {
+            out = b.to_vec();
+            Ok(())
+        };
+        crate::export::export_batch(&mut s, &[id], &o, &crate::export::Destination { dir: "x".into(), exact: None }, &mut write, &|_| false).unwrap();
+        out
+    };
+    let lossless = export(json!({"format": "dng"}));
+    let lossy = export(json!({"format": "dng", "dngCompression": "lossy", "quality": 80, "longEdge": 32}));
+    let raw = lightcraft_raw::decode(&lossy).unwrap();
+    assert_eq!((raw.cpp, raw.cfa.is_none(), raw.width.max(raw.height)), (3, true, 32));
+    assert_eq!(raw.color.as_shot_neutral, Some([0.5, 1.0, 0.7]));
+    assert!(lossy.len() < lossless.len(), "{} vs {}", lossy.len(), lossless.len());
+    let _ = std::fs::remove_dir_all(&src);
 }

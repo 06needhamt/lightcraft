@@ -928,7 +928,7 @@ impl ExportOptions {
                 "jxlEffort" => one_of(k, v, &["fast", "normal"])?,
                 "dngCompression" => {
                     serde_json::from_value::<DngCompression>(v.clone())
-                        .map_err(|_| bad(format!("`{k}` must be one of lossless|deflate|uncompressed")))?;
+                        .map_err(|_| bad(format!("`{k}` must be one of lossless|deflate|uncompressed|lossy")))?;
                 }
                 "metadata" => one_of(k, v, &["all", "allExceptCamera", "copyright", "none"])?,
                 "colorSpace" => {
@@ -1579,6 +1579,9 @@ enum Work {
         read: Option<crate::merge::ByteReader>,
         packet: String,
         dng: Option<DngCompression>,
+        /// Lossy DNG: JPEG quality and the long edge to scale to (`None`: full size).
+        quality: u8,
+        lossy_edge: Option<u32>,
         /// The original must not carry a location ([`removes_location`]).
         remove_location: bool,
         label: String,
@@ -1642,6 +1645,11 @@ fn prepare_guarded(
             read: session.media.file_bytes.clone(),
             packet: crate::sidecar::sidecar_packet_with(p, &session.catalog, removes_location(p, &session.catalog, o)),
             dng,
+            quality: o.quality,
+            lossy_edge: o.resize.is_some().then(|| {
+                let (w, h) = output_size(p, o);
+                u32::try_from(w.max(h)).unwrap_or(u32::MAX)
+            }),
             remove_location: removes_location(p, &session.catalog, o),
             label: p.file_name.clone(),
             size: (p.width as usize, p.height as usize),
@@ -1681,7 +1689,7 @@ impl PreparedExport {
                 };
                 Ok(Exported { file_name, bytes, width: r.image.width, height: r.image.height, sidecars: Vec::new(), gpu_fallback })
             }
-            Work::File { path, read, packet, dng, label, size, remove_location } => {
+            Work::File { path, read, packet, dng, quality, lossy_edge, label, size, remove_location } => {
                 let bytes = match &read {
                     Some(r) => r(&path)?,
                     None => std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?,
@@ -1711,6 +1719,9 @@ impl PreparedExport {
                     DngCompression::Lossless => lightcraft_raw::DngCompression::Lj92 { tile: 256 },
                     DngCompression::Deflate => lightcraft_raw::DngCompression::Deflate { tile: 256, half: false },
                     DngCompression::Uncompressed => lightcraft_raw::DngCompression::Uncompressed,
+                    DngCompression::Lossy => {
+                        lightcraft_raw::DngCompression::LossyJpeg { tile: 256, quality: quality.clamp(1, 100), long_edge: lossy_edge }
+                    }
                 };
                 let dng = lightcraft_raw::write_dng(&raw, &lightcraft_raw::DngWriteOptions { xmp: Some(packet), compression, ..Default::default() })
                     .map_err(|e| e.to_string())?;
@@ -1730,6 +1741,9 @@ pub enum DngCompression {
     /// Deflate (zip) tiles with prediction.
     Deflate,
     Uncompressed,
+    /// Lossy DNG: demosaiced linear data as JPEG tiles at the export quality, scaled to the resize
+    /// setting when there is one (Lightroom's "Use Lossy Compression").
+    Lossy,
 }
 
 /// The destination of a batch: a folder (with `ExportOptions::subfolder` and the conflict policy
