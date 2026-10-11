@@ -808,6 +808,18 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "https://raw.pixls.us/getfile.php/7807/nice/Fujifilm%20-%20X-T50%20-%2014bit%20compressed%20%283:2%29.RAF",
         "3a8a9ac6d92274969aaa1f55ea669191b98bb8f588d00ec8ec17afd8b3963dea",
     ),
+    // Sony ILCE-7RM6 ARW6, CC0 1.0 (RawDB): one full-frame Compressed (RAW-C) and one APS-C Compressed HQ (RAW-C-HD) file;
+    // docs/arw6-compression.md lists the rest of the set.
+    (
+        "arw6-sony-ilce7rm6-apsc-land-hq.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_APSC_land_RAW-C-HD.ARW",
+        "b60a7e752d2a8102ccbe6eebcfdbf533c6b0f2545739090873e9e8eb32cc0637",
+    ),
+    (
+        "arw6-sony-ilce7rm6-ff-land-c.arw",
+        "https://rawdb.dnglab.org/api/download/Sony/ILCE-7RM6/arw6/ILCE-7RM6_FF_land_RAW-C.ARW",
+        "d900d6cbe838be864269ad54de4a33fcac7eb3a3d4f91009739f770b8f85a23b",
+    ),
     (
         "rw2-panasonic-g9-b.rw2",
         "https://raw.pixls.us/getfile.php/2348/nice/Panasonic%20-%20DC-G9%20-%204:3.RW2",

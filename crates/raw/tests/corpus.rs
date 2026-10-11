@@ -902,6 +902,39 @@ fn corpus_fujifilm_compressed_samples() {
     eprintln!("verified {seen} Fujifilm compressed sensor arrays");
 }
 
+/// Checks each available `(name, width, height, sum, weighted)` case against the decoder's sensor array (the file's
+/// identity is checked by `cargo xtask corpus --download`); absent corpus files are skipped. Returns how many were verified.
+fn verify_sensor_arrays(cases: &[(&str, usize, usize, u64, u64)]) -> usize {
+    let dir = corpus_root().join("raw");
+    let mut seen = 0;
+    for &(name, width, height, sum, weighted) in cases {
+        let Ok(bytes) = std::fs::read(dir.join(name)) else { continue };
+        let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!((img.width, img.height), (width, height), "{name}");
+        let lightcraft_raw::RawData::U16(data) = img.data else { panic!("{name}: float data") };
+        let actual = data
+            .iter()
+            .enumerate()
+            .fold((0u64, 0u64), |(s, w), (i, &v)| (s.wrapping_add(u64::from(v)), w.wrapping_add((i as u64 + 1).wrapping_mul(u64::from(v)))));
+        assert_eq!(actual, (sum, weighted), "{name}: sensor samples differ from reference");
+        seen += 1;
+    }
+    seen
+}
+
+/// Regression values from LightCraft's decoder with the derived companding curve; the 12-bit codes before the curve
+/// were verified against the black-box oracle in Phase 0 (docs/arw6-compression.md). The files are CC0 from RawDB, one
+/// per geometry and compression mode.
+#[test]
+fn corpus_sony_arw6_samples() {
+    let cases: &[(&str, usize, usize, u64, u64)] = &[
+        ("arw6-sony-ilce7rm6-apsc-land-hq.arw", 6592, 4372, 85546367117, 1319631546150087499),
+        ("arw6-sony-ilce7rm6-ff-land-c.arw", 10016, 6672, 257718215153, 9636375794063042132),
+    ];
+    let seen = verify_sensor_arrays(cases);
+    eprintln!("verified {seen} Sony ARW6 sensor arrays");
+}
+
 /// The container rule for TIFF "shells" (a small IFD0 next to a private raw block) must not touch real
 /// raws: every corpus file keeps the format its maker implies, and none is described as a private block.
 #[test]
