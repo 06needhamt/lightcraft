@@ -183,6 +183,11 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     let track_rect = Rect::from_min_max(pos2(row.left() + pad_l, row.top() + 22.0), pos2(row.right() - pad_r, row.top() + 40.0));
     let id = ui.id().with(spec.id);
     let resp = ui.interact(track_rect.expand2(vec2(8.0, 2.0)), id, if enabled { Sense::click_and_drag() } else { Sense::hover() });
+    // A click selects the slider for arrow/wheel adjustments. Keep scroll-to-adjust
+    // opt-in so hovering an unfocused slider still scrolls the containing panel.
+    if enabled && (resp.clicked() || resp.drag_started()) {
+        resp.request_focus();
+    }
     // screen readers: a slider named after its control, with its value
     let label_text = crate::i18n::tr(label_override.unwrap_or(spec.label)).to_string();
     resp.widget_info(|| egui::WidgetInfo::slider(enabled, value, label_text.clone()));
@@ -272,8 +277,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         if resp.drag_stopped() {
             out.drag_stopped = true;
         }
-        // ↑ / ↓ while the pointer rests on the row nudge the value (⇧: five times as much)
-        if enabled && out.value.is_none() && typing.is_none() && ui.rect_contains_pointer(row) {
+        // Arrow keys work with either a hovered or a focused slider.
+        if enabled && out.value.is_none() && typing.is_none() && (ui.rect_contains_pointer(row) || resp.has_focus()) {
             let (up, down, shift) = ui.input_mut(|i| {
                 let shift = i.modifiers.shift;
                 let m = if shift { egui::Modifiers::SHIFT } else { egui::Modifiers::NONE };
@@ -286,6 +291,34 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
                     out.drag_started = true;
                     out.drag_stopped = true;
                     v = nv;
+                }
+            }
+        }
+        // Wheel nudges require an explicitly selected slider, unlike regular panel scrolling.
+        // Consume only the vertical component so a trackpad's horizontal scroll still works.
+        let wheel_id = id.with("wheel-rem");
+        if !resp.has_focus() {
+            ui.data_mut(|m| m.remove::<f32>(wheel_id));
+        } else if enabled && typing.is_none() && out.value.is_none() && ui.rect_contains_pointer(row) {
+            let delta = ui.input_mut(|i| {
+                let dy = i.smooth_scroll_delta.y;
+                if dy != 0.0 {
+                    i.smooth_scroll_delta.y = 0.0;
+                }
+                dy
+            });
+            if delta != 0.0 {
+                let mut remainder = ui.data(|m| m.get_temp::<f32>(wheel_id)).unwrap_or(0.0);
+                let steps = wheel_nudges(&mut remainder, delta);
+                ui.data_mut(|m| m.insert_temp(wheel_id, remainder));
+                if steps != 0.0 {
+                    let nv = nudged(spec, value, steps);
+                    if (nv - value).abs() > 1e-12 {
+                        out.value = Some(nv);
+                        out.drag_started = true;
+                        out.drag_stopped = true;
+                        v = nv;
+                    }
                 }
             }
         }
@@ -318,6 +351,16 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
     }
     out
+}
+
+/// Convert vertical wheel movement to bounded slider steps, keeping sub-notch
+/// trackpad movement between frames without amplifying a single large event.
+fn wheel_nudges(remainder: &mut f32, delta: f32) -> f64 {
+    const POINTS_PER_STEP: f32 = 40.0;
+    let total = (*remainder + delta).clamp(-400.0, 400.0);
+    let steps = (total / POINTS_PER_STEP).trunc();
+    *remainder = total - steps * POINTS_PER_STEP;
+    f64::from(steps)
 }
 
 /// `value` moved by `steps` keyboard nudges: one nudge is about 1/200 of the range, a whole
@@ -544,6 +587,17 @@ mod tests {
         assert_eq!(nudged(&spec("light.contrast", -100.0, 100.0, 1.0), 10.0, -5.0), 5.0);
         assert_eq!(nudged(&spec("wb.temp", 2000.0, 50000.0, 1.0), 6500.0, 1.0), 6550.0);
         assert_eq!(nudged(&spec("light.contrast", -100.0, 100.0, 1.0), 99.0, 5.0), 100.0, "clamped");
+    }
+
+    #[test]
+    fn wheel_steps_accumulate_small_movements_and_preserve_direction() {
+        let mut remainder = 0.0;
+        assert_eq!(wheel_nudges(&mut remainder, 15.0), 0.0);
+        assert_eq!(wheel_nudges(&mut remainder, 25.0), 1.0);
+        assert_eq!(remainder, 0.0);
+        assert_eq!(wheel_nudges(&mut remainder, -100.0), -2.0);
+        assert_eq!(wheel_nudges(&mut remainder, -20.0), -1.0);
+        assert_eq!(remainder, 0.0);
     }
 
     /// Typed values (issue #322): signs, a decimal comma, units; on the control's steps, in range.
