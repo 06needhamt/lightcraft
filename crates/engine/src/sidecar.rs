@@ -248,6 +248,12 @@ impl SidecarData {
 /// The sidecar packet for a photo; the colour label is written by its name in `cat` (custom
 /// label names included, as other editors do).
 pub fn sidecar_packet(p: &Photo, cat: &lightcraft_catalog::Catalog) -> String {
+    sidecar_packet_with(p, cat, false)
+}
+
+/// [`sidecar_packet`], without any location (GPS, sublocation, city, state, country) when
+/// `remove_location` is set (an export with "Remove location info").
+pub fn sidecar_packet_with(p: &Photo, cat: &lightcraft_catalog::Catalog, remove_location: bool) -> String {
     let nz = |s: &str| (!s.trim().is_empty()).then(|| s.to_string());
     let meta = lightcraft_meta::Metadata {
         software: Some("LightCraft".into()),
@@ -271,6 +277,10 @@ pub fn sidecar_packet(p: &Photo, cat: &lightcraft_catalog::Catalog) -> String {
         gps: p.meta.gps.map(|(latitude, longitude)| lightcraft_meta::Gps { latitude, longitude, altitude: None }),
         ..Default::default()
     };
+    let mut meta = meta;
+    if remove_location {
+        (meta.sublocation, meta.city, meta.state, meta.country, meta.gps) = (None, None, None, None, None);
+    }
     let settings = serde_json::to_string(&*p.develop).unwrap_or_default();
     let flag = match p.flag {
         Flag::None => "none",
@@ -278,7 +288,7 @@ pub fn sidecar_packet(p: &Photo, cat: &lightcraft_catalog::Catalog) -> String {
         Flag::Reject => "reject",
     };
     let mut lc = vec![("settings", settings.as_str()), ("flag", flag)];
-    if !p.meta.location.trim().is_empty() {
+    if !remove_location && !p.meta.location.trim().is_empty() {
         lc.push(("location", p.meta.location.as_str()));
     }
     lightcraft_meta::write_xmp_lc(&meta, &lc)
