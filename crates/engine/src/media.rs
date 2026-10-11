@@ -309,8 +309,11 @@ pub struct MediaCache {
     thumbs: Lru<PhotoId, DecodedSource>,
     /// Decoded preview-level sources with their last use ([`lightcraft_preview::next_tick`]).
     previews: Vec<(PhotoId, DecodedSource, u64)>,
-    /// The last full-resolution original (exports; one at a time: ~300 MB at 24 MP).
-    full: Option<(PhotoId, DecodedSource, u64)>,
+    /// The last full-resolution originals (exports, zoomed views; ~300 MB each at 24 MP), with
+    /// their last use. Normally one; see [`Self::set_full_capacity`].
+    full: Vec<(PhotoId, DecodedSource, u64)>,
+    /// How many full-resolution originals to keep (LRU, at least one).
+    full_capacity: usize,
     /// How many previews to keep (LRU).
     pub preview_capacity: usize,
     /// Bytes all decoded sources and rendered previews in memory may take together (the cache
@@ -386,7 +389,8 @@ impl Default for MediaCache {
             settings_hashes: SettingsHashes::default(),
             thumbs: Lru::new(THUMB_SOURCE_BYTES.min(budget)),
             previews: Vec::new(),
-            full: None,
+            full: Vec::new(),
+            full_capacity: 1,
             preview_capacity: 0,
             budget,
             file_loader: None,
@@ -431,7 +435,23 @@ impl MediaCache {
         self.settings_hashes = SettingsHashes::default();
         self.thumbs = Lru::new(THUMB_SOURCE_BYTES.min(self.budget));
         self.previews.clear();
-        self.full = None;
+        self.full.clear();
+    }
+
+    /// How many full-resolution originals to keep at once (at least one). Compare and Reference
+    /// views zoomed to 1:1 cut windows from two photos' originals: with room for one, every window
+    /// render of one side would evict the other side's original and decode its own again. Lowering
+    /// it drops the least recently used originals at once.
+    pub fn set_full_capacity(&mut self, n: usize) {
+        self.full_capacity = n.max(1);
+        self.trim_full();
+    }
+
+    fn trim_full(&mut self) {
+        while self.full.len() > self.full_capacity {
+            let oldest = self.full.iter().enumerate().min_by_key(|(_, e)| e.2).map(|(i, _)| i).unwrap_or(0);
+            self.full.remove(oldest);
+        }
     }
 
     /// Bytes the caches may hold together.
@@ -463,14 +483,14 @@ impl MediaCache {
             let candidates = [
                 self.thumbs.oldest_tick().map(|t| (t, 0)),
                 self.previews.iter().filter(|e| Some(e.2) != newest_preview).map(|e| e.2).min().map(|t| (t, 1)),
-                self.full.as_ref().map(|e| (e.2, 2)),
+                self.full.iter().map(|e| e.2).min().map(|t| (t, 2)),
                 self.rendered.oldest_tick().map(|t| (t, 3)),
             ];
             let Some((tick, which)) = candidates.into_iter().flatten().min() else { break };
             let freed = match which {
                 0 => self.thumbs.pop_oldest(),
                 1 => self.previews.iter().position(|e| e.2 == tick).map(|i| self.previews.remove(i).1.bytes()),
-                2 => self.full.take().map(|e| e.1.bytes()),
+                2 => self.full.iter().position(|e| e.2 == tick).map(|i| self.full.remove(i).1.bytes()),
                 _ => self.rendered.evict_oldest(),
             };
             match freed {
@@ -491,7 +511,7 @@ impl MediaCache {
                 e.2 = lightcraft_preview::next_tick();
                 e.1.clone()
             }),
-            SourceLevel::Full => self.full.as_mut().filter(|e| e.0 == id).map(|e| {
+            SourceLevel::Full => self.full.iter_mut().find(|e| e.0 == id).map(|e| {
                 e.2 = lightcraft_preview::next_tick();
                 e.1.clone()
             }),
@@ -534,7 +554,11 @@ impl MediaCache {
                     self.previews.remove(oldest);
                 }
             }
-            SourceLevel::Full => self.full = Some((id, img, tick)),
+            SourceLevel::Full => {
+                self.full.retain(|e| e.0 != id);
+                self.full.push((id, img, tick));
+                self.trim_full();
+            }
         }
         self.enforce_budget();
     }
@@ -543,9 +567,7 @@ impl MediaCache {
     pub fn forget(&mut self, id: PhotoId) {
         self.thumbs.remove(&id);
         self.previews.retain(|e| e.0 != id);
-        if self.full.as_ref().is_some_and(|e| e.0 == id) {
-            self.full = None;
-        }
+        self.full.retain(|e| e.0 != id);
     }
 
     /// (decoded thumbnail sources, bytes).
@@ -558,7 +580,7 @@ impl MediaCache {
         match level {
             SourceLevel::Thumb => self.thumbs.contains(&id),
             SourceLevel::Preview => self.previews.iter().any(|e| e.0 == id),
-            SourceLevel::Full => self.full.as_ref().is_some_and(|e| e.0 == id),
+            SourceLevel::Full => self.full.iter().any(|e| e.0 == id),
         }
     }
 
@@ -566,7 +588,7 @@ impl MediaCache {
     pub fn usage(&self) -> (crate::memory::Usage, crate::memory::Usage, crate::memory::Usage) {
         use crate::memory::Usage;
         let previews = Usage::new(self.previews.len(), self.previews.iter().map(|e| e.1.bytes()).sum());
-        let full = self.full.as_ref().map(|e| Usage::new(1, e.1.bytes())).unwrap_or_default();
+        let full = Usage::new(self.full.len(), self.full.iter().map(|e| e.1.bytes()).sum());
         (Usage::new(self.thumbs.len(), self.thumbs.cost()), previews, full)
     }
 
@@ -1527,6 +1549,36 @@ mod tests {
         assert_eq!(m.usage().1.count, 1);
         assert_eq!(m.usage().0.count, 0);
         assert_eq!(m.rendered.mem_usage().0, 0);
+    }
+
+    // Given Compare zoomed to 1:1 (two photos' originals), both stay decoded; back to one view,
+    // the least recently used goes, and the budget still evicts them like any source
+    #[test]
+    fn full_size_originals_are_kept_up_to_the_capacity() {
+        let img = |w: usize| Arc::new(Rgb32f::new(w, w));
+        let mut m = MediaCache::default();
+        let mb = 1 << 20;
+        m.set_budget(100 * mb);
+        m.insert(PhotoId(1), SourceLevel::Full, img(1000));
+        m.insert(PhotoId(2), SourceLevel::Full, img(1000));
+        assert!(!m.has_source(PhotoId(1), SourceLevel::Full), "one original by default");
+        m.set_full_capacity(2);
+        m.insert(PhotoId(1), SourceLevel::Full, img(1000));
+        assert!(m.has_source(PhotoId(1), SourceLevel::Full) && m.has_source(PhotoId(2), SourceLevel::Full));
+        assert_eq!(m.usage().2.count, 2);
+        // re-inserting a held photo replaces it instead of taking a second place
+        m.insert(PhotoId(2), SourceLevel::Full, img(1000));
+        assert_eq!(m.usage().2.count, 2);
+        // 1 is the least recently used now
+        m.set_full_capacity(1);
+        assert!(!m.has_source(PhotoId(1), SourceLevel::Full) && m.has_source(PhotoId(2), SourceLevel::Full));
+        m.set_full_capacity(0);
+        assert_eq!(m.usage().2.count, 1, "never less than one");
+        m.set_full_capacity(2);
+        m.insert(PhotoId(3), SourceLevel::Full, img(1000));
+        m.set_budget(15 * mb);
+        assert_eq!(m.usage().2.count, 1, "the budget evicts the older original");
+        assert!(m.has_source(PhotoId(3), SourceLevel::Full));
     }
 
     #[test]

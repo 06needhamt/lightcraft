@@ -285,6 +285,13 @@ pub struct LightcraftApp {
     /// (photo, look, window frame size) a window was refused for: it reads more than one render holds.
     pub(crate) window_refused: Option<(lightcraft_catalog::PhotoId, u64, usize)>,
     pub(crate) region_tiles: std::collections::HashMap<(bool, u64), region::RegionView>,
+    /// The window render each pane of Compare / Reference asked for last (left, right), as
+    /// [`Self::region_view`] is for the loupe.
+    pub compare_windows: [Option<region::RegionView>; 2],
+    /// Compare / Reference window renders by (pane, job key): which texture shows what.
+    pub(crate) compare_tiles: std::collections::HashMap<(u8, u64), region::RegionView>,
+    /// Until when (s) a pinch or scroll in Compare / Reference holds the windows there are.
+    pub(crate) compare_hold_until: f64,
     /// Photo Merge dialog previews and background merges.
     pub merge: merge::MergeState,
     /// An import in progress (the import review dialog's batches).
@@ -372,6 +379,9 @@ impl LightcraftApp {
             size_hold: Default::default(),
             window_refused: None,
             region_tiles: Default::default(),
+            compare_windows: [None; 2],
+            compare_tiles: Default::default(),
+            compare_hold_until: f64::NEG_INFINITY,
             merge: merge::MergeState::default(),
             import: None,
             scan: None,
