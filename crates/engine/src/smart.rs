@@ -25,7 +25,10 @@ pub fn file_name(p: &Photo) -> String {
 /// folder to about 1/256 of the library's smart previews.
 pub fn sharded_file_path(dir: &Path, p: &Photo) -> PathBuf {
     let name = file_name(p);
-    dir.join(&name[..2]).join(name)
+    match name.get(..2) {
+        Some(shard) => dir.join(shard).join(&name),
+        None => dir.join(&name),
+    }
 }
 
 /// Read an existing proxy in either layout. New proxies use the sharded location; previews
