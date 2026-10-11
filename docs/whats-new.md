@@ -10,6 +10,8 @@
   its embedded JPEG or a thumbnail to show, the loupe now says so at the bottom of the photo ("Original offline · no
   smart preview" or "This photo can't be opened", the reason on hover) instead of showing that preview as if it were
   the photo.
+- Compare and Reference View panes say "Rendering…" (or that the photo can't be opened) the same way, so a
+  magnified preview isn't taken for the photo when checking focus at 1:1.
 
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
