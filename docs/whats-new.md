@@ -8,6 +8,11 @@
   library open now stays, and LightCraft says "This is a Lightroom catalog, not a LightCraft library" and offers
   **Import Lightroom Catalog…** with that catalog, or Cancel. `lightcraft-cli --library` refuses those folders too.
 
+### Canon EOS R5 Mark II
+- Canon EOS R5 Mark II C-RAW files that opened as "preview only" (more than half of them, depending on the
+  scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos
+  imported earlier switch over with Photo ▸ Reload from Disk.
+
 ## 2026-10-10
 
 ### Dialogs fit the window
