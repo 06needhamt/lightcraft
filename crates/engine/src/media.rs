@@ -758,6 +758,28 @@ impl RenderJob {
         self
     }
 
+    /// Render with some colour grading wheels (shadows, midtones, highlights) switched off for
+    /// viewing (the wheel eyes in the Edit panel). The photo's settings are untouched; the result
+    /// gets its own key and is never cached as the photo's preview or thumbnail.
+    pub fn with_hidden_grading(mut self, hidden: [bool; 3]) -> Self {
+        if !hidden.iter().any(|h| *h) {
+            return self;
+        }
+        let mut s = (*self.settings).clone();
+        let g = &mut s.grading;
+        for (off, wheel) in hidden.into_iter().zip([&mut g.shadows, &mut g.midtones, &mut g.highlights]) {
+            if off {
+                *wheel = lightcraft_develop::Wheel::default();
+            }
+        }
+        let bits = hidden.iter().enumerate().fold(0u64, |b, (i, h)| b | ((*h as u64) << i));
+        self.key ^= s.hash64() ^ self.settings.hash64() ^ bits.wrapping_mul(0xd6e8_feb8_6659_fd93);
+        self.settings = Arc::new(s);
+        self.cache = None;
+        self.view_cache = None;
+        self
+    }
+
     /// Reuse `stages` across this view's renders.
     pub fn with_stages(mut self, stages: Arc<StageCache>) -> Self {
         self.stages = Some(stages);
@@ -1513,6 +1535,23 @@ mod tests {
         assert_eq!(source.bytes(), reserved, "creating a mix cannot evade the LRU's recorded cost");
         let _ = source.image_for(0.25);
         assert_eq!(source.bytes(), reserved, "changing Amount replaces the reserved mix");
+    }
+
+    #[test]
+    fn hidden_grading_wheels_render_neutral_without_touching_the_photo() {
+        let mut s = crate::Session::with_demo();
+        let id = s.active().unwrap();
+        s.execute("develop.set", &serde_json::json!({"values": {"grading.shadows.sat": 60, "grading.highlights.sat": 40}})).unwrap();
+        let job = s.loupe_job(id, 64, 64, true).unwrap();
+        let same = job.clone().with_hidden_grading([false; 3]);
+        assert_eq!(same.key, job.key, "nothing hidden: the job is unchanged");
+        assert!(same.view_cache.is_some());
+        let hidden = job.clone().with_hidden_grading([true, false, false]);
+        assert_eq!(hidden.settings.grading.shadows.sat, 0.0);
+        assert_eq!(hidden.settings.grading.highlights.sat, 40.0);
+        assert_ne!(hidden.key, job.key, "a hidden wheel gets its own result key");
+        assert!(hidden.view_cache.is_none() && hidden.cache.is_none(), "never cached as the photo's preview");
+        assert_eq!(s.catalog.photo(id).unwrap().develop.grading.shadows.sat, 60.0, "the edit is untouched");
     }
 
     #[test]

@@ -63,6 +63,8 @@ mod tests_dialog_fit;
 #[cfg(test)]
 mod tests_filmstrip;
 #[cfg(test)]
+mod tests_grading;
+#[cfg(test)]
 mod tests_grid;
 #[cfg(test)]
 mod tests_info_dialogs;

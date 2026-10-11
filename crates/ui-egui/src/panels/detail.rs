@@ -319,6 +319,7 @@ fn request_window(app: &mut LightcraftApp, c: &WindowCtx, v: &WindowView) -> Opt
     };
     // a drag renders drafts of the window, as it does of the whole frame
     let job = if c.interacting { job.draft() } else { job };
+    let job = if v.before { job } else { job.with_hidden_grading(app.ui.grading_hidden_for(c.id)) };
     let look = job.settings.hash64();
     let view = crate::region::RegionView { photo: c.id, before: v.before, key: job.key, full: (fw, fh), window: win, settings: look };
     // windows of other photos, looks and zooms of this side can't be drawn any more
@@ -456,6 +457,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if let Some(job) = app.session.loupe_job(id, rw.max(8), rh.max(8), !crop_tool) {
         let job = if interacting { job.draft() } else { job };
         let job = job.with_overlay(view_overlay(app, &d)).with_proof(app.ui.soft_proof.then_some(app.ui.proof));
+        let job = job.with_hidden_grading(app.ui.grading_hidden_for(id));
         app.renderer.request(Slot::Main, job, 100);
     }
     // hovering a preset or profile: the photo with that look, shown instead of the loupe render

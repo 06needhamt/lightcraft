@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -196,7 +196,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-EDIT-COLOR-MIXER-HSL | 8-band colour mixer | P0 | ✅ | `ctl:mixer.*` | no targeted (drag-on-image) mode |
 | LR-EDIT-COLOR-MIXER-BW | B&W mix | P1 | ✅ | `ctl:bw.*`, `cmd:develop.autoBwMix` | eight bands; Auto pushes each hue band's colourful pixels away from the mean lightness (own rule) |
 | LR-EDIT-COLOR-POINTCOLOR | Point colour | P1 | ✅ | `cmd:pointColor.pick`, `cmd:pointColor.delete` | |
-| LR-EDIT-COLOR-GRADING | Colour grading wheels | P0 | ✅ | `ctl:grading.*` | |
+| LR-EDIT-COLOR-GRADING | Colour grading wheels | P0 | ✅ | `ctl:grading.*`, `crates/ui-egui/src/panels/edit.rs` (`grading`) | 3-Way / Shadows / Midtones / Highlights tabs; a range tab shows one large wheel with Hue, Saturation and Luminance sliders; Blending and Balance in every tab; 3-Way shows the hovered wheel's hue and saturation; every wheel marks its neutral centre; Shift-drag locks the hue and changes saturation only, showing the spoke as a guide; the large wheel adds 25/50/75 % saturation rings (issue #559); each wheel's eye hides its effect for viewing only (`RenderJob::with_hidden_grading`, not saved, export unaffected) (issue #737). No Global wheel tab yet |
 | LR-EDIT-EFFECTS-TEXTURE | Texture | P0 | ✅ | `ctl:effects.texture` | |
 | LR-EDIT-EFFECTS-CLARITY | Clarity | P0 | ✅ | `ctl:effects.clarity` | |
 | LR-EDIT-EFFECTS-DEHAZE | Dehaze | P0 | ✅ | `ctl:effects.dehaze` | |
@@ -786,4 +786,4 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-11 | minor | LR-IMP-FORMATS and LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes from sensor data (57% of its C-RAW files opened as a preview: QP-map escape); status unchanged (🟡) |
 | 2026-10-10 | patch | LR-BEHAV-UNDO: file/XMP repair retries and merged rename Undo/Redo evidence; status and summary counts unchanged. |
 | 2026-10-10 | minor | Renamed from `parity.md` (progress-docs standard); Top gaps moved to gaps.md (its duplicated items 1–2 from a bad merge resolved there), shortcut notes moved to ui-parity.md. Rows unchanged; a recount of the rows gives 81.1% of 517 in-scope rows (P0 98.0%, P1 95.1%, P2 46.9%), so the generated summary above is due a `cargo xtask parity --write` |
-| 2026-09-30 – 2026-10-10 | — | Rows added and updated with each feature (see `git log -- docs/parity.md docs/parity-checklist.md`) |
+| 2026-09-30 – 2026-10-11 | — | Rows added and updated with each feature (see `git log -- docs/parity.md docs/parity-checklist.md`) |
