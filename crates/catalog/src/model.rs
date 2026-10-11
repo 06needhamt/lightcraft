@@ -293,6 +293,12 @@ pub struct Photo {
     /// picture style baked in — so it is treated as a rendered (non-raw) source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_only: Option<String>,
+    /// The app version (`CARGO_PKG_VERSION`) whose decoder set [`Photo::preview_only`]; empty when
+    /// it isn't set, and in catalogs from before format v9. A preview-only photo whose stamp
+    /// differs from the running version is rechecked when its library opens (issue #662): newer
+    /// builds may decode the file, older ones may decode less.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub preview_checked: String,
     /// A Local record: the fingerprint of its state when the browse catalogued it, to tell
     /// whether the user changed anything since (see [`crate::local`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -330,6 +336,16 @@ pub fn relative_wb_format(format: &str) -> bool {
 /// its own presets. The engine's render path (`files.rs`) decides the same way from the file; both must agree.
 pub fn relative_wb_camera(format: &str, camera: &str) -> bool {
     relative_wb_format(format) && lightcraft_raw::spectral::find_camera(camera).is_none() && !lightcraft_raw::kelvin_presets::covers_camera(camera)
+}
+
+/// This build's version: what a photo's [`Photo::preview_checked`] stamp is compared with. Every
+/// workspace crate shares one version, so it is the app's.
+pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The [`Photo::preview_checked`] stamp for a `preview_only` decided by this build: its version
+/// when the photo is preview-only, empty otherwise.
+pub fn preview_stamp(preview_only: &Option<String>) -> String {
+    if preview_only.is_some() { APP_VERSION.to_string() } else { String::new() }
 }
 
 impl Photo {
@@ -371,8 +387,19 @@ impl Photo {
             import_look: None,
             analysis: None,
             preview_only: None,
+            preview_checked: String::new(),
             local_baseline: None,
         }
+    }
+    /// Sets [`Photo::preview_only`] as this build decided it, with its stamp.
+    pub fn set_preview_only(&mut self, preview_only: Option<String>) {
+        self.preview_checked = preview_stamp(&preview_only);
+        self.preview_only = preview_only;
+    }
+    /// A preview-only photo whose flag was set by another app version (or before stamps existed),
+    /// so this build should probe its file again (issue #662).
+    pub fn preview_only_stale(&self) -> bool {
+        self.preview_only.is_some() && self.preview_checked != APP_VERSION
     }
     /// A raw file developed from its sensor data: not a rendered image, and not a raw shown from
     /// its embedded preview ([`Photo::preview_only`]).

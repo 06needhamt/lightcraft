@@ -1720,6 +1720,7 @@ mod thumbnail_hash_tests {
                 file_size: 99,
                 content_hash: Some("replacement".into()),
                 preview_only: None,
+                preview_checked: String::new(),
             })
             .unwrap();
         s.media.forget(PhotoId(1));

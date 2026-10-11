@@ -265,13 +265,30 @@ fn preview_only_survives_serde_and_set_content_undo() {
     let old: Catalog = serde_json::from_value(v).unwrap();
     assert_eq!(old.photo(a).unwrap().preview_only, None);
     assert!(old.photo(a).unwrap().develops_raw());
-    // Reload: the file decodes now → cleared; undo (through the journal's JSON) restores it
-    let op = Op::SetContent { id: a, width: 6016, height: 4000, file_size: 1, content_hash: None, preview_only: None };
+    // a newer build still can't decode it: the reason and the stamp of the version that decided
+    // it are recorded together (#662)
+    let op = Op::SetContent {
+        id: a,
+        width: 6000,
+        height: 4000,
+        file_size: 1,
+        content_hash: None,
+        preview_only: Some("Nikon Huffman-compressed NEF".into()),
+        preview_checked: "0.6.0".into(),
+    };
+    c.apply(op).unwrap();
+    assert_eq!(c.photo(a).unwrap().preview_checked, "0.6.0");
+    // Reload: the file decodes now → cleared, with its stamp; undo (through the journal's JSON)
+    // restores both
+    let op =
+        Op::SetContent { id: a, width: 6016, height: 4000, file_size: 1, content_hash: None, preview_only: None, preview_checked: String::new() };
     let inv = c.apply(op).unwrap();
     assert!(c.photo(a).unwrap().develops_raw());
+    assert_eq!(c.photo(a).unwrap().preview_checked, "");
     let inv: Op = serde_json::from_str(&serde_json::to_string(&inv).unwrap()).unwrap();
     c.apply(inv).unwrap();
     assert_eq!(c.photo(a).unwrap().preview_only.as_deref(), Some("Nikon Huffman-compressed NEF"));
+    assert_eq!(c.photo(a).unwrap().preview_checked, "0.6.0");
     assert_eq!(c.photo(a).unwrap().width, 6000);
 }
 
