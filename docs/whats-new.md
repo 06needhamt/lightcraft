@@ -2,6 +2,11 @@
 
 ## 2026-10-11
 
+### "Rendering…" on the photo
+- The loupe says "Rendering…" at the bottom of the photo when what it shows isn't the finished photo yet: the
+  camera's embedded JPEG while a raw decodes, the previous render while an edit renders, or the magnified frame
+  while the 1:1 detail is on its way. It appears once that has lasted half a second, so quick renders never show it.
+
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
   (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a
