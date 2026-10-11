@@ -41,6 +41,13 @@
   sidecar lookup always did; the Add Photos dialog on Linux did not until 0.5.0 (GTK and the desktop portal match
   `*.jpg` case-sensitively, so `.JPG` and `.NEF` files were hidden — issues #342 and #705).
 
+### Reliability
+- Closing a library releases its lock explicitly (issue #680). On Linux and macOS the lock used to go with the file
+  handle, and a program being started by another thread at that moment held a copy of the handle until it was fully
+  launched, so reopening the library straight away could be refused with "This library is already open in another
+  LightCraft program" although nothing had it open. Nothing in the shipped app is known to hit the window today; it
+  made a lock test flaky, and the fix closes the window for good.
+
 ## 2026-10-09
 
 ### Smart album rules
