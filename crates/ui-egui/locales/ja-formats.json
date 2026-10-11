@@ -228,5 +228,7 @@
   "+{n} more": "ほか{n}件",
   "1 task is still running: {names}. Quitting stops it.": "1件のタスクが実行中です：{names}。終了すると停止します。",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n}件のタスクが実行中です：{names}。終了すると停止します。",
-  "{what} merge cancelled": "{what}合成をキャンセルしました"
+  "{what} merge cancelled": "{what}合成をキャンセルしました",
+  "New Folder in “{name}”": "「{name}」に新規フォルダ",
+  "Moved {} photo(s)": "{} 枚の写真を移動しました"
 }

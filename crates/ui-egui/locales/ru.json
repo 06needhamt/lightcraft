@@ -1598,5 +1598,11 @@
   "Finding faces": "Поиск лиц",
   "Quit Anyway": "Всё равно выйти",
   "Synchronizing folder": "Синхронизация папки",
-  "Looking for changes": "Поиск изменений"
+  "Looking for changes": "Поиск изменений",
+  "New Folder on Disk": "Новая папка на диске",
+  "New Folder on Disk…": "Новая папка на диске…",
+  "Move to Folder": "Переместить в папку",
+  "Move to Folder…": "Переместить в папку…",
+  "Move Selected Photos Here": "Переместить выбранные фото сюда",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Перемещает файлы и их XMP-файлы в эту папку; ничего не перезаписывает"
 }

@@ -1886,5 +1886,11 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "New Folder on Disk": "ディスクに新規フォルダ",
+  "New Folder on Disk…": "ディスクに新規フォルダ…",
+  "Move to Folder": "フォルダへ移動",
+  "Move to Folder…": "フォルダへ移動…",
+  "Move Selected Photos Here": "選択した写真をここへ移動",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "ファイルと XMP サイドカーをこのフォルダへ移動します。上書きはしません"
 }

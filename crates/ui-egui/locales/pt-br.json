@@ -1884,5 +1884,11 @@
   "Downloading model": "Baixando modelo",
   "Finding faces": "Procurando rostos",
   "Synchronizing folder": "Sincronizando pasta",
-  "Looking for changes": "Procurando alterações"
+  "Looking for changes": "Procurando alterações",
+  "New Folder on Disk": "Nova pasta no disco",
+  "New Folder on Disk…": "Nova pasta no disco…",
+  "Move to Folder": "Mover para pasta",
+  "Move to Folder…": "Mover para pasta…",
+  "Move Selected Photos Here": "Mover as fotos selecionadas para cá",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Move os arquivos e seus arquivos XMP auxiliares para esta pasta; nunca sobrescreve"
 }

@@ -1884,5 +1884,11 @@
   "Downloading model": "正在下载模型",
   "Finding faces": "正在查找人脸",
   "Synchronizing folder": "正在同步文件夹",
-  "Looking for changes": "正在查找更改"
+  "Looking for changes": "正在查找更改",
+  "New Folder on Disk": "在磁盘上新建文件夹",
+  "New Folder on Disk…": "在磁盘上新建文件夹…",
+  "Move to Folder": "移动到文件夹",
+  "Move to Folder…": "移动到文件夹…",
+  "Move Selected Photos Here": "将所选照片移到此处",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "将文件及其 XMP 附属文件移到此文件夹；绝不覆盖"
 }

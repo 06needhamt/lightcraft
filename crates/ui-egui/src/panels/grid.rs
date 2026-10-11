@@ -935,6 +935,15 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if ui.button(crate::i18n::tr("Rename…")).clicked() {
         let _ = app.run("dialog.rename", json!({}));
     }
+    if app.services.pick_folder.is_some() && ui.button(crate::i18n::tr("Move to Folder…")).clicked() {
+        let into = app.services.pick_folder.as_mut().and_then(|f| f());
+        if let Some(into) = into {
+            match app.run("photo.moveToFolder", json!({"folder": into})) {
+                Ok(r) => app.toast(ui.ctx(), crate::i18n::tr_format!("Moved {} photo(s)", r["moved"])),
+                Err(e) => app.toast(ui.ctx(), e),
+            }
+        }
+    }
     if ui.button(crate::i18n::tr("Reload from Disk")).clicked() {
         let _ = app.run("photo.reload", json!({}));
     }

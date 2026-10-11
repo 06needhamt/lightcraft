@@ -228,5 +228,7 @@
   "+{n} more": "+{n} más",
   "1 task is still running: {names}. Quitting stops it.": "1 tarea sigue en curso: {names}. Salir la detiene.",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n} tareas siguen en curso: {names}. Salir las detiene.",
-  "{what} merge cancelled": "Combinación {what} cancelada"
+  "{what} merge cancelled": "Combinación {what} cancelada",
+  "New Folder in “{name}”": "Nueva carpeta en «{name}»",
+  "Moved {} photo(s)": "{} foto(s) movida(s)"
 }

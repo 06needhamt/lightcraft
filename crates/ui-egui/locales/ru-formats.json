@@ -228,5 +228,7 @@
   "+{n} more": "ещё {n}",
   "1 task is still running: {names}. Quitting stops it.": "Ещё выполняется задача: {names}. Выход прервёт её.",
   "{n} tasks are still running: {names}. Quitting stops them.": "Ещё выполняется задач: {n} — {names}. Выход прервёт их.",
-  "{what} merge cancelled": "{what}: слияние отменено"
+  "{what} merge cancelled": "{what}: слияние отменено",
+  "New Folder in “{name}”": "Новая папка в «{name}»",
+  "Moved {} photo(s)": "Перемещено фото: {}"
 }

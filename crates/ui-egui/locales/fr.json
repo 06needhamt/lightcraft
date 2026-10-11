@@ -1884,5 +1884,11 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "New Folder on Disk": "Nouveau dossier sur le disque",
+  "New Folder on Disk…": "Nouveau dossier sur le disque…",
+  "Move to Folder": "Déplacer vers un dossier",
+  "Move to Folder…": "Déplacer vers un dossier…",
+  "Move Selected Photos Here": "Déplacer ici les photos sélectionnées",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Déplace les fichiers et leurs fichiers annexes XMP dans ce dossier ; n'écrase jamais rien"
 }
