@@ -252,8 +252,16 @@ impl Session {
     /// The library is locked for this session ([`lightcraft_catalog::lock`]): if another process
     /// has it open, this fails with [`EngineError::LibraryInUse`] and nothing is read or changed.
     /// Reopening the library this session already has open keeps its lock.
+    ///
+    /// A Lightroom Classic catalog folder, one of its `.lrdata` / `.lrcat-data` folders or an
+    /// `.lrcat` file is refused with [`EngineError::LightroomCatalog`] before anything is
+    /// created ([`crate::lightroom_folder`]); a LightCraft library always opens, whatever else
+    /// its folder holds.
     pub fn open_library(&mut self, dir: impl AsRef<Path>, seed_demo: bool) -> Result<&LoadReport> {
         let dir = dir.as_ref().to_path_buf();
+        if let Some(place) = crate::lightroom_folder::lightroom_catalog_at(&dir) {
+            return Err(EngineError::LightroomCatalog { path: dir, catalog: place.catalog });
+        }
         let open = || FsStore::open(&dir).map_err(|e| EngineError::Other(format!("can't open library {}: {e}", dir.display())));
         let stores = LibraryStores { catalog: Box::new(open()?), files: Box::new(open()?), on_disk: true, dir: dir.clone() };
         // the library open in this session (same directory): hand its lock over

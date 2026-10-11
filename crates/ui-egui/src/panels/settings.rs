@@ -624,6 +624,11 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 
 /// `app.openLibrary {path?}`: close the current library and open (or create) the one at `path`,
 /// or a folder chosen in a dialog. Remembered as the library to open at launch.
+///
+/// A Lightroom Classic catalog (its folder, an `.lrdata` / `.lrcat-data` folder or the `.lrcat`
+/// itself, see [`lightcraft_engine::lightroom_folder`]) is not opened: the current library stays
+/// and a dialog offers Import Lightroom Catalog… instead; returns `{opened: false,
+/// lightroomCatalog: <.lrcat path or null>, path}`.
 pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
     if crate::lightroom_import::is_running(app) {
         return Err("wait for Lightroom catalog import to finish before switching libraries".into());
@@ -642,6 +647,18 @@ pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String>
             }
         }
     };
+    // A Lightroom catalog folder (or part of one) is not a library: before closing the library
+    // open now, offer to import it instead (issue #891). The engine refuses it too.
+    if let Some(place) = lightcraft_engine::lightroom_folder::lightroom_catalog_at(std::path::Path::new(&path)) {
+        let catalog = place.catalog.map(|c| c.to_string_lossy().into_owned());
+        let err = lightcraft_engine::EngineError::LightroomCatalog { path: path.clone().into(), catalog: catalog.clone().map(Into::into) };
+        // the library problem window (no library could be opened) shows the error instead
+        if app.library_problem.is_some() {
+            return Err(err.to_string());
+        }
+        app.ui.dialog = Some(crate::state::Dialog::LightroomCatalog { folder: path.clone(), catalog: catalog.clone() });
+        return Ok(json!({"opened": false, "lightroomCatalog": catalog, "path": path}));
+    }
     app.session.close_library().map_err(|e| e.to_string())?;
     app.session.open_library(&path, false).map_err(|e| e.to_string())?;
     app.lightroom_last = None;

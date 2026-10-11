@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Open Library knows a Lightroom catalog
+- Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
+  `.lrcat-data` folders, or the `.lrcat`) no longer makes an empty LightCraft library inside it (issue #891). The
+  library open now stays, and LightCraft says "This is a Lightroom catalog, not a LightCraft library" and offers
+  **Import Lightroom Catalog…** with that catalog, or Cancel. `lightcraft-cli --library` refuses those folders too.
+
 ## 2026-10-10
 
 ### Activity stack

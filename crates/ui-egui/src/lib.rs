@@ -87,6 +87,8 @@ mod tests_menubar;
 #[cfg(test)]
 mod tests_offline;
 #[cfg(test)]
+mod tests_open_lightroom;
+#[cfg(test)]
 mod tests_panels;
 #[cfg(test)]
 mod tests_preview_limit;
