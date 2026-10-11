@@ -1133,3 +1133,36 @@ fn fuji_embedded_lens_tables_follow_the_validated_models() {
     }
     eprintln!("Fuji lens tables: {checked} RAFs, {warped} warps, {vignetted} vignette gains");
 }
+
+/// Epson ERF (`crates/raw/src/vendor/erf.rs`): the 16-byte block strip decodes to a smooth 3040 x 2024 RGGB
+/// mosaic with the maker note's black levels, the 3008 x 2000 crop and a white balance measured from the
+/// preview's neutral pixels. Skips files that are absent.
+#[test]
+fn corpus_epson_erf() {
+    let root = corpus_root().join("raw");
+    let mut checked = 0;
+    for name in ["erf-epson-rd1.erf", "erf-epson-rd1s.erf", "erf-epson-rd1x.erf"] {
+        let Ok(bytes) = std::fs::read(root.join(name)) else {
+            eprintln!("skip: {name} absent");
+            continue;
+        };
+        assert_eq!(probe(&bytes), Some(RawFormat::Erf), "{name}");
+        let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!((img.width, img.height, img.bits), (3040, 2024, 12), "{name}");
+        assert_eq!((img.crop.x, img.crop.y, img.crop.width, img.crop.height), (20, 12, 3008, 2000), "{name}");
+        assert_eq!(img.cfa.as_ref().map(|c| c.name()).as_deref(), Some("RGGB"), "{name}");
+        assert!(img.black.values.len() == 4 && img.black.values.iter().all(|b| (55.0..=70.0).contains(b)), "{name}: {:?}", img.black.values);
+        let wb = img.wb_multipliers.unwrap_or_else(|| panic!("{name}: no white balance"));
+        eprintln!("{name}: wb {wb:?}");
+        if name == "erf-epson-rd1s.erf" {
+            assert!((wb[0] - 2.68).abs() < 0.1 && (wb[2] - 1.31).abs() < 0.1, "{name}: {wb:?}");
+        }
+        // same-colour neighbours differ little: the bit order is right
+        let lightcraft_raw::RawData::U16(d) = &img.data else { panic!("float data") };
+        let step: f64 = d.chunks(3040).take(400).flat_map(|r| r.windows(3).map(|w| f64::from(w[0].abs_diff(w[2])))).sum::<f64>() / (400.0 * 3038.0);
+        assert!(step < 40.0, "{name}: rough {step}");
+        assert!(embedded_preview(&bytes).is_some(), "{name}: no preview");
+        checked += 1;
+    }
+    eprintln!("ERF: {checked} corpus files checked");
+}

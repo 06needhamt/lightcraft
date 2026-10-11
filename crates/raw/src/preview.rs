@@ -178,8 +178,8 @@ pub fn embedded_preview(bytes: &[u8]) -> Option<Vec<u8>> {
         .filter(|s| is_dct_jpeg(s) || is_jxl(s))
         .max_by_key(|s| s.len())
         .map(|s| if is_jxl(s) { s.to_vec() } else { trim_eoi(s).to_vec() });
-    // a TIFF raw we can't decode whose preview no tag points to (Leaf MOS, Epson ERF)
-    best.or_else(|| format.filter(|f| !f.is_supported()).and_then(|_| scan_for_jpeg(bytes)))
+    // a TIFF raw whose preview no tag points to: one we can't decode (Leaf MOS), or Epson ERF (in its maker note)
+    best.or_else(|| format.filter(|f| !f.is_supported() || *f == crate::RawFormat::Erf).and_then(|_| scan_for_jpeg(bytes)))
 }
 
 /// The end of the DCT JPEG whose SOI is at `soi` (exclusive index after its EOI) and its component count,

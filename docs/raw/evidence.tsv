@@ -248,3 +248,6 @@ Sony	RX1R II (DSC-RX1RM2)	verified	issue #535: raw.pixls.us bulk check of all 10
 Sony	ZV-1 (DCZV1/B)	verified	issue #535: raw.pixls.us bulk check of all 100 Sony bodies (decodes; BL/WL/crop/WB vs ExifTool)
 Sony	ZV-E1	verified	issue #535: raw.pixls.us bulk check of all 100 Sony bodies (decodes; BL/WL/crop/WB vs ExifTool)
 Sony	ZV-E10	verified	issue #535: raw.pixls.us bulk check of all 100 Sony bodies (decodes; BL/WL/crop/WB vs ExifTool)
+Epson	R-D1	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Epson	R-D1s	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Epson	R-D1x	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
