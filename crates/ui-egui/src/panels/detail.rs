@@ -1285,7 +1285,7 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             None if inside(hq) && !rotating => egui::CursorIcon::Move,
             // a drag here rotates: no system cursor shows that, so draw a curved double arrow
             None => {
-                rotate_cursor(ui, hq);
+                rotate_cursor(ui, hq, rotate_cursor_turn(&pts, hq, inside(hq)));
                 egui::CursorIcon::None
             }
         };
@@ -1383,13 +1383,36 @@ fn top_painter(ui: &egui::Ui, name: &'static str) -> egui::Painter {
     ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new(name)))
 }
 
-/// The rotation pointer: a curved double arrow on a dark disc, so it reads over any photo.
-fn rotate_cursor(ui: &egui::Ui, at: Pos2) {
+/// The rotation pointer: a curved double arrow on a dark disc, so it reads over any photo,
+/// turned `turn` radians clockwise ([`rotate_cursor_turn`]).
+fn rotate_cursor(ui: &egui::Ui, at: Pos2, turn: f32) {
     let p = top_painter(ui, "crop-rotate-cursor");
     let r = Rect::from_center_size(at, vec2(22.0, 22.0));
     p.circle_filled(at, 12.0, Color32::from_black_alpha(150));
-    crate::icons::paint(&p, r.shrink(2.0), crate::icons::Icon::RotateDrag, Color32::WHITE);
+    crate::icons::paint_turned(&p, r.shrink(2.0), crate::icons::Icon::RotateDrag, Color32::WHITE, turn);
     register(ui.ctx(), "cropRotateCursor", r);
+}
+
+/// How far to turn the rotation pointer (radians, clockwise) so its arc, drawn bulging up, bulges
+/// away from the crop box `pts` (its four corners on screen, maybe rotated): up above the top edge,
+/// right beside the right edge, down below it, diagonally off a corner. Measured from the nearest
+/// point of the box's outline; `inside` (a rotate drag that has come back over the box) faces it
+/// the other way, still away from that edge.
+fn rotate_cursor_turn(pts: &[Pos2], q: Pos2, inside: bool) -> f32 {
+    let nearest = (0..pts.len())
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+            let ab = b - a;
+            let t = if ab.length_sq() > 0.0 { ((q - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+            a + ab * t
+        })
+        .min_by(|a, b| a.distance_sq(q).total_cmp(&b.distance_sq(q)));
+    let Some(nearest) = nearest else { return 0.0 };
+    let away = if inside { nearest - q } else { q - nearest };
+    if away.length() < 0.5 {
+        return 0.0;
+    }
+    away.y.atan2(away.x) + std::f32::consts::FRAC_PI_2
 }
 
 /// While rotating: the angle, next to the pointer, kept inside `bounds` (the canvas): on the
@@ -2143,6 +2166,36 @@ fn straighten_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::R
 
 #[cfg(test)]
 mod tests {
+    /// The rotation pointer's arc bulges away from the side of the crop box it is on, and follows
+    /// a box that is itself rotated.
+    #[test]
+    fn rotate_cursor_faces_away_from_the_crop_box() {
+        use egui::{Pos2, pos2};
+        use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
+        let near = |a: f32, b: f32| ((a - b + PI).rem_euclid(2.0 * PI) - PI).abs() < 1e-3;
+        let pts = [pos2(100.0, 100.0), pos2(300.0, 100.0), pos2(300.0, 200.0), pos2(100.0, 200.0)];
+        let turn = |x: f32, y: f32| super::rotate_cursor_turn(&pts, pos2(x, y), false);
+        assert!(near(turn(200.0, 80.0), 0.0), "above: as drawn");
+        assert!(near(turn(320.0, 150.0), FRAC_PI_2), "right");
+        assert!(near(turn(200.0, 230.0), PI), "below");
+        assert!(near(turn(70.0, 150.0), -FRAC_PI_2), "left");
+        assert!(near(turn(290.0, 60.0), 0.0), "above the top edge near its end: still up");
+        assert!(near(turn(320.0, 80.0), FRAC_PI_4), "off the top-right corner: diagonal");
+        assert!(near(super::rotate_cursor_turn(&pts, pos2(200.0, 110.0), true), 0.0), "dragged back over the top edge: still up");
+        // a box turned 90°: its top edge is now on the right
+        let turned = [pts[3], pts[0], pts[1], pts[2]].map(|p| pos2(400.0 - p.y, p.x));
+        assert!(near(super::rotate_cursor_turn(&turned, pos2(420.0, 200.0), false), FRAC_PI_2));
+        // a box turned 30°: straight out from its top edge is 30° clockwise of up
+        let c = pos2(200.0, 150.0);
+        let rot = |p: Pos2| {
+            let (s, co) = (30f32.to_radians().sin(), 30f32.to_radians().cos());
+            let d = p - c;
+            pos2(c.x + d.x * co - d.y * s, c.y + d.x * s + d.y * co)
+        };
+        let tilted = pts.map(rot);
+        assert!(near(super::rotate_cursor_turn(&tilted, rot(pos2(200.0, 60.0)), false), 30f32.to_radians()));
+    }
+
     use super::{film_label, texture_side};
 
     /// Issue #652: a native host reports the GPU's texture limit in the first frame's input only.
