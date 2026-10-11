@@ -152,3 +152,20 @@ fn dragging_a_point_past_its_neighbour_is_clamped() {
     assert!(c[1].0 < c[2].0 && c[1].0 > 0.55, "clamped just left of its neighbour: {c:?}");
     assert_eq!(c[2], (0.6, 0.6), "the neighbour stays: {c:?}");
 }
+
+/// A targeted-adjustment tool takes over clicks and drags on the photo, so turning it on says so
+/// (and how to leave), and Esc leaves it: one left on by mistake looked like a frozen canvas.
+#[test]
+fn targeted_adjustment_announces_itself_and_esc_turns_it_off() {
+    let mut h = curve_open("master");
+    let r = h.request("ui.clickWidget", json!({"id": "icon:tat-curve"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(h.app.ui.tool, "tat:curve");
+    assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("Esc")), "{:?}", h.app.ui.toast);
+    let r = h.request("ui.key", json!({"key": "esc"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.ui.tool.is_empty(), "Esc turns the tool off: {:?}", h.app.ui.tool);
+    assert!(matches!(h.app.ui.view, crate::state::ViewMode::Detail), "the first Esc only leaves the tool");
+}
