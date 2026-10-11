@@ -2141,3 +2141,40 @@ fn right_click_add_to_album_offers_a_new_album_when_there_is_none() {
     assert!(trip.photos.contains(&photo), "the right-clicked photo is in it: {:?}", trip.photos);
     assert!(h.app.ui.dialog.is_none(), "{:?}", h.app.ui.dialog);
 }
+
+#[test]
+fn alt_while_dragging_an_edit_slider_shows_its_preview() {
+    use crate::state::RightPanel;
+    use lightcraft_pipeline::Overlay;
+    let mut h = demo([1400.0, 900.0], json!({"view": "detail", "right": "edit"}));
+    let id = h.app.session.active().expect("active photo");
+    let d = (*h.app.session.develop_of(id).unwrap_or_default()).clone();
+    let view = |h: &Headless| crate::panels::detail::view_overlay(&h.app, &d);
+    assert_eq!(h.app.ui.right, RightPanel::Edit);
+    h.app.ui.dragging_control = Some("light.blacks".into());
+    assert_eq!(view(&h), Overlay::None, "dragging without Alt shows the photo");
+    h.app.ui.alt_held = true;
+    assert_eq!(view(&h), Overlay::ClipShadows);
+    for (c, o) in [
+        ("light.whites", Overlay::ClipHighlights),
+        ("light.exposure", Overlay::ClipHighlights),
+        ("detail.sharpenAmount", Overlay::Grayscale),
+        ("detail.sharpenRadius", Overlay::SharpenDetail),
+        ("detail.sharpenMasking", Overlay::SharpenMask),
+        ("light.contrast", Overlay::None),
+    ] {
+        h.app.ui.dragging_control = Some(c.into());
+        assert_eq!(view(&h), o, "{c}");
+    }
+    // Alt alone (no drag) or released mid-drag: back to the photo
+    h.app.ui.dragging_control = None;
+    assert_eq!(view(&h), Overlay::None);
+    h.app.ui.dragging_control = Some("light.whites".into());
+    h.app.ui.alt_held = false;
+    assert_eq!(view(&h), Overlay::None);
+    // the Masking panel's local Blacks slider is not a global clipping preview
+    h.app.ui.alt_held = true;
+    h.app.ui.right = RightPanel::Masking;
+    h.app.ui.dragging_control = Some("light.blacks".into());
+    assert_eq!(view(&h), Overlay::None);
+}

@@ -253,7 +253,7 @@ fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
 /// Mask overlays are evaluated from the same mask alpha as the full render; the other diagnostic
 /// overlays either need whole-frame context or deliberately replace the loupe.
 pub(crate) fn overlay_supports_window(overlay: lightcraft_pipeline::Overlay) -> bool {
-    matches!(overlay, lightcraft_pipeline::Overlay::None | lightcraft_pipeline::Overlay::Mask { .. })
+    overlay.per_pixel()
 }
 
 /// What a window render of the loupe needs to know about the view it belongs to.
@@ -444,7 +444,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let look = d.hash64();
     let overlay = view_overlay(app, &d);
     // Diagnostic views that need whole-frame context, soft proofing, or reads too far for one
-    // window still render the whole frame at the size it is drawn. A mask overlay is window-safe.
+    // window still render the whole frame at the size it is drawn. Per-pixel ones (a mask,
+    // clipping) are window-safe.
     let sizes = crate::region::ViewSizes {
         drawn_long,
         canvas_long: canvas.width().max(canvas.height()) * ppp,
@@ -1118,12 +1119,19 @@ fn targeted_drag(app: &mut LightcraftApp, resp: &egui::Response, map: &CanvasMap
     }
 }
 
-/// The diagnostic overlay the loupe shows (the selected mask, Point Color's visualized range,
-/// Visualize Spots).
+/// The diagnostic overlay the loupe shows (an Alt-drag preview, the selected mask, Point Color's
+/// visualized range, Visualize Spots).
 pub(crate) fn view_overlay(app: &LightcraftApp, d: &DevelopSettings) -> lightcraft_pipeline::Overlay {
     use lightcraft_pipeline::{MaskView, Overlay};
     if app.ui.fullscreen {
         return Overlay::None;
+    }
+    // Lightroom's temporary previews: clipping, greyscale, sharpening detail / mask
+    if app.ui.right == RightPanel::Edit
+        && app.ui.alt_held
+        && let Some(o) = app.ui.dragging_control.as_deref().and_then(Overlay::for_control)
+    {
+        return o;
     }
     if app.ui.right == RightPanel::Masking
         && app.ui.mask_overlay

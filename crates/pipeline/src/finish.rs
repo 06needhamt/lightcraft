@@ -20,6 +20,15 @@ fn smooth(e0: f32, e1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
+/// How much of the sharpening a pixel gets (0..1) under Masking `masking` (0..1), from its fine
+/// detail `det` (log luminance minus its texture blur): 1 everywhere at 0, only stronger edges
+/// as it rises. The GPU kernel (`finish.wgsl`) computes the same; Alt-drag on Masking shows it
+/// ([`crate::Overlay::SharpenMask`]).
+#[inline]
+pub fn sharpen_mask_weight(masking: f32, det: f32) -> f32 {
+    if masking > 0.0 { smooth(masking * 0.25, masking * 0.25 + 0.15, det.abs()) } else { 1.0 }
+}
+
 /// Parametric region curve (encoded domain) composed with the master point curve.
 fn curve_luts(c: &ToneCurve) -> Option<[Lut1; 3]> {
     let parametric = c.highlights != 0.0 || c.lights != 0.0 || c.darks != 0.0 || c.shadows != 0.0;
@@ -509,7 +518,7 @@ pub(crate) fn finish_with<T: Copy + Default + Send>(
                 let tame = 1.0 - 0.6 * smooth(0.4, 1.6, det.abs());
                 delta += tx * 1.1 * det.clamp(-1.0, 1.0) * tame;
                 if sp != 0.0 {
-                    let m = if sharpen_mask > 0.0 { smooth(sharpen_mask * 0.25, sharpen_mask * 0.25 + 0.15, det.abs()) } else { 1.0 };
+                    let m = sharpen_mask_weight(sharpen_mask, det);
                     delta += sp * 1.3 * det.clamp(-0.8, 0.8) * m;
                 }
             }

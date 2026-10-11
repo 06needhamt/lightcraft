@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (Alt/Option-drag previews, LR-EDIT-DETAIL-SHARPEN to 🟡; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -31,7 +31,7 @@ cited here still exists. Formerly docs/parity.md.
 | C. Views & navigation (VIEW) | 15 | 1 | 1 | 0 | 8/9 (89%) | 4/4 (100%) |
 | D. Search & filter (FILT) | 11 | 1 | 1 | 0 | 4/4 (100%) | 4/4 (100%) |
 | E. Metadata (META) | 5 | 1 | 0 | 0 | 2/2 (100%) | 2/2 (100%) |
-| F. Edit panel — global adjustments (EDIT) | 43 | 2 | 3 | 1 | 28/28 (100%) | 13/14 (93%) |
+| F. Edit panel — global adjustments (EDIT) | 42 | 3 | 3 | 1 | 27/28 (96%) | 13/14 (93%) |
 | G. Profiles (PROF) | 7 | 1 | 3 | 0 | 3/4 (75%) | 3/3 (100%) |
 | H. Crop & rotate (CROP) | 9 | 0 | 0 | 1 | 6/6 (100%) | 3/3 (100%) |
 | I. Remove / healing (REM) | 8 | 1 | 2 | 2 | 4/4 (100%) | 2/3 (67%) |
@@ -53,9 +53,9 @@ cited here still exists. Formerly docs/parity.md.
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
 | Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 407 | 50 | 73 | 35 | 192/200 (96%) | 145/157 (92%) |
+| **Total** | 406 | 51 | 73 | 35 | 191/200 (96%) | 145/157 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 530 in-scope rows — P0 98.0% of 200 · P1 95.2% of 157 · P2 49.7% of 172.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.4%** of 530 in-scope rows — P0 97.8% of 200 · P1 95.2% of 157 · P2 49.7% of 172.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -177,12 +177,12 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-EDIT-AUTO | Auto settings | P0 | ✅ | `cmd:develop.auto`, `crates/pipeline/src/auto.rs` | a Lightroom-like recipe calibrated black-box on Lightroom's Auto results for 24 Sony raws: Exposure from the scene's scene-linear log-average luminance (Lightroom's observed slope, -0.41 EV per EV), Highlights -66 and Shadows +52 (Lightroom's average Auto values), Contrast +68 and Vibrance +30 fitted on our scales. Held out one photo at a time: on the 16 photos whose start Sony's DRO doesn't brighten, a median dE76 of 6.4 from Lightroom's Auto results against 8.3 unedited; on all 24, 7.7 against 7.9 (issues #318, #209). Calibrated on Sony files only; Whites and Blacks stay 0 |
 | LR-EDIT-BW | Black & white | P0 | ✅ | `cmd:develop.treatment` | |
 | LR-EDIT-HDR-MODE | HDR editing | P2 | ✅ | `cmd:develop.hdr`, `ctl:hdr.maxEv`, `crates/ui-egui/src/panels/edit.rs` (`hdr_row`) | HDR button next to B&W in the Edit panel header, as Lightroom (Visualize HDR and the headroom limit in the Light panel while it's on); see Q. HDR |
-| LR-EDIT-LIGHT-EXPOSURE | Exposure | P0 | ✅ | `ctl:light.exposure` | |
+| LR-EDIT-LIGHT-EXPOSURE | Exposure | P0 | ✅ | `ctl:light.exposure` | Alt/Option-drag shows highlight clipping (black, clipped channels in colour) |
 | LR-EDIT-LIGHT-CONTRAST | Contrast | P0 | ✅ | `ctl:light.contrast` | |
-| LR-EDIT-LIGHT-HIGHLIGHTS | Highlights | P0 | ✅ | `ctl:light.highlights`, `crates/raw/src/highlight.rs` | sensor-clipped highlights stay neutral when Highlights (or Exposure, Whites) darkens them: fully clipped content is rebuilt to the neutral of the colour model applied after it, partly clipped content takes its colour from reliable unclipped content nearby (not from dark objects, lens fringes or another surface beside it) and white where there is none, and pale partly clipped content (a white sky) turns white on its way to clipping (#523); binned previews and thumbnails decide clipping per sample before averaging (`develop_binned_masked`, `highlight::reconstruct_masked`), so a block with one clipped specular sample keeps its mean instead of jumping to the clip level, which reconstruction turned into green speckles at 500 px (#548) From process V2 the Highlights/Shadows base is the edge-aware filter of the 0.15 %-of-long-edge median of log luminance: twigs and fine texture take their surroundings' shift, so bright areas keep their local contrast as with Exposure (V1's base kept ~0.6 of it at −100, #632); region edges stay sharp |
-| LR-EDIT-LIGHT-SHADOWS | Shadows | P0 | ✅ | `ctl:light.shadows` | From process V2, the same base as Highlights: dark areas keep their local contrast when lifted (#632) |
-| LR-EDIT-LIGHT-WHITES | Whites | P0 | ✅ | `ctl:light.whites` | |
-| LR-EDIT-LIGHT-BLACKS | Blacks | P0 | ✅ | `ctl:light.blacks` | |
+| LR-EDIT-LIGHT-HIGHLIGHTS | Highlights | P0 | ✅ | `ctl:light.highlights`, `crates/raw/src/highlight.rs` | sensor-clipped highlights stay neutral when Highlights (or Exposure, Whites) darkens them: fully clipped content is rebuilt to the neutral of the colour model applied after it, partly clipped content takes its colour from reliable unclipped content nearby (not from dark objects, lens fringes or another surface beside it) and white where there is none, and pale partly clipped content (a white sky) turns white on its way to clipping (#523); binned previews and thumbnails decide clipping per sample before averaging (`develop_binned_masked`, `highlight::reconstruct_masked`), so a block with one clipped specular sample keeps its mean instead of jumping to the clip level, which reconstruction turned into green speckles at 500 px (#548) From process V2 the Highlights/Shadows base is the edge-aware filter of the 0.15 %-of-long-edge median of log luminance: twigs and fine texture take their surroundings' shift, so bright areas keep their local contrast as with Exposure (V1's base kept ~0.6 of it at −100, #632); region edges stay sharp. Alt/Option-drag shows highlight clipping |
+| LR-EDIT-LIGHT-SHADOWS | Shadows | P0 | ✅ | `ctl:light.shadows` | From process V2, the same base as Highlights: dark areas keep their local contrast when lifted (#632). Alt/Option-drag shows shadow clipping (white, clipped channels in colour) |
+| LR-EDIT-LIGHT-WHITES | Whites | P0 | ✅ | `ctl:light.whites`, `crates/pipeline/src/visualize.rs` | Alt/Option-drag shows highlight clipping (black, clipped channels in colour) |
+| LR-EDIT-LIGHT-BLACKS | Blacks | P0 | ✅ | `ctl:light.blacks`, `crates/pipeline/src/visualize.rs` | Alt/Option-drag shows shadow clipping (white, clipped channels in colour) |
 | LR-EDIT-LIGHT-CURVE-PARAM | Parametric curve | P0 | ✅ | `ctl:curve.highlights`, `ctl:curve.lights`, `ctl:curve.darks`, `ctl:curve.shadows`, `ctl:curve.split*` | |
 | LR-EDIT-LIGHT-CURVE-POINT | Point curve | P0 | ✅ | `cmd:develop.curve`, `cmd:curve.reset`, `cmd:curve.presets`, `cmd:curve.applyPreset`, `cmd:curve.savePreset`, `cmd:curve.deletePreset`, `cmd:curve.importPresets`, `cmd:curve.exportPresets`, `cmd:file.importCurvePresets`, `cmd:file.exportCurvePresets`, `crates/engine/src/cmd/curves.rs`, `crates/ui-egui/src/panels/edit.rs` | click to add a point; drag a point in both axes (between its neighbours, input / output readout, one undo step per drag); drag empty space to add and drag; double-click removes; reset: double-click a channel selector (that channel), the Reset button under the graph (every curve incl. parametric) or right-click the graph (channel / all); Point Curve preset dropdown: own Linear / Medium Contrast / Strong Contrast, user presets (save the current point curves, delete by right-click; saved with the library), import / export as `.lccurve` JSON |
 | LR-EDIT-LIGHT-CURVE-RGB | Per-channel curves | P0 | ✅ | `cmd:develop.curve` (`channel`) | |
@@ -203,7 +203,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-EDIT-EFFECTS-DEHAZE | Dehaze | P0 | ✅ | `ctl:effects.dehaze` | |
 | LR-EDIT-EFFECTS-VIGNETTE | Post-crop vignette | P0 | ✅ | `ctl:vignette.*`, `crates/pipeline/src/finish.rs`, `crates/ui-egui/src/panels/edit.rs` | style picker (Highlight / Color / Paint) in the Effects section |
 | LR-EDIT-EFFECTS-GRAIN | Grain | P1 | ✅ | `ctl:grain.*` | |
-| LR-EDIT-DETAIL-SHARPEN | Sharpening | P0 | ✅ | `ctl:detail.sharpenAmount`, `ctl:detail.sharpenRadius`, `ctl:detail.sharpenDetail`, `ctl:detail.sharpenMasking` | no Alt-drag mask preview |
+| LR-EDIT-DETAIL-SHARPEN | Sharpening | P0 | 🟡 | `ctl:detail.sharpenAmount`, `ctl:detail.sharpenRadius`, `ctl:detail.sharpenDetail`, `ctl:detail.sharpenMasking`, `crates/pipeline/src/visualize.rs` | Amount and Masking work; Radius and Detail are stored (XMP round trip) but do not change the render yet (the band is a fixed 0.18 % of the long edge). Alt/Option-drag previews: Amount greyscale, Radius / Detail the detail band sharpening amplifies, Masking the mask (white = sharpened) |
 | LR-EDIT-DETAIL-NR | Luminance noise reduction | P0 | ✅ | `ctl:detail.nrLuminance`, `ctl:detail.nrDetail`, `ctl:detail.nrContrast` | |
 | LR-EDIT-DETAIL-CNR | Colour noise reduction | P0 | ✅ | `ctl:detail.nrColor`, `ctl:detail.nrColorDetail`, `ctl:detail.nrColorSmoothness` | |
 | LR-EDIT-DETAIL-DENOISE | AI denoise | P2 | 🟡 | cmd:denoise.toggle, cmd:denoise.models.install, cmd:denoise.queue, ctl:enhance.denoise, `crates/denoise/`, `docs/denoise.md` | non-destructive Bayer RAW, opt-in weights, pure-Rust CPU/GPU; GPU convolution uses independently written shared scalars (Metal equivalence regression, issue #479); tiles can also run on another computer's graphics card (`lightcraft-cli denoise-serve`, `crates/denoise/src/remote.rs`); X-Trans/linear RGB, model policy and Lightroom fidelity remain; closing the model setup without installing turns the switch back off (#922) |
@@ -787,6 +787,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-11 | minor | Alt/Option-drag previews on Exposure, Highlights, Shadows, Whites, Blacks and Sharpening (issue #937); LR-EDIT-DETAIL-SHARPEN ✅ → 🟡: Radius and Detail don't change the render |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |

@@ -637,9 +637,12 @@ pub fn color_range_sample(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, 
     Some(acc.map(|v| v / n))
 }
 
-/// The alpha plane a mask overlay shows: the one the render evaluated, or (for a hidden mask) a
-/// fresh evaluation.
+/// The plane an overlay shows: a sharpening view's detail plane, or the alpha of a mask overlay
+/// (the one the render evaluated, or for a hidden mask a fresh evaluation).
 fn overlay_alpha(o: Overlay, plan: &Plan<'_>, prep: &Prepared) -> Option<Plane> {
+    if o.reads_detail() {
+        return visualize::sharpen_plane(o, &plan.settings, &prep.log_l, prep.texture_blur.as_deref(), plan.px_per_long);
+    }
     let m = o.mask(&plan.settings)?;
     if let Some(e) = prep.masks.iter().find(|e| e.id == m.id) {
         return Some(e.alpha.clone());

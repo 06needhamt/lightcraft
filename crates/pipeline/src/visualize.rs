@@ -9,6 +9,11 @@
 //! - **Mask overlay** (Masking): the evaluated alpha of one mask, drawn as a colour tint, a colour
 //!   tint on a black-and-white image, the image on black / white, or the alpha as white on black
 //!   ([`MaskView`]). Both renderers hand the same alpha plane (the one the render used) to [`apply`].
+//! - **Alt/Option-drag previews** (Lightroom's temporary views while a slider is dragged with the
+//!   modifier held; [`Overlay::for_control`] picks one per control): shadow / highlight clipping
+//!   (white or black, with the clipped channels shown), greyscale (Sharpening Amount), the fine
+//!   detail band sharpening works on (Radius / Detail) and the sharpening mask (Masking). The
+//!   sharpening views read the render's own detail planes ([`sharpen_plane`]).
 
 use std::borrow::Cow;
 
@@ -36,6 +41,19 @@ pub enum Overlay {
     /// Visualize HDR (photos edited in HDR): the SDR image dimmed to grey, with every pixel the HDR
     /// rendition puts above SDR white painted by how far above it is ([`HDR_BANDS`]).
     HdrRange,
+    /// Shadow clipping (Alt-drag on Blacks / Shadows): white, a channel at 0 drops out of the
+    /// colour, so pixels clipped in every channel are black and partly clipped ones are coloured.
+    ClipShadows,
+    /// Highlight clipping (Alt-drag on Exposure / Highlights / Whites): black, a channel at 255
+    /// shows in the colour, so pixels clipped in every channel are white.
+    ClipHighlights,
+    /// The photo in greyscale (Alt-drag on Sharpening Amount).
+    Grayscale,
+    /// The fine detail band sharpening amplifies, as grey ± detail (Alt-drag on Sharpening Radius
+    /// / Detail).
+    SharpenDetail,
+    /// The sharpening mask, white where sharpening applies (Alt-drag on Sharpening Masking).
+    SharpenMask,
 }
 
 /// [`Overlay::HdrRange`] colours (sRGB) for 0–1, 1–2, 2–3 and ≥ 3 stops above SDR white.
@@ -121,6 +139,11 @@ impl Overlay {
             Overlay::Spots(t) => (2, t as f64),
             Overlay::Mask { id, view, color, opacity } => (3, pack_mask(id, view, color, opacity) as f64),
             Overlay::HdrRange => (4, 0.0),
+            Overlay::ClipShadows => (5, 0.0),
+            Overlay::ClipHighlights => (6, 0.0),
+            Overlay::Grayscale => (7, 0.0),
+            Overlay::SharpenDetail => (8, 0.0),
+            Overlay::SharpenMask => (9, 0.0),
         }
     }
 
@@ -131,6 +154,11 @@ impl Overlay {
             2 => Overlay::Spots(v.clamp(0.0, 100.0) as u8),
             3 if v.is_finite() && v >= 0.0 => unpack_mask(v as u64),
             4 => Overlay::HdrRange,
+            5 => Overlay::ClipShadows,
+            6 => Overlay::ClipHighlights,
+            7 => Overlay::Grayscale,
+            8 => Overlay::SharpenDetail,
+            9 => Overlay::SharpenMask,
             _ => Overlay::None,
         }
     }
@@ -143,7 +171,36 @@ impl Overlay {
             Overlay::Spots(t) => 0x2000 + t as u64,
             Overlay::Mask { id, view, color, opacity } => 3 << 60 | pack_mask(id, view, color, opacity),
             Overlay::HdrRange => 0x4000,
+            Overlay::ClipShadows => 0x5000,
+            Overlay::ClipHighlights => 0x5001,
+            Overlay::Grayscale => 0x5002,
+            Overlay::SharpenDetail => 0x5003,
+            Overlay::SharpenMask => 0x5004,
         }
+    }
+
+    /// The temporary preview Lightroom shows while develop control `id` is dragged with Alt
+    /// (Option on macOS) held, if it has one.
+    pub fn for_control(id: &str) -> Option<Overlay> {
+        match id {
+            "light.exposure" | "light.highlights" | "light.whites" => Some(Overlay::ClipHighlights),
+            "light.shadows" | "light.blacks" => Some(Overlay::ClipShadows),
+            "detail.sharpenAmount" => Some(Overlay::Grayscale),
+            "detail.sharpenRadius" | "detail.sharpenDetail" => Some(Overlay::SharpenDetail),
+            "detail.sharpenMasking" => Some(Overlay::SharpenMask),
+            _ => None,
+        }
+    }
+
+    /// Whether the overlay draws from the render's detail planes ([`sharpen_plane`]).
+    pub fn reads_detail(self) -> bool {
+        matches!(self, Overlay::SharpenDetail | Overlay::SharpenMask)
+    }
+
+    /// Whether the overlay works pixel by pixel on the finished image, so a window render shows
+    /// the same as the whole frame would.
+    pub fn per_pixel(self) -> bool {
+        matches!(self, Overlay::None | Overlay::Mask { .. } | Overlay::ClipShadows | Overlay::ClipHighlights | Overlay::Grayscale)
     }
 
     /// The mask an [`Overlay::Mask`] shows (if it exists in `s` and has components).
@@ -167,9 +224,44 @@ pub fn adjust_settings(o: Overlay, s: &mut Cow<'_, DevelopSettings>) {
     }
 }
 
-/// Draw overlay `o` over `img` (rendered with `plan`). `mask` is the evaluated alpha of the mask
-/// an [`Overlay::Mask`] shows, at the image's size (see [`Overlay::mask`]).
-pub fn apply(img: &mut Rgba8, o: Overlay, plan: &Plan<'_>, mask: Option<&Plane>) {
+/// The plane a sharpening view draws ([`Overlay::reads_detail`]), from the render's log luminance
+/// `log_l` and its texture blur (`None` when the render didn't need it: blurred here with the same
+/// sigma). [`Overlay::SharpenDetail`]: the detail band (log luminance minus its blur, in EV);
+/// [`Overlay::SharpenMask`]: the sharpening weight under the photo's Masking. Both renderers call
+/// this with their own planes.
+pub fn sharpen_plane(o: Overlay, s: &DevelopSettings, log_l: &Plane, texture: Option<&Plane>, px_per_long: f64) -> Option<Plane> {
+    if !o.reads_detail() {
+        return None;
+    }
+    let own;
+    let blur = match texture.filter(|b| (b.width, b.height) == (log_l.width, log_l.height)) {
+        Some(b) => b,
+        None => {
+            own = lightcraft_raster::blur::gaussian(log_l, crate::local::texture_sigma(px_per_long));
+            &own
+        }
+    };
+    let masking = (s.detail.sharpen_masking / 100.0).clamp(0.0, 1.0) as f32;
+    let mask = o == Overlay::SharpenMask;
+    let data = log_l
+        .data
+        .iter()
+        .zip(&blur.data)
+        .map(|(l, b)| {
+            let det = l - b;
+            if mask { crate::finish::sharpen_mask_weight(masking, det) } else { det }
+        })
+        .collect();
+    Some(Plane { width: log_l.width, height: log_l.height, data })
+}
+
+/// [`Overlay::SharpenDetail`]: encoded grey per EV of detail (±0.4 EV spans black to white).
+const DETAIL_GAIN: f32 = 320.0;
+
+/// Draw overlay `o` over `img` (rendered with `plan`). `plane` is what the overlay shows, at the
+/// image's size: the evaluated alpha of the mask an [`Overlay::Mask`] shows (see
+/// [`Overlay::mask`]) or a sharpening view's [`sharpen_plane`].
+pub fn apply(img: &mut Rgba8, o: Overlay, plan: &Plan<'_>, plane: Option<&Plane>) {
     match o {
         // drawn by the renderer from the HDR rendition ([`hdr_range`])
         Overlay::None | Overlay::HdrRange => {}
@@ -180,11 +272,58 @@ pub fn apply(img: &mut Rgba8, o: Overlay, plan: &Plan<'_>, mask: Option<&Plane>)
         }
         Overlay::Spots(t) => spots(img, t, plan.px_per_long),
         Overlay::Mask { view, color, opacity, .. } => {
-            if let Some(a) = mask.filter(|a| (a.width, a.height) == (img.width, img.height)) {
+            if let Some(a) = plane.filter(|a| (a.width, a.height) == (img.width, img.height)) {
                 mask_view(img, a, view, color, opacity);
             }
         }
+        Overlay::ClipShadows => clipping(img, false),
+        Overlay::ClipHighlights => clipping(img, true),
+        Overlay::Grayscale => grayscale(img),
+        Overlay::SharpenDetail | Overlay::SharpenMask => {
+            if let Some(p) = plane.filter(|a| (a.width, a.height) == (img.width, img.height)) {
+                let detail = o == Overlay::SharpenDetail;
+                let w = img.width;
+                for_rows(&mut img.data, w, |y, row| {
+                    for (x, px) in row.iter_mut().enumerate() {
+                        let v = p.data[y * w + x];
+                        let g = if detail { 128.0 + v * DETAIL_GAIN } else { 255.0 * v };
+                        let g = g.round().clamp(0.0, 255.0) as u8;
+                        *px = [g, g, g, 255];
+                    }
+                });
+            }
+        }
     }
+}
+
+/// [`Overlay::ClipHighlights`] (`high`) or [`Overlay::ClipShadows`]: each channel shows only
+/// whether it is clipped, on black (highlights) or white (shadows).
+pub fn clipping(img: &mut Rgba8, high: bool) {
+    let w = img.width;
+    for_rows(&mut img.data, w, |_, row| {
+        for px in row.iter_mut() {
+            for c in &mut px[..3] {
+                *c = if high {
+                    if *c == 255 { 255 } else { 0 }
+                } else if *c == 0 {
+                    0
+                } else {
+                    255
+                };
+            }
+            px[3] = 255;
+        }
+    });
+}
+
+fn grayscale(img: &mut Rgba8) {
+    let w = img.width;
+    for_rows(&mut img.data, w, |_, row| {
+        for px in row.iter_mut() {
+            let g = (0.2126 * px[0] as f32 + 0.7152 * px[1] as f32 + 0.0722 * px[2] as f32).round().clamp(0.0, 255.0) as u8;
+            *px = [g, g, g, 255];
+        }
+    });
 }
 
 /// Draw mask alpha `a` over `img` as `view`.
@@ -379,5 +518,97 @@ mod tests {
         assert_ne!(o.key(), Overlay::Mask { id: 513, view: MaskView::Color, color: [12, 200, 255], opacity: 65 }.key());
         assert_eq!(MaskView::WhiteOnBlack.next(), MaskView::Color);
         assert_eq!(MaskView::parse("colorOnBw"), Some(MaskView::ColorOnBw));
+    }
+
+    #[test]
+    fn clipping_views_show_the_clipped_channels() {
+        let mut img = Rgba8 {
+            width: 5,
+            height: 1,
+            data: vec![[0, 0, 0, 255], [255, 255, 255, 255], [255, 40, 0, 255], [0, 128, 200, 255], [120, 130, 140, 255]],
+        };
+        let mut hi = img.clone();
+        clipping(&mut hi, true);
+        // black background, white where every channel clips, the clipped channels' colour otherwise
+        assert_eq!(hi.data, vec![[0, 0, 0, 255], [255; 4], [255, 0, 0, 255], [0, 0, 0, 255], [0, 0, 0, 255]]);
+        clipping(&mut img, false);
+        // white background, black where every channel clips, the unclipped channels' colour otherwise
+        assert_eq!(img.data, vec![[0, 0, 0, 255], [255; 4], [255, 255, 0, 255], [0, 255, 255, 255], [255; 4]]);
+    }
+
+    #[test]
+    fn clipping_previews_follow_the_rendered_clipping() {
+        // left: deep shadow, middle: grey, right: bright highlight
+        let src = Rgb32f::from_fn(60, 20, |x, _| match x / 20 {
+            0 => [0.0; 3],
+            1 => [0.18; 3],
+            _ => [3.0; 3],
+        });
+        let info = SourceInfo::default();
+        let mut s = DevelopSettings::default();
+        s.light.blacks = -100.0;
+        s.light.whites = 100.0;
+        let req = |o| RenderRequest { overlay: o, ..RenderRequest::fit(60, 20) };
+        let plain = render(&src, &info, &s, &req(Overlay::None));
+        let hi = render(&src, &info, &s, &req(Overlay::ClipHighlights));
+        let lo = render(&src, &info, &s, &req(Overlay::ClipShadows));
+        let at = |i: &Rgba8, x: usize| i.data[10 * 60 + x];
+        assert_eq!(at(&plain.image, 55), [255; 4], "the highlight clips");
+        assert_eq!(at(&plain.image, 5), [0, 0, 0, 255], "the shadow clips");
+        assert_eq!((at(&hi.image, 55), at(&hi.image, 30), at(&hi.image, 5)), ([255; 4], [0, 0, 0, 255], [0, 0, 0, 255]));
+        assert_eq!((at(&lo.image, 5), at(&lo.image, 30), at(&lo.image, 55)), ([0, 0, 0, 255], [255; 4], [255; 4]));
+        // a preview only: the histogram is the photo's
+        assert_eq!(hi.histogram, plain.histogram);
+        assert_eq!(render(&src, &info, &s, &req(Overlay::None)).image, plain.image);
+    }
+
+    #[test]
+    fn sharpening_previews_show_the_mask_and_detail() {
+        // a smooth ramp (left) and a hard edge (at x = 60)
+        let src = Rgb32f::from_fn(80, 40, |x, _| if x < 60 { [0.05 + 0.002 * x as f32; 3] } else { [0.6; 3] });
+        let info = SourceInfo::default();
+        let mut s = DevelopSettings::default();
+        s.detail.sharpen_amount = 60.0;
+        let shot = |s: &DevelopSettings, o| render(&src, &info, s, &RenderRequest { overlay: o, ..RenderRequest::fit(80, 40) }).image;
+        let (flat, edge) = (20 * 80 + 20, 20 * 80 + 60);
+        // Masking 0 sharpens everything: an all-white mask
+        let m = shot(&s, Overlay::SharpenMask);
+        assert!(m.data.iter().all(|p| *p == [255; 4]));
+        // Masking 100 keeps the edge, protects the ramp
+        s.detail.sharpen_masking = 100.0;
+        let m = shot(&s, Overlay::SharpenMask);
+        assert_eq!((m.data[edge], m.data[flat]), ([255; 4], [0, 0, 0, 255]));
+        // the same without sharpening on (the render has no texture plane then)
+        s.detail.sharpen_amount = 0.0;
+        assert_eq!(shot(&s, Overlay::SharpenMask), m);
+        // detail: mid grey on the ramp, light / dark either side of the edge
+        let d = shot(&s, Overlay::SharpenDetail);
+        assert!(d.data[flat][0].abs_diff(128) <= 3, "{:?}", d.data[flat]);
+        assert!(d.data[edge][0] > 200 && d.data[edge - 1][0] < 60, "{:?} {:?}", d.data[edge], d.data[edge - 1]);
+        // greyscale
+        let src = Rgb32f::from_fn(8, 8, |_, _| [0.4, 0.1, 0.05]);
+        let g = render(&src, &info, &s, &RenderRequest { overlay: Overlay::Grayscale, ..RenderRequest::fit(8, 8) }).image;
+        assert!(g.data.iter().all(|p| p[0] == p[1] && p[1] == p[2] && p[0] > 0));
+    }
+
+    #[test]
+    fn alt_previews_map_to_controls_and_round_trip() {
+        assert_eq!(Overlay::for_control("light.blacks"), Some(Overlay::ClipShadows));
+        assert_eq!(Overlay::for_control("light.shadows"), Some(Overlay::ClipShadows));
+        assert_eq!(Overlay::for_control("light.whites"), Some(Overlay::ClipHighlights));
+        assert_eq!(Overlay::for_control("light.exposure"), Some(Overlay::ClipHighlights));
+        assert_eq!(Overlay::for_control("light.highlights"), Some(Overlay::ClipHighlights));
+        assert_eq!(Overlay::for_control("detail.sharpenAmount"), Some(Overlay::Grayscale));
+        assert_eq!(Overlay::for_control("detail.sharpenDetail"), Some(Overlay::SharpenDetail));
+        assert_eq!(Overlay::for_control("detail.sharpenMasking"), Some(Overlay::SharpenMask));
+        assert_eq!(Overlay::for_control("light.contrast"), None);
+        let all = [Overlay::ClipShadows, Overlay::ClipHighlights, Overlay::Grayscale, Overlay::SharpenDetail, Overlay::SharpenMask];
+        for o in all {
+            let (k, v) = o.to_parts();
+            assert_eq!(Overlay::from_parts(k, v), o);
+            assert_eq!(all.iter().filter(|p| p.key() == o.key()).count(), 1);
+            assert_ne!(o.key(), Overlay::HdrRange.key());
+        }
+        assert!(Overlay::ClipShadows.per_pixel() && !Overlay::SharpenDetail.per_pixel());
     }
 }

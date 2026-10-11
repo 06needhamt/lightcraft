@@ -1018,6 +1018,8 @@ impl LightcraftApp {
             }
         }
         self.ui.was_focused = focused;
+        // Alt (Option on macOS) while a slider is dragged shows its temporary preview
+        self.ui.alt_held = ctx.input(|i| i.modifiers.alt);
         // auto import: list the watched folder every few seconds (on a worker thread: it may be on
         // a network share), then import what's new like any import (also on a worker thread)
         #[cfg(not(target_arch = "wasm32"))]
