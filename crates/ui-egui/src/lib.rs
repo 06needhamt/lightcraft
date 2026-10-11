@@ -79,6 +79,8 @@ mod tests_labels;
 #[cfg(test)]
 mod tests_library_problem;
 #[cfg(test)]
+mod tests_lights_out;
+#[cfg(test)]
 mod tests_masking;
 #[cfg(test)]
 mod tests_masking_layout;
@@ -1035,6 +1037,30 @@ impl LightcraftApp {
     }
 
     /// Frame timings once layout is done (`t0`: when layout started).
+    /// Lights Out: veil everything but the photo (the loupe's image, or the grid / Compare /
+    /// Survey area) in black. Painted above the panels, below dialogs and notices.
+    fn lights_out(&self, ctx: &egui::Context) {
+        let a = self.ui.lights_out.veil();
+        if a <= 0.0 {
+            return;
+        }
+        let screen = ctx.content_rect();
+        let keep = if self.ui.view == state::ViewMode::Detail { self.image_rect.or(self.canvas_rect) } else { self.canvas_rect };
+        let veil = egui::Color32::from_black_alpha((a.clamp(0.0, 1.0) * 255.0).round() as u8);
+        let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::new("lights-out")));
+        let k = keep.unwrap_or(egui::Rect::NOTHING).intersect(screen);
+        if !k.is_positive() {
+            p.rect_filled(screen, 0.0, veil);
+            return;
+        }
+        // four bands around the photo
+        use egui::{Rect, pos2};
+        p.rect_filled(Rect::from_min_max(screen.min, pos2(screen.right(), k.top())), 0.0, veil);
+        p.rect_filled(Rect::from_min_max(pos2(screen.left(), k.bottom()), screen.max), 0.0, veil);
+        p.rect_filled(Rect::from_min_max(pos2(screen.left(), k.top()), pos2(k.left(), k.bottom())), 0.0, veil);
+        p.rect_filled(Rect::from_min_max(pos2(k.right(), k.top()), pos2(screen.right(), k.bottom())), 0.0, veil);
+    }
+
     fn end_frame(&mut self, ctx: &egui::Context, t0: f64) {
         ctx.output(|o| {
             for c in &o.commands {
@@ -1082,6 +1108,7 @@ impl LightcraftApp {
         panels::library_problem::banner(self, ui);
         panels::strip::show(self, ui);
         egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| docking::show(self, ui));
+        self.lights_out(&ctx);
         panels::second::show(self, &ctx);
         panels::notices::show(self, &ctx);
         panels::dialogs::show(self, &ctx);

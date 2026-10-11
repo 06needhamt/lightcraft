@@ -127,6 +127,38 @@ impl InfoOverlay {
     }
 }
 
+/// Lights Out (View ▸ Lights Out, Shift+L cycles On → Dim → Off → On; Esc turns the lights back
+/// on): everything but the photo is veiled in black, the panels stay where they are.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LightsOut {
+    #[default]
+    On,
+    /// The interface at 20 % brightness.
+    Dim,
+    /// The interface black.
+    Off,
+}
+
+impl LightsOut {
+    pub fn next(self) -> LightsOut {
+        match self {
+            LightsOut::On => LightsOut::Dim,
+            LightsOut::Dim => LightsOut::Off,
+            LightsOut::Off => LightsOut::On,
+        }
+    }
+
+    /// Opacity of the black veil over everything but the photo.
+    pub fn veil(self) -> f32 {
+        match self {
+            LightsOut::On => 0.0,
+            LightsOut::Dim => 0.8,
+            LightsOut::Off => 1.0,
+        }
+    }
+}
+
 /// App-level preferences (Settings dialog). They belong to the app, not a library, and are
 /// saved with the UI state in the app's config folder (`ui.json`, key `settings`); library
 /// preferences (import defaults, XMP, cache size) live in the library's `prefs.json`.
@@ -463,6 +495,9 @@ pub struct UiState {
     pub auto_advance: bool,
     /// Full-screen preview (F): the photo alone on black, no chrome.
     pub fullscreen: bool,
+    /// Lights Out (Shift+L): not saved, every launch starts with the lights on.
+    #[serde(skip)]
+    pub lights_out: LightsOut,
     /// Window ▸ Second Window.
     pub second_window: bool,
     /// The keyword painter: clicking a photo in the grid toggles this keyword on it.
@@ -873,6 +908,7 @@ impl Default for UiState {
             spots_threshold: 50.0,
             auto_advance: false,
             fullscreen: false,
+            lights_out: LightsOut::On,
             slideshow: None,
             second_window: false,
             keyword_painter: None,

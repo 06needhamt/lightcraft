@@ -517,6 +517,7 @@ visible menu bar yet: the menu model is only exposed through the control channel
 | MENU-VIEW-DETAIL | Detail | P0 | ✅ | `cmd:view.detail` | |
 | MENU-VIEW-EDIT | Edit | P0 | ✅ | `cmd:panel.edit` | |
 | MENU-VIEW-FULLSCREENPREVIEW | Full Screen Preview | P1 | ✅ | `cmd:view.fullScreenPreview` | |
+| MENU-VIEW-LIGHTSOUT | Lights Out | P2 | ✅ | `cmd:view.lightsOut` | everything but the photo veiled; panels stay put |
 | MENU-VIEW-ENTERFULLSCREEN | Enter Full Screen | P1 | ✅ | `cmd:view.enterFullScreen` | |
 | MENU-VIEW-PHOTOSPANEL | Show/Hide photos panel | P0 | ✅ | `cmd:view.leftPanel` | |
 | MENU-VIEW-FILMSTRIP | Show/Hide filmstrip | P0 | ✅ | `cmd:view.filmstrip` | |
@@ -586,6 +587,7 @@ From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained 
 | KEY-DETAIL | Detail — D | P0 | ✅ | `cmd:view.detail` | |
 | KEY-EDIT | Edit — E | P0 | ✅ | `cmd:panel.edit` | |
 | KEY-FULLSCREEN | Full-screen preview — F | P1 | ✅ | `cmd:view.fullScreenPreview` | |
+| KEY-LIGHTSOUT | Lights Out — Shift+L (Classic's L is Linear Gradient here) | P2 | ✅ | `cmd:view.lightsOut` | On → Dim (80 %) → Off; Esc turns the lights on |
 | KEY-GRID | Grid — G | P0 | ✅ | `cmd:view.gridToggle`, `cmd:view.photoGrid` | G toggles Photo Grid ↔ Square Grid |
 | KEY-INFO | Info — I | P0 | ✅ | `cmd:panel.info` | |
 | KEY-KEYWORDS | Keywords — K | P0 | ✅ | `cmd:panel.keywords` | |
