@@ -249,11 +249,16 @@ fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
     r
 }
 
-/// Whether an overlay can be rendered on a region tile without changing what the tile means.
-/// Mask overlays are evaluated from the same mask alpha as the full render; the other diagnostic
-/// overlays either need whole-frame context or deliberately replace the loupe.
+/// Whether an overlay can be rendered on a region tile without changing what the tile means. Mask
+/// overlays are evaluated from the same mask alpha as the full render; Point Color range and Visualize
+/// HDR act pixel by pixel (the HDR rendition is rendered for the same window); Visualize Spots' high
+/// pass reads about 3σ = 1.8 % of the long edge, inside the window's margin
+/// ([`crate::region::margin_for`]: 4.5 %). Each is tested equal to the whole-frame render's pixels.
 pub(crate) fn overlay_supports_window(overlay: lightcraft_pipeline::Overlay) -> bool {
-    matches!(overlay, lightcraft_pipeline::Overlay::None | lightcraft_pipeline::Overlay::Mask { .. })
+    use lightcraft_pipeline::Overlay as O;
+    match overlay {
+        O::None | O::Mask { .. } | O::PointColorRange(_) | O::HdrRange | O::Spots(_) => true,
+    }
 }
 
 /// What a window render of the loupe needs to know about the view it belongs to.

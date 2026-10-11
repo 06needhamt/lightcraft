@@ -857,3 +857,48 @@ fn windows_of_a_big_photo_share_one_uploaded_source() {
     lightcraft_gpu::render(&src, &info, &s, &at(1000), Some(&after)).expect("gpu render");
     assert_eq!(lightcraft_gpu::source_uploads() - start, 2);
 }
+
+#[test]
+fn soft_proofs_match() {
+    if !gpu() {
+        return;
+    }
+    // Soft proofing against an output space (matrix proofs): into the proof gamut, back to the
+    // output space, with the destination and display gamut warnings painted alike on both renderers.
+    // Saturated edits put plenty of colours outside the smaller proof spaces.
+    use lightcraft_pipeline::{OutputSpace, Proof};
+    let src = scene(0, 900, 600);
+    let raw = SourceInfo { raw: true, ..Default::default() };
+    for space in [OutputSpace::Srgb, OutputSpace::AdobeRgb, OutputSpace::DisplayP3] {
+        for (dest_warning, display_warning) in [(false, false), (true, false), (false, true), (true, true)] {
+            for out in [OutputSpace::Srgb, OutputSpace::Rec2020] {
+                let mut s = DevelopSettings::default();
+                saturated(&mut s);
+                let proof = Some(Proof { space, dest_warning, display_warning, profile: 0 });
+                let req = RenderRequest { space: out, proof, ..RenderRequest::fit(640, 640) };
+                check(&format!("proof {space:?} → {out:?} warn {dest_warning}/{display_warning}"), &src, &raw, &s, &req);
+            }
+        }
+    }
+    // the case is meaningful: proofing sRGB from Rec. 2020 output warns on some pixels, and the GPU paints the same ones
+    let mut s = DevelopSettings::default();
+    saturated(&mut s);
+    let req = RenderRequest {
+        space: OutputSpace::Rec2020,
+        proof: Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: false, profile: 0 }),
+        ..RenderRequest::fit(640, 640)
+    };
+    let warned = |i: &Rgba8| i.data.iter().filter(|p| p[1] == 0 && p[2] == 0 && p[0] > 200).count();
+    let (cpu, gpu) = (render(&src, &raw, &s, &req).image, lightcraft_gpu::render(&src, &raw, &s, &req, None).expect("gpu render").image);
+    assert!(warned(&cpu) > 100, "{} warned pixels", warned(&cpu));
+    assert_eq!(warned(&cpu), warned(&gpu));
+    // an output-device profile (a 3D table) stays on the CPU
+    let n = 2;
+    let lut = lightcraft_pipeline::ProofLut::new(n, vec![[0.5, 0.5, 0.5, 0.0]; n * n * n]).unwrap();
+    let id = lightcraft_pipeline::register_proof_profile(0x5eed_9f00, lut);
+    let req = RenderRequest {
+        proof: Some(Proof { space: OutputSpace::Srgb, dest_warning: true, display_warning: false, profile: id }),
+        ..RenderRequest::fit(64, 64)
+    };
+    assert!(lightcraft_gpu::render(&src, &raw, &DevelopSettings::default(), &req, None).is_none(), "declined: the CPU renders it");
+}

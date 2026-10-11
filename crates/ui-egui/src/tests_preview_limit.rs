@@ -250,6 +250,25 @@ mod in_the_loupe {
         assert_eq!(h.app.region_view.map(|r| r.settings), Some(plain.settings), "back to the plain window");
     }
 
+    // Given a diagnostic overlay (Visualize Spots), when I zoom to 1:1, then the visible part is a
+    // window render carrying the overlay, over a canvas-sized whole frame, as without it
+    #[test]
+    fn visualize_spots_at_one_to_one_is_a_window() {
+        let (mut h, native) = detail();
+        h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+        h.settle(SETTLE);
+        let plain = h.app.region_view.expect("a window render without the overlay");
+        let r = h.request("ui.menu.invoke", json!({"id": "view.visualizeSpots"}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert!(h.app.ui.visualize_spots);
+        let main = rendered_long_edge(&h);
+        assert!(main <= 2560 && main < native, "native {native}: the whole-frame render is {main}");
+        let spots = h.app.region_view.expect("a window render with the overlay");
+        assert_eq!(spots.full.0.max(spots.full.1), native, "cut from the photo's own pixels");
+        assert_ne!(spots.settings, plain.settings, "the overlay is part of the window's look");
+    }
+
     // Given the user capped the preview at 1600 px, then 1:1 is rendered no larger than that
     #[test]
     fn an_explicit_limit_still_caps_one_to_one() {
