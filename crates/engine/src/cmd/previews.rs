@@ -52,17 +52,17 @@ impl PreviewBuild {
     }
 }
 
-/// The jobs that build `id`'s previews: the largest grid thumbnail, then the view render at
-/// `edge` (`None` = 1:1, the photo's full size).
+/// The jobs that build `id`'s previews: the largest grid thumbnail and the view render at `edge`
+/// (`None` = 1:1, the photo's full size), the larger first.
 pub(crate) fn jobs_for(s: &mut Session, id: lightcraft_catalog::PhotoId, edge: Option<usize>) -> Vec<RenderJob> {
     let Some(p) = s.catalog.photo(id) else { return Vec::new() };
     let full = p.width.max(p.height) as usize;
     let e = edge.unwrap_or(full).min(full.max(1)).max(1);
-    let mut v = Vec::new();
-    v.extend(s.loupe_job(id, e, e, true));
-    // (after the view: it renders from the source the view loaded, see `run_photo`)
-    v.extend(s.thumb_job(id, THUMB_SIZES[THUMB_SIZES.len() - 1]));
-    v
+    let thumb = THUMB_SIZES[THUMB_SIZES.len() - 1];
+    let (view, grid) = (s.loupe_job(id, e, e, true), s.thumb_job(id, thumb));
+    // the larger render goes first: the one after it renders from the source it loaded (see
+    // `run_photo`), which must not be smaller than what it needs
+    if e >= thumb { view.into_iter().chain(grid).collect() } else { grid.into_iter().chain(view).collect() }
 }
 
 /// The build's row in the activity stack (`what` as in [`PreviewBuild::what`]).
