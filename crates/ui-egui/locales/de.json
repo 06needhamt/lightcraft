@@ -2104,5 +2104,10 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "Verschiebt die Dateien samt XMP-Filialdateien in diesen Ordner; nichts wird überschrieben",
   "Appearance Settings…": "Erscheinungsbild-Einstellungen…",
   "Add to favorites": "Zu Favoriten hinzufügen",
-  "Remove from favorites": "Aus Favoriten entfernen"
+  "Remove from favorites": "Aus Favoriten entfernen",
+  "Add to Apple Photos": "Zu Apple Fotos hinzufügen",
+  "Adding to Apple Photos…": "Wird zu Apple Fotos hinzugefügt…",
+  "not added to Apple Photos (cancelled)": "nicht zu Apple Fotos hinzugefügt (abgebrochen)",
+  "The first time, macOS asks whether LightCraft may control Photos.": "Beim ersten Mal fragt macOS, ob LightCraft Fotos steuern darf.",
+  "Adding to Apple Photos": "Wird zu Apple Fotos hinzugefügt"
 }

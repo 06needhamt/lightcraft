@@ -1,11 +1,11 @@
-//! Export: encode a rendered image to JPEG / PNG / TIFF / WebP / AVIF (or copy the original / write a
+//! Export: encode a rendered image to JPEG / PNG / TIFF / WebP / AVIF / JPEG XL (or copy the original / write a
 //! DNG, each with the edits in XMP) in sRGB, Display P3, Adobe RGB
 //! (1998) compatible, ProPhoto RGB or Rec. 2020 with an embedded ICC profile we generate from the
 //! published primaries and curves, optional output sharpening and a JPEG file-size limit. Pure (bytes in, bytes out) so the desktop
 //! app, CLI, MCP and the web build share it; writing the file is the caller's job.
 
-pub use lightcraft_codecs::TiffCompression;
-use lightcraft_codecs::{ChromaSubsampling, EncodeImage, EncodeMeta, NamedSpace, Samples, encode, icc};
+use lightcraft_codecs::{ChromaSubsampling, EncodeImage, EncodeMeta, JxlColour, JxlOptions, NamedSpace, Samples, encode, icc};
+pub use lightcraft_codecs::{JxlEffort, TiffCompression};
 use lightcraft_meta::{DateTime, Gps, Metadata};
 pub use lightcraft_pipeline::{DeepImage, DeepSamples, OutputDepth, OutputSpace};
 use lightcraft_raster::Rgba8;
@@ -22,6 +22,8 @@ pub enum ExportFormat {
     Psd,
     Webp,
     Avif,
+    /// JPEG XL: lossy (VarDCT) or lossless, 8/16-bit, HDR as Rec. 2020 PQ.
+    Jxl,
     /// The original file, unchanged, with an XMP sidecar holding the edits.
     Original,
     /// A DNG of the raw data (raw photos only), the edits embedded as XMP.
@@ -37,6 +39,7 @@ impl ExportFormat {
             "psd" => Self::Psd,
             "webp" => Self::Webp,
             "avif" => Self::Avif,
+            "jxl" | "jpegxl" | "jpeg-xl" | "jpeg_xl" => Self::Jxl,
             "original" => Self::Original,
             "dng" => Self::Dng,
             _ => return None,
@@ -50,6 +53,7 @@ impl ExportFormat {
             Self::Psd => "psd",
             Self::Webp => "webp",
             Self::Avif => "avif",
+            Self::Jxl => "jxl",
             // the original keeps its own extension (see `ExportOptions::file_name_for`)
             Self::Original => "",
             Self::Dng => "dng",
@@ -623,7 +627,7 @@ pub enum MetadataPolicy {
 #[serde(default, rename_all = "camelCase")]
 pub struct ExportOptions {
     pub format: ExportFormat,
-    /// 1–100 (JPEG, AVIF).
+    /// 1–100 (JPEG, AVIF, lossy JPEG XL).
     pub quality: u8,
     /// Output size (`None` = full size).
     pub resize: Option<Resize>,
@@ -654,18 +658,29 @@ pub struct ExportOptions {
     pub remove_location: bool,
     /// Text watermark (none when absent or the text is empty).
     pub watermark: Option<Watermark>,
-    /// Output colour space (AVIF is always sRGB: its muxer cannot embed a profile).
+    /// Output colour space (AVIF is always sRGB: its muxer cannot embed a profile; lossy JPEG XL
+    /// writes Adobe RGB and ProPhoto as Rec. 2020, see [`ExportOptions::effective_space`]).
     pub color_space: OutputSpace,
-    /// Bits per channel: 8, 16 (PNG, TIFF), 32 (TIFF: float, linear) or 10 (AVIF); `None` = the
+    /// Bits per channel: 8, 16 (PNG, TIFF, JPEG XL), 32 (TIFF: float, linear) or 10 (AVIF); `None` = the
     /// format's default (TIFF 16, everything else 8). See [`ExportOptions::effective_depth`].
     pub bit_depth: Option<u8>,
     /// HDR output for photos edited in HDR: JPEG as an ISO 21496-1 gain map JPEG (the SDR
     /// rendition plus a gain map, so the file looks right everywhere; quality as set, `limit_kb`
     /// not applied), AVIF as 10-bit Rec. 2020 PQ, PNG as 16-bit Rec. 2020 PQ (`cICP`; viewers
-    /// without cICP support show it as sRGB, washed out), 32-bit float
+    /// without cICP support show it as sRGB, washed out), JPEG XL as 16-bit Rec. 2020 PQ, 32-bit float
     /// TIFF with the highlights above SDR white kept. Other formats, and photos without an HDR
     /// edit, are SDR.
     pub hdr: bool,
+    /// JPEG XL: mathematically lossless instead of lossy (`quality` is then unused).
+    pub jxl_lossless: bool,
+    /// JPEG XL: encoder effort (time spent for a smaller file).
+    pub jxl_effort: JxlEffort,
+    /// JPEG XL: progressive file (a coarse image first, refined as it loads).
+    pub jxl_progressive: bool,
+    /// After the export, add the files written to Apple Photos (macOS only; see [`AfterExport`]).
+    pub add_to_photos: bool,
+    /// The Photos album they go into, made when missing (empty = none).
+    pub photos_album: String,
 }
 
 impl Default for ExportOptions {
@@ -690,6 +705,11 @@ impl Default for ExportOptions {
             color_space: OutputSpace::Srgb,
             bit_depth: None,
             hdr: false,
+            jxl_lossless: false,
+            jxl_effort: JxlEffort::Normal,
+            jxl_progressive: false,
+            add_to_photos: false,
+            photos_album: String::new(),
         }
     }
 }
@@ -726,7 +746,18 @@ pub const OPTION_PARAMS: &[&str] = &[
     "colorSpace",
     "bitDepth",
     "hdr",
+    "jxlLossless",
+    "jxlEffort",
+    "jxlProgressive",
+    "addToPhotos",
+    "photosAlbum",
 ];
+
+/// Why an export can't add its files to Apple Photos on this platform (`None`: it can, when the
+/// session has the runner; see [`crate::Session::after_export`]).
+pub fn apple_photos_unsupported() -> Option<&'static str> {
+    (!cfg!(target_os = "macos")).then_some("Apple Photos is only available on macOS")
+}
 
 /// The keys of a `watermark` object ([`Watermark`], camelCase). `inset` sets `insetX` and `insetY`
 /// together (what versions before the two margins wrote); either of those, when given, wins.
@@ -842,7 +873,7 @@ impl ExportOptions {
             match k.as_str() {
                 "format" => {
                     if ExportFormat::parse(string(cmd, k, v)?).is_none() {
-                        return Err(bad(format!("`{k}` must be one of jpeg|png|tiff|webp|avif|dng|original")));
+                        return Err(bad(format!("`{k}` must be one of jpeg|png|tiff|webp|avif|jxl|dng|original")));
                     }
                 }
                 "quality" => {
@@ -872,8 +903,20 @@ impl ExportOptions {
                     }
                     serde_json::from_value::<Resize>(v.clone()).map_err(|e| bad(format!("`{k}`: {e}")))?;
                 }
-                "dontEnlarge" | "removeLocation" | "background" | "hdr" => {
+                "dontEnlarge" | "removeLocation" | "background" | "hdr" | "jxlLossless" | "jxlProgressive" => {
                     boolean(k, v)?;
+                }
+                "addToPhotos" => {
+                    if boolean(k, v)?
+                        && let Some(why) = apple_photos_unsupported()
+                    {
+                        return Err(bad(format!("`{k}`: {why}")));
+                    }
+                }
+                "photosAlbum" => {
+                    if string(cmd, k, v)?.contains('\0') {
+                        return Err(bad(format!("`{k}` can't contain a NUL character")));
+                    }
                 }
                 "naming" | "subfolder" | "path" | "dir" | "preset" => {
                     string(cmd, k, v)?;
@@ -882,6 +925,7 @@ impl ExportOptions {
                 "sharpenAmount" => one_of(k, v, &["low", "standard", "high"])?,
                 "conflict" => one_of(k, v, &["unique", "overwrite", "skip"])?,
                 "tiffCompression" => one_of(k, v, &["none", "lzw", "zip", "deflate"])?,
+                "jxlEffort" => one_of(k, v, &["fast", "normal"])?,
                 "dngCompression" => {
                     serde_json::from_value::<DngCompression>(v.clone())
                         .map_err(|_| bad(format!("`{k}` must be one of lossless|deflate|uncompressed")))?;
@@ -965,7 +1009,8 @@ impl ExportOptions {
     }
 
     /// Read options from command params (`format`, `quality`, `limitKb`, `sharpen`, `sharpenAmount`,
-    /// `naming`, `metadata`, `removeLocation`, `watermark`, `colorSpace`, `bitDepth`, `ppi`) and the
+    /// `naming`, `metadata`, `removeLocation`, `watermark`, `colorSpace`, `bitDepth`, `ppi`,
+    /// `addToPhotos`, `photosAlbum`) and the
     /// size: one of `longEdge`, `shortEdge`, `width`, `height` (both = fit inside W × H),
     /// `megapixels`, `percent` (absent or 0 = full size), or a [`Resize`] object as `resize`; plus
     /// `dontEnlarge` (default true).
@@ -1011,6 +1056,11 @@ impl ExportOptions {
             color_space: s("colorSpace").and_then(OutputSpace::parse).unwrap_or(d.color_space),
             bit_depth: u("bitDepth").filter(|b| matches!(b, 8 | 10 | 16 | 32)).map(|b| b as u8),
             hdr: p.get("hdr").and_then(Value::as_bool).unwrap_or(d.hdr),
+            jxl_lossless: p.get("jxlLossless").and_then(Value::as_bool).unwrap_or(d.jxl_lossless),
+            jxl_effort: s("jxlEffort").and_then(JxlEffort::parse).unwrap_or(d.jxl_effort),
+            jxl_progressive: p.get("jxlProgressive").and_then(Value::as_bool).unwrap_or(d.jxl_progressive),
+            add_to_photos: p.get("addToPhotos").and_then(Value::as_bool).unwrap_or(d.add_to_photos),
+            photos_album: s("photosAlbum").map_or(d.photos_album, |a| a.trim().to_string()),
         }
     }
 
@@ -1088,6 +1138,9 @@ impl ExportOptions {
             (ExportFormat::Avif, _) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Avif, Some(10 | 16 | 32)) => OutputDepth::U16,
             (ExportFormat::Avif, _) => OutputDepth::U8,
+            (ExportFormat::Jxl, _) if self.hdr => OutputDepth::F32Hdr,
+            (ExportFormat::Jxl, Some(10 | 16 | 32)) => OutputDepth::U16,
+            (ExportFormat::Jxl, _) => OutputDepth::U8,
         }
     }
 
@@ -1099,27 +1152,44 @@ impl ExportOptions {
             ExportFormat::Tiff => &[(16, "16-bit"), (8, "8-bit"), (32, "32-bit float")],
             ExportFormat::Psd => &[(16, "16-bit"), (8, "8-bit")],
             ExportFormat::Avif => &[(8, "8-bit"), (10, "10-bit")],
+            ExportFormat::Jxl => &[(8, "8-bit"), (16, "16-bit")],
         }
     }
 
-    /// Whether these options write HDR files (for photos edited in HDR): JPEG (gain map), AVIF
-    /// or PNG (PQ) or 32-bit float TIFF with [`ExportOptions::hdr`].
+    /// Whether these options write HDR files (for photos edited in HDR): JPEG (gain map), AVIF,
+    /// PNG or JPEG XL (PQ) or 32-bit float TIFF with [`ExportOptions::hdr`].
     pub fn hdr_output(&self) -> bool {
         self.hdr
             && matches!(
                 (self.format, self.bit_depth),
-                (ExportFormat::Jpeg | ExportFormat::Avif | ExportFormat::Png, _) | (ExportFormat::Tiff, Some(32))
+                (ExportFormat::Jpeg | ExportFormat::Avif | ExportFormat::Png | ExportFormat::Jxl, _) | (ExportFormat::Tiff, Some(32))
             )
     }
 
-    /// The colour space the file is actually written in (AVIF: sRGB, or Rec. 2020 for HDR; HDR
-    /// PNG: Rec. 2020).
+    /// The colour space the file is actually written in (AVIF: sRGB; AVIF, PNG and JPEG XL HDR:
+    /// Rec. 2020; lossy JPEG XL: Adobe RGB and ProPhoto as Rec. 2020, the widest space its encoder
+    /// can declare without a profile).
     pub fn effective_space(&self) -> OutputSpace {
         match self.format {
-            ExportFormat::Avif | ExportFormat::Png if self.hdr => OutputSpace::Rec2020,
+            ExportFormat::Avif | ExportFormat::Png | ExportFormat::Jxl if self.hdr => OutputSpace::Rec2020,
             ExportFormat::Avif => OutputSpace::Srgb,
+            ExportFormat::Jxl if !self.jxl_lossless && matches!(self.color_space, OutputSpace::AdobeRgb | OutputSpace::ProPhoto) => {
+                OutputSpace::Rec2020
+            }
             _ => self.color_space,
         }
+    }
+
+    /// The JPEG XL encoder settings for these options, writing samples in `space`.
+    fn jxl(&self, space: OutputSpace, hdr: bool) -> JxlOptions {
+        let colour = match space {
+            _ if hdr => JxlColour::Rec2020Pq,
+            OutputSpace::DisplayP3 => JxlColour::DisplayP3,
+            OutputSpace::Rec2020 => JxlColour::Rec2020,
+            // lossless files carry the ICC profile; lossy ones never get here (`effective_space`)
+            OutputSpace::Srgb | OutputSpace::AdobeRgb | OutputSpace::ProPhoto => JxlColour::Srgb,
+        };
+        JxlOptions { quality: self.quality, lossless: self.jxl_lossless, effort: self.jxl_effort, progressive: self.jxl_progressive, colour }
     }
 
     /// Output file name for photo `p` at 1-based position `seq` in a batch (the original's
@@ -1269,6 +1339,7 @@ pub fn encode_with_metadata(img: &Rgba8, o: &ExportOptions, meta: Option<&Metada
         ExportFormat::Psd => encode::encode_psd(&e, &meta),
         ExportFormat::Webp => encode::encode_webp_lossless(&e, &meta),
         ExportFormat::Avif => encode::encode_avif(&e, o.quality, 8, &meta),
+        ExportFormat::Jxl => lightcraft_codecs::encode_jxl(&e, &o.jxl(space, false), &meta),
         f @ (ExportFormat::Original | ExportFormat::Dng) => return Err(format!("{f:?} export does not encode pixels")),
     };
     r.map_err(|e| e.to_string())
@@ -1382,6 +1453,10 @@ pub fn encode_deep(img: &DeepImage, o: &ExportOptions, meta: Option<&Metadata>) 
             lightcraft_codecs::encode_avif_pq(w, h, v, o.quality, 8, &meta)
         }
         (ExportFormat::Avif, _) => encode::encode_avif(&e, o.quality, 8, &meta),
+        (ExportFormat::Jxl, DeepSamples::F32(_)) if img.space == OutputSpace::Rec2020 => {
+            lightcraft_codecs::encode_jxl(&e, &o.jxl(img.space, true), &meta)
+        }
+        (ExportFormat::Jxl, DeepSamples::U16(_)) => lightcraft_codecs::encode_jxl(&e, &o.jxl(img.space, false), &meta),
         (f, _) => return Err(format!("{f:?} export is 8-bit only")),
     };
     r.map_err(|e| e.to_string())
@@ -1665,6 +1740,104 @@ pub enum DngCompression {
 pub struct Destination {
     pub dir: String,
     pub exact: Option<String>,
+}
+
+/// What happens after an export has written its files (Lightroom's Post-Processing): nothing, or
+/// adding them to Apple Photos ([`ExportOptions::add_to_photos`]). Made by
+/// [`crate::Session::after_export`] before the export starts, so an export asking for something
+/// this session can't do fails before writing anything; for Photos it holds the import slot
+/// (a [`crate::apple_photos::Reservation`]) until the files are handed over, and frees it when
+/// dropped unused (the export failed or never ran). `Send`: a background export takes it to its
+/// worker.
+#[derive(Default)]
+pub struct AfterExport {
+    #[cfg(not(target_arch = "wasm32"))]
+    apple_photos: Option<crate::apple_photos::Reservation>,
+}
+
+impl AfterExport {
+    /// Add the files to Apple Photos with `runner`, into `album` when it isn't blank, reserving
+    /// the import slot of `imports` now. (Front ends get this from
+    /// [`crate::Session::after_export`], which checks the platform first.)
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn apple_photos(runner: crate::apple_photos::Runner, album: &str, imports: &crate::apple_photos::Imports) -> Result<Self, String> {
+        Ok(Self { apple_photos: Some(imports.reserve(runner, album)?) })
+    }
+
+    /// Nothing to do.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn is_none(&self) -> bool {
+        self.apple_photos.is_none()
+    }
+
+    /// Nothing to do.
+    #[cfg(target_arch = "wasm32")]
+    pub fn is_none(&self) -> bool {
+        true
+    }
+
+    /// Do it now for an export's per-photo results ([`run_batch`]'s: only the files written
+    /// count), waiting for Photos: for a worker thread (the app's background export) or a caller
+    /// without a window (MCP, lightcraft-cli). `None` when there was nothing to do, else the
+    /// outcome to report as the export's `applePhotos`: the finished job (`{job, running: false,
+    /// requested, album}` with `{imported, ids, warning?}`, `{error}`, or `{skipped}` when the
+    /// export was cancelled or wrote nothing). Never fails the export: its files are written
+    /// either way.
+    pub fn run(self, files: &[serde_json::Value], cancelled: bool) -> Option<serde_json::Value> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(r) = self.apple_photos {
+            return Some(r.run(files, cancelled));
+        }
+        let _ = (files, cancelled);
+        None
+    }
+
+    /// Like [`AfterExport::run`], without waiting: Photos works on a worker thread and the
+    /// outcome is the running job (`{job, running: true, requested, album}`; its result comes
+    /// from `export.photosImports`, and the desktop app announces it). For a caller on the UI
+    /// thread, which must not wait minutes for Photos.
+    pub fn start(self, files: &[serde_json::Value]) -> Option<serde_json::Value> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(r) = self.apple_photos {
+            return Some(r.start(files));
+        }
+        let _ = files;
+        None
+    }
+
+    /// [`AfterExport::start`] where the session answers on a UI thread
+    /// ([`crate::Session::apple_photos_background`]), else [`AfterExport::run`].
+    pub fn finish(self, s: &crate::Session, files: &[serde_json::Value]) -> Option<serde_json::Value> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if s.apple_photos_background {
+            return self.start(files);
+        }
+        let _ = s;
+        self.run(files, false)
+    }
+}
+
+impl crate::Session {
+    /// What an export with `o` does after writing its files; an error, before anything is written,
+    /// when it asks for Apple Photos and this platform or session has no way to reach it, or
+    /// another import is reserved or running. For Photos the import slot is reserved from now on.
+    pub fn after_export(&self, o: &ExportOptions) -> Result<AfterExport, String> {
+        if !o.add_to_photos {
+            return Ok(AfterExport::default());
+        }
+        if let Some(why) = apple_photos_unsupported() {
+            return Err(why.into());
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let runner = self.apple_photos.clone().ok_or_else(|| crate::apple_photos::unavailable().to_string())?;
+            let mut after = AfterExport::apple_photos(runner, &o.photos_album, &self.apple_photos_imports)?;
+            after.apple_photos = after.apple_photos.map(|r| r.shown_in(self.activity.clone()));
+            Ok(after)
+        }
+        #[cfg(target_arch = "wasm32")]
+        Err("Apple Photos is only available on macOS".into())
+    }
 }
 
 /// Export `ids` in order ([`prepare_batch`] + [`run_batch`]), stopping at the first error.
@@ -2665,6 +2838,75 @@ mod tests {
     }
 
     #[test]
+    fn jxl_options() {
+        assert_eq!(ExportFormat::parse("JPEG-XL"), Some(ExportFormat::Jxl));
+        let o = ExportOptions::from_params(&json!({"format": "jxl", "jxlLossless": true, "jxlEffort": "fast", "jxlProgressive": true})).unwrap();
+        assert_eq!((o.format, o.jxl_lossless, o.jxl_effort, o.jxl_progressive), (ExportFormat::Jxl, true, JxlEffort::Fast, true));
+        assert_eq!(ExportOptions::from_json(&o.to_json()), o, "saved presets keep the JPEG XL settings");
+        assert!(ExportOptions::from_params(&json!({"jxlEffort": "best"})).is_err());
+        assert!(ExportOptions::from_params(&json!({"jxlLossless": "yes"})).is_err());
+        let space = |lossless, color_space, hdr| {
+            ExportOptions { format: ExportFormat::Jxl, jxl_lossless: lossless, color_space, hdr, ..Default::default() }.effective_space()
+        };
+        assert_eq!(space(false, OutputSpace::DisplayP3, false), OutputSpace::DisplayP3);
+        assert_eq!(space(false, OutputSpace::ProPhoto, false), OutputSpace::Rec2020, "lossy has no ProPhoto enum");
+        assert_eq!(space(true, OutputSpace::ProPhoto, false), OutputSpace::ProPhoto, "lossless keeps the profile");
+        assert_eq!(space(true, OutputSpace::Srgb, true), OutputSpace::Rec2020);
+        let o = ExportOptions { format: ExportFormat::Jxl, hdr: true, ..Default::default() };
+        assert!(o.hdr_output());
+        assert_eq!(o.effective_depth(), OutputDepth::F32Hdr);
+        assert_eq!(ExportFormat::Jxl.extension(), "jxl");
+    }
+
+    #[test]
+    fn jxl_every_space_round_trips() {
+        // wide-gamut green stays outside sRGB in P3, Rec. 2020 and (lossless) ProPhoto files
+        for (lossless, space) in [
+            (false, OutputSpace::Srgb),
+            (false, OutputSpace::DisplayP3),
+            (false, OutputSpace::Rec2020),
+            (true, OutputSpace::DisplayP3),
+            (true, OutputSpace::AdobeRgb),
+            (true, OutputSpace::ProPhoto),
+        ] {
+            let o = ExportOptions { format: ExportFormat::Jxl, color_space: space, jxl_lossless: lossless, quality: 95, ..Default::default() };
+            let png = ExportOptions { format: ExportFormat::Png, color_space: space, ..Default::default() };
+            let img = p3_green(space);
+            let bytes = encode_image(&img, &o).unwrap();
+            assert_eq!(lightcraft_codecs::sniff(&bytes), Some(lightcraft_codecs::Format::Jxl));
+            let (got, _) = decoded_in_srgb(&bytes);
+            let (want, _) = decoded_in_srgb(&encode_image(&img, &png).unwrap());
+            for c in 0..3 {
+                assert!((got[c] - want[c]).abs() < 0.01, "{space:?} lossless={lossless}: {got:?} vs PNG {want:?}");
+            }
+            if space != OutputSpace::Srgb {
+                assert!(got[0] < -0.03 || got[2] < -0.03, "{space:?}: outside sRGB after the round trip: {got:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn jxl_sixteen_bit() {
+        let o = ExportOptions {
+            format: ExportFormat::Jxl,
+            bit_depth: Some(16),
+            jxl_lossless: true,
+            color_space: OutputSpace::DisplayP3,
+            ..Default::default()
+        };
+        assert_eq!(o.effective_depth(), OutputDepth::U16);
+        let (levels8, _) = distinct_levels(
+            &encode_rendered(&ramp(OutputDepth::U8, OutputSpace::DisplayP3), &ExportOptions { bit_depth: Some(8), ..o.clone() }, None).unwrap(),
+        );
+        let (levels, d) = distinct_levels(&encode_rendered(&ramp(OutputDepth::U16, OutputSpace::DisplayP3), &o, None).unwrap());
+        assert_eq!(d.bit_depth, 16);
+        assert!(levels > 10 * levels8, "{levels} vs {levels8}");
+        // lossy 16-bit encodes too
+        let lossy = ExportOptions { jxl_lossless: false, ..o };
+        assert!(encode_rendered(&ramp(OutputDepth::U16, OutputSpace::DisplayP3), &lossy, None).is_ok());
+    }
+
+    #[test]
     fn bit_depth_options_per_format() {
         let d = |format, bit_depth| ExportOptions { format, bit_depth, ..Default::default() }.effective_depth();
         assert_eq!(d(ExportFormat::Jpeg, Some(16)), OutputDepth::U8);
@@ -2674,7 +2916,9 @@ mod tests {
         assert_eq!(d(ExportFormat::Avif, Some(10)), OutputDepth::U16);
         assert_eq!(ExportOptions::from_json(&serde_json::json!({"bitDepth": 16})).bit_depth, Some(16));
         assert_eq!(ExportOptions::from_json(&serde_json::json!({"bitDepth": 12})).bit_depth, None);
-        for f in [ExportFormat::Jpeg, ExportFormat::Png, ExportFormat::Tiff, ExportFormat::Webp, ExportFormat::Avif] {
+        assert_eq!(d(ExportFormat::Jxl, Some(16)), OutputDepth::U16);
+        assert_eq!(d(ExportFormat::Jxl, None), OutputDepth::U8);
+        for f in [ExportFormat::Jpeg, ExportFormat::Png, ExportFormat::Tiff, ExportFormat::Webp, ExportFormat::Avif, ExportFormat::Jxl] {
             let first = ExportOptions::bit_depths(f)[0].0;
             let def = d(f, None);
             assert_eq!(d(f, Some(first)), def, "{f:?}: the first choice is the default");
@@ -2743,6 +2987,22 @@ mod tests {
             j[k] = v;
         }
         assert_eq!(ExportOptions::from_params(&j).unwrap(), full);
+        // Add to Apple Photos (issue #236): a switch and an album name; on only where Photos is
+        assert!(err(json!({"addToPhotos": "yes"})).contains("`addToPhotos` must be true or false"));
+        assert!(err(json!({"photosAlbum": 3})).contains("`photosAlbum` must be a string"));
+        assert!(err(json!({"photosAlbum": "a\0b"})).contains("NUL"));
+        assert!(err(json!({"photosAlbm": "x"})).contains("did you mean `photosAlbum`"));
+        let album = ExportOptions { photos_album: "Trip “2026” \\ \"x\"".into(), ..Default::default() };
+        assert_eq!(ExportOptions::from_params(&album.to_json()).unwrap(), album);
+        let on = ExportOptions { add_to_photos: true, ..album };
+        if cfg!(target_os = "macos") {
+            assert_eq!(ExportOptions::from_params(&on.to_json()).unwrap(), on);
+        } else {
+            assert!(err(on.to_json()).contains("Apple Photos is only available on macOS"));
+            // stored settings (a preset or Export with Previous made on a Mac) still read
+            assert!(ExportOptions::from_json(&on.to_json()).add_to_photos);
+        }
+        assert_eq!(ExportOptions::from_json(&json!({"photosAlbum": "  Trip  "})).photos_album, "Trip");
         assert_eq!(ExportOptions::from_params(&ExportOptions::default().to_json()).unwrap(), ExportOptions::default());
         // null is "not given", as a dropped key is
         ExportOptions::from_params(&json!({"quality": 92, "longEdge": null, "watermark": null})).unwrap();
