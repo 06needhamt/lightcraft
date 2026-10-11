@@ -46,6 +46,11 @@
   in, instead of moving it back to Program Files (issue #399). If that folder has been deleted since, the upgrade
   installs to Program Files.
 
+### Library sorting
+- Photos that tie on the sort key (equal ratings, one import batch, a burst shot within the same second) now sort by
+  file name, then id, instead of import order. Recently Added keeps a batch in file name order, and Auto-Stack orders a
+  burst by file name, so the first file is the cover.
+
 ## 2026-10-10
 
 ### Dialogs fit the window
