@@ -1619,9 +1619,6 @@ fn radial_body_contains(shape: &MaskShape, at: Point, map: &CanvasMap) -> bool {
     x * x + y * y <= 1.0
 }
 
-/// The Masking tool on the photo: outlines and handles of the selected mask, a pin per mask
-/// component (click selects its mask, drag moves the component), and brush painting. The mask
-/// itself shows as a rendered overlay ([`view_overlay`]).
 /// Colour Range eyedropper: a click samples the colour under it for the selected mask's
 /// colour range, at normalized frame coordinates (crop, rotation and zoom aware);
 /// ⇧-click adds a sample (up to 5).
@@ -1637,6 +1634,9 @@ fn color_range_pick(app: &mut LightcraftApp, ui: &egui::Ui, resp: &egui::Respons
     }
 }
 
+/// The Masking tool on the photo: outlines and handles of the selected mask, a pin per mask
+/// component (click selects its mask, drag moves the component), and brush painting. The mask
+/// itself shows as a rendered overlay ([`view_overlay`]).
 fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
     let tint = {
         let [r, g, b] = app.ui.mask_overlay_color;
