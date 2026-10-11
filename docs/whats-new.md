@@ -54,6 +54,12 @@
   raws of other cameras keep the as-shot shift of issue #510. The two Kelvin scales come from different matrices and
   differ by about 7–10 % on the ILCE-7M3; which one is off is still open.
 
+### Fujifilm lens corrections
+- Fujifilm RAFs from 59 camera models now get the lens correction the camera stores in the file: distortion (with the
+  camera's own zoom to fill the frame) and vignetting, as with Panasonic and Sony files. The Optics profile controls
+  adjust or switch them off, and DNG export keeps them. Lateral chromatic aberration data is not applied: our
+  demosaic already lines the colour planes up. Details and measurements: `docs/fuji-lens-corrections.md`.
+
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
   folder scans, exports (and the contact sheet PDF), Synchronize Folder, Build / Smart Previews, Lightroom catalog import, Photo Merge, model downloads, the face scan,
