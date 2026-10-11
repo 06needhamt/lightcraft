@@ -1183,6 +1183,7 @@ fn the_tracklog_toast_shows_after_a_while() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+<<<<<<< HEAD
 /// Issue #678: Settings ▸ Faces cannot switch recognition on until a recognition model is chosen:
 /// the box is off and clicking it changes nothing. Installing a model switches recognition on by
 /// itself, and from then on the box turns it off and on.
@@ -1254,15 +1255,35 @@ fn local_photos_cannot_be_added_to_albums_until_they_join_my_photos() {
     let thumb = widget(&h, &format!("thumb:{}", local.0));
 
     // right-click: Add to Album is there but off, so hovering opens no album entries
+=======
+/// Issue #676: right-click ▸ Add to Album offers New Album… like the Photo menu does, also when
+/// the library has no album yet (the submenu used to come up empty); the new album holds the photo.
+#[test]
+fn right_click_add_to_album_offers_a_new_album_when_there_is_none() {
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let plain: Vec<u64> = h.app.session.catalog.albums().filter(|a| !a.folder && !a.is_smart()).map(|a| a.id.0).collect();
+    for id in plain {
+        h.app.session.execute("album.delete", &json!({"id": id})).unwrap();
+    }
+    assert!(h.app.session.catalog.albums().all(|a| a.folder || a.is_smart()), "no plain album is left");
+    let photo = lightcraft_catalog::PhotoId(h.app.session.visible_cloned()[1].0);
+    h.step();
+    let thumb = widget(&h, &format!("thumb:{}", photo.0));
+>>>>>>> pr/685
     let r = h.request("ui.click", json!({"x": thumb.center().x, "y": thumb.center().y, "button": "right"}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.step();
     h.step();
+<<<<<<< HEAD
     assert!(h.app.session.selection.contains(local));
+=======
+    assert!(h.app.session.selection.contains(photo), "right-click selects the photo");
+>>>>>>> pr/685
     let r = h.request("ui.hoverWidget", json!({"id": "button:contextAddToAlbum"}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.step();
     h.step();
+<<<<<<< HEAD
     assert!(!h.app.widgets.iter().any(|(w, _)| w.starts_with("button:contextAlbum:")), "the submenu must not open for a Local photo");
     let r = h.request("ui.key", json!({"key": "Escape"}), T);
     assert_eq!(r["ok"], true, "{r}");
@@ -1323,4 +1344,22 @@ fn local_photos_cannot_be_added_to_albums_until_they_join_my_photos() {
     h.step();
     assert_eq!(h.app.session.catalog.album(album_id).unwrap().photos, vec![local]);
     let _ = std::fs::remove_dir_all(&dir);
+=======
+    let r = h.request("ui.clickWidget", json!({"id": "button:contextNewAlbum"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    match &mut h.app.ui.dialog {
+        Some(crate::state::Dialog::NewAlbum { name, folder: false, parent: None }) => *name = "Trip".into(),
+        other => panic!("New Album dialog expected, got {other:?}"),
+    }
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "button:dialogOk"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    let trip = h.app.session.catalog.albums().find(|a| a.name == "Trip").expect("the album was created");
+    assert!(trip.photos.contains(&photo), "the right-clicked photo is in it: {:?}", trip.photos);
+    assert!(h.app.ui.dialog.is_none(), "{:?}", h.app.ui.dialog);
+>>>>>>> pr/685
 }
