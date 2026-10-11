@@ -1,4 +1,4 @@
-//! Encoders: JPEG (`jpeg-encoder`), PNG (`png`), TIFF (`tiff`), lossless WebP (`image-webp`) and,
+//! Encoders: JPEG (`jpeg-encoder`), PNG (`png`), TIFF (`tiff`), flat PSD (our own), lossless WebP (`image-webp`) and,
 //! on native targets with the `avif` feature, AVIF (`ravif`/`rav1e`). Metadata (ICC/EXIF/XMP) is
 //! embedded where the format allows.
 
@@ -32,7 +32,7 @@ impl<'a> EncodeImage<'a> {
         EncodeImage { width, height, channels, samples }
     }
 
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         if !(1..=4).contains(&self.channels) {
             return Err(Error::Encode(format!("unsupported channel count {}", self.channels)));
         }
@@ -289,6 +289,12 @@ pub fn encode_tiff(img: &EncodeImage, compression: TiffCompression, meta: &Encod
         },
     }
     Ok(cur.into_inner())
+}
+
+/// Encode a flat PSD (8/16-bit gray or RGB, no layers; alpha dropped): the hand-off an image
+/// editor such as PhotoCraft saves back to in place. ICC, EXIF, XMP and resolution are embedded.
+pub fn encode_psd(img: &EncodeImage, meta: &EncodeMeta) -> Result<Vec<u8>> {
+    crate::psd::encode(img, meta)
 }
 
 /// Encode lossless WebP (8-bit). ICC/EXIF/XMP are embedded in the extended (VP8X) container.

@@ -138,19 +138,46 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, crate::i18n::tr("Culling"));
     check(ui, "settings.autoAdvance", &mut app.ui.auto_advance, "Auto Advance: move to the next photo after rating or flagging");
     check(ui, "settings.confirmDelete", &mut app.ui.settings.confirm_delete, "Confirm before moving photos to Recently Deleted");
-    heading(ui, t, crate::i18n::tr("External Editor"));
-    row(ui, t, crate::i18n::tr("Application"), |ui| {
-        let r = ui
-            .add(egui::TextEdit::singleline(&mut app.ui.settings.external_editor).hint_text(crate::i18n::tr("System default")).desired_width(220.0));
-        register(ui.ctx(), "field:externalEditor", r.rect);
+    heading(ui, t, crate::i18n::tr("External Editing"));
+    row(ui, t, crate::i18n::tr("PhotoCraft"), |ui| {
+        let r = ui.add(
+            egui::TextEdit::singleline(&mut app.ui.settings.photocraft_path).hint_text(crate::i18n::tr("Found automatically")).desired_width(220.0),
+        );
+        register(ui.ctx(), "field:photocraftPath", r.rect);
     });
+    edit_file_rows(ui, t, "photocraftFile", &mut app.ui.settings.photocraft_file);
     hint(
         ui,
         t,
         crate::i18n::tr(
-            "Photo ▸ Edit in External Editor (⇧⌘E) renders a 16-bit TIFF copy, stacks it with the original and opens it here (an app name on macOS, a program path elsewhere).",
+            "Photo ▸ Edit In ▸ Edit in PhotoCraft (⇧⌘E, or right-click a photo) renders a copy with your edits, stacks it with the original and opens it in PhotoCraft. Save there and the copy updates here. As PSD, PhotoCraft saves straight back to it. Leave the location empty unless you use a portable copy.",
         ),
     );
+    row(ui, t, crate::i18n::tr("Other editor"), |ui| {
+        let r = ui
+            .add(egui::TextEdit::singleline(&mut app.ui.settings.external_editor).hint_text(crate::i18n::tr("System default")).desired_width(220.0));
+        register(ui.ctx(), "field:externalEditor", r.rect);
+    });
+    edit_file_rows(ui, t, "externalFile", &mut app.ui.settings.external_file);
+    hint(ui, t, crate::i18n::tr("Edit in Other Editor (⌥⌘E) opens the copy in this application (an app name on macOS, a program path elsewhere)."));
+}
+
+/// The file Edit In hands an editor: format, colour space and bit depth (`button:{id}Format-…`).
+fn edit_file_rows(ui: &mut egui::Ui, t: &Tokens, id: &str, file: &mut crate::state::EditFile) {
+    use crate::state::{EditFormat, EditSpace};
+    row(ui, t, "", |ui| {
+        choices(ui, &format!("{id}Format"), &[(EditFormat::Psd, "PSD"), (EditFormat::Tiff, "TIFF")], &mut file.format);
+        ui.separator();
+        choices(ui, &format!("{id}Depth"), &[(16u8, "16-bit"), (8, "8-bit")], &mut file.bit_depth);
+    });
+    row(ui, t, "", |ui| {
+        choices(
+            ui,
+            &format!("{id}Space"),
+            &[(EditSpace::AdobeRgb, "Adobe RGB"), (EditSpace::ProPhoto, "ProPhoto"), (EditSpace::DisplayP3, "P3"), (EditSpace::Srgb, "sRGB")],
+            &mut file.color_space,
+        );
+    });
 }
 
 // -------------------------------------------------------------------------------------- Import

@@ -119,6 +119,9 @@ pub type RevealFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 pub type OpenUrlFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 /// Open a file in an application (`app` = "" for the system's default one).
 pub type OpenWithFn = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
+/// Whether an external editor can be started (its name as in [`Services::open_with`]); the
+/// error says why not and what to do (e.g. PhotoCraft isn't installed).
+pub type CheckEditorFn = Box<dyn Fn(&str) -> Result<(), String>>;
 /// Something the host does with the session (web: back up or restore the library in browser
 /// storage); the work may finish asynchronously.
 pub type HostAction = Box<dyn FnMut(&mut Session) -> Result<Value, String>>;
@@ -170,6 +173,9 @@ pub struct Services {
     pub open_url: Option<OpenUrlFn>,
     /// Open a file in an external editor (Edit in External Editor; desktop only).
     pub open_with: Option<OpenWithFn>,
+    /// Checked before Edit In renders a copy, so a missing editor leaves no copy behind (none =
+    /// assume it can).
+    pub check_editor: Option<CheckEditorFn>,
     /// File ▸ Back Up Library…: save the whole library (catalog and originals) as one file the
     /// user keeps (web only: there the library lives in browser storage, which the browser may
     /// clear; on the desktop it is a folder backed up like any other).

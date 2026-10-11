@@ -1,5 +1,17 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Edit in PhotoCraft
+- Right-click a photo ▸ Edit In ▸ Edit in PhotoCraft (or Photo ▸ Edit In, ⇧⌘E) renders a copy with your edits, stacks it
+  with the original and opens it in PhotoCraft. LightCraft finds PhotoCraft where its installer put it (Windows,
+  macOS, Linux packages, AppImage, Flatpak), and says so if it isn't installed, before making a copy.
+- The copy is a 16-bit PSD by default, which PhotoCraft saves straight back to with File ▸ Save; when you come back to
+  LightCraft the copy shows what you saved.
+- Settings ▸ General ▸ External Editing: the format (PSD or TIFF), colour space and bit depth for PhotoCraft and for
+  the other editor (Edit in Other Editor, now ⌥⌘E), and where PhotoCraft is if you use a portable copy.
+- Export can write PSD too (flat, 8- or 16-bit).
+
 ## 2026-10-10
 
 ### Activity stack
