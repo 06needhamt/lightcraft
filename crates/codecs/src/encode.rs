@@ -503,7 +503,8 @@ pub fn encode_avif_pq(width: u32, height: u32, rgb: &[f32], quality: u8, speed: 
 /// (SDR white at [`HDR_REFERENCE_WHITE_NITS`]), described by a `cICP` chunk (PNG third edition:
 /// BT.2020 primaries, PQ, RGB, full range) and a `cLLI` content light level chunk (the same
 /// levels the HDR AVIF records). EXIF and XMP are embedded; an ICC profile is not (`cICP`
-/// describes the colour, and readers prefer it).
+/// describes the colour, and readers prefer it). Readers without `cICP` support show the PQ
+/// samples as if they were sRGB (flat, washed out): expected for a PQ PNG, there is no fallback.
 pub fn encode_png_pq(width: u32, height: u32, rgb: &[f32], meta: &EncodeMeta) -> Result<Vec<u8>> {
     let (w, h) = (width as usize, height as usize);
     let n = w.checked_mul(h).ok_or_else(|| Error::Encode("image too large".into()))?;

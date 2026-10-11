@@ -602,7 +602,8 @@ pub struct ExportOptions {
     pub bit_depth: Option<u8>,
     /// HDR output for photos edited in HDR: JPEG as an ISO 21496-1 gain map JPEG (the SDR
     /// rendition plus a gain map, so the file looks right everywhere; quality as set, `limit_kb`
-    /// not applied), AVIF as 10-bit Rec. 2020 PQ, PNG as 16-bit Rec. 2020 PQ (`cICP`), 32-bit float
+    /// not applied), AVIF as 10-bit Rec. 2020 PQ, PNG as 16-bit Rec. 2020 PQ (`cICP`; viewers
+    /// without cICP support show it as sRGB, washed out), 32-bit float
     /// TIFF with the highlights above SDR white kept. Other formats, and photos without an HDR
     /// edit, are SDR.
     pub hdr: bool,

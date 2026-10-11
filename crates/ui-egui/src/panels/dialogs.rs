@@ -564,7 +564,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     } else if opts.format == F::Avif && opts.hdr {
                         ui.label(egui::RichText::new("Color space: Rec. 2020 PQ (HDR AVIF)").color(t.text_dim));
                     } else if opts.format == F::Png && opts.hdr {
-                        ui.label(egui::RichText::new("Color space: Rec. 2020 PQ, 16-bit (HDR PNG)").color(t.text_dim));
+                        ui.label(egui::RichText::new("Color space: Rec. 2020 PQ, 16-bit (HDR PNG)").color(t.text_dim))
+                            .on_hover_text("Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).");
                     } else if opts.format == F::Avif {
                         ui.label(egui::RichText::new(crate::i18n::tr("Color space: sRGB (AVIF)")).color(t.text_dim));
                     } else {
