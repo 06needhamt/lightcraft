@@ -112,6 +112,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::Merge { opts } => opts.title(),
         Dialog::Settings { .. } => "Settings",
         Dialog::ConfirmDelete { .. } => "Delete Photos",
+        Dialog::LightroomCatalog { .. } => "Lightroom Classic Catalog",
         Dialog::RemoveFolder { disk: true, .. } => "Remove Disk from Library",
         Dialog::RemoveFolder { .. } => "Remove Folder from Library",
         Dialog::SynchronizeFolder { .. } => "Synchronize Folder",
@@ -140,6 +141,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             Dialog::SmartRules { .. } => 680.0,
             Dialog::AllMetadata { .. } => 620.0,
             Dialog::FaceModel { .. } => 460.0,
+            Dialog::LightroomCatalog { .. } => 440.0,
             _ => 380.0,
         })
         .show(ctx, |ui| {
@@ -882,6 +884,16 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     ui.label(egui::RichText::new(crate::i18n::tr("They can be restored from Recently Deleted until it is emptied.")).color(t.text_dim));
                 }
                 d @ Dialog::SynchronizeFolder { .. } => crate::sync::body(app, ui, d),
+                Dialog::LightroomCatalog { folder, catalog } => {
+                    ui.label(crate::i18n::tr("This is a Lightroom catalog, not a LightCraft library. Import it into a LightCraft library instead?"));
+                    ui.label(egui::RichText::new(catalog.as_deref().unwrap_or(folder.as_str())).color(t.text_dim));
+                    ui.label(
+                        egui::RichText::new(crate::i18n::tr(
+                            "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now.",
+                        ))
+                        .color(t.text_dim),
+                    );
+                }
                 Dialog::RemoveFolder { name, count, path, disk } => {
                     ui.label(crate::i18n::tr_format!(
                         "Remove “{name}” and its {count} photo{} from the library?",
@@ -988,6 +1000,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::KeywordTag { editing: None, .. } => "Create",
                     Dialog::KeywordTag { .. } => "Save",
                     Dialog::RemoveFolder { .. } => "Remove",
+                    Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
                     Dialog::SynchronizeFolder { .. } => "Synchronize",
                     Dialog::SamModel { then: Some(_), .. } if sam_installed => "Continue",
                     Dialog::SamModel { .. } if sam_installed || sam_running || sam_nowhere => "",
@@ -1370,6 +1383,10 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         Dialog::Merge { opts } => crate::merge::start_final(app, opts),
         Dialog::Import { opts } => crate::import::start(app, opts),
         Dialog::ConfirmDelete { .. } => app.run("photo.delete", json!({})),
+        // the catalog found: no file dialog; none: File ▸ Import Lightroom Catalog… asks for it
+        Dialog::LightroomCatalog { catalog, .. } => {
+            app.run("file.importLightroom", catalog.as_ref().map_or_else(|| json!({}), |c| json!({"path": c})))
+        }
         Dialog::RemoveFolder { path, disk, .. } => app.run("library.removeFolder", json!({"path": path, "disk": disk})),
         d @ Dialog::SynchronizeFolder { .. } => crate::sync::confirm(app, d),
         Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } => Ok(serde_json::Value::Null),

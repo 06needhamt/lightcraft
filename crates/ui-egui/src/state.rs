@@ -725,6 +725,13 @@ pub enum Dialog {
         #[serde(default)]
         error: Option<String>,
     },
+    /// Open Library was given a Lightroom Classic catalog (issue #891): offer File ▸ Import
+    /// Lightroom Catalog… with `catalog` (the `.lrcat` found; `None`: ask for it) instead.
+    /// `folder`: what was chosen.
+    LightroomCatalog {
+        folder: String,
+        catalog: Option<String>,
+    },
     /// Confirm moving photos to Recently Deleted.
     ConfirmDelete {
         count: usize,

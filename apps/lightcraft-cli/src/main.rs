@@ -115,6 +115,9 @@ fn library_error(dir: &str, e: lightcraft_engine::EngineError) -> String {
         lightcraft_engine::EngineError::LibraryInUse(why) => format!(
             "{dir}: {why}\nTo work with the library while the app has it open, start the app with `--control PORT` and use `lightcraft-cli mcp --connect 127.0.0.1:PORT`."
         ),
+        e @ lightcraft_engine::EngineError::LightroomCatalog { .. } => format!(
+            "{e}\nOpen a LightCraft library with `--library DIR` (an empty folder makes a new one) and run `library.importLightroom` with the catalog's path."
+        ),
         e => format!("{dir}: {e}"),
     }
 }

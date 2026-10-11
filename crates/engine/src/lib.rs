@@ -41,6 +41,7 @@ mod import_move;
 pub mod library;
 mod lightroom_archive;
 pub mod lightroom_catalog;
+pub mod lightroom_folder;
 pub mod lightroom_job;
 mod lightroom_sqlite;
 pub mod logging;
@@ -88,6 +89,11 @@ pub enum EngineError {
     /// Another process (the app, `lightcraft-cli`, another computer) has the library open.
     #[error("{0}")]
     LibraryInUse(String),
+    /// The folder (or file) asked for is a Lightroom Classic catalog or part of one, not a
+    /// LightCraft library (issue #891): nothing was created or opened. `catalog`: the `.lrcat`
+    /// to import with `library.importLightroom`, when one was found.
+    #[error("{} is a Lightroom Classic catalog, not a LightCraft library; import it into a LightCraft library with File ▸ Import Lightroom Catalog…{}", path.display(), catalog.as_ref().map_or(String::new(), |c| format!(" ({})", c.display())))]
+    LightroomCatalog { path: std::path::PathBuf, catalog: Option<std::path::PathBuf> },
     #[error("{0}")]
     Other(String),
 }
@@ -891,6 +897,8 @@ mod tests_keyword_list;
 mod tests_libops;
 #[cfg(test)]
 mod tests_library;
+#[cfg(test)]
+mod tests_lightroom_folder;
 #[cfg(test)]
 mod tests_merge;
 #[cfg(test)]

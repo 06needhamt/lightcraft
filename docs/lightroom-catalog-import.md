@@ -4,6 +4,10 @@ File → Import Lightroom Catalog… opens `.lrcat` directly. Lightroom, Python,
 and a C SQLite runtime are not required. The source database is read-only, including committed
 `-wal` pages; a catalog that changes during the read is rejected. LightCraft owns subsequent edits.
 
+File → Open Library… given a Lightroom catalog folder (or an `.lrdata` / `.lrcat-data` folder, or the `.lrcat`)
+doesn't make a LightCraft library there: it offers this import instead, with the catalog found
+(`crates/engine/src/lightroom_folder.rs`, issue #891). `lightcraft-cli --library` refuses those places too.
+
 Equivalent commands:
 
 ```text
