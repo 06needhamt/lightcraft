@@ -232,6 +232,12 @@ from outside the window: the vignette geometry arrives as the `VIG_VIEW` paramet
 noise-reduction size come from the whole frame, and a window that spots or Auto Mask strokes grew is
 cut back after the readback. The tests skip (pass with a note) when no adapter exists.
 
+**AMD Radeon 8060S (RADV STRIX_HALO, Vulkan 1.4, Mesa 26.2.4, Linux 7.2), 2026-10-12**, the first
+non-Apple GPU verified: all 16 tests pass, 135 compared cases. 124 differ by max 1 LSB, 10 are
+bit-identical, and one (the point colour range overlay) has max 2 LSB on 0.0002% of pixels. Worst
+mean 0.0003 LSB. That is the same picture as on Metal, inside the bounds
+(`cargo test -p lightcraft-gpu --release --test equivalence -- --nocapture`).
+
 Remaining differences come from f32 vs f64 coordinate math, fast-math transcendental functions on
 Metal and running-sum order in the box filters — all far below one 8-bit step.
 
