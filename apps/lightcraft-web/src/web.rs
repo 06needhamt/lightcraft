@@ -228,11 +228,14 @@ fn services(originals: Originals, backend: Option<Backend>, files: Files, frozen
         reveal: None,
         log_file: None,
         open_with: None,
+        check_editor: None,
         open_url: Some(Box::new(|url: &str| {
             let w = web_sys::window().ok_or("no window")?;
             w.open_with_url_and_target(url, "_blank").map(|_| ()).map_err(|_| "the browser blocked the new tab".to_string())
         })),
         pick_folder: None,
+        // the browser reports prefers-color-scheme to egui
+        system_theme: None,
     }
 }
 

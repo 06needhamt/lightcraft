@@ -13,6 +13,25 @@
   scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos
   imported earlier switch over with Photo ▸ Reload from Disk.
 
+### Switching libraries
+- File ▸ New Library… asks for a name, then where to put it, and opens the new library (issue #902).
+- File ▸ Open Recent Library lists the last 8 libraries; ones that are gone (moved, drive disconnected) are greyed
+  out. Clear Recent Libraries empties the list.
+- The open library's name shows under My Photos at the top of the left panel and in the window title.
+- `lightcraft-cli --library` given a library's own file (`catalog.snap`) opens its folder instead of failing with
+  "File exists".
+- Agents use `app.newLibrary {path, name}`, `app.recentLibraries` and `app.clearRecentLibraries`.
+
+### Edit in PhotoCraft
+- Right-click a photo ▸ Edit In ▸ Edit in PhotoCraft (or Photo ▸ Edit In, ⇧⌘E) renders a copy with your edits, stacks it
+  with the original and opens it in PhotoCraft. LightCraft finds PhotoCraft where its installer put it (Windows,
+  macOS, Linux packages, AppImage, Flatpak), and says so if it isn't installed, before making a copy.
+- The copy is a 16-bit PSD by default, which PhotoCraft saves straight back to with File ▸ Save; when you come back to
+  LightCraft the copy shows what you saved.
+- Settings ▸ General ▸ External Editing: the format (PSD or TIFF), colour space and bit depth for PhotoCraft and for
+  the other editor (Edit in Other Editor, now ⌥⌘E), and where PhotoCraft is if you use a portable copy.
+- Export can write PSD too (flat, 8- or 16-bit).
+
 ## 2026-10-10
 
 ### Dialogs fit the window
@@ -59,6 +78,14 @@
   camera's own zoom to fill the frame) and vignetting, as with Panasonic and Sony files. The Optics profile controls
   adjust or switch them off, and DNG export keeps them. Lateral chromatic aberration data is not applied: our
   demosaic already lines the colour planes up. Details and measurements: `docs/fuji-lens-corrections.md`.
+
+### Appearance
+- Settings ▸ Interface ▸ Appearance Mode: Sync with System, Dark Mode or Light Mode, above a light
+  and a dark theme card, each previewing its theme (dark: Charcoal, the look so far, or Midnight;
+  light: Silver or Paper). New and existing installs stay dark; following the system is opt-in.
+- The top bar's appearance button cycles Auto, Light, Dark (a monitor, sun or moon), and View ▸
+  Appearance lists the modes and themes. On Linux, Auto follows the desktop portal's colour scheme
+  as it changes, without polling.
 
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and

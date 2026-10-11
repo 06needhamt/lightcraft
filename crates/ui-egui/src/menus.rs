@@ -148,6 +148,11 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.secondWindow", "Second Window", Some("Cmd+F11"), "Window"),
     ("tool.keywordPainter", "Keyword Painter", None, ""),
     ("view.gridInfo", "Grid Info", None, ""),
+    // {mode?: auto | light | dark}: Appearance Mode (cycles Auto, Light, Dark when omitted; the
+    // top bar's appearance button). View ▸ Appearance lists the modes.
+    ("view.appearance", "Next Appearance Mode", None, ""),
+    // {theme: charcoal | midnight | silver | paper}: pick a theme and fix the mode to its family.
+    ("view.theme", "Theme", None, ""),
     ("dialog.allMetadata", "All Metadata…", None, "Photo"),
     ("dialog.faceModel", "Add Face Model…", None, ""),
     ("dialog.newSmartAlbum", "New Smart Album from Filter…", Some("Cmd+Alt+N"), "File"),
@@ -159,7 +164,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("dialog.export", "Export…", None, "File"),
     ("dialog.contactSheet", "Contact Sheet PDF…", None, "File"),
     ("app.contactSheet", "Export Contact Sheet PDF", None, ""),
-    ("photo.editInExternal", "Edit in External Editor", Some("Cmd+Shift+E"), "Photo"),
+    ("photo.editInPhotoCraft", "Edit in PhotoCraft", Some("Cmd+Shift+E"), "Photo>Edit In"),
+    ("photo.editInExternal", "Edit in Other Editor", Some("Cmd+Alt+E"), "Photo>Edit In"),
     ("dialog.mergeHdr", "HDR…", Some("Ctrl+H"), "Photo>Photo Merge"),
     ("dialog.mergePanorama", "Panorama…", Some("Ctrl+M"), "Photo>Photo Merge"),
     ("dialog.mergeHdrPanorama", "HDR Panorama…", None, "Photo>Photo Merge"),
@@ -184,7 +190,10 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("file.importCurvePresets", "Import Point Curve Presets…", None, ""),
     ("file.exportCurvePresets", "Export Point Curve Presets…", None, ""),
     ("app.settings", "Settings…", Some("Cmd+,"), "Edit"),
+    ("app.newLibrary", "New Library…", None, "File"),
     ("app.openLibrary", "Open Library…", None, "File"),
+    ("app.recentLibraries", "Recent Libraries", None, ""),
+    ("app.clearRecentLibraries", "Clear Recent Libraries", None, ""),
     // Settings ▸ Display
     ("app.displayProfile", "Display Profile", None, ""),
     ("app.about", "About LightCraft", None, "Help"),
@@ -291,6 +300,41 @@ fn bool_param(command: &str, p: &Value, key: &str) -> Result<Option<bool>, Strin
         Some(Value::Bool(b)) => Ok(Some(*b)),
         Some(other) => Err(format!("{command}: `{key}` must be true or false, not {other}")),
     }
+}
+
+fn appearance_json(app: &LightcraftApp) -> Value {
+    let s = &app.ui.settings;
+    json!({"mode": s.appearance_mode, "darkTheme": s.dark_theme, "lightTheme": s.light_theme})
+}
+
+/// `view.appearance {mode?}`: set Appearance Mode, or step to the next one (Auto, Light, Dark).
+/// The theme follows on the next frame ([`LightcraftApp::sync_theme`]).
+fn appearance_command(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    use crate::state::AppearanceMode;
+    let mode = match p.get("mode") {
+        None | Some(Value::Null) => app.ui.settings.appearance_mode.next(),
+        Some(v) => match v.as_str() {
+            Some("auto") => AppearanceMode::Auto,
+            Some("light") => AppearanceMode::Light,
+            Some("dark") => AppearanceMode::Dark,
+            _ => return Err(format!("view.appearance: unknown mode {v} (auto|light|dark)")),
+        },
+    };
+    app.ui.settings.appearance_mode = mode;
+    Ok(appearance_json(app))
+}
+
+/// `view.theme {theme}`: pick a theme; the mode becomes its family's (Dark or Light).
+fn theme_command(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    let ids = crate::theme::ThemeKind::ALL.map(|k| k.id()).join("|");
+    let Some(id) = p.get("theme").and_then(Value::as_str) else {
+        return Err(format!("view.theme: `theme` is required ({ids})"));
+    };
+    let Some(kind) = crate::theme::ThemeKind::ALL.into_iter().find(|k| k.id() == id) else {
+        return Err(format!("view.theme: unknown theme `{id}` ({ids})"));
+    };
+    app.ui.settings.select_theme(kind);
+    Ok(appearance_json(app))
 }
 
 /// Handle UI commands; `None` means "not a UI command — send it to the engine".
@@ -410,6 +454,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.sidebar = Default::default();
             Ok(json!({"sidebar": app.ui.sidebar}))
         }
+        "view.appearance" => appearance_command(app, p),
+        "view.theme" => theme_command(app, p),
         "view.gridToggle" => {
             app.ui.view = if app.ui.view == ViewMode::PhotoGrid { ViewMode::SquareGrid } else { ViewMode::PhotoGrid };
             Ok(Value::Null)
@@ -592,6 +638,9 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "app.openLibrary" => crate::panels::settings::open_library(app, p),
+        "app.newLibrary" => crate::panels::settings::new_library(app, p),
+        "app.recentLibraries" => crate::panels::settings::recent_libraries(app, p),
+        "app.clearRecentLibraries" => crate::panels::settings::recent_libraries(app, &json!({"clear": true})),
         "app.displayProfile" => crate::panels::settings::display_profile(app, p),
         "file.backupLibrary" | "file.restoreLibrary" => {
             let action = if id == "file.backupLibrary" { app.services.backup_library.as_mut() } else { app.services.restore_library.as_mut() };
@@ -1168,30 +1217,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.dialog = Some(Dialog::About);
             Ok(Value::Null)
         }
-        "photo.editInExternal" => {
-            // render an edit copy (stacked on the original), then open it in the editor
-            let mut params = p.clone();
-            if !params.is_object() {
-                params = json!({});
-            }
-            let r = match app.session.execute("photo.editExternal", &params) {
-                Ok(r) => r,
-                Err(e) => return Some(Err(e.to_string())),
-            };
-            let path = r["path"].as_str().unwrap_or_default().to_string();
-            if let Some(id) = r["id"].as_u64() {
-                app.ui.external_edits.push(id);
-            }
-            let editor = p.get("app").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| app.ui.settings.external_editor.clone());
-            if let Some(f) = app.services.open_with.as_mut()
-                && let Err(e) = f(&path, &editor)
-            {
-                app.toast(&ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e));
-            }
-            let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-            app.toast(&ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name));
-            Ok(r)
-        }
+        "photo.editInPhotoCraft" => edit_in(app, &ctx, p, true),
+        "photo.editInExternal" => edit_in(app, &ctx, p, false),
         "dialog.cull" => {
             app.ui.dialog = Some(Dialog::Cull { reject_below: 0.0, pick_best: true });
             Ok(Value::Null)
@@ -1777,6 +1804,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
             app.session.active().is_some()
         }
         "photo.tagFromTracklog" => app.session.active().is_some() && app.services.pick_tracklog.is_some(),
+        "photo.editInPhotoCraft" | "photo.editInExternal" => app.session.active().is_some() && app.services.open_with.is_some(),
         "app.exportPrevious" => app.session.active().is_some() && app.session.last_export.is_some(),
         "dialog.pasteSettings" => app.session.active().is_some() && app.session.clipboard.is_some(),
         "app.showInFinder" => {
@@ -1791,10 +1819,11 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
         "file.exportCurvePresets" => !app.session.curve_presets.is_empty(),
         "view.compare" => app.session.catalog.len() > 1,
         "view.fullScreenPreview" | "view.infoOverlay" | "view.navigator" => app.session.active().is_some() || app.ui.fullscreen,
-        "app.openLibrary" | "file.addFolder" => app.services.pick_folder.is_some() && !crate::lightroom_import::is_running(app),
+        "app.openLibrary" | "app.newLibrary" | "file.addFolder" => app.services.pick_folder.is_some() && !crate::lightroom_import::is_running(app),
         "file.backupLibrary" => app.services.backup_library.is_some(),
         "app.openLogFolder" => app.services.reveal.is_some() && app.services.log_file.is_some(),
         "file.restoreLibrary" => app.services.restore_library.is_some(),
+        "app.clearRecentLibraries" => !app.ui.settings.recent_libraries.is_empty(),
         "compare.swap" | "compare.makeSelect" | "compare.set" => app.ui.view == ViewMode::Compare,
         s if s.starts_with("dialog.merge") || (s.starts_with("merge.") && s.ends_with("Last")) => {
             app.session.targets(&serde_json::json!({})).len() >= 2 && app.merge.final_task.is_none()
@@ -1882,4 +1911,42 @@ fn show_in_finder(app: &mut LightcraftApp) -> Result<Value, String> {
     let reveal = app.services.reveal.as_mut().ok_or("not available here")?;
     reveal(&path)?;
     Ok(json!({"path": path}))
+}
+
+/// Photo ▸ Edit In: render a copy of the active photo with its edits (stacked on the original)
+/// as Settings ▸ External Editing asks for that editor, then open it there. `p` may override the
+/// file (`format`, `colorSpace`, `bitDepth`) and the editor (`app`). PhotoCraft is checked first,
+/// so a missing editor leaves no copy behind.
+fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: bool) -> Result<Value, String> {
+    let settings = &app.ui.settings;
+    let (file, configured) = if photocraft {
+        let path = settings.photocraft_path.trim();
+        (settings.photocraft_file, if path.is_empty() { crate::state::PHOTOCRAFT.to_string() } else { path.to_string() })
+    } else {
+        (settings.external_file, settings.external_editor.clone())
+    };
+    let editor = p.get("app").and_then(Value::as_str).map_or(configured, str::to_string);
+    if let Some(check) = app.services.check_editor.as_ref()
+        && let Err(e) = check(&editor)
+    {
+        app.toast(ctx, e.clone());
+        return Err(e);
+    }
+    let mut params = file.params();
+    if let (Some(o), Some(given)) = (params.as_object_mut(), p.as_object()) {
+        for (k, v) in given.iter().filter(|(k, _)| k.as_str() != "app") {
+            o.insert(k.clone(), v.clone());
+        }
+    }
+    let r = app.session.execute("photo.editExternal", &params).map_err(|e| e.to_string())?;
+    let path = r["path"].as_str().unwrap_or_default().to_string();
+    if let Some(id) = r["id"].as_u64() {
+        app.ui.external_edits.push(id);
+    }
+    let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    match app.services.open_with.as_mut().map(|f| f(&path, &editor)) {
+        Some(Err(e)) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        _ => app.toast(ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name)),
+    }
+    Ok(r)
 }

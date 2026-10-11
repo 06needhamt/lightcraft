@@ -171,8 +171,14 @@ pub const ABOUT_TABS: &[(&str, &str)] = &[("about", "About"), ("contributors", "
 /// Help ▸ What's New (docs/whats-new.md).
 pub const WHATS_NEW: &str = include_str!("../../../../docs/whats-new.md");
 
+/// The import review and Settings keep window ids of their own, so the size each is given
+/// doesn't carry over to the other dialogs.
 fn window_id(dialog: &Dialog) -> egui::Id {
-    egui::Id::new(if matches!(dialog, Dialog::Import { .. }) { "lightcraft-import-dialog" } else { "lightcraft-dialog" })
+    egui::Id::new(match dialog {
+        Dialog::Import { .. } => "lightcraft-import-dialog",
+        Dialog::Settings { .. } => "lightcraft-settings-dialog",
+        _ => "lightcraft-dialog",
+    })
 }
 
 /// Block the underlying panels from the first frame, before the window establishes its modal
@@ -676,7 +682,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         ui,
                         "Format",
                         "exportFormat",
-                        &[(F::Jpeg, "JPEG"), (F::Png, "PNG"), (F::Tiff, "TIFF"), (F::Webp, "WebP"), (F::Avif, "AVIF"), (F::Dng, "DNG"), (F::Original, "Original files")],
+                        &[(F::Jpeg, "JPEG"), (F::Png, "PNG"), (F::Tiff, "TIFF"), (F::Psd, "PSD"), (F::Webp, "WebP"), (F::Avif, "AVIF"), (F::Dng, "DNG"), (F::Original, "Original files")],
                         &mut opts.format,
                     );
                     if !opts.format.is_rendered() {

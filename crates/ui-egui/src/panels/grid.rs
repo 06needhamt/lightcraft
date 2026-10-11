@@ -907,6 +907,18 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if ui.button(crate::i18n::tr("Open in Detail")).clicked() {
         let _ = app.run("view.detail", json!({}));
     }
+    // Photo ▸ Edit In: a copy with this photo's edits, opened in PhotoCraft or another editor
+    // (desktop only: the web can't start programs)
+    ui.add_enabled_ui(crate::menus::ui_enabled(app, "photo.editInPhotoCraft"), |ui| {
+        ui.menu_button(crate::i18n::tr("Edit In"), |ui| {
+            if ui.button(crate::i18n::tr("Edit in PhotoCraft")).clicked() {
+                let _ = app.run("photo.editInPhotoCraft", json!({}));
+            }
+            if ui.button(crate::i18n::tr("Edit in Other Editor")).clicked() {
+                let _ = app.run("photo.editInExternal", json!({}));
+            }
+        });
+    });
     if ui.button(crate::i18n::tr("Find Similar Photos")).clicked() {
         match app.run("library.findSimilar", json!({"id": id.0})) {
             Ok(r) => {
@@ -983,6 +995,22 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     }
     if ui.button(crate::i18n::tr("Rename…")).clicked() {
         let _ = app.run("dialog.rename", json!({}));
+    }
+    let can_pick = app.services.pick_folder.is_some() || app.services.picker.is_some();
+    if can_pick && ui.button(crate::i18n::tr("Move to Folder…")).clicked() {
+        // the folder dialog goes through the shared picker (off the UI thread where the host has
+        // one: then photo.moveToFolder runs when it closes)
+        let req = crate::pick::PickRequest::folder(crate::i18n::tr("Move to Folder…"));
+        let picked =
+            crate::pick::ask(app, "photo.moveToFolder", &json!({}), "folder", req, |s| s.pick_folder.as_mut().and_then(|f| f()).map(|x| vec![x]));
+        if let crate::pick::Picked::Now(v) = picked
+            && let Some(into) = v.into_iter().next()
+        {
+            match app.run("photo.moveToFolder", json!({"folder": into})) {
+                Ok(r) => app.toast(ui.ctx(), crate::i18n::tr_format!("Moved {} photo(s)", r["moved"])),
+                Err(e) => app.toast(ui.ctx(), e),
+            }
+        }
     }
     if ui.button(crate::i18n::tr("Reload from Disk")).clicked() {
         let _ = app.run("photo.reload", json!({}));

@@ -44,6 +44,8 @@ mod tests_activity;
 #[cfg(test)]
 mod tests_album_picker;
 #[cfg(test)]
+mod tests_appearance;
+#[cfg(test)]
 mod tests_before_after;
 #[cfg(test)]
 mod tests_compare;
@@ -58,9 +60,9 @@ mod tests_curve;
 #[cfg(test)]
 mod tests_date_picker;
 #[cfg(test)]
-mod tests_dialogs;
-#[cfg(test)]
 mod tests_dialog_fit;
+#[cfg(test)]
+mod tests_dialogs;
 #[cfg(test)]
 mod tests_filmstrip;
 #[cfg(test)]
@@ -150,9 +152,17 @@ pub type OpenWithFn = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
 /// The ICC profile of the screen showing the window, as the system colour-manages it (`None`:
 /// not known).
 pub type ScreenProfileFn = Box<dyn FnMut() -> Option<Vec<u8>>>;
+/// Whether an external editor can be started (its name as in [`Services::open_with`]); the
+/// error says why not and what to do (e.g. PhotoCraft isn't installed).
+pub type CheckEditorFn = Box<dyn Fn(&str) -> Result<(), String>>;
 /// Something the host does with the session (web: back up or restore the library in browser
 /// storage); the work may finish asynchronously.
 pub type HostAction = Box<dyn FnMut(&mut Session) -> Result<Value, String>>;
+
+/// The system's dark/light appearance where egui doesn't report one (Linux desktops whose
+/// windowing layer says nothing, e.g. many Wayland compositors). The host answers from what it
+/// last heard and wakes the UI itself when that changes; it is never polled for changes.
+pub type SystemThemeFn = Box<dyn Fn(&egui::Context) -> Option<egui::Theme>>;
 
 /// Platform services injected by the host app (desktop or web).
 #[derive(Default)]
@@ -204,12 +214,17 @@ pub struct Services {
     pub open_url: Option<OpenUrlFn>,
     /// Open a file in an external editor (Edit in External Editor; desktop only).
     pub open_with: Option<OpenWithFn>,
+    /// Checked before Edit In renders a copy, so a missing editor leaves no copy behind (none =
+    /// assume it can).
+    pub check_editor: Option<CheckEditorFn>,
     /// File ▸ Back Up Library…: save the whole library (catalog and originals) as one file the
     /// user keeps (web only: there the library lives in browser storage, which the browser may
     /// clear; on the desktop it is a folder backed up like any other).
     pub backup_library: Option<HostAction>,
     /// File ▸ Restore Library from Backup… (web only; keeps the current library).
     pub restore_library: Option<HostAction>,
+    /// The system appearance for Appearance Mode ▸ Auto, ahead of egui's own report.
+    pub system_theme: Option<SystemThemeFn>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -347,6 +362,8 @@ pub struct LightcraftApp {
     pub lightroom: Option<lightroom_import::LightroomTask>,
     /// Last terminal Lightroom result, exposed by the command's status/wait response.
     pub lightroom_last: Option<Value>,
+    /// The library generation the window title and the recent list were last updated for.
+    pub shown_library: Option<u64>,
     /// A background export in progress.
     pub export: Option<export_task::ExportTask>,
     /// Background file-system work of other commands (Find Missing Photos, auto import…).
@@ -435,6 +452,7 @@ impl LightcraftApp {
             sync_run: None,
             lightroom: None,
             lightroom_last: None,
+            shown_library: None,
             export: None,
             tasks: Default::default(),
             last_export_result: None,
@@ -843,6 +861,20 @@ impl LightcraftApp {
         }
     }
 
+    /// The system's appearance: the host's answer first, then egui's (none: unknown).
+    pub fn system_theme(&self, ctx: &egui::Context) -> Option<egui::Theme> {
+        self.services.system_theme.as_ref().and_then(|read| read(ctx)).or_else(|| ctx.system_theme())
+    }
+
+    /// Restyle `ctx` when the theme the settings select (Appearance Mode, the dark and light
+    /// themes, the system's appearance in Auto) is not the one it shows. A no-op otherwise.
+    pub fn sync_theme(&mut self, ctx: &egui::Context) {
+        let wanted = self.ui.settings.theme(self.system_theme(ctx));
+        if theme::current(ctx) != Some(wanted) {
+            theme::apply_kind(ctx, wanted);
+        }
+    }
+
     /// Draw the UI into an offscreen context at the window's size; with `capture`, rasterize it
     /// on the CPU (photo textures come from the renderer's CPU copies).
     pub fn headless_screenshot(&mut self, main: &egui::Context, capture: bool) -> Option<egui::ColorImage> {
@@ -946,6 +978,7 @@ impl LightcraftApp {
         } else {
             self.fonts_ready = true;
         }
+        self.sync_theme(ctx);
         panels::notices::logic(self);
         // closing the window (or Quit) with changes only in memory: retry, else ask first
         if ctx.input(|i| i.viewport().close_requested()) && !panels::notices::may_close(self) {
@@ -1213,6 +1246,29 @@ impl LightcraftApp {
         self.perf.max_update_ms = self.perf.max_update_ms.max(self.perf.update_ms);
     }
 
+    /// Once per library opened (at launch too): name it in the window title, so nobody edits in
+    /// the wrong one, and put it first in File ▸ Open Recent Library.
+    pub(crate) fn library_changed(&mut self, ctx: &egui::Context) {
+        let generation = self.session.library_generation();
+        if self.shown_library == Some(generation) {
+            return;
+        }
+        self.shown_library = Some(generation);
+        if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
+            let path = l.dir.to_string_lossy().into_owned();
+            panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.window_title()));
+    }
+
+    /// "LightCraft — <library name>" (just "LightCraft" for a library that isn't saved).
+    pub fn window_title(&self) -> String {
+        match panels::settings::open_library_name(self) {
+            Some(name) => format!("LightCraft — {name}"),
+            None => "LightCraft".to_string(),
+        }
+    }
+
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         i18n::set_language(self.ui.language);
@@ -1226,6 +1282,7 @@ impl LightcraftApp {
         if std::mem::take(&mut self.ui.quit) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+        self.library_changed(&ctx);
         // panels set it again this frame while the pointer rests on a preset or profile
         self.hover_preview = None;
         self.ai_mask_detail(&ctx);

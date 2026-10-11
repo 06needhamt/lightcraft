@@ -108,7 +108,8 @@ pub struct UndoEntry {
     pub label: String,
     pub op: Op,
     /// A folder to rename on disk (`from` → `to`) before `op` is applied: Rename / Move Folder
-    /// (whose `op` relinks the photos inside). Never overwrites; refused when `to` exists.
+    /// (whose `op` relinks the photos inside). Never overwrites; refused when `to` exists. An
+    /// empty `to` removes the (empty) folder `from`, an empty `from` creates `to` (Create Folder).
     pub folder: Option<FolderMove>,
     /// Inverses of logged path corrections from a partially failed history step.
     pub(crate) retry_inverse: Vec<Op>,
@@ -658,11 +659,11 @@ impl Session {
         let op = &entry.op;
         let folder = entry.folder.as_ref();
         if let Some(f) = folder {
-            cmd::browse::rename_folder_on_disk(&f.from, &f.to).map_err(|e| EngineError::Other(format!("can't move the folder back: {e}")))?;
+            cmd::browse::folder_on_disk(&f.from, &f.to).map_err(|e| EngineError::Other(format!("can't move the folder back: {e}")))?;
         }
         let undo_folder = || {
             if let Some(f) = folder {
-                let _ = cmd::browse::rename_folder_on_disk(&f.to, &f.from);
+                let _ = cmd::browse::folder_on_disk(&f.to, &f.from);
             }
         };
         let moves = self.file_moves(op);

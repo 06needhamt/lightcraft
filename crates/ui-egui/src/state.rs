@@ -158,6 +158,69 @@ impl LightsOut {
         }
     }
 }
+/// How many libraries File ▸ Open Recent Library remembers.
+pub const RECENT_LIBRARIES: usize = 8;
+
+/// Whether the interface uses the dark or the light theme (Settings ▸ Interface ▸ Appearance).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AppearanceMode {
+    /// Follow the operating system's dark/light setting (dark when it gives no answer).
+    Auto,
+    /// The dark theme, whatever the system says (the default: LightCraft's look so far).
+    #[default]
+    Dark,
+    Light,
+}
+
+impl AppearanceMode {
+    /// The header button's order: Auto, Light, Dark, then Auto again.
+    pub fn next(self) -> AppearanceMode {
+        match self {
+            AppearanceMode::Auto => AppearanceMode::Light,
+            AppearanceMode::Light => AppearanceMode::Dark,
+            AppearanceMode::Dark => AppearanceMode::Auto,
+        }
+    }
+}
+
+/// The theme the dark appearance uses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DarkTheme {
+    #[default]
+    Charcoal,
+    Midnight,
+}
+
+/// The theme the light appearance uses.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LightTheme {
+    #[default]
+    Silver,
+    Paper,
+}
+
+impl DarkTheme {
+    pub const ALL: [DarkTheme; 2] = [DarkTheme::Charcoal, DarkTheme::Midnight];
+    pub fn kind(self) -> crate::theme::ThemeKind {
+        match self {
+            DarkTheme::Charcoal => crate::theme::ThemeKind::Charcoal,
+            DarkTheme::Midnight => crate::theme::ThemeKind::Midnight,
+        }
+    }
+}
+
+impl LightTheme {
+    pub const ALL: [LightTheme; 2] = [LightTheme::Silver, LightTheme::Paper];
+    pub fn kind(self) -> crate::theme::ThemeKind {
+        match self {
+            LightTheme::Silver => crate::theme::ThemeKind::Silver,
+            LightTheme::Paper => crate::theme::ThemeKind::Paper,
+        }
+    }
+}
 
 /// App-level preferences (Settings dialog). They belong to the app, not a library, and are
 /// saved with the UI state in the app's config folder (`ui.json`, key `settings`); library
@@ -167,6 +230,9 @@ impl LightsOut {
 pub struct AppSettings {
     /// Library opened at launch when no `--library` is given (empty = the default location).
     pub library_path: String,
+    /// Libraries opened recently, newest first (File ▸ Open Recent Library; at most
+    /// [`RECENT_LIBRARIES`]).
+    pub recent_libraries: Vec<String>,
     pub startup_view: StartupView,
     /// Ask before moving photos to Recently Deleted (keyboard and menu).
     pub confirm_delete: bool,
@@ -176,8 +242,15 @@ pub struct AppSettings {
     /// drawn at, up to the photo's own pixels and [`LOUPE_EDGE_CEILING`]). Not the old
     /// `previewEdge` key: its 2560 px default was the soft-image bug (issue #323).
     pub preview_limit: u32,
-    /// Edit in External Editor: the application ("" = the system's default for TIFF files).
+    /// Edit in Other Editor: the application ("" = the system's default for the file type).
     pub external_editor: String,
+    /// The file Edit in Other Editor hands over.
+    pub external_file: EditFile,
+    /// Edit in PhotoCraft: where PhotoCraft is ("" = found where its installer put it; a portable
+    /// copy needs its path).
+    pub photocraft_path: String,
+    /// The file Edit in PhotoCraft hands over.
+    pub photocraft_file: EditFile,
     /// Memory the caches may hold together, in MB (0 = automatic; `app.memoryBudget`).
     pub memory_mb: u32,
     /// Filmstrip: file names above the thumbnails.
@@ -188,6 +261,15 @@ pub struct AppSettings {
     pub grid_badges: GridBadges,
     /// Shortcuts the user changed (Help ▸ Keyboard Shortcuts): command id → shortcut, `""` = none.
     pub keymap: crate::shortcuts::Keymap,
+    /// Auto (follow the system), Dark or Light.
+    pub appearance_mode: AppearanceMode,
+    /// The theme of the dark appearance.
+    pub dark_theme: DarkTheme,
+    /// The theme of the light appearance.
+    pub light_theme: LightTheme,
+    /// Theme shortcuts in the appearance context menu.
+    #[serde(deserialize_with = "deserialize_favorite_themes")]
+    pub favorite_themes: Vec<String>,
     /// The monitor's ICC profile previews are shown through (`app.displayProfile`; "" = none:
     /// the display is treated as sRGB).
     pub display_profile: String,
@@ -197,18 +279,84 @@ impl Default for AppSettings {
     fn default() -> Self {
         AppSettings {
             library_path: String::new(),
+            recent_libraries: Vec::new(),
             startup_view: StartupView::Last,
             confirm_delete: false,
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),
+            external_file: EditFile::default(),
+            photocraft_path: String::new(),
+            photocraft_file: EditFile { format: EditFormat::Psd, ..EditFile::default() },
             memory_mb: 0,
             film_names: true,
             film_badges: true,
             grid_badges: GridBadges::Auto,
             keymap: Default::default(),
+            appearance_mode: AppearanceMode::Dark,
+            dark_theme: DarkTheme::Charcoal,
+            light_theme: LightTheme::Silver,
+            favorite_themes: Vec::new(),
             display_profile: String::new(),
         }
+    }
+}
+
+/// The editor name that means PhotoCraft (Photo ▸ Edit In ▸ Edit in PhotoCraft): the host finds
+/// where it is installed.
+pub const PHOTOCRAFT: &str = "PhotoCraft";
+
+/// The file format Edit In renders the copy as.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditFormat {
+    #[default]
+    Tiff,
+    /// A flat PSD: PhotoCraft saves back to it in place (a TIFF it saves only through Save As).
+    Psd,
+}
+
+/// The colour space of the Edit In copy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditSpace {
+    #[default]
+    AdobeRgb,
+    ProPhoto,
+    DisplayP3,
+    Srgb,
+}
+
+/// The file Photo ▸ Edit In renders for an editor (Settings ▸ External Editing).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EditFile {
+    pub format: EditFormat,
+    pub color_space: EditSpace,
+    /// 16 or 8.
+    pub bit_depth: u8,
+}
+
+impl Default for EditFile {
+    fn default() -> Self {
+        EditFile { format: EditFormat::Tiff, color_space: EditSpace::AdobeRgb, bit_depth: 16 }
+    }
+}
+
+impl EditFile {
+    /// The `photo.editExternal` params for this file.
+    pub fn params(&self) -> serde_json::Value {
+        let format = match self.format {
+            EditFormat::Tiff => "tiff",
+            EditFormat::Psd => "psd",
+        };
+        let space = match self.color_space {
+            EditSpace::AdobeRgb => "adobeRgb",
+            EditSpace::ProPhoto => "proPhoto",
+            EditSpace::DisplayP3 => "displayP3",
+            EditSpace::Srgb => "srgb",
+        };
+        serde_json::json!({"format": format, "colorSpace": space, "bitDepth": if self.bit_depth == 8 { 8 } else { 16 }})
     }
 }
 
@@ -232,6 +380,29 @@ pub const LOUPE_EDGE_STEP: usize = 64;
 pub const STANDARD_PREVIEW_EDGE: u32 = 2560;
 
 impl AppSettings {
+    /// The theme to show: the light theme in Light mode, or in Auto when `system` is light; the
+    /// dark theme otherwise (Auto with no answer from the system included).
+    pub fn theme(&self, system: Option<egui::Theme>) -> crate::theme::ThemeKind {
+        let light = match self.appearance_mode {
+            AppearanceMode::Light => true,
+            AppearanceMode::Dark => false,
+            AppearanceMode::Auto => system == Some(egui::Theme::Light),
+        };
+        if light { self.light_theme.kind() } else { self.dark_theme.kind() }
+    }
+
+    /// Pick `kind` and fix the mode to its family (the View ▸ Theme items).
+    pub fn select_theme(&mut self, kind: crate::theme::ThemeKind) {
+        use crate::theme::ThemeKind;
+        match kind {
+            ThemeKind::Charcoal => self.dark_theme = DarkTheme::Charcoal,
+            ThemeKind::Midnight => self.dark_theme = DarkTheme::Midnight,
+            ThemeKind::Silver => self.light_theme = LightTheme::Silver,
+            ThemeKind::Paper => self.light_theme = LightTheme::Paper,
+        }
+        self.appearance_mode = if kind.is_dark() { AppearanceMode::Dark } else { AppearanceMode::Light };
+    }
+
     /// Long edge (pixels) to render the loupe at when it is drawn `wanted_px` wide on screen:
     /// that size (rounded up to [`LOUPE_EDGE_STEP`], so resizing a window doesn't re-render at
     /// every pixel), never above the photo's own `native_long_edge`, the user's limit, the ceiling
@@ -1030,4 +1201,15 @@ impl UiState {
         }
         self
     }
+}
+
+fn deserialize_favorite_themes<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let values = Vec::<String>::deserialize(d)?;
+    let mut seen = std::collections::BTreeSet::new();
+    for id in &values {
+        if !crate::theme::ThemeKind::ALL.iter().any(|k| k.id() == id) || !seen.insert(id) {
+            return Err(serde::de::Error::custom("unknown or duplicate favorite theme"));
+        }
+    }
+    Ok(values)
 }

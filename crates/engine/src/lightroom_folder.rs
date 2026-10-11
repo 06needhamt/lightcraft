@@ -56,11 +56,6 @@ fn is_lrcat_name(name: &str) -> bool {
     name.to_lowercase().ends_with(".lrcat")
 }
 
-/// A LightCraft library lives in `dir` (its catalog journal is there).
-pub fn is_lightcraft_library(dir: &Path) -> bool {
-    [lightcraft_catalog::journal::SNAPSHOT, lightcraft_catalog::journal::LOG].iter().any(|f| dir.join(f).is_file())
-}
-
 /// The first `*.lrcat` file (by name) at the top level of `dir`, looking at no more than
 /// [`SCAN_LIMIT`] entries. Unreadable folders and entries are skipped.
 pub fn find_lrcat(dir: &Path) -> Option<PathBuf> {
@@ -93,7 +88,7 @@ fn catalog_or_scan(candidate: Option<PathBuf>, dir: Option<&Path>) -> Option<Pat
 /// the module docs). `None`: not Lightroom's, open it as a library.
 pub fn lightroom_catalog_at(path: &Path) -> Option<LightroomPlace> {
     let is_dir = path.is_dir();
-    if is_dir && is_lightcraft_library(path) {
+    if is_dir && crate::library::is_library(path) {
         return None;
     }
     let parent = path.parent().filter(|p| !p.as_os_str().is_empty());

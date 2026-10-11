@@ -120,8 +120,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// Edit in an external editor, the engine half: render the photo with its edits as a 16-bit
-/// TIFF next to the original (`<name>-Edit.tif`, never overwriting), add it to the library and
-/// stack it on top of the original. The host opens the file in the editor.
+/// TIFF (or PSD, or 8-bit) next to the original (`<name>-Edit.tif`, never overwriting), add it to
+/// the library and stack it on top of the original. The host opens the file in the editor.
 fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "photo.editExternal";
     let id = s.active().ok_or_else(|| bad(C, "no active photo"))?;
@@ -139,9 +139,19 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
         "prophoto" | "proPhoto" => lightcraft_pipeline::OutputSpace::ProPhoto,
         _ => lightcraft_pipeline::OutputSpace::AdobeRgb,
     };
+    let format = match super::str_param(p, "format").unwrap_or("tiff") {
+        "tiff" | "tif" => crate::export::ExportFormat::Tiff,
+        "psd" => crate::export::ExportFormat::Psd,
+        f => return Err(bad(C, format!("format {f:?}: use tiff or psd"))),
+    };
+    let bit_depth = match p.get("bitDepth").and_then(Value::as_u64).unwrap_or(16) {
+        8 => 8,
+        16 => 16,
+        d => return Err(bad(C, format!("bitDepth {d}: use 8 or 16"))),
+    };
     let opts = crate::export::ExportOptions {
-        format: crate::export::ExportFormat::Tiff,
-        bit_depth: Some(16),
+        format,
+        bit_depth: Some(bit_depth),
         color_space: space,
         naming: "{name}-Edit".into(),
         conflict: crate::export::Conflict::Unique,
@@ -156,7 +166,8 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
     };
     let to = crate::export::Destination { dir, exact: None };
     crate::export::export_batch(s, &[id], &opts, &to, &mut write, &|path| Path::new(path).exists()).map_err(|e| bad(C, e))?;
-    let out = written.into_iter().find(|w| w.ends_with(".tif")).ok_or_else(|| bad(C, "nothing was written"))?;
+    let ext = format!(".{}", format.extension());
+    let out = written.into_iter().find(|w| w.ends_with(&ext)).ok_or_else(|| bad(C, "nothing was written"))?;
     let r = s.execute("library.import", &json!({"paths": [out]}))?;
     let new = r["imported"].get(0).and_then(Value::as_u64).ok_or_else(|| bad(C, "the edit copy could not be added"))?;
     // stack: the edit on top of the original, expanded so both show
@@ -352,7 +363,7 @@ pub fn edit_specs() -> Vec<CommandSpec> {
             "Edit Copy for External Editor",
             [],
             None,
-            "{colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, dir?} — render the active photo with its edits as a 16-bit TIFF `<name>-Edit.tif` next to it, add it stacked on the original and select it → {path, id, original} (the app then opens it in the external editor)",
+            "{colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, format?: tiff (default) | psd, bitDepth?: 16 (default) | 8, dir?} — render the active photo with its edits as `<name>-Edit.tif` (or `.psd`, flat, which PhotoCraft saves back to in place) next to it, add it stacked on the original and select it → {path, id, original} (the app then opens it in the external editor)",
             has_active,
             edit_external
         ),
