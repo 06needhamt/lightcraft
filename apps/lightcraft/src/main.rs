@@ -615,6 +615,8 @@ fn open_session(in_memory: bool, dir: Option<std::path::PathBuf>, seed_demo: boo
     let (mut s, problem) = open_library_session(in_memory, dir, seed_demo);
     s.face_models_dir = lightcraft_engine::config::default_face_models_dir();
     s.slide_templates_dir = lightcraft_engine::config::config_dir().map(|d| d.join(lightcraft_engine::slide_template::DIR_NAME));
+    // Control requests are answered on the UI thread: Add to Apple Photos must not wait there
+    s.apple_photos_background = true;
     (s, problem)
 }
 
@@ -963,6 +965,16 @@ mod tests {
         let (files, notices) = launch_imports_in(&[".".to_string()], Some(&root), None);
         assert!(files.iter().all(|f| f.ends_with("DCIM")) && files.len() + notices.len() == 1, "{files:?} {notices:?}");
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// Issue #236: the window answers control requests on its UI thread, so the desktop session
+    /// adds to Apple Photos on a worker (headless sessions wait instead).
+    #[test]
+    fn the_desktop_session_adds_to_apple_photos_in_the_background() {
+        let (s, problem) = open_session(true, None, false);
+        assert!(problem.is_none());
+        assert!(s.apple_photos_background);
+        assert!(!lightcraft_engine::Session::new().apple_photos_background);
     }
 
     /// Issue #103: a damaged ui.json (which holds the library location) is kept aside and

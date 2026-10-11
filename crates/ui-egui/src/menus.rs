@@ -1931,8 +1931,8 @@ fn show_in_finder(app: &mut LightcraftApp) -> Result<Value, String> {
     Ok(json!({"path": path}))
 }
 
-/// Photo ▸ Edit In: render a copy of the active photo with its edits (stacked on the original)
-/// as Settings ▸ External Editing asks for that editor, then open it there. `p` may override the
+/// Photo ▸ Edit In: render a copy of each selected photo with its edits (stacked on its original)
+/// as Settings ▸ External Editing asks for that editor, then open them there. `p` may override the
 /// file (`format`, `colorSpace`, `bitDepth`) and the editor (`app`). PhotoCraft is checked first,
 /// so a missing editor leaves no copy behind.
 fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: bool) -> Result<Value, String> {
@@ -1957,14 +1957,27 @@ fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: 
         }
     }
     let r = app.session.execute("photo.editExternal", &params).map_err(|e| e.to_string())?;
-    let path = r["path"].as_str().unwrap_or_default().to_string();
-    if let Some(id) = r["id"].as_u64() {
-        app.ui.external_edits.push(id);
+    // every selected photo got a copy (#920); each opens in the editor
+    let copies: Vec<(String, Option<u64>)> = r["copies"]
+        .as_array()
+        .map(|c| c.iter().map(|c| (c["path"].as_str().unwrap_or_default().to_string(), c["id"].as_u64())).collect())
+        .unwrap_or_else(|| vec![(r["path"].as_str().unwrap_or_default().to_string(), r["id"].as_u64())]);
+    let mut failed = None;
+    for (path, id) in &copies {
+        if let Some(id) = id {
+            app.ui.external_edits.push(*id);
+        }
+        if let Some(Err(e)) = app.services.open_with.as_mut().map(|f| f(path, &editor)) {
+            failed = Some(e);
+        }
     }
-    let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-    match app.services.open_with.as_mut().map(|f| f(&path, &editor)) {
-        Some(Err(e)) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
-        _ => app.toast(ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name)),
+    match (failed, copies.as_slice()) {
+        (Some(e), _) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        (None, [(path, _)]) => {
+            let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            app.toast(ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name));
+        }
+        _ => app.toast(ctx, crate::i18n::tr_format!("{n} photos opened for editing; each is stacked with its original", n = copies.len())),
     }
     Ok(r)
 }
