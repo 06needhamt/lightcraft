@@ -1345,14 +1345,14 @@ fn a_selected_develop_slider_accepts_wheel_nudges() {
 
     let result = h.request("ui.clickWidget", json!({"id": name, "fx": 0.5}), T);
     assert_eq!(result["ok"], true, "{result}");
-    let before = lightcraft_develop::controls::get(&develop(&h), "light.exposure");
+    let before = lightcraft_develop::controls::get(&develop(&h), "light.exposure").expect("exposure");
 
     // A wheel event over the selected control adjusts exposure instead of
     // scrolling the right sidebar (an unselected slider leaves scrolling alone).
     let result = h.request("ui.scroll", json!({"dy": 120.0}), T);
     assert_eq!(result["ok"], true, "{result}");
     h.step();
-    let after = lightcraft_develop::controls::get(&develop(&h), "light.exposure");
+    let after = lightcraft_develop::controls::get(&develop(&h), "light.exposure").expect("exposure");
     assert!(after > before, "selected exposure did not increase: {before} -> {after}");
 }
 
