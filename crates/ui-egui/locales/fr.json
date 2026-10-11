@@ -1893,5 +1893,14 @@
   "This is a Lightroom catalog, not a LightCraft library. Import it into a LightCraft library instead?": "Ceci est un catalogue Lightroom, pas une bibliothèque LightCraft. L’importer plutôt dans une bibliothèque LightCraft ?",
   "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now.": "L’importation lit le catalogue sans le modifier et ajoute ses photos, retouches, mots-clés et collections à la bibliothèque ouverte.",
   "Albums hold library photos: Add to My Photos first": "Les albums contiennent des photos de la bibliothèque : ajoutez-les d’abord à Mes photos",
-  "Add to My Photos First": "Ajouter d’abord à Mes photos"
+  "Add to My Photos First": "Ajouter d’abord à Mes photos",
+  "Fill Location from GPS": "Remplir le lieu depuis le GPS",
+  "Download Place Names (GeoNames)": "Télécharger les noms de lieux (GeoNames)",
+  "Place Names Status": "État des noms de lieux",
+  "Fill Location": "Remplir le lieu",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Remplir Ville, État et Pays vides depuis le GPS (noms de lieux GeoNames, hors ligne)",
+  "Looking up places": "Recherche des lieux",
+  "Downloading place names": "Téléchargement des noms de lieux",
+  "Place names downloaded": "Noms de lieux téléchargés",
+  "Place names download cancelled": "Téléchargement des noms de lieux annulé"
 }

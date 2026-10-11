@@ -48,3 +48,10 @@ also embed the fonts listed in https://github.com/storytold/craft-fonts/blob/mai
 (the Japanese fonts BIZ UDPGothic, BIZ UDMincho and Shippori Mincho; the web build embeds only BIZ
 UDPGothic Regular), under the SIL Open Font License 1.1. Release packages include each font's
 licence as OFL-<family>.txt.
+
+Place names for reverse geocoding (Photo > Fill Location from GPS) are not part of LightCraft and
+are never distributed with it. On the user's request (Photo > Download Place Names) the app
+downloads cities15000.zip, admin1CodesASCII.txt and countryInfo.txt from GeoNames
+(https://download.geonames.org/export/dump/) into the settings folder. GeoNames data is licensed
+under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/);
+attribution: "GeoNames, geonames.org". The lookup code (crates/geocode) is our own.

@@ -36,6 +36,7 @@ lightcraft-mcp = { path = "crates/mcp" }
 lightcraft-fetch = { path = "crates/fetch" }
 lightcraft-heif = { path = "crates/heif" }
 lightcraft-segment = { path = "crates/segment" }
+lightcraft-geocode = { path = "crates/geocode" }
 
 # foundation
 thiserror = "2"

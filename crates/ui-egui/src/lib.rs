@@ -600,6 +600,18 @@ impl LightcraftApp {
         self.ui.toast = Some((text.into(), t + secs, None));
     }
 
+    /// Reverse geocoding: say how a place-names download ended (a failure stays readable, with what to do).
+    fn place_names_outcome(&mut self, ctx: &egui::Context) {
+        use lightcraft_engine::cmd::geocode::DownloadOutcome;
+        match self.session.place_names.take_outcome() {
+            Some(DownloadOutcome::Done(_)) => self.toast(ctx, crate::i18n::tr("Place names downloaded")),
+            Some(DownloadOutcome::Cancelled) => self.toast(ctx, crate::i18n::tr("Place names download cancelled")),
+            Some(DownloadOutcome::Failed(e)) => self.toast_error(ctx, e),
+            None if self.session.place_names.downloading() => ctx.request_repaint_after(std::time::Duration::from_millis(500)),
+            None => {}
+        }
+    }
+
     /// AI masks: apply finished background requests (clicks, descriptions, detail passes) and
     /// show their errors; start a zoomed-in detail pass once the clicking stops
     /// (`ui.detail_due`); watch the model download. Never waits for the model.
@@ -1102,6 +1114,7 @@ impl LightcraftApp {
         // panels set it again this frame while the pointer rests on a preset or profile
         self.hover_preview = None;
         self.ai_mask_detail(&ctx);
+        self.place_names_outcome(&ctx);
         if self.ui.fullscreen {
             // full-screen preview: the photo alone on black
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| panels::detail::show(self, ui));

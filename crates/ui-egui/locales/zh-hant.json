@@ -1893,5 +1893,14 @@
   "This is a Lightroom catalog, not a LightCraft library. Import it into a LightCraft library instead?": "這是 Lightroom 目錄，不是 LightCraft 照片庫。要改為將其匯入 LightCraft 照片庫嗎？",
   "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now.": "匯入只讀取目錄、不做任何變更，並將其中的照片、編輯、關鍵字和收藏夾加入目前開啟的照片庫。",
   "Albums hold library photos: Add to My Photos first": "相簿只能收錄圖庫中的照片：請先加入我的照片",
-  "Add to My Photos First": "先加入我的照片"
+  "Add to My Photos First": "先加入我的照片",
+  "Fill Location from GPS": "根據 GPS 填寫位置",
+  "Download Place Names (GeoNames)": "下載地名資料 (GeoNames)",
+  "Place Names Status": "地名資料狀態",
+  "Fill Location": "填寫位置",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "根據 GPS 填寫空白的城市、州/省和國家（GeoNames 地名，離線）",
+  "Looking up places": "正在查找地點",
+  "Downloading place names": "正在下載地名資料",
+  "Place names downloaded": "地名資料已下載",
+  "Place names download cancelled": "已取消下載地名資料"
 }
