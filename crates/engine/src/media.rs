@@ -846,7 +846,8 @@ impl RenderJob {
                     (Some(d), Some(_)) => {
                         let keep = self.view_cache.is_some() && self.request.quality == Quality::Full;
                         let (s, h) = crate::display::finish_render(&mut rendered.image, d, keep);
-                        if let Some(h) = h {
+                        // (an HDR edit's HDR histogram stays)
+                        if let Some(h) = h.filter(|_| rendered.histogram.hdr.is_none()) {
                             rendered.histogram = h;
                         }
                         srgb = s;
@@ -903,6 +904,22 @@ pub fn develop(src: &Arc<Rgb32f>, info: &SourceInfo, s: &DevelopSettings, req: &
 /// it rendered on the GPU, or the GPU was not tried). The reason is this render's own, not the
 /// process-wide [`lightcraft_gpu::last_fallback`].
 pub fn develop_reporting(
+    src: &Arc<Rgb32f>,
+    info: &SourceInfo,
+    s: &DevelopSettings,
+    req: &RenderRequest,
+    stages: Option<&StageCache>,
+    gpu: bool,
+) -> (Rendered, Option<String>) {
+    let (mut rendered, fallback) = develop_image(src, info, s, req, stages, gpu);
+    // an HDR edit's preview is its SDR rendition: its histogram shows the HDR range instead
+    if let Some(h) = lightcraft_pipeline::hdr_histogram(src, info, s, req) {
+        rendered.histogram = h;
+    }
+    (rendered, fallback)
+}
+
+fn develop_image(
     src: &Arc<Rgb32f>,
     info: &SourceInfo,
     s: &DevelopSettings,
