@@ -93,9 +93,10 @@ fn export_dialog_is_unchanged_in_a_tall_window() {
     let h = export_dialog([1600.0, 1000.0]);
     assert_fits(&h, "Export at 1600×1000");
     let dialog = rect(&h, "dialog:window");
-    // (846 × 500.6 before #781: the whole dialog, nothing scrolled away)
+    // (846 tall as before #781: the whole dialog, nothing scrolled away; 546 wide since the
+    // watermark's nine positions, #833)
     assert!((dialog.height() - 846.0).abs() <= 1.0, "{dialog:?}");
-    assert!((dialog.width() - 500.6).abs() <= 1.0, "{dialog:?}");
+    assert!((dialog.width() - 546.0).abs() <= 1.0, "{dialog:?}");
 }
 
 // Scenario: other long dialogs fit a short window too, with their buttons on screen

@@ -187,6 +187,7 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // opt-in so hovering an unfocused slider still scrolls the containing panel.
     if enabled && (resp.clicked() || resp.drag_started()) {
         resp.request_focus();
+        ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
     }
     // screen readers: a slider named after its control, with its value
     let label_text = crate::i18n::tr(label_override.unwrap_or(spec.label)).to_string();
@@ -726,3 +727,14 @@ pub(crate) fn elide_head(text: &str, max: f32, width: impl Fn(&str) -> f32) -> S
 #[cfg(test)]
 #[path = "widgets/tests_numeric_entry.rs"]
 mod numeric_entry_tests;
+
+fn focused_slider_key() -> egui::Id {
+    egui::Id::new("lightcraft-focused-slider")
+}
+
+/// Whether the widget with keyboard focus is a develop slider a click selected. It owns only the
+/// arrow keys (and the wheel): every other shortcut still works, as in Lightroom after a drag.
+pub fn slider_has_focus(ctx: &egui::Context) -> bool {
+    let focused = ctx.memory(|m| m.focused());
+    focused.is_some() && focused == ctx.data(|d| d.get_temp::<egui::Id>(focused_slider_key()))
+}
