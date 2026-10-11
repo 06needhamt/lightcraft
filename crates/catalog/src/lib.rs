@@ -15,6 +15,7 @@
 
 pub mod dates;
 pub mod folders;
+mod index;
 pub mod journal;
 pub mod keywords;
 pub mod local;
@@ -275,6 +276,9 @@ pub struct Catalog {
     /// Increments on every applied op.
     #[serde(skip)]
     pub revision: u64,
+    /// Lookups derived from the above (never saved), see [`index`].
+    #[serde(skip)]
+    index: index::Indexes,
 }
 
 impl Catalog {
@@ -357,11 +361,16 @@ impl Catalog {
     /// no smart album).
     pub fn album_contains(&self, id: AlbumId, p: &Photo) -> bool {
         match self.albums.get(&id) {
-            // guarded: a smart album testing smart albums can't loop or recurse without end
-            Some(Album { smart: Some(rules), .. }) => !p.deleted && rules::smart_album_holds(id, p.id, || rules.matches(p, self)),
-            Some(a) => a.photos.contains(&p.id),
+            Some(Album { smart: Some(rules), .. }) => self.smart_album_has(id, rules, &rules.prepare_one(), p),
+            Some(a) => self.album_lists(a.id, p.id),
             None => false,
         }
+    }
+
+    /// Whether smart album `id` with `rules` (as [`Filter::prepare`]d) holds `p`.
+    fn smart_album_has(&self, id: AlbumId, rules: &Filter, prepared: &query::Prepared, p: &Photo) -> bool {
+        // guarded: a smart album testing smart albums can't loop or recurse without end
+        !p.deleted && rules::smart_album_holds(id, p.id, || rules.matches_in(p, self, prepared))
     }
 
     /// Whether smart album `from` tests `to`, directly or through the smart albums it tests (the
@@ -411,7 +420,10 @@ impl Catalog {
     /// The photos of an album: the stored list, or a smart album's current matches (id order).
     pub fn album_photos(&self, id: AlbumId) -> Vec<PhotoId> {
         match self.albums.get(&id) {
-            Some(Album { smart: Some(_), .. }) => self.photos.values().filter(|p| self.album_contains(id, p)).map(|p| p.id).collect(),
+            Some(Album { smart: Some(rules), .. }) => {
+                let prepared = rules.prepare();
+                self.photos.values().filter(|p| self.smart_album_has(id, rules, &prepared, p)).map(|p| p.id).collect()
+            }
             Some(a) => a.photos.clone(),
             None => Vec::new(),
         }
@@ -421,7 +433,10 @@ impl Catalog {
     pub fn album_count(&self, id: AlbumId) -> usize {
         match self.albums.get(&id) {
             // counted in place: no id list is built just for its length
-            Some(Album { smart: Some(_), .. }) => self.photos.values().filter(|p| self.album_contains(id, p)).count(),
+            Some(Album { smart: Some(rules), .. }) => {
+                let prepared = rules.prepare();
+                self.photos.values().filter(|p| self.smart_album_has(id, rules, &prepared, p)).count()
+            }
             Some(a) => a.photos.iter().filter(|p| self.photos.get(p).is_some_and(|p| !p.deleted)).count(),
             None => 0,
         }
@@ -569,6 +584,7 @@ impl Catalog {
                 }
                 let id = album.id;
                 self.next_album = self.next_album.max(id.0 + 1);
+                self.index.album_changed(id, Some(&album.photos));
                 self.albums.insert(id, album);
                 Op::RemoveAlbum { id }
             }
@@ -577,6 +593,7 @@ impl Catalog {
                     return Err(CatalogError::Invalid("folder is not empty".into()));
                 }
                 let a = self.albums.remove(&id).ok_or(CatalogError::NoAlbum(id))?;
+                self.index.album_changed(id, None);
                 Op::AddAlbum { album: a }
             }
             Op::RenameAlbum { id, name } => {
@@ -614,13 +631,16 @@ impl Catalog {
                 Op::SetAlbumOrder { id, order: std::mem::replace(&mut a.order, order) }
             }
             Op::SetAlbumPhotos { id, photos } => {
-                let a = self.album_mut(id)?;
+                // the field, not `album_mut`: the index is updated while the album is borrowed
+                let a = self.albums.get_mut(&id).ok_or(CatalogError::NoAlbum(id))?;
                 if (a.folder || a.smart.is_some()) && !photos.is_empty() {
                     return Err(CatalogError::Invalid(
                         if a.folder { "folders can't hold photos" } else { "smart albums update automatically" }.into(),
                     ));
                 }
-                Op::SetAlbumPhotos { id, photos: std::mem::replace(&mut a.photos, photos) }
+                let old = std::mem::replace(&mut a.photos, photos);
+                self.index.album_changed(id, Some(&a.photos));
+                Op::SetAlbumPhotos { id, photos: old }
             }
             Op::SetAlbumCover { id, cover } => {
                 let a = self.album_mut(id)?;
@@ -641,11 +661,13 @@ impl Catalog {
                 self.validate_stack(stack.id, &stack.photos)?;
                 let id = stack.id;
                 self.next_stack = self.next_stack.max(id.0 + 1);
+                self.index.stack_changed(id, &[], &stack.photos);
                 self.stacks.insert(id, stack);
                 Op::RemoveStack { id }
             }
             Op::RemoveStack { id } => {
                 let s = self.stacks.remove(&id).ok_or(CatalogError::NoStack(id))?;
+                self.index.stack_changed(id, &s.photos, &[]);
                 Op::AddStack { stack: s }
             }
             Op::SetStack { id, photos, collapsed } => {
@@ -654,7 +676,9 @@ impl Catalog {
                 }
                 self.validate_stack(id, &photos)?;
                 let s = self.stacks.get_mut(&id).ok_or(CatalogError::NoStack(id))?;
-                let old = Op::SetStack { id, photos: std::mem::replace(&mut s.photos, photos), collapsed: s.collapsed };
+                let old_photos = std::mem::replace(&mut s.photos, photos);
+                self.index.stack_changed(id, &old_photos, &s.photos);
+                let old = Op::SetStack { id, photos: old_photos, collapsed: s.collapsed };
                 s.collapsed = collapsed;
                 old
             }
@@ -853,10 +877,14 @@ mod tests_folders;
 #[cfg(test)]
 mod tests_format_version;
 #[cfg(test)]
+mod tests_index;
+#[cfg(test)]
 mod tests_journal;
 #[cfg(test)]
 mod tests_local;
 #[cfg(test)]
 mod tests_lock;
+#[cfg(test)]
+mod tests_scale;
 #[cfg(test)]
 mod tests_torn_append;

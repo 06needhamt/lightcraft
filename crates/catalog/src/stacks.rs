@@ -20,7 +20,7 @@ impl Catalog {
     }
     /// The stack a photo belongs to.
     pub fn stack_of(&self, photo: PhotoId) -> Option<&Stack> {
-        self.stacks.values().find(|s| s.photos.contains(&photo))
+        self.stack_id_of(photo).and_then(|id| self.stacks.get(&id))
     }
     /// Photo → (stack, position in the stack), for every stacked photo.
     pub fn stack_index(&self) -> HashMap<PhotoId, (StackId, usize)> {
@@ -40,7 +40,7 @@ impl Catalog {
                 return Err(CatalogError::NoPhoto(*p));
             }
         }
-        if self.stacks.values().any(|s| s.id != id && s.photos.iter().any(|p| seen.contains(p))) {
+        if photos.iter().any(|p| self.stack_id_of(*p).is_some_and(|s| s != id)) {
             return Err(CatalogError::Invalid("a photo can be in only one stack".into()));
         }
         Ok(())
