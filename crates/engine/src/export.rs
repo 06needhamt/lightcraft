@@ -329,8 +329,20 @@ fn watermark_cell_glyphs(
 
 /// Draw `wm` onto `img` (straight alpha blending of the encoded values).
 pub fn draw_watermark(img: &mut Rgba8, wm: &Watermark) {
+    blend_watermark(img, wm, 1.0);
+}
+
+/// Draw `wm` onto `img`, a preview of an export whose short edge is `export_short_edge` pixels.
+/// The smallest text size and shadow offset scale with the preview, so it looks like the file.
+pub fn draw_watermark_preview(img: &mut Rgba8, wm: &Watermark, export_short_edge: usize) {
+    let short = img.width.min(img.height);
+    let scale = if export_short_edge == 0 { 1.0 } else { short as f32 / export_short_edge as f32 };
+    blend_watermark(img, wm, scale);
+}
+
+fn blend_watermark(img: &mut Rgba8, wm: &Watermark, floor_scale: f32) {
     let width = img.width;
-    watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+    watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, floor_scale, |x, y, k, col| {
         let p = &mut img.data[y * width + x];
         for c in 0..3 {
             p[c] = (p[c] as f32 + (col[c] as f32 - p[c] as f32) * k).round() as u8;
@@ -343,14 +355,14 @@ pub fn draw_watermark(img: &mut Rgba8, wm: &Watermark) {
 pub fn draw_watermark_deep(img: &mut DeepImage, wm: &Watermark) {
     let (width, trc) = (img.width, img.space.trc());
     match &mut img.samples {
-        DeepSamples::U16(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+        DeepSamples::U16(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
             let i = (y * width + x) * 3;
             for c in 0..3 {
                 let p = v[i + c] as f32;
                 v[i + c] = (p + (col[c] as f32 * 257.0 - p) * k).round().clamp(0.0, 65535.0) as u16;
             }
         }),
-        DeepSamples::F32(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+        DeepSamples::F32(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
             let i = (y * width + x) * 3;
             for c in 0..3 {
                 let target = trc.decode(col[c] as f32 / 255.0);
@@ -362,12 +374,14 @@ pub fn draw_watermark_deep(img: &mut DeepImage, wm: &Watermark) {
 
 /// Lay out `wm` on a `width × height` image and call `blend(x, y, coverage × opacity, colour)` for
 /// every covered pixel (shadow pass first). `craft` is [`crate::fonts::CRAFT_FONTS`] (a parameter
-/// so tests can render without it).
+/// so tests can render without it). `floor_scale` is this image's size over the exported file's
+/// (1 when drawing the file itself): the 6 px minimum text size is a minimum in the file.
 fn watermark_coverage(
     width: usize,
     height: usize,
     wm: &Watermark,
     craft: &'static [crate::fonts::CraftFont],
+    floor_scale: f32,
     mut blend_px: impl FnMut(usize, usize, f32, [u8; 3]),
 ) {
     use ab_glyph::{Font, PxScale, ScaleFont, point};
@@ -387,7 +401,7 @@ fn watermark_coverage(
         Vec::new()
     };
     let short = width.min(height) as f32;
-    let px = (wm.size.clamp(0.005, 0.5) * short).max(6.0);
+    let px = (wm.size.clamp(0.005, 0.5) * short).max(6.0 * floor_scale);
     let mut glyphs = Vec::new();
     let mut x = 0.0f32;
     let mut y = 0.0f32;
@@ -494,7 +508,7 @@ fn watermark_coverage(
         blend_px(gx as usize, gy as usize, (cov * a).clamp(0.0, 1.0), col);
     };
     let passes: &[(f32, [u8; 3], f32)] =
-        if wm.shadow { &[((px * 0.05).max(1.0), [0, 0, 0], 0.45), (0.0, wm.color, 1.0)] } else { &[(0.0, wm.color, 1.0)] };
+        if wm.shadow { &[((px * 0.05).max(floor_scale), [0, 0, 0], 0.45), (0.0, wm.color, 1.0)] } else { &[(0.0, wm.color, 1.0)] };
     for &(off, col, a) in passes {
         for (face, g, rotation) in &glyphs {
             if let Some(o) = fonts.get(*face).and_then(|font| font.outline_glyph(g.clone())) {
@@ -2140,6 +2154,27 @@ mod tests {
         assert_eq!(ExportOptions::from_json(&json!({"watermark": {"text": "x"}})).watermark.map(|w| w.rotation), Some(0));
     }
 
+    /// A preview keeps the export's 6 px minimum text size as a share of the photo: a watermark
+    /// clamped to 6 px in a 150 px export covers the same share of a 600 px preview.
+    #[test]
+    fn watermark_preview_scales_the_minimum_text_size() {
+        let wm = Watermark { text: "LightCraft".into(), size: 0.01, opacity: 1.0, shadow: false, ..Default::default() };
+        let rows = |img: &Rgba8| (0..img.height).filter(|&y| (0..img.width).any(|x| img.get(x, y)[0] > 64)).count() as f32;
+        let mut export = Rgba8::new(200, 150);
+        draw_watermark(&mut export, &wm);
+        let mut preview = Rgba8::new(800, 600);
+        draw_watermark_preview(&mut preview, &wm, 150);
+        let mut unscaled = Rgba8::new(800, 600);
+        draw_watermark(&mut unscaled, &wm);
+        let (export_share, preview_share) = (rows(&export) / 150.0, rows(&preview) / 600.0);
+        assert!((preview_share - export_share).abs() < 0.02, "export {export_share}, preview {preview_share}");
+        assert!(rows(&unscaled) < rows(&preview) / 2.0, "the unscaled 6 px floor would draw it too small");
+        // drawn at the export's own size, the preview is the export
+        let mut same = Rgba8::new(200, 150);
+        draw_watermark_preview(&mut same, &wm, 150);
+        assert_eq!(same.data, export.data);
+    }
+
     fn vertical_japanese() -> Watermark {
         let options =
             ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
@@ -2163,7 +2198,7 @@ mod tests {
         assert_eq!(watermark_fonts(&[]).len(), 1, "Inter only");
         for wm in [vertical_japanese(), Watermark { text: "LightCraft 日本語".into(), ..Watermark::default() }] {
             let mut covered = 0usize;
-            watermark_coverage(400, 300, &wm, &[], |_, _, k, _| covered += usize::from(k > 0.0));
+            watermark_coverage(400, 300, &wm, &[], 1.0, |_, _, k, _| covered += usize::from(k > 0.0));
             assert!(covered > 0, "{:?} draws something", wm.text);
         }
     }
@@ -2201,7 +2236,7 @@ mod tests {
             ..Default::default()
         };
         let mut pixels = Vec::new();
-        watermark_coverage(400, 300, &wm, craft, |x, y, k, _| {
+        watermark_coverage(400, 300, &wm, craft, 1.0, |x, y, k, _| {
             if k > 0.5 {
                 pixels.push((x, y));
             }
@@ -2227,7 +2262,7 @@ mod tests {
                 ..Default::default()
             };
             let mut pixels = vec![0.0f32; 400 * 300];
-            watermark_coverage(400, 300, &wm, craft, |x, y, k, _| pixels[y * 400 + x] = k);
+            watermark_coverage(400, 300, &wm, craft, 1.0, |x, y, k, _| pixels[y * 400 + x] = k);
             assert!(pixels.iter().any(|&k| k > 0.0));
             pixels
         };

@@ -54,6 +54,117 @@ pub(crate) fn rename_preview(
     (read(&rows), total)
 }
 
+/// The Export dialog's watermark preview: the first exported photo, as wide as the dialog whatever
+/// its shape, with the watermark drawn on it as the file will have it at size `resize` (`None` =
+/// full size). On a worker thread, once per photo, catalog change and size step, the cached
+/// thumbnail comes first (at once, a little soft) and then a render at the preview's own pixel size
+/// replaces it. The watermark is redrawn on a copy only when it, the output size or the picture
+/// changes, which is quick at this size, so the preview follows the sliders.
+fn watermark_preview(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    wm: &lightcraft_engine::export::Watermark,
+    resize: Option<lightcraft_engine::export::Resize>,
+) {
+    use std::hash::{Hash, Hasher};
+    // (pictures received so far: 1 the thumbnail, 2 the sharp render; the latest, or why none came)
+    type Base = std::sync::Arc<std::sync::Mutex<(u8, Option<Result<lightcraft_raster::Rgba8, String>>)>>;
+    type Shown = (u64, u8, lightcraft_engine::export::Watermark, usize, egui::TextureHandle);
+    let t = Tokens::get(ui.ctx());
+    let Some(&id) = app.session.targets(&json!({})).first() else { return };
+    let Some(photo) = app.session.catalog.photo(id).cloned() else { return };
+    let (out_w, out_h) = lightcraft_engine::export::output_size(&photo, &lightcraft_engine::export::ExportOptions { resize, ..Default::default() });
+    let export_short = out_w.min(out_h);
+    // pixels across the dialog, in steps so a scroll bar or a point of layout doesn't re-render
+    let step = 128.0;
+    let px = ((ui.available_width() * ui.ctx().pixels_per_point() / step).ceil() * step).clamp(step, 2048.0) as usize;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (id, app.session.catalog.revision, px).hash(&mut h);
+    let key = h.finish();
+    let ctx = ui.ctx().clone();
+    let (base_id, shown_id) = (egui::Id::new("export-wm-preview-base"), egui::Id::new("export-wm-preview-shown"));
+    let base = match ctx.data(|d| d.get_temp::<(u64, Base)>(base_id)) {
+        Some((k, base)) if k == key => base,
+        _ => {
+            let base: Base = Default::default();
+            // the thumbnail, then as wide as the dialog (a tall photo up to three times that high)
+            let jobs: Vec<_> = [app.session.thumb_job(id, 512), app.session.render_job(id, px, px * 3, false, true)].into_iter().flatten().collect();
+            // the web build has no worker thread: a full render there would hold up the page
+            #[cfg(target_arch = "wasm32")]
+            let jobs: Vec<_> = jobs.into_iter().take(1).collect();
+            if jobs.is_empty() {
+                *base.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = (1, Some(Err("no such photo".into())));
+            } else {
+                let (out, repaint) = (base.clone(), ctx.clone());
+                let work = move || {
+                    for job in jobs {
+                        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| job.run().rendered.map(|r| r.image)))
+                            .unwrap_or_else(|_| Err("the preview failed unexpectedly".into()));
+                        let mut got = out.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                        // a failed sharp render keeps the thumbnail
+                        if r.is_ok() || !matches!(got.1, Some(Ok(_))) {
+                            *got = (got.0.saturating_add(1), Some(r));
+                            repaint.request_repaint();
+                        }
+                    }
+                };
+                #[cfg(not(target_arch = "wasm32"))]
+                if let Err(e) = std::thread::Builder::new().name("lc-watermark-preview".into()).spawn(work) {
+                    log::warn!("watermark preview: {e}");
+                }
+                #[cfg(target_arch = "wasm32")]
+                work();
+            }
+            ctx.data_mut(|d| d.insert_temp(base_id, (key, base.clone())));
+            base
+        }
+    };
+    let shown = ctx.data(|d| d.get_temp::<Shown>(shown_id));
+    let stage = base.lock().unwrap_or_else(std::sync::PoisonError::into_inner).0;
+    let tex = match shown {
+        Some((k, g, w, s, tex)) if k == key && g == stage && &w == wm && s == export_short => tex,
+        _ => {
+            let photo_px = match &base.lock().unwrap_or_else(std::sync::PoisonError::into_inner).1 {
+                Some(Ok(img)) => Ok(img.clone()),
+                Some(Err(e)) => Err(Some(e.clone())),
+                None => Err(None),
+            };
+            let mut img = match photo_px {
+                Ok(img) => img,
+                Err(e) => {
+                    let note = if e.is_some() { "Preview unavailable" } else { "Loading preview…" };
+                    let r = ui.label(egui::RichText::new(crate::i18n::tr(note)).color(t.text_dim));
+                    if let Some(e) = e {
+                        r.on_hover_text(e);
+                    }
+                    return;
+                }
+            };
+            lightcraft_engine::export::draw_watermark_preview(&mut img, wm, export_short);
+            // shown through the monitor profile like every other preview
+            if let Some(d) = app.renderer.display()
+                && let Err(e) = d.profile.from_srgb(&mut img)
+            {
+                log::warn!("display profile: {e}");
+            }
+            let color = std::sync::Arc::new(egui::ColorImage::from_rgba_unmultiplied([img.width, img.height], &img.as_bytes()));
+            let tex = match shown {
+                Some((.., mut tex)) => {
+                    tex.set(color, egui::TextureOptions::LINEAR);
+                    tex
+                }
+                None => ctx.load_texture("export-wm-preview", color, egui::TextureOptions::LINEAR),
+            };
+            ctx.data_mut(|d| d.insert_temp(shown_id, (key, stage, wm.clone(), export_short, tex.clone())));
+            tex
+        }
+    };
+    let size = tex.size_vec2();
+    let scale = ui.available_width() / size.x.max(1.0);
+    let r = ui.vertical_centered(|ui| ui.add(egui::Image::new((tex.id(), size * scale)))).inner;
+    crate::widgets::register(ui.ctx(), "image:exportWatermarkPreview", r.rect);
+}
+
 /// About dialog tabs: (widget id suffix, label). The credits come from `crate::credits`.
 pub const ABOUT_TABS: &[(&str, &str)] = &[("about", "About"), ("contributors", "Contributors"), ("models", "Models")];
 
@@ -663,6 +774,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     if ui.checkbox(&mut wm_on, crate::i18n::tr("Watermark")).changed() {
                         opts.watermark = wm_on.then(|| lightcraft_engine::export::Watermark { text: "© ".into(), ..Default::default() });
                     }
+                    let wm_shown = opts.watermark.clone();
+                    if let Some(wm) = &wm_shown {
+                        watermark_preview(app, ui, wm, (!*full_size).then_some(*resize));
+                    }
                     if let Some(wm) = &mut opts.watermark {
                         // text, or a graphic (a logo with transparency)
                         let mut graphic = !wm.image.is_empty() || ui.data(|d| d.get_temp::<bool>(egui::Id::new("wm-graphic"))).unwrap_or(false);
@@ -726,6 +841,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         if !graphic {
                             ui.checkbox(&mut wm.shadow, crate::i18n::tr("Shadow"));
                         }
+                    }
+                    if opts.watermark != wm_shown {
+                        // the preview above was drawn with the old settings
+                        ui.ctx().request_repaint();
                     }
                     }
                     ui.add_space(4.0);
