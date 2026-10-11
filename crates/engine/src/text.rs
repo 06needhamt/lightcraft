@@ -178,6 +178,24 @@ impl TextLayout {
 
     /// [`Self::draw`], skipping the glyphs that fall wholly outside `0..clip_w × 0..clip_h`
     /// (so huge text costs what shows, not what is laid out).
+    /// Call `f(x, y, coverage)` for every pixel the text covers, in unrounded coordinates relative
+    /// to the box's top-left corner (for callers that transform them, e.g. a turned watermark).
+    pub fn draw_points(&self, mut f: impl FnMut(f32, f32, f32)) {
+        for (face, g, rotation) in &self.glyphs {
+            if let Some(o) = self.fonts.get(*face).and_then(|font| font.outline_glyph(g.clone())) {
+                let b = o.px_bounds();
+                o.draw(|gx, gy, cov| {
+                    let (sx, sy) = (b.min.x + gx as f32, b.min.y + gy as f32);
+                    let (sx, sy) = match rotation {
+                        Some((cx, cy)) => (cx - (sy - cy), cy + (sx - cx)),
+                        None => (sx, sy),
+                    };
+                    f(sx, sy, cov);
+                });
+            }
+        }
+    }
+
     pub fn draw_in(&self, ox: f32, oy: f32, clip_w: f32, clip_h: f32, mut f: impl FnMut(i32, i32, f32)) {
         for (face, g, rotation) in &self.glyphs {
             if rotation.is_none() {

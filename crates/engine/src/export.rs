@@ -18,6 +18,8 @@ pub enum ExportFormat {
     Jpeg,
     Png,
     Tiff,
+    /// A flat PSD (8/16-bit, no layers): what an image editor such as PhotoCraft saves back to.
+    Psd,
     Webp,
     Avif,
     /// The original file, unchanged, with an XMP sidecar holding the edits.
@@ -32,6 +34,7 @@ impl ExportFormat {
             "jpeg" | "jpg" => Self::Jpeg,
             "png" => Self::Png,
             "tiff" | "tif" => Self::Tiff,
+            "psd" => Self::Psd,
             "webp" => Self::Webp,
             "avif" => Self::Avif,
             "original" => Self::Original,
@@ -44,6 +47,7 @@ impl ExportFormat {
             Self::Jpeg => "jpg",
             Self::Png => "png",
             Self::Tiff => "tif",
+            Self::Psd => "psd",
             Self::Webp => "webp",
             Self::Avif => "avif",
             // the original keeps its own extension (see `ExportOptions::file_name_for`)
@@ -209,8 +213,15 @@ pub struct Watermark {
     /// 0..1.
     pub opacity: f32,
     pub anchor: Anchor,
-    /// Margin as a fraction of the short edge.
-    pub inset: f32,
+    /// Margin from the left or right edge, as a fraction of the short edge (unused when the anchor
+    /// is centred across: top, center, bottom).
+    pub inset_x: f32,
+    /// Margin from the top or bottom edge, as a fraction of the short edge (unused when the anchor
+    /// is centred down: left, center, right).
+    pub inset_y: f32,
+    /// Degrees clockwise: 0, 90, 180 or 270 (anything else draws unrotated). The watermark is
+    /// sized before it is turned, and the insets are measured to the turned watermark.
+    pub rotation: u16,
     /// sRGB colour.
     pub color: [u8; 3],
     /// Soft dark drop shadow for legibility on bright areas.
@@ -232,7 +243,9 @@ impl Default for Watermark {
             size: 0.035,
             opacity: 0.7,
             anchor: Anchor::BottomRight,
-            inset: 0.025,
+            inset_x: 0.025,
+            inset_y: 0.025,
+            rotation: 0,
             color: [255; 3],
             shadow: true,
             image: String::new(),
@@ -242,13 +255,48 @@ impl Default for Watermark {
     }
 }
 
+impl Watermark {
+    /// `rotation` in clockwise quarter turns.
+    fn quarter_turns(&self) -> u8 {
+        match self.rotation {
+            90 => 1,
+            180 => 2,
+            270 => 3,
+            _ => 0,
+        }
+    }
+}
+
+/// Where the point `(x, y)` of a `w × h` box lands when the box is turned `turns` quarter turns
+/// clockwise (for pixel coordinates: the turned box is `h × w` for odd turns).
+fn turn(turns: u8, x: f32, y: f32, w: f32, h: f32) -> (f32, f32) {
+    match turns {
+        1 => (h - 1.0 - y, x),
+        2 => (w - 1.0 - x, h - 1.0 - y),
+        3 => (y, w - 1.0 - x),
+        _ => (x, y),
+    }
+}
+
 #[cfg(test)]
 use crate::text::{TEXT_FONT as WATERMARK_FONT, cell_glyphs as watermark_cell_glyphs, faces as watermark_fonts};
 
 /// Draw `wm` onto `img` (straight alpha blending of the encoded values).
 pub fn draw_watermark(img: &mut Rgba8, wm: &Watermark) {
+    blend_watermark(img, wm, 1.0);
+}
+
+/// Draw `wm` onto `img`, a preview of an export whose short edge is `export_short_edge` pixels.
+/// The smallest text size and shadow offset scale with the preview, so it looks like the file.
+pub fn draw_watermark_preview(img: &mut Rgba8, wm: &Watermark, export_short_edge: usize) {
+    let short = img.width.min(img.height);
+    let scale = if export_short_edge == 0 { 1.0 } else { short as f32 / export_short_edge as f32 };
+    blend_watermark(img, wm, scale);
+}
+
+fn blend_watermark(img: &mut Rgba8, wm: &Watermark, floor_scale: f32) {
     let width = img.width;
-    watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+    watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, floor_scale, |x, y, k, col| {
         let p = &mut img.data[y * width + x];
         for c in 0..3 {
             p[c] = (p[c] as f32 + (col[c] as f32 - p[c] as f32) * k).round() as u8;
@@ -260,7 +308,7 @@ pub fn draw_watermark(img: &mut Rgba8, wm: &Watermark) {
 /// anchored as on an image of that size (a slideshow slide's photo). The area is clipped to `img`.
 pub fn draw_watermark_in(img: &mut Rgba8, wm: &Watermark, x0: usize, y0: usize, w: usize, h: usize) {
     let (width, height) = (img.width, img.height);
-    watermark_coverage(w, h, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+    watermark_coverage(w, h, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
         let (px, py) = (x0.saturating_add(x), y0.saturating_add(y));
         if px >= width || py >= height {
             return;
@@ -278,14 +326,14 @@ pub fn draw_watermark_in(img: &mut Rgba8, wm: &Watermark, x0: usize, y0: usize, 
 pub fn draw_watermark_deep(img: &mut DeepImage, wm: &Watermark) {
     let (width, trc) = (img.width, img.space.trc());
     match &mut img.samples {
-        DeepSamples::U16(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+        DeepSamples::U16(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
             let i = (y * width + x) * 3;
             for c in 0..3 {
                 let p = v[i + c] as f32;
                 v[i + c] = (p + (col[c] as f32 * 257.0 - p) * k).round().clamp(0.0, 65535.0) as u16;
             }
         }),
-        DeepSamples::F32(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, |x, y, k, col| {
+        DeepSamples::F32(v) => watermark_coverage(img.width, img.height, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
             let i = (y * width + x) * 3;
             for c in 0..3 {
                 let target = trc.decode(col[c] as f32 / 255.0);
@@ -297,12 +345,14 @@ pub fn draw_watermark_deep(img: &mut DeepImage, wm: &Watermark) {
 
 /// Lay out `wm` on a `width × height` image and call `blend(x, y, coverage × opacity, colour)` for
 /// every covered pixel (shadow pass first). `craft` is [`crate::fonts::CRAFT_FONTS`] (a parameter
-/// so tests can render without it).
+/// so tests can render without it). `floor_scale` is this image's size over the exported file's
+/// (1 when drawing the file itself): the 6 px minimum text size is a minimum in the file.
 fn watermark_coverage(
     width: usize,
     height: usize,
     wm: &Watermark,
     craft: &'static [crate::fonts::CraftFont],
+    floor_scale: f32,
     mut blend_px: impl FnMut(usize, usize, f32, [u8; 3]),
 ) {
     if !wm.image.trim().is_empty() {
@@ -314,32 +364,44 @@ fn watermark_coverage(
         return;
     }
     let short = width.min(height) as f32;
-    let px = (wm.size.clamp(0.005, 0.5) * short).max(6.0);
+    let px = (wm.size.clamp(0.005, 0.5) * short).max(6.0 * floor_scale);
     let Some(layout) = crate::text::TextLayout::new(text, px, wm.vertical, craft) else { return };
     let (tw, th) = (layout.width, layout.height);
-    let inset = wm.inset.clamp(0.0, 0.4) * short;
+    // laid out unturned in a tw × th box, placed by the box it becomes
+    let turns = wm.quarter_turns();
+    let (bw, bh) = if turns % 2 == 1 { (th, tw) } else { (tw, th) };
+    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
     let (w, h) = (width as f32, height as f32);
     use Anchor::*;
     let ox = match wm.anchor {
-        TopLeft | Left | BottomLeft => inset,
-        Top | Center | Bottom => (w - tw) / 2.0,
-        TopRight | Right | BottomRight => w - inset - tw,
+        TopLeft | Left | BottomLeft => ix,
+        Top | Center | Bottom => (w - bw) / 2.0,
+        TopRight | Right | BottomRight => w - ix - bw,
     };
     let oy = match wm.anchor {
-        TopLeft | Top | TopRight => inset,
-        Left | Center | Right => (h - th) / 2.0,
-        BottomLeft | Bottom | BottomRight => h - inset - th,
+        TopLeft | Top | TopRight => iy,
+        Left | Center | Right => (h - bh) / 2.0,
+        BottomLeft | Bottom | BottomRight => h - iy - bh,
     };
     let alpha = wm.opacity.clamp(0.0, 1.0);
     let passes: &[(f32, [u8; 3], f32)] =
-        if wm.shadow { &[((px * 0.05).max(1.0), [0, 0, 0], 0.45), (0.0, wm.color, 1.0)] } else { &[(0.0, wm.color, 1.0)] };
+        if wm.shadow { &[((px * 0.05).max(floor_scale), [0, 0, 0], 0.45), (0.0, wm.color, 1.0)] } else { &[(0.0, wm.color, 1.0)] };
     for &(off, col, a) in passes {
-        layout.draw_in(ox + off, oy + off, width as f32, height as f32, |gx, gy, cov| {
+        let mut put = |gx: i32, gy: i32, cov: f32| {
             if gx < 0 || gy < 0 || gx >= width as i32 || gy >= height as i32 {
                 return;
             }
             blend_px(gx as usize, gy as usize, (cov * a * alpha).clamp(0.0, 1.0), col);
-        });
+        };
+        if turns == 0 {
+            layout.draw_in(ox + off, oy + off, w, h, &mut put);
+        } else {
+            // turned with the box; the shadow still falls down and to the right
+            layout.draw_points(|x, y, cov| {
+                let (x, y) = turn(turns, x, y, tw, th);
+                put((ox + off + x) as i32, (oy + off + y) as i32, cov);
+            });
+        }
     }
 }
 
@@ -380,19 +442,22 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         [p[0] as f32 * a, p[1] as f32 * a, p[2] as f32 * a, a]
     });
     let scaled = lightcraft_raster::resample::resize(&pre, lw, lh, lightcraft_raster::resample::Filter::Mitchell);
-    let inset = wm.inset.clamp(0.0, 0.4) * width.min(height) as f32;
-    let (w, h, lwf, lhf) = (width as f32, height as f32, lw as f32, lh as f32);
+    let short = width.min(height) as f32;
+    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
+    let turns = wm.quarter_turns();
+    let (bw, bh) = if turns % 2 == 1 { (lh, lw) } else { (lw, lh) };
+    let (w, h, lwf, lhf) = (width as f32, height as f32, bw as f32, bh as f32);
     use Anchor::*;
     let ox = match wm.anchor {
-        TopLeft | Left | BottomLeft => inset,
+        TopLeft | Left | BottomLeft => ix,
         Top | Center | Bottom => (w - lwf) / 2.0,
-        TopRight | Right | BottomRight => w - inset - lwf,
+        TopRight | Right | BottomRight => w - ix - lwf,
     }
     .max(0.0) as usize;
     let oy = match wm.anchor {
-        TopLeft | Top | TopRight => inset,
+        TopLeft | Top | TopRight => iy,
         Left | Center | Right => (h - lhf) / 2.0,
-        BottomLeft | Bottom | BottomRight => h - inset - lhf,
+        BottomLeft | Bottom | BottomRight => h - iy - lhf,
     }
     .max(0.0) as usize;
     let space = wm.target.unwrap_or(OutputSpace::Srgb);
@@ -401,7 +466,8 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         for x in 0..lw {
             let [r, g, b, a] = scaled.get(x, y);
             let a = a.clamp(0.0, 1.0);
-            let (px, py) = (ox + x, oy + y);
+            let (tx, ty) = turn(turns, x as f32, y as f32, lw as f32, lh as f32);
+            let (px, py) = (ox + tx as usize, oy + ty as usize);
             if a <= 1e-4 || px >= width || py >= height {
                 continue;
             }
@@ -468,8 +534,10 @@ pub struct ExportOptions {
     pub bit_depth: Option<u8>,
     /// HDR output for photos edited in HDR: JPEG as an ISO 21496-1 gain map JPEG (the SDR
     /// rendition plus a gain map, so the file looks right everywhere; quality as set, `limit_kb`
-    /// not applied), AVIF as 10-bit Rec. 2020 PQ, 32-bit float TIFF with the highlights above SDR
-    /// white kept. Other formats, and photos without an HDR edit, are SDR.
+    /// not applied), AVIF as 10-bit Rec. 2020 PQ, PNG as 16-bit Rec. 2020 PQ (`cICP`; viewers
+    /// without cICP support show it as sRGB, washed out), 32-bit float
+    /// TIFF with the highlights above SDR white kept. Other formats, and photos without an HDR
+    /// edit, are SDR.
     pub hdr: bool,
 }
 
@@ -533,8 +601,10 @@ pub const OPTION_PARAMS: &[&str] = &[
     "hdr",
 ];
 
-/// The keys of a `watermark` object ([`Watermark`], camelCase).
-pub const WATERMARK_PARAMS: &[&str] = &["text", "vertical", "size", "opacity", "anchor", "inset", "color", "shadow", "image", "imageWidth"];
+/// The keys of a `watermark` object ([`Watermark`], camelCase). `inset` sets `insetX` and `insetY`
+/// together (what versions before the two margins wrote); either of those, when given, wins.
+pub const WATERMARK_PARAMS: &[&str] =
+    &["text", "vertical", "size", "opacity", "anchor", "insetX", "insetY", "inset", "rotation", "color", "shadow", "image", "imageWidth"];
 
 /// Text height as a fraction of the short edge: the range the renderer draws without clamping.
 pub const WATERMARK_SIZE_RANGE: (f32, f32) = (0.005, 0.5);
@@ -574,6 +644,19 @@ fn unknown_key(what: &str, k: &str, known: &[&str]) -> String {
 /// A JSON integer (`92`; never `92.5` or `"92"`), as [`ExportOptions::from_json`] reads them.
 fn whole(v: &serde_json::Value) -> Option<i64> {
     v.as_i64()
+}
+
+/// A `watermark` object as a [`Watermark`]; a legacy `inset` fills whichever of `insetX` and
+/// `insetY` is missing.
+fn watermark_from_json(v: &serde_json::Value) -> serde_json::Result<Watermark> {
+    let mut v = v.clone();
+    if let Some(o) = v.as_object_mut()
+        && let Some(inset) = o.remove("inset")
+    {
+        o.entry("insetX").or_insert_with(|| inset.clone());
+        o.entry("insetY").or_insert(inset);
+    }
+    serde_json::from_value(v)
 }
 
 impl ExportOptions {
@@ -707,7 +790,7 @@ impl ExportOptions {
             Value::Object(o) => o,
             _ => {
                 return Err(bad(
-                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth}".into(),
+                    "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth}".into(),
                 ));
             }
         };
@@ -730,8 +813,13 @@ impl ExportOptions {
                 }
                 "size" => frac(k, v, WATERMARK_SIZE_RANGE, "fraction of the short edge")?,
                 "opacity" => frac(k, v, (0.0, 1.0), "0 = invisible, 1 = solid")?,
-                "inset" => frac(k, v, WATERMARK_INSET_RANGE, "fraction of the short edge")?,
+                "insetX" | "insetY" | "inset" => frac(k, v, WATERMARK_INSET_RANGE, "fraction of the short edge")?,
                 "imageWidth" => frac(k, v, WATERMARK_IMAGE_WIDTH_RANGE, "fraction of the photo's width")?,
+                "rotation" => {
+                    if !matches!(whole(v), Some(0 | 90 | 180 | 270)) {
+                        return Err(bad("`watermark.rotation` must be 0, 90, 180 or 270 (degrees clockwise)".into()));
+                    }
+                }
                 "anchor" => {
                     serde_json::from_value::<Anchor>(v.clone()).map_err(|_| {
                         bad("`watermark.anchor` must be one of topLeft|top|topRight|left|center|right|bottomLeft|bottom|bottomRight".into())
@@ -746,7 +834,7 @@ impl ExportOptions {
                 _ => return Err(bad(unknown_key("watermark key", k, WATERMARK_PARAMS))),
             }
         }
-        serde_json::from_value::<Watermark>(v.clone()).map(|_| ()).map_err(|e| bad(format!("`watermark`: {e}")))
+        watermark_from_json(v).map(|_| ()).map_err(|e| bad(format!("`watermark`: {e}")))
     }
 
     /// Read options from command params (`format`, `quality`, `limitKb`, `sharpen`, `sharpenAmount`,
@@ -789,7 +877,7 @@ impl ExportOptions {
             remove_location: p.get("removeLocation").and_then(Value::as_bool).unwrap_or(d.remove_location),
             watermark: match p.get("watermark") {
                 Some(Value::String(t)) => Some(Watermark { text: t.clone(), ..Default::default() }),
-                Some(v @ Value::Object(_)) => serde_json::from_value(v.clone()).ok(),
+                Some(v @ Value::Object(_)) => watermark_from_json(v).ok(),
                 _ => None,
             }
             .filter(|w: &Watermark| !w.text.trim().is_empty() || !w.image.trim().is_empty()),
@@ -861,12 +949,15 @@ impl ExportOptions {
     pub fn effective_depth(&self) -> OutputDepth {
         match (self.format, self.bit_depth) {
             (ExportFormat::Jpeg | ExportFormat::Webp | ExportFormat::Original | ExportFormat::Dng, _) => OutputDepth::U8,
+            (ExportFormat::Png, _) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Png, Some(16 | 32)) => OutputDepth::U16,
             (ExportFormat::Png, _) => OutputDepth::U8,
             (ExportFormat::Tiff, Some(8)) => OutputDepth::U8,
             (ExportFormat::Tiff, Some(32)) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Tiff, Some(32)) => OutputDepth::F32Linear,
             (ExportFormat::Tiff, _) => OutputDepth::U16,
+            (ExportFormat::Psd, Some(8)) => OutputDepth::U8,
+            (ExportFormat::Psd, _) => OutputDepth::U16,
             (ExportFormat::Avif, _) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Avif, Some(10 | 16 | 32)) => OutputDepth::U16,
             (ExportFormat::Avif, _) => OutputDepth::U8,
@@ -879,20 +970,26 @@ impl ExportOptions {
             ExportFormat::Jpeg | ExportFormat::Webp | ExportFormat::Original | ExportFormat::Dng => &[(8, "8-bit")],
             ExportFormat::Png => &[(8, "8-bit"), (16, "16-bit")],
             ExportFormat::Tiff => &[(16, "16-bit"), (8, "8-bit"), (32, "32-bit float")],
+            ExportFormat::Psd => &[(16, "16-bit"), (8, "8-bit")],
             ExportFormat::Avif => &[(8, "8-bit"), (10, "10-bit")],
         }
     }
 
     /// Whether these options write HDR files (for photos edited in HDR): JPEG (gain map), AVIF
-    /// (PQ) or 32-bit float TIFF with [`ExportOptions::hdr`].
+    /// or PNG (PQ) or 32-bit float TIFF with [`ExportOptions::hdr`].
     pub fn hdr_output(&self) -> bool {
-        self.hdr && matches!((self.format, self.bit_depth), (ExportFormat::Jpeg | ExportFormat::Avif, _) | (ExportFormat::Tiff, Some(32)))
+        self.hdr
+            && matches!(
+                (self.format, self.bit_depth),
+                (ExportFormat::Jpeg | ExportFormat::Avif | ExportFormat::Png, _) | (ExportFormat::Tiff, Some(32))
+            )
     }
 
-    /// The colour space the file is actually written in (AVIF: sRGB, or Rec. 2020 for HDR).
+    /// The colour space the file is actually written in (AVIF: sRGB, or Rec. 2020 for HDR; HDR
+    /// PNG: Rec. 2020).
     pub fn effective_space(&self) -> OutputSpace {
         match self.format {
-            ExportFormat::Avif if self.hdr => OutputSpace::Rec2020,
+            ExportFormat::Avif | ExportFormat::Png if self.hdr => OutputSpace::Rec2020,
             ExportFormat::Avif => OutputSpace::Srgb,
             _ => self.color_space,
         }
@@ -1042,6 +1139,7 @@ pub fn encode_with_metadata(img: &Rgba8, o: &ExportOptions, meta: Option<&Metada
         }
         ExportFormat::Png => encode::encode_png(&e, &meta),
         ExportFormat::Tiff => encode::encode_tiff(&e, o.tiff_compression, &meta),
+        ExportFormat::Psd => encode::encode_psd(&e, &meta),
         ExportFormat::Webp => encode::encode_webp_lossless(&e, &meta),
         ExportFormat::Avif => encode::encode_avif(&e, o.quality, 8, &meta),
         f @ (ExportFormat::Original | ExportFormat::Dng) => return Err(format!("{f:?} export does not encode pixels")),
@@ -1149,8 +1247,10 @@ pub fn encode_deep(img: &DeepImage, o: &ExportOptions, meta: Option<&Metadata>) 
         DeepSamples::F32(v) => EncodeImage::new(w, h, 3, Samples::F32(v)),
     };
     let r = match (o.format, &img.samples) {
+        (ExportFormat::Png, DeepSamples::F32(v)) if img.space == OutputSpace::Rec2020 => lightcraft_codecs::encode_png_pq(w, h, v, &meta),
         (ExportFormat::Png, _) => encode::encode_png(&e, &meta),
         (ExportFormat::Tiff, _) => encode::encode_tiff(&e, o.tiff_compression, &meta),
+        (ExportFormat::Psd, _) => encode::encode_psd(&e, &meta),
         (ExportFormat::Avif, DeepSamples::F32(v)) if img.space == OutputSpace::Rec2020 => {
             lightcraft_codecs::encode_avif_pq(w, h, v, o.quality, 8, &meta)
         }
@@ -1158,6 +1258,12 @@ pub fn encode_deep(img: &DeepImage, o: &ExportOptions, meta: Option<&Metadata>) 
         (f, _) => return Err(format!("{f:?} export is 8-bit only")),
     };
     r.map_err(|e| e.to_string())
+}
+
+/// Whether the export of `photo` under `o` leaves out its location (GPS and place names).
+/// (`photo` and `catalog` let library-level privacy rules add to the export option.)
+pub fn removes_location(_photo: &lightcraft_catalog::Photo, _catalog: &lightcraft_catalog::Catalog, o: &ExportOptions) -> bool {
+    o.remove_location
 }
 
 /// The metadata to embed for `photo` under `o.metadata` / `o.remove_location`. `None` = embed nothing.
@@ -1220,6 +1326,9 @@ pub struct Exported {
     /// Files written next to it, named like it with another extension: `(extension, bytes)` (the
     /// XMP sidecar of an `Original` export).
     pub sidecars: Vec<(&'static str, Vec<u8>)>,
+    /// Set when the render was tried on the GPU and fell back to the CPU: why (see
+    /// `docs/gpu-pipeline.md`). The file holds the CPU render either way.
+    pub gpu_fallback: Option<String>,
 }
 
 /// Output size of photo `p` under `o` (its cropped full size when `o.resize` is `None`).
@@ -1268,6 +1377,8 @@ enum Work {
         read: Option<crate::merge::ByteReader>,
         packet: String,
         dng: Option<DngCompression>,
+        /// The original must not carry a location ([`removes_location`]).
+        remove_location: bool,
         label: String,
         size: (usize, usize),
     },
@@ -1327,8 +1438,9 @@ fn prepare_guarded(
         let work = Work::File {
             path: path.clone(),
             read: session.media.file_bytes.clone(),
-            packet: crate::sidecar::sidecar_packet(p, &session.catalog),
+            packet: crate::sidecar::sidecar_packet_with(p, &session.catalog, removes_location(p, &session.catalog, o)),
             dng,
+            remove_location: removes_location(p, &session.catalog, o),
             label: p.file_name.clone(),
             size: (p.width as usize, p.height as usize),
         };
@@ -1354,7 +1466,9 @@ impl PreparedExport {
         match self.work {
             Work::Render(w) => {
                 let RenderWork { job, hdr_job, meta, opts } = *w;
-                let r = job.run().rendered?;
+                let result = job.run();
+                let r = result.rendered?;
+                let gpu_fallback = result.gpu_fallback;
                 let bytes = match hdr_job {
                     Some(hj) => {
                         let hr = hj.run().rendered?;
@@ -1363,15 +1477,28 @@ impl PreparedExport {
                     }
                     None => encode_rendered(&r, &opts, meta.as_ref())?,
                 };
-                Ok(Exported { file_name, bytes, width: r.image.width, height: r.image.height, sidecars: Vec::new() })
+                Ok(Exported { file_name, bytes, width: r.image.width, height: r.image.height, sidecars: Vec::new(), gpu_fallback })
             }
-            Work::File { path, read, packet, dng, label, size } => {
+            Work::File { path, read, packet, dng, label, size, remove_location } => {
                 let bytes = match &read {
                     Some(r) => r(&path)?,
                     None => std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?,
                 };
                 let Some(dng) = dng else {
-                    return Ok(Exported { file_name, bytes, width: size.0, height: size.1, sidecars: vec![("xmp", packet.into_bytes())] });
+                    // the file is copied byte for byte: refuse rather than leak a location it embeds
+                    if remove_location && lightcraft_meta::extract(&bytes).gps.is_some() {
+                        return Err(format!(
+                            "{label}: can't remove the location from an original file that embeds GPS; export as JPEG, TIFF or DNG instead"
+                        ));
+                    }
+                    return Ok(Exported {
+                        file_name,
+                        bytes,
+                        width: size.0,
+                        height: size.1,
+                        sidecars: vec![("xmp", packet.into_bytes())],
+                        gpu_fallback: None,
+                    });
                 };
                 if lightcraft_raw::probe(&bytes).is_none() {
                     return Err(format!("{label}: DNG export needs a raw photo"));
@@ -1385,7 +1512,7 @@ impl PreparedExport {
                 };
                 let dng = lightcraft_raw::write_dng(&raw, &lightcraft_raw::DngWriteOptions { xmp: Some(packet), compression, ..Default::default() })
                     .map_err(|e| e.to_string())?;
-                Ok(Exported { file_name, bytes: dng, width: raw.width, height: raw.height, sidecars: Vec::new() })
+                Ok(Exported { file_name, bytes: dng, width: raw.width, height: raw.height, sidecars: Vec::new(), gpu_fallback: None })
             }
         }
     }
@@ -1734,7 +1861,11 @@ impl<'a> Placer<'a> {
         match written {
             Ok((path, files, sidecars)) => {
                 self.taken.extend(files);
-                self.out.push(json!({"path": path, "width": e.width, "height": e.height, "bytes": e.bytes.len(), "sidecars": sidecars}));
+                let mut entry = json!({"path": path, "width": e.width, "height": e.height, "bytes": e.bytes.len(), "sidecars": sidecars});
+                if let Some(why) = &e.gpu_fallback {
+                    entry["gpuFallback"] = json!(why);
+                }
+                self.out.push(entry);
             }
             Err(err) if self.stop_on_error => return Err(err),
             Err(err) => self.out.push(json!({"photo": photo.0, "file": file, "error": err})),
@@ -1862,6 +1993,95 @@ mod tests {
         assert!(ExportOptions::from_json(&serde_json::json!({"watermark": ""})).watermark.is_none());
     }
 
+    /// Horizontal and vertical margins move a text watermark separately; settings saved with one
+    /// `inset` (before the two margins) read as both, and either new key overrides it.
+    #[test]
+    fn watermark_insets_are_horizontal_and_vertical() {
+        // gaps between the drawn text and the right and bottom edges of a 400 × 300 image
+        let gaps = |wm: &Watermark| {
+            let mut img = Rgba8::new(400, 300);
+            draw_watermark(&mut img, wm);
+            let lit: Vec<(usize, usize)> = (0..300).flat_map(|y| (0..400).map(move |x| (x, y))).filter(|&(x, y)| img.get(x, y)[0] > 128).collect();
+            let right = lit.iter().map(|p| p.0).max().unwrap();
+            let bottom = lit.iter().map(|p| p.1).max().unwrap();
+            (399 - right as i64, 299 - bottom as i64)
+        };
+        let base = Watermark { text: "LC".into(), size: 0.1, opacity: 1.0, shadow: false, inset_x: 0.0, inset_y: 0.0, ..Default::default() };
+        let (r0, b0) = gaps(&base);
+        // 0.2 and 0.1 of the 300 px short edge
+        let (r1, b1) = gaps(&Watermark { inset_x: 0.2, ..base.clone() });
+        assert!((r1 - r0 - 60).abs() <= 1 && (b1 - b0).abs() <= 1, "horizontal: {r0},{b0} → {r1},{b1}");
+        let (r2, b2) = gaps(&Watermark { inset_y: 0.1, ..base.clone() });
+        assert!((r2 - r0).abs() <= 1 && (b2 - b0 - 30).abs() <= 1, "vertical: {r0},{b0} → {r2},{b2}");
+        // the old single margin
+        let wm = |w: serde_json::Value| ExportOptions::from_json(&json!({"watermark": w})).watermark.unwrap();
+        let old = wm(json!({"text": "LC", "inset": 0.1}));
+        assert_eq!((old.inset_x, old.inset_y), (0.1, 0.1));
+        let mixed = wm(json!({"text": "LC", "inset": 0.1, "insetY": 0.3}));
+        assert_eq!((mixed.inset_x, mixed.inset_y), (0.1, 0.3));
+        assert!(ExportOptions::from_params(&json!({"watermark": {"text": "LC", "inset": 0.1}})).is_ok());
+        // saved and read back as the two margins
+        let o = ExportOptions { watermark: Some(Watermark { inset_x: 0.05, inset_y: 0.15, ..base }), ..Default::default() };
+        let saved = o.to_json();
+        assert!(saved["watermark"].get("inset").is_none(), "{saved}");
+        assert_eq!(ExportOptions::from_json(&saved).watermark.map(|w| (w.inset_x, w.inset_y)), Some((0.05, 0.15)));
+    }
+
+    /// A turned text watermark is placed by its turned box: taller than wide at 90° and 270°, the
+    /// same corner and insets, and an unknown angle draws it unturned.
+    #[test]
+    fn watermark_rotation_turns_the_text_in_its_corner() {
+        let lit = |wm: &Watermark| {
+            let mut img = Rgba8::new(400, 300);
+            draw_watermark(&mut img, wm);
+            let on: Vec<(usize, usize)> = (0..300).flat_map(|y| (0..400).map(move |x| (x, y))).filter(|&(x, y)| img.get(x, y)[0] > 128).collect();
+            let (x0, x1) = (on.iter().map(|p| p.0).min().unwrap(), on.iter().map(|p| p.0).max().unwrap());
+            let (y0, y1) = (on.iter().map(|p| p.1).min().unwrap(), on.iter().map(|p| p.1).max().unwrap());
+            (x0, x1, y0, y1, img)
+        };
+        let base = Watermark { text: "LightCraft".into(), size: 0.08, opacity: 1.0, shadow: false, inset_x: 0.0, inset_y: 0.0, ..Default::default() };
+        let (a0, a1, b0, b1, flat) = lit(&base);
+        assert!(a1 - a0 > 2 * (b1 - b0), "unturned text is wide");
+        for rotation in [90, 270] {
+            let (x0, x1, y0, y1, _) = lit(&Watermark { rotation, ..base.clone() });
+            assert!(y1 - y0 > 2 * (x1 - x0), "{rotation}°: tall");
+            assert!(x1 >= 390 && y1 >= 290, "{rotation}°: still in the bottom-right corner ({x1}, {y1})");
+            // 0.1 × 300 px further from the right edge
+            let (_, moved, ..) = lit(&Watermark { rotation, inset_x: 0.1, ..base.clone() });
+            assert!((x1 as i64 - moved as i64 - 30).abs() <= 1, "{rotation}°: {x1} → {moved}");
+        }
+        let (x0, x1, y0, y1, _) = lit(&Watermark { rotation: 180, ..base.clone() });
+        assert!(((x1 - x0) as i64 - (a1 - a0) as i64).abs() <= 2 && ((y1 - y0) as i64 - (b1 - b0) as i64).abs() <= 2, "180°: same size");
+        assert!(x1 >= 390 && y1 >= 290, "180°: same corner");
+        let (.., odd) = lit(&Watermark { rotation: 45, ..base.clone() });
+        assert_eq!(odd.data, flat.data, "an angle that isn't a quarter turn draws unturned");
+        // saved and read back; older settings have none
+        let o = ExportOptions { watermark: Some(Watermark { rotation: 270, ..base }), ..Default::default() };
+        assert_eq!(ExportOptions::from_json(&o.to_json()).watermark.map(|w| w.rotation), Some(270));
+        assert_eq!(ExportOptions::from_json(&json!({"watermark": {"text": "x"}})).watermark.map(|w| w.rotation), Some(0));
+    }
+
+    /// A preview keeps the export's 6 px minimum text size as a share of the photo: a watermark
+    /// clamped to 6 px in a 150 px export covers the same share of a 600 px preview.
+    #[test]
+    fn watermark_preview_scales_the_minimum_text_size() {
+        let wm = Watermark { text: "LightCraft".into(), size: 0.01, opacity: 1.0, shadow: false, ..Default::default() };
+        let rows = |img: &Rgba8| (0..img.height).filter(|&y| (0..img.width).any(|x| img.get(x, y)[0] > 64)).count() as f32;
+        let mut export = Rgba8::new(200, 150);
+        draw_watermark(&mut export, &wm);
+        let mut preview = Rgba8::new(800, 600);
+        draw_watermark_preview(&mut preview, &wm, 150);
+        let mut unscaled = Rgba8::new(800, 600);
+        draw_watermark(&mut unscaled, &wm);
+        let (export_share, preview_share) = (rows(&export) / 150.0, rows(&preview) / 600.0);
+        assert!((preview_share - export_share).abs() < 0.02, "export {export_share}, preview {preview_share}");
+        assert!(rows(&unscaled) < rows(&preview) / 2.0, "the unscaled 6 px floor would draw it too small");
+        // drawn at the export's own size, the preview is the export
+        let mut same = Rgba8::new(200, 150);
+        draw_watermark_preview(&mut same, &wm, 150);
+        assert_eq!(same.data, export.data);
+    }
+
     fn vertical_japanese() -> Watermark {
         let options =
             ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
@@ -1885,7 +2105,7 @@ mod tests {
         assert_eq!(watermark_fonts(&[]).len(), 1, "Inter only");
         for wm in [vertical_japanese(), Watermark { text: "LightCraft 日本語".into(), ..Watermark::default() }] {
             let mut covered = 0usize;
-            watermark_coverage(400, 300, &wm, &[], |_, _, k, _| covered += usize::from(k > 0.0));
+            watermark_coverage(400, 300, &wm, &[], 1.0, |_, _, k, _| covered += usize::from(k > 0.0));
             assert!(covered > 0, "{:?} draws something", wm.text);
         }
     }
@@ -1916,13 +2136,14 @@ mod tests {
             vertical: true,
             size: 0.1,
             anchor: Anchor::TopLeft,
-            inset: 0.0,
+            inset_x: 0.0,
+            inset_y: 0.0,
             shadow: false,
             opacity: 1.0,
             ..Default::default()
         };
         let mut pixels = Vec::new();
-        watermark_coverage(400, 300, &wm, craft, |x, y, k, _| {
+        watermark_coverage(400, 300, &wm, craft, 1.0, |x, y, k, _| {
             if k > 0.5 {
                 pixels.push((x, y));
             }
@@ -1941,13 +2162,14 @@ mod tests {
                 vertical: true,
                 size: 0.1,
                 anchor: Anchor::Center,
-                inset: 0.0,
+                inset_x: 0.0,
+                inset_y: 0.0,
                 shadow: false,
                 opacity: 1.0,
                 ..Default::default()
             };
             let mut pixels = vec![0.0f32; 400 * 300];
-            watermark_coverage(400, 300, &wm, craft, |x, y, k, _| pixels[y * 400 + x] = k);
+            watermark_coverage(400, 300, &wm, craft, 1.0, |x, y, k, _| pixels[y * 400 + x] = k);
             assert!(pixels.iter().any(|&k| k > 0.0));
             pixels
         };
@@ -2003,7 +2225,7 @@ mod tests {
         let w = lit.iter().map(|p| p.0).max().unwrap() - lit.iter().map(|p| p.0).min().unwrap();
         let h = lit.iter().map(|p| p.1).max().unwrap() - lit.iter().map(|p| p.1).min().unwrap();
         assert!(h > w * 2, "vertical Japanese must extend down the column");
-        let two = Watermark { text: "日\n本".into(), anchor: Anchor::TopLeft, inset: 0.0, ..wm };
+        let two = Watermark { text: "日\n本".into(), anchor: Anchor::TopLeft, inset_x: 0.0, inset_y: 0.0, ..wm };
         img.data.fill([0, 0, 0, 255]);
         draw_watermark(&mut img, &two);
         for (text, dx) in [("本", 0), ("日", 30)] {
@@ -2029,13 +2251,44 @@ mod tests {
         std::fs::write(&logo_path, png).unwrap();
         let mut img = Rgba8::new(400, 300);
         img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
-        let wm = Watermark { image: logo_path.to_string_lossy().into(), image_width: 0.25, opacity: 1.0, inset: 0.0, ..Default::default() };
+        let wm = Watermark {
+            image: logo_path.to_string_lossy().into(),
+            image_width: 0.25,
+            opacity: 1.0,
+            inset_x: 0.0,
+            inset_y: 0.0,
+            ..Default::default()
+        };
         draw_watermark(&mut img, &wm);
         // 100 px wide × 50 px high in the bottom-right corner
         assert!(img.get(310, 280)[0] > 200, "opaque half: {:?}", img.get(310, 280));
         assert_eq!(img.get(390, 280), [0, 0, 0, 255], "transparent half leaves the photo");
         assert_eq!(img.get(310, 240), [0, 0, 0, 255], "above the logo");
         assert_eq!(img.get(10, 10), [0, 0, 0, 255]);
+        // 30 px from the right edge and 15 px from the bottom: x 270..370, y 235..285
+        let mut img = Rgba8::new(400, 300);
+        img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
+        draw_watermark(&mut img, &Watermark { inset_x: 0.1, inset_y: 0.05, ..wm.clone() });
+        assert!(img.get(272, 283)[0] > 200, "inside the moved logo: {:?}", img.get(272, 283));
+        assert_eq!(img.get(267, 283), [0, 0, 0, 255], "left of the logo");
+        assert_eq!(img.get(272, 288), [0, 0, 0, 255], "below the logo");
+        // turned: 180° puts the opaque half on the right; 90° clockwise puts it on top of a 50 × 100 box
+        let turned = |rotation: u16| {
+            let mut img = Rgba8::new(400, 300);
+            img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
+            draw_watermark(&mut img, &Watermark { rotation, ..wm.clone() });
+            img
+        };
+        let half = turned(180);
+        assert!(half.get(390, 280)[0] > 200 && half.get(310, 280) == [0, 0, 0, 255]);
+        let quarter = turned(90);
+        assert!(quarter.get(375, 220)[0] > 200, "top half of the turned logo: {:?}", quarter.get(375, 220));
+        assert_eq!(quarter.get(375, 280), [0, 0, 0, 255], "its transparent half below");
+        assert_eq!(quarter.get(340, 220), [0, 0, 0, 255], "left of the 50 px wide box");
+        assert!(quarter.get(352, 202)[0] > 200 && quarter.get(398, 248)[0] > 200, "the whole box is covered");
+        // three quarter turns: the opaque half at the bottom
+        let three = turned(270);
+        assert!(three.get(375, 280)[0] > 200 && three.get(375, 220) == [0, 0, 0, 255]);
         // an image-only watermark survives the params (no text needed)
         let o = ExportOptions::from_json(&json!({"watermark": {"image": logo_path.to_string_lossy(), "imageWidth": 0.1}}));
         assert_eq!(o.watermark.as_ref().map(|w| w.image_width), Some(0.1));
@@ -2374,14 +2627,12 @@ mod tests {
     fn watermark_params_are_validated() {
         use serde_json::json;
         let err = |w: serde_json::Value| ExportOptions::from_params(&json!({"watermark": w})).err().map(|e| e.to_string()).unwrap_or_default();
-        assert!(
-            err(json!(5))
-                .contains("`watermark` must be text or an object {text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth}")
-        );
-        assert!(
-            err(json!({"text": "x", "bogus": 1}))
-                .contains("unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, inset, color, shadow, image, imageWidth)")
-        );
+        assert!(err(json!(5)).contains(
+            "`watermark` must be text or an object {text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth}"
+        ));
+        assert!(err(json!({"text": "x", "bogus": 1})).contains(
+            "unknown watermark key `bogus` (one of text, vertical, size, opacity, anchor, insetX, insetY, inset, rotation, color, shadow, image, imageWidth)"
+        ));
         assert!(err(json!({"text": "x", "sizee": 0.1})).contains("did you mean `size`"));
         for size in [json!(3), json!(0.5001), json!(0), json!("big")] {
             let e = err(json!({"text": "x", "size": size}));
@@ -2389,6 +2640,13 @@ mod tests {
         }
         assert!(err(json!({"text": "x", "opacity": 1.5})).contains("`watermark.opacity` must be a number 0..1"));
         assert!(err(json!({"text": "x", "inset": -0.1})).contains("`watermark.inset` must be a number 0..0.4"));
+        assert!(err(json!({"text": "x", "insetX": 0.5})).contains("`watermark.insetX` must be a number 0..0.4"));
+        assert!(err(json!({"text": "x", "insetY": "far"})).contains("`watermark.insetY` must be a number 0..0.4"));
+        for rotation in [json!(45), json!(-90), json!(360), json!("90"), json!(90.5)] {
+            let e = err(json!({"text": "x", "rotation": rotation}));
+            assert!(e.contains("`watermark.rotation` must be 0, 90, 180 or 270 (degrees clockwise)"), "{rotation}: {e}");
+        }
+        assert!(ExportOptions::from_params(&json!({"watermark": {"text": "x", "rotation": 270}})).is_ok());
         assert!(err(json!({"image": "logo.png", "imageWidth": 2})).contains("`watermark.imageWidth` must be a number 0.01..1"));
         assert!(err(json!({"text": "x", "anchor": "middle"})).contains("`watermark.anchor` must be one of"));
         assert!(err(json!({"text": "x", "color": [255, 255]})).contains("`watermark.color` must be [r, g, b]"));
@@ -2438,6 +2696,29 @@ mod tests {
     /// GPU off mid-run) may differ from a CPU one by an LSB, never in name, size or order.
     fn shape(files: &[serde_json::Value]) -> Vec<serde_json::Value> {
         files.iter().map(|f| json!({"path": f["path"], "width": f["width"], "height": f["height"], "error": f["error"]})).collect()
+    }
+
+    /// Issue #675: a batch reports a render that fell back from the GPU to the CPU on that file's
+    /// entry (`gpuFallback`, the render's own reason) and says nothing on the others.
+    #[test]
+    fn a_batch_reports_a_gpu_fallback_on_the_file_it_hit() {
+        if !lightcraft_gpu::available() {
+            eprintln!("skipped: no GPU adapter ({:?})", lightcraft_gpu::unavailable_reason());
+            return;
+        }
+        let mut s = crate::Session::with_demo();
+        let ids: Vec<_> = s.visible().iter().copied().take(2).collect();
+        let o = ExportOptions::from_json(&json!({"format": "png", "width": 64}));
+        // one lane: both photos render on this thread, and the fault hits the first render here
+        lightcraft_gpu::inject_fault(lightcraft_gpu::Fault::Limit(1 << 10));
+        let (files, _, _) = lanes_batch(&mut s, &ids, &o, 1, true, usize::MAX);
+        let files = files.unwrap();
+        assert_eq!(files.len(), 2, "{files:?}");
+        let why: Vec<_> = files.iter().filter_map(|f| f.get("gpuFallback").and_then(serde_json::Value::as_str)).collect();
+        assert_eq!(why.len(), 1, "exactly one file fell back: {files:?}");
+        assert!(why[0].contains("limit"), "{files:?}");
+        assert!(files[1].get("gpuFallback").is_none(), "the second render was fine: {files:?}");
+        assert!(lightcraft_gpu::available(), "a limit is no device failure");
     }
 
     // Issue #496: photos rendered side by side give the same files, names, order and progress as

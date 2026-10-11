@@ -27,7 +27,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 
 use crate::backend::Backend;
-use crate::wire::{CacheWatch, ThumbIndex, WireJob, WorkerCore, thumb_storage_key};
+use crate::wire::{CacheWatch, ThumbIndex, WireJob, WorkerCore, WorkerSlots, thumb_storage_key};
 
 /// Storage key of the thumbnail index.
 pub const THUMB_INDEX: &str = "thumbs/index.json";
@@ -247,14 +247,17 @@ impl Workers {
             log::warn!("render workers: no compiled module on the page (window.lightcraftModule); rendering on the main thread");
             return w;
         }
-        for i in 0..n {
+        let mut slots = WorkerSlots::default();
+        for attempt in 0..n {
+            // The callbacks name their worker by its place in `workers`; a failed attempt takes none.
+            let i = slots.peek();
             let opts = web_sys::WorkerOptions::new();
             opts.set_type(web_sys::WorkerType::Module);
-            opts.set_name(&format!("lightcraft-render-{i}"));
+            opts.set_name(&format!("lightcraft-render-{attempt}"));
             let worker = match web_sys::Worker::new_with_options("./worker.js", &opts) {
                 Ok(x) => x,
                 Err(e) => {
-                    log::warn!("render worker {i}: {e:?}");
+                    log::warn!("render worker {attempt}: {e:?}");
                     continue;
                 }
             };
@@ -270,10 +273,15 @@ impl Workers {
             set(&init, "module", &module);
             set(&init, "store", &store.into());
             if let Err(e) = worker.post_message(&init) {
-                log::warn!("render worker {i}: {e:?}");
+                log::warn!("render worker {attempt}: {e:?}");
+                // It never joins the list, so it must not answer to the index of the next worker.
+                worker.set_onmessage(None);
+                worker.set_onerror(None);
+                worker.terminate();
                 continue;
             }
             w.0.borrow_mut().workers.push(W { worker, ready: false, dead: false, busy: None });
+            slots.commit();
         }
         w
     }
@@ -293,6 +301,7 @@ impl Workers {
                     level: b.level,
                     key: b.key,
                     rendered: Err(msg),
+                    gpu_fallback: None,
                     loaded: None,
                     quick: None,
                     display: None,
@@ -387,6 +396,7 @@ impl Workers {
                 level: b.level,
                 key: b.key,
                 rendered,
+                gpu_fallback: None,
                 loaded: None,
                 quick: None,
                 display: None,
@@ -440,6 +450,7 @@ impl RenderOffload for Workers {
                 level: job.level,
                 key: job.key,
                 rendered: Ok(Rendered { image, histogram, deep: None }),
+                gpu_fallback: None,
                 loaded: None,
                 quick: None,
                 display: None,
