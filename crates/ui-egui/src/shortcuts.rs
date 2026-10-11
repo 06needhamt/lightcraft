@@ -325,6 +325,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     if !matches!(app.ui.dialog, Some(crate::state::Dialog::Shortcuts)) {
         app.recording_shortcut = None;
     }
+    // Dialogs own their keys (including Esc and text editing); background photo actions wait.
+    if app.ui.dialog.is_some() {
+        return;
+    }
     // don't steal keys from text fields or from the keymap editor recording a shortcut
     if keyboard_owned(app, ctx) || app.recording_shortcut.is_some() || app.ui.name_edit.is_some() {
         return;

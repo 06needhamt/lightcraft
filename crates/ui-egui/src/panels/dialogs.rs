@@ -60,6 +60,21 @@ pub const ABOUT_TABS: &[(&str, &str)] = &[("about", "About"), ("contributors", "
 /// Help ▸ What's New (docs/whats-new.md).
 pub const WHATS_NEW: &str = include_str!("../../../../docs/whats-new.md");
 
+fn window_id(dialog: &Dialog) -> egui::Id {
+    egui::Id::new(if matches!(dialog, Dialog::Import { .. }) { "lightcraft-import-dialog" } else { "lightcraft-dialog" })
+}
+
+/// Block the underlying panels from the first frame, before the window establishes its modal
+/// layer. Close background menus on entry; popups subsequently opened inside the dialog stay usable.
+pub(crate) fn prepare(app: &LightcraftApp, ui: &mut egui::Ui) {
+    let Some(dialog) = &app.ui.dialog else { return };
+    ui.disable();
+    let layer = egui::LayerId::new(egui::Order::Middle, window_id(dialog));
+    if ui.ctx().memory(|m| m.top_modal_layer()) != Some(layer) {
+        egui::Popup::close_all(ui.ctx());
+    }
+}
+
 pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     let Some(mut dlg) = app.ui.dialog.clone() else { return };
     let at_start = dlg.clone();
@@ -127,7 +142,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     // own so the size it is given doesn't carry over to the other dialogs. Its content scrolls
     // rather than growing the window when the options below the grid get taller (e.g. Copy).
     let import = matches!(dlg, Dialog::Import { .. });
-    let window_id = egui::Id::new(if import { "lightcraft-import-dialog" } else { "lightcraft-dialog" });
+    let window_id = window_id(&dlg);
     let shown = egui::Window::new(crate::i18n::tr(&title)).id(window_id)
         .collapsible(false)
         .resizable(import)
@@ -1022,6 +1037,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
         });
     if let Some(w) = shown {
+        ctx.memory_mut(|m| m.set_modal_layer(w.response.layer_id));
         ctx.move_to_top(w.response.layer_id);
         crate::widgets::register(ctx, "dialog:window", w.response.rect);
     }
