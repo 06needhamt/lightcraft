@@ -11,6 +11,7 @@ pub mod cr3;
 pub mod crx;
 pub(crate) mod crx_wavelet;
 pub mod kodak;
+pub mod mrw;
 pub mod nef;
 pub mod nefc;
 pub mod orf;

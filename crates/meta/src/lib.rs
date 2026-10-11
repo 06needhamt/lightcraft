@@ -17,6 +17,7 @@ mod datetime;
 mod exif;
 mod gpx;
 mod iptc;
+pub mod mrw;
 pub mod tags;
 mod xmp;
 mod xmp_merge;
