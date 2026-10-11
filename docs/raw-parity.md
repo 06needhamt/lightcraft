@@ -145,6 +145,21 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | IIQ, MOS, MRW, ERF, KDC, X3F | all | ⬜ | preview |
 | DCR, MEF, MFW, DXO, GPR, TIFF raws | all | ⬜ | not imported |
 
+### Compressed ORF: a clean-room starting point
+
+Two Olympus patents by Takashi Ishikawa describe the *method* of lossless RAW compression in prose; neither names ORF
+and neither gives the file layout. See the closed #240 and the open #360 for why a decoder has to be derived from the
+files and prose rather than from dcraw-family code.
+
+- [US7333035B2](https://patents.google.com/patent/US7333035): lossless RAW compression for SLR cameras:
+  median-edge-detector prediction from the left, upper and upper-left neighbours, a separately coded sign, Golomb-Rice
+  codes whose parameter `k` comes from flatness run counters, counters reset per line.
+- [US7715639B2](https://patents.google.com/patent/US7715639B2/en): a sibling with predictor variants, `k` derived from
+  neighbouring positions, raw low-order bits and a correction filter.
+
+They give the algorithm's shape; constants, the bit layout and the stream header still have to be established from CC0
+sample files. A pointer for contributors, not legal advice.
+
 ## Demosaic, levels, crops and lens metadata
 
 | Stage | Target | LightCraft | Status |
@@ -249,5 +264,6 @@ Beyond decoding:
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-10 | minor | Compressed ORF: pointer to the two Olympus patents that describe the method, as a clean-room starting point |
 | 2026-10-10 (later) | major | Model-by-model measurement against Adobe's published list (1,446 models: 234 verified, 943 unverified, 233 preview, 36 unsupported); `docs/raw/` data and re-measure script; use-weighted share 84% (40% on verified bodies); variant matrix; colour and lens sections with scores; ranked next cameras; RAW readiness ~56% from written parts |
 | 2026-10-10 | major | Created: formats, makers, demosaic, colour and lens checklists; target counts from the installed Lightroom 9.6 bundle listing |
