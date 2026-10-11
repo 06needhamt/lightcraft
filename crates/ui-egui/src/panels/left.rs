@@ -1369,6 +1369,30 @@ fn folder_menu_for_library(app: &mut LightcraftApp, resp: &egui::Response, n: &F
             }
             ui.close();
         }
+        if ui.button(crate::i18n::tr("New Folder on Disk…")).clicked() {
+            app.ui.dialog = Some(crate::state::Dialog::TextPrompt {
+                title: crate::i18n::tr_format!("New Folder in “{name}”", name = label),
+                hint: "Folder name (created on disk)".into(),
+                value: String::new(),
+                command: "folder.create".into(),
+                params: json!({"parent": path}),
+                key: "name".into(),
+            });
+            ui.close();
+        }
+        let selected = app.session.selection.ids.len();
+        if selected > 0
+            && ui
+                .button(crate::i18n::tr("Move Selected Photos Here"))
+                .on_hover_text(crate::i18n::tr("Moves the files and their XMP sidecars into this folder; never overwrites"))
+                .clicked()
+        {
+            match app.run("photo.moveToFolder", json!({"folder": path})) {
+                Ok(r) => app.toast(ui.ctx(), crate::i18n::tr_format!("Moved {} photo(s)", r["moved"])),
+                Err(e) => app.toast(ui.ctx(), e),
+            }
+            ui.close();
+        }
         if app.services.reveal.is_some()
             && ui.button(crate::i18n::tr(crate::menus::reveal_label())).clicked()
             && let Some(f) = app.services.reveal.as_mut()

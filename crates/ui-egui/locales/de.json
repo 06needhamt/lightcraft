@@ -2074,5 +2074,11 @@
   "No Recent Libraries": "Keine zuletzt verwendeten Bibliotheken",
   "New Library: Choose Where to Put It": "Neue Bibliothek: Speicherort wählen",
   "New Library": "Neue Bibliothek",
-  "Library name": "Name der Bibliothek"
+  "Library name": "Name der Bibliothek",
+  "New Folder on Disk": "Neuer Ordner auf dem Datenträger",
+  "New Folder on Disk…": "Neuer Ordner auf dem Datenträger…",
+  "Move to Folder": "In Ordner verschieben",
+  "Move to Folder…": "In Ordner verschieben…",
+  "Move Selected Photos Here": "Ausgewählte Fotos hierher verschieben",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Verschiebt die Dateien samt XMP-Filialdateien in diesen Ordner; nichts wird überschrieben"
 }

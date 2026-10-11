@@ -1918,5 +1918,11 @@
   "No Recent Libraries": "最近使ったライブラリはありません",
   "New Library: Choose Where to Put It": "新しいライブラリ：保存場所を選択",
   "New Library": "新しいライブラリ",
-  "Library name": "ライブラリ名"
+  "Library name": "ライブラリ名",
+  "New Folder on Disk": "ディスクに新規フォルダ",
+  "New Folder on Disk…": "ディスクに新規フォルダ…",
+  "Move to Folder": "フォルダへ移動",
+  "Move to Folder…": "フォルダへ移動…",
+  "Move Selected Photos Here": "選択した写真をここへ移動",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "ファイルと XMP サイドカーをこのフォルダへ移動します。上書きはしません"
 }

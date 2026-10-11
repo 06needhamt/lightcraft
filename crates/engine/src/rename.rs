@@ -370,7 +370,8 @@ impl MoveFs for RealFs {
                 let _ = std::fs::remove_file(b);
             }),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(e),
-            Err(_) => std::fs::rename(a, b),
+            Err(_) => std::fs::rename(a, b)
+                .or_else(|e| if e.kind() == std::io::ErrorKind::CrossesDevices { move_across_volumes(self, a, b) } else { Err(e) }),
         }
     }
 
@@ -390,6 +391,24 @@ impl MoveFs for RealFs {
     fn stem_sibling(&self, sidecar: &Path) -> Option<String> {
         crate::import_move::sibling_photo(sidecar)
     }
+}
+
+/// Move `a` to `b` on another volume: copy (never replacing), compare the copy with the original
+/// byte for byte, and only then remove the original. A copy that doesn't match is removed.
+fn move_across_volumes(fs: &RealFs, a: &Path, b: &Path) -> std::io::Result<()> {
+    fs.copy_no_replace(a, b)?;
+    let same = match (std::fs::read(a), std::fs::read(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    };
+    if !same {
+        let _ = std::fs::remove_file(b);
+        return Err(std::io::Error::other(format!("the copy at {} did not match the original; the original was kept", b.display())));
+    }
+    std::fs::remove_file(a).inspect_err(|_| {
+        // the original stays: drop the copy so the file isn't in two places
+        let _ = std::fs::remove_file(b);
+    })
 }
 
 /// `from` → `to` differs only in letter case and `to` is that very file (a case-insensitive
@@ -652,6 +671,13 @@ impl Session {
 
     /// [`Session::apply_rename`] on the file system `fs`.
     pub(crate) fn apply_rename_with(&mut self, fs: &dyn MoveFs, plans: &[RenamePlan]) -> Result<usize> {
+        self.apply_file_plans(fs, plans, &|n| format!("Rename {n} Photo{}", if n == 1 { "" } else { "s" }))
+    }
+
+    /// Carry out `plans` (renames or moves to another folder): move the files with their sidecars
+    /// (all or nothing), then commit one undoable op, labelled `label(count)`, that points the
+    /// photos (and their virtual copies) at the new paths. Undo moves the files back.
+    pub(crate) fn apply_file_plans(&mut self, fs: &dyn MoveFs, plans: &[RenamePlan], label: &dyn Fn(usize) -> String) -> Result<usize> {
         let mut ops = Vec::new();
         let by_path: HashMap<&str, &RenamePlan> = plans.iter().filter_map(|p| p.from_path.as_deref().map(|f| (f, p))).collect();
         for p in self.catalog.photos() {
@@ -682,7 +708,7 @@ impl Session {
             return Err(EngineError::Other(self.follow_stuck(&op, e, true)));
         }
         if n > 0
-            && let Err(err) = self.commit(&format!("Rename {n} Photo{}", if n == 1 { "" } else { "s" }), op)
+            && let Err(err) = self.commit(&label(n), op)
         {
             let back: Vec<(String, String)> = moves.iter().rev().map(|(a, b)| (b.clone(), a.clone())).collect();
             if let Err(e) = move_all(fs, &back) {

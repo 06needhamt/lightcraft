@@ -1916,5 +1916,11 @@
   "No Recent Libraries": "No hay bibliotecas recientes",
   "New Library: Choose Where to Put It": "Nueva biblioteca: elige dónde guardarla",
   "New Library": "Nueva biblioteca",
-  "Library name": "Nombre de la biblioteca"
+  "Library name": "Nombre de la biblioteca",
+  "New Folder on Disk": "Nueva carpeta en el disco",
+  "New Folder on Disk…": "Nueva carpeta en el disco…",
+  "Move to Folder": "Mover a carpeta",
+  "Move to Folder…": "Mover a carpeta…",
+  "Move Selected Photos Here": "Mover aquí las fotos seleccionadas",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Mueve los archivos y sus archivos XMP auxiliares a esta carpeta; nunca sobrescribe"
 }

@@ -2110,5 +2110,11 @@
   "No Recent Libraries": "Немає нещодавніх бібліотек",
   "New Library: Choose Where to Put It": "Нова бібліотека: виберіть розташування",
   "New Library": "Нова бібліотека",
-  "Library name": "Назва бібліотеки"
+  "Library name": "Назва бібліотеки",
+  "New Folder on Disk": "Нова тека на диску",
+  "New Folder on Disk…": "Нова тека на диску…",
+  "Move to Folder": "Перемістити до теки",
+  "Move to Folder…": "Перемістити до теки…",
+  "Move Selected Photos Here": "Перемістити вибрані фото сюди",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Переміщує файли та їхні XMP-файли до цієї теки; нічого не перезаписує"
 }

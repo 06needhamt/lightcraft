@@ -1916,5 +1916,11 @@
   "No Recent Libraries": "沒有最近的圖庫",
   "New Library: Choose Where to Put It": "新增圖庫：選擇存放位置",
   "New Library": "新增圖庫",
-  "Library name": "圖庫名稱"
+  "Library name": "圖庫名稱",
+  "New Folder on Disk": "在磁碟上新增資料夾",
+  "New Folder on Disk…": "在磁碟上新增資料夾…",
+  "Move to Folder": "移至資料夾",
+  "Move to Folder…": "移至資料夾…",
+  "Move Selected Photos Here": "將所選照片移至此處",
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "將檔案及其 XMP 附屬檔案移至此資料夾；絕不覆寫"
 }
