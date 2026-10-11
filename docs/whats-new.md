@@ -50,6 +50,14 @@
 
 ## 2026-10-09
 
+### HDR PNG export
+- With **HDR output** on, a photo edited in HDR can now be exported as a **16-bit PNG** with the PQ curve in Rec. 2020,
+  like the HDR AVIF: the same brightness, with SDR white at 203 cd/m², and content light levels recorded.
+- The colour is described by the PNG `cICP` chunk, not an ICC profile. HDR-aware viewers (current Chromium-based
+  browsers, for example) show it in HDR; **viewers that don't read `cICP` show the PQ values as if they were sRGB**,
+  so the picture looks flat and washed out there. That's how PQ PNG works, not a broken file: for a picture that
+  looks right everywhere, export a JPEG with HDR output on (an SDR image plus a gain map).
+
 ### Smart album rules
 - The rule editor's field menu is grouped: Rating, Pick Flag, Color Label and Any Searchable Text at the top, then
   submenus for Source, File, Date, Keywords & People, Description, Camera Info, Location, Size, Develop and Assisted
