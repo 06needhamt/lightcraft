@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Reliability
+- Upgrading from a Windows installer older than 0.6 (such as 0.5.0) keeps LightCraft in the folder it was installed
+  in, instead of moving it back to Program Files (issue #399). If that folder has been deleted since, the upgrade
+  installs to Program Files.
+
 ## 2026-10-10
 
 ### Activity stack

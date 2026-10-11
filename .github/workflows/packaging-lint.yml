@@ -1,5 +1,7 @@
-# Quick static checks for the release pipeline (seconds, no Rust build): workflow syntax,
-# packaging shell/PowerShell scripts, and the Linux desktop/AppStream/Flatpak metadata.
+# Quick checks for the release pipeline (no Rust build): workflow syntax, packaging
+# shell/PowerShell scripts, and the Linux desktop/AppStream/Flatpak metadata (seconds), plus a
+# Windows job that builds and installs throwaway per-user MSI probes for the install-folder
+# searches (a few minutes).
 name: Packaging lint
 
 on:
