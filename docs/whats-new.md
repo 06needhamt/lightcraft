@@ -2,6 +2,15 @@
 
 ## 2026-10-11
 
+### JPEG XL export
+- Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
+  (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a
+  smaller file; Progressive files show a coarse version first. 8- or 16-bit, sRGB, Display P3 or Rec. 2020 (lossless
+  files also Adobe RGB and ProPhoto), metadata as for JPEG. With HDR output, photos edited in HDR are written as
+  16-bit Rec. 2020 PQ. Not in the web version yet.
+- Lossy JPEG XL files in Display P3 or Rec. 2020 now open in their real colours; saturated colours used to come in
+  noticeably duller.
+
 ### Open Library knows a Lightroom catalog
 - Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
   `.lrcat-data` folders, or the `.lrcat`) no longer makes an empty LightCraft library inside it (issue #891). The

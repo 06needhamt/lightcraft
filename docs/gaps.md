@@ -39,7 +39,7 @@ Hours are Opus 5.5 agent wall-clock hours (see [target-app-parity.md](target-app
 | 22 | **Pen pressure**, OS monitor profiles, follow-window colour | hardware-parity.md | brush users with tablets; multi-monitor setups | 11–22 | [hardware-parity](hardware-parity.md) |
 | 23 | **Accessibility** audit with screen readers; canvas tools keyboard-reachable | LR-BEHAV-ACCESS 🟡 | blind and low-vision users | 10–20 | [ui-parity](ui-parity.md) |
 | 24 | **Brush live preview and masking feel** (#517, #518); Feather / Edge mask refinement (15.5) | issues | masking feels slower than Lightroom | 8–12 | [ui-parity](ui-parity.md) |
-| 25 | **File writes**: JXL encode, PSD export, lossy DNG, Render to DNG; AVIF import | file-format-parity.md | interchange edge cases | 25–45 | [file-format-parity](file-format-parity.md) |
+| 25 | **File writes**: PSD export, lossy DNG, Render to DNG; AVIF import | file-format-parity.md | interchange edge cases | 21–37 | [file-format-parity](file-format-parity.md) |
 | 26 | **Performance at scale**: 85k-photo library opens in 1.7–4.7 s; 100k grid test pending; colour NR at half resolution | ROADMAP log, gpu-pipeline.md | large-catalog users | 15–30 | [target-app-parity](target-app-parity.md#by-dimension) |
 | 27 | **Windows / Linux runtime coverage**: Windows installer UI unverified on Windows (#79); GPU path proven on Apple only; the Linux riscv64 tarball (new in 0.6.0, #844) is cross-compiled and never run beyond a QEMU smoke test | ROADMAP, issues, `release.yml` | non-Mac users find bugs first | 15–30 | [hardware-parity](hardware-parity.md) |
 | 28 | **Small Classic shortcuts and keys**: rating `[` `]`, flag cycling, filter-bar keys, F1 help, panel keys (Tab, F5–F8) | [ui-parity](ui-parity.md#shortcuts) | Classic muscle memory | 4–8 | [ui-parity](ui-parity.md) |
@@ -60,7 +60,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 ## Closed recently (kept for calibration)
 
 - 2026-10-10: Nikon lossy-after-split NEF (#633), ORF 12.8 bpp (#651), HDR gain map / PQ AVIF / float
-  TIFF export (#646), activity stack (#345).
+  TIFF export (#646), activity stack (#345), JPEG XL export (#247).
 - 2026-10-09: EOS R7 C-RAW with an odd-height QP map (a45c2b66; part of gap 2), HEIC in release builds (#609), Samsung uncompressed SRW (#459), contact-sheet PDF (#563),
   Ukrainian UI (#564), Sony ILCE-7CR profile.
 - 2026-10-08: CR3 CRX lossless and C-RAW (#279), Fujifilm compressed RAF (#282), AI RAW denoise (#384),
