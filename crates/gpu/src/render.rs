@@ -688,6 +688,16 @@ pub fn render(
             _ => Err(m),
         }
     });
+    // every visible mask's alpha, for `Overlay::AllMasks` (one tint over all masks at once)
+    let all_overlay_alphas: Option<Vec<Plane>> = if matches!(req.overlay, lightcraft_pipeline::Overlay::AllMasks { .. }) {
+        let list: Vec<_> = s.masks.iter().filter(|m| m.visible && !m.components.is_empty()).collect();
+        masks.as_ref().map(|all| {
+            list.iter().enumerate().map(|(mi, _)| {
+                let b = cx.slice(all, mi * n, n);
+                cx.read_plane(&b, w, h)
+            }).collect()
+        })
+    } else { None };
     let data: Vec<[u8; 4]> = cx.read(&out, n);
     let image = Rgba8 { width: w, height: h, data };
     lap("finish + readback", &mut t, &mut cx);
@@ -723,7 +733,7 @@ pub fn render(
             lightcraft_pipeline::masks::evaluate_one(m, &plan.frame, w, h, &img, &l, s.light.exposure as f32, plan.mattes.as_deref())
         }
     });
-    lightcraft_pipeline::visualize::apply(&mut image, req.overlay, &plan, overlay_mask.as_ref());
+    lightcraft_pipeline::visualize::apply(&mut image, req.overlay, &plan, overlay_mask.as_ref(), all_overlay_alphas.as_deref());
     // spots grew the window the render worked on: cut it back to the request
     if let Some(k) = plan.keep {
         image = image.crop(k.x, k.y, k.w, k.h);

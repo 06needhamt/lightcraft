@@ -168,6 +168,15 @@ fn mask_adjustments_hide_overlay_without_disabling_the_mask() {
     assert_eq!(develop(&h).masks[0], mask, "toggling the overlay leaves the mask and its effect unchanged");
     assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::Mask { .. }));
 
+    // Ctrl+O shows every visible mask's region at once (the new command), ahead of the selected
+    // mask overlay so it is not shadowed by the always-on single-mask overlay.
+    exec(&mut h, "view.maskOverlayAll", json!({}));
+    assert!(h.app.ui.mask_overlay_all, "Ctrl+O turns on the all-masks overlay");
+    assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::AllMasks { .. }));
+    exec(&mut h, "view.maskOverlayAll", json!({}));
+    assert!(!h.app.ui.mask_overlay_all, "Ctrl+O toggles the all-masks overlay off");
+    assert!(!matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::AllMasks { .. }));
+
     // Failed edits and global adjustments must not hide the mask overlay.
     assert!(h.app.run("mask.adjust", json!({"id": 999, "values": {"exposure": 1.0}})).is_err());
     assert!(h.app.ui.mask_overlay);
