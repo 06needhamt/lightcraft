@@ -304,7 +304,9 @@ fn grid_bracket_command(keymap: &Keymap, grid: bool, id: &'static str, shortcut:
 /// Dock chrome owns activation, traversal, resizing and cancellation; its other keys reach commands.
 fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
     if !ctx.egui_wants_keyboard_input() {
-        return false;
+        // Escape drops egui focus before shortcuts run; keep the numeric edit's whole input batch.
+        return ctx.input(|input| input.key_pressed(Key::Escape))
+            && app.widgets.iter().any(|(widget, _)| widget.starts_with("sliderField:") && crate::text_field::was_editing(ctx, widget));
     }
     let chrome = app
         .ui

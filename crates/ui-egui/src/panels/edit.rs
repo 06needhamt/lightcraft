@@ -92,6 +92,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         soft_proofing(app, ui, id);
     }
     // header: Edit + Auto / B&W / HDR
+    let mut reset_clicked = false;
     let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover());
     ui.painter().text(pos2(hr.left() + 24.0, hr.bottom() - 10.0), Align2::LEFT_CENTER, crate::i18n::tr("Edit"), t.semibold(15.0), t.text);
     egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 8, bottom: 14 }).show(ui, |ui| {
@@ -108,7 +109,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if text_button(ui, "reset", crate::i18n::tr("Reset"), false).on_hover_text(crate::i18n::tr("Reset all edits (Cmd+Shift+R)")).clicked()
                 {
-                    let _ = app.run("develop.reset", json!({}));
+                    reset_clicked = true;
                 }
             });
         });
@@ -378,6 +379,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.add_space(8.0);
     });
     ui.add_space(40.0);
+    // A pending numeric edit commits on blur before the explicit Reset takes precedence.
+    if reset_clicked {
+        let _ = app.run("develop.reset", json!({}));
+    }
 }
 
 /// The profile dropdown: Favorites, Recent, one submenu per group, then favourite toggle and
