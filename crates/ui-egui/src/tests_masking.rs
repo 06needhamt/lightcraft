@@ -1126,3 +1126,25 @@ fn ai_masks_without_the_model_offer_the_download() {
     assert!(develop(&h).masks.is_empty());
     assert!(t.elapsed() < SETTLE, "{:?}", t.elapsed());
 }
+
+#[test]
+fn a_selected_develop_slider_accepts_wheel_nudges() {
+    let mut h = detail("panel.edit");
+    h.settle(SETTLE);
+    let name = "slider:light.exposure";
+    let panel = h.app.widgets.iter().find(|(id, _)| id == "panel:right_panel").unwrap().1;
+    let track = h.app.widgets.iter().find(|(id, _)| id == name).unwrap().1;
+    assert!(panel.contains(track.center()), "slider must be visible before interaction");
+
+    let result = h.request("ui.clickWidget", json!({"id": name, "fx": 0.5}), T);
+    assert_eq!(result["ok"], true, "{result}");
+    let before = lightcraft_develop::controls::get(&develop(&h), "light.exposure");
+
+    // A wheel event over the selected control adjusts exposure instead of
+    // scrolling the right sidebar (an unselected slider leaves scrolling alone).
+    let result = h.request("ui.scroll", json!({"dy": 120.0}), T);
+    assert_eq!(result["ok"], true, "{result}");
+    h.step();
+    let after = lightcraft_develop::controls::get(&develop(&h), "light.exposure");
+    assert!(after > before, "selected exposure did not increase: {before} -> {after}");
+}
