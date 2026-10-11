@@ -237,5 +237,11 @@
   "Imported {name}": "{name} を読み込みました",
   "Skipped {problem}": "スキップ: {problem}",
   "…and {more} more": "…ほか {more} 件",
-  "Template preview: {name}": "テンプレートのプレビュー: {name}"
+  "Template preview: {name}": "テンプレートのプレビュー: {name}",
+  "{n} photos in view · {slides} slides · {time}": "表示中の写真 {n} 枚 · スライド {slides} 枚 · {time}",
+  "{n} pages": "{n} ページ",
+  "{n} JPEG files": "JPEG ファイル {n} 個",
+  "{s} s of AV1 video": "AV1 ビデオ {s} 秒",
+  "Slideshow exported: {what}": "スライドショーを書き出しました：{what}",
+  " · {n} skipped (could not be rendered)": " · {n} 枚をスキップ（レンダリングできません）"
 }

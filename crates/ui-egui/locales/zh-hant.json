@@ -1962,5 +1962,20 @@
   "A light grey wall with a white mat and a soft shadow; the caption and the rating under the photo.": "淺灰色牆面、白色卡紙和柔和陰影；照片下方顯示說明和星級。",
   "Every photo cropped to fill the whole screen, with slow crossfades.": "每張照片裁切以填滿整個螢幕，帶緩慢交叉淡化。",
   "A 16:9 frame with black bars above and below, the title in the corner, fades through black and a closing card.": "16:9 畫面，上下黑邊，標題在角落，經黑色淡入淡出，並有結尾卡。",
-  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "深石板色背景，每張照片下方顯示曝光、ISO 和焦距，再下面是相機和鏡頭。"
+  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "深石板色背景，每張照片下方顯示曝光、ISO 和焦距，再下面是相機和鏡頭。",
+  "Exporting slideshow": "正在匯出幻燈片播放",
+  "Export Slideshow…": "匯出幻燈片播放…",
+  "Export Slideshow": "匯出幻燈片播放",
+  "Export Slideshow: folder for the JPEG files": "匯出幻燈片播放：JPEG 檔案所在的資料夾",
+  "Frame rate": "影格速率",
+  "Container": "容器格式",
+  "Export PDF…": "匯出 PDF…",
+  "Export JPEG…": "匯出 JPEG…",
+  "Export Video…": "匯出視訊…",
+  "Automatically show full screen": "自動全螢幕顯示",
+  "One page per slide (the long side in pixels = points), with the slide duration and fade for the viewer's presentation mode.": "每張幻燈片一頁（長邊像素數 = 點數），並附有幻燈片時長與淡化效果，供檢視器的簡報模式使用。",
+  "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "編號的 JPEG 檔案（name-001.jpg…），放在下一步命名的新資料夾中。",
+  "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "AV1 視訊，每張幻燈片依其時長顯示並附有淡化效果。無聲音：尚未匯出音樂。",
+  "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "幻燈片使用幻燈片播放的版面、疊加以及片頭與片尾畫面，依檢視順序排列。",
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "將檢視中的照片依上方設定製作為幻燈片。進度顯示在活動清單中。"
 }

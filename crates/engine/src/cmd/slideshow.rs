@@ -8,7 +8,9 @@
 //! identity plate or text, scale, duration; a library preference). `slideshow.preview` composes
 //! one slide, or a title screen, as a PNG (with the library's settings, or a template's).
 //! `slideshow.templates.*`: the Template Browser (built-in and user templates; see
-//! [`crate::slide_template`]).
+//! [`crate::slide_template`]). `slideshow.export`: the slideshow as a PDF, a JPEG sequence or an
+//! AV1 video, in the background ([`crate::slideshow_export`]); `slideshow.exportStatus` reads how
+//! it is going.
 
 use lightcraft_catalog::PhotoId;
 use serde_json::{Value, json};
@@ -307,6 +309,69 @@ fn tpl_export(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"id": t.id, "name": t.name, "path": path}))
 }
 
+/// `slideshow.export`: prepare on this thread, run on a worker (or here with `wait`).
+fn export(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.export";
+    if cfg!(target_arch = "wasm32") {
+        return Err(bad(C, "slideshow export needs the desktop app or lightcraft-cli"));
+    }
+    if s.slideshow_export.as_ref().is_some_and(|r| r.running()) {
+        return Err(bad(C, "a slideshow export is already running (activity.cancel stops it)"));
+    }
+    let prepared = crate::slideshow_export::prepare(s, p).map_err(|e| bad(C, e))?;
+    let wait = p.get("wait").and_then(Value::as_bool).unwrap_or(false);
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let task = s.activity.start("export", "Exporting slideshow", crate::activity::Cancel::Flag(cancel.clone()));
+    let total = prepared.total();
+    task.progress(0, total);
+    task.detail(&prepared.request.path);
+    let settings = &prepared.request.settings;
+    let run = std::sync::Arc::new(crate::slideshow_export::ExportRun {
+        task_id: task.id(),
+        format: settings.format.id().into(),
+        path: prepared.request.path.clone(),
+        total: total.into(),
+        cancel,
+        ..Default::default()
+    });
+    s.slideshow_export = Some(run.clone());
+    let started = json!({
+        "taskId": task.id(),
+        "background": !wait,
+        "format": settings.format.id(),
+        "path": prepared.request.path,
+        "slides": prepared.len(),
+        "seconds": prepared.seconds(),
+        "total": total,
+        "width": prepared.width,
+        "height": prepared.height,
+        "warnings": prepared.warnings,
+    });
+    if wait {
+        crate::slideshow_export::run_to_end(prepared, &run, &task);
+        drop(task);
+        return match run.result() {
+            Some(Ok(v)) => Ok(v),
+            Some(Err(e)) => Err(bad(C, e)),
+            None => Err(bad(C, "the export did not finish")),
+        };
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // the row goes when the worker ends, however it ends
+        let r = run.clone();
+        std::thread::Builder::new()
+            .name("lc-slideshow-export".into())
+            .spawn(move || crate::slideshow_export::run_to_end(prepared, &r, &task))
+            .map_err(|e| bad(C, format!("could not start: {e}")))?;
+    }
+    Ok(started)
+}
+
+fn export_status(s: &mut Session, _: &Value) -> Result<Value> {
+    Ok(s.slideshow_export.as_ref().map_or_else(|| json!({"running": false}), |r| r.json()))
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         cmd!(
@@ -425,6 +490,24 @@ pub fn specs() -> Vec<CommandSpec> {
             "{id?: photo (default: the active one) | title?: \"intro\"|\"ending\", template?: a template id (slideshow.templates.list): compose with its settings instead of the library's, which don't change (the Template Browser's hover preview), width?, height?: pixels (16–4096; one given: the other from the aspect preview; neither: 1280 wide), path?: write the PNG here} — the photo's slide composed with the slideshow layout and overlays → {id, width, height, cell: [x0,y0,x1,y1], photo: [x0,y0,x1,y1] (the visible photo, slide pixels), overlays: [{kind: identityPlate|ratingStars|textN|watermark, box: [x0,y0,x1,y1]}], path | png (base64 PNG)}; with `title`, that title screen (`slideshow.titles`; drawn even while it is off) → {title, enabled, width, height, plate: [x0,y0,x1,y1] | null (the plate or text), path | png}",
             always,
             preview
+        ),
+        cmd!(
+            query "slideshow.export",
+            "Export Slideshow",
+            [],
+            None,
+            "{format: \"pdf\"|\"jpeg\"|\"video\", path: the .pdf / .mp4 / .webm file, or for jpeg the folder (created if missing), size?: pdf/jpeg the long side in pixels (64–8192, default 1920), video the frame height (64–2160 or \"720p\"/\"1080p\", default 720), quality?: 1–100 (JPEG quality, default 90; video default 75), fps?: 24|25|30|60 (video, default 30), container?: \"mp4\"|\"webm\" (video, default mp4), fullScreen?: bool (pdf: open in the viewer's full screen mode, default true), speed?: 1–10 (video encoder speed, default 10 = fastest), name?: jpeg file name prefix (default the folder's name: <name>-001.jpg…), ids?: photo ids (default the photos in view, in view order), wait?: bool (run here and reply with the result)} — the photos' slides with the slideshow layout, overlays and the intro/ending screens that are on; video is AV1 (no audio), each slide held for its duration and fades rendered as frames, at most 2 hours. Runs in the background with a row in the activity stack (activity.cancel {id: taskId} stops it; nothing is left behind: files are written as .part and renamed when complete); a photo that can't be rendered is skipped with a warning → {taskId, background, format, path, slides, seconds, total, width, height, warnings}; with wait: the result (slideshow.exportStatus)",
+            always,
+            export
+        ),
+        cmd!(
+            query "slideshow.exportStatus",
+            "Slideshow Export Status",
+            [],
+            None,
+            "{} → the last slideshow export: {taskId, format, path, running, done, total (slides, or frames for video), cancelled, result?: {format, path, width, height, slides, skipped, warnings, pages? | files? | frames, samples, keyFrames, seconds, fps, container, codec: \"av1\", audio: false; bytes}, error?} | {running: false} when there was none",
+            always,
+            export_status
         ),
     ]
 }

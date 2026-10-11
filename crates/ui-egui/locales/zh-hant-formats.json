@@ -237,5 +237,11 @@
   "Imported {name}": "已匯入 {name}",
   "Skipped {problem}": "已略過：{problem}",
   "…and {more} more": "…還有 {more} 個",
-  "Template preview: {name}": "範本預覽：{name}"
+  "Template preview: {name}": "範本預覽：{name}",
+  "{n} photos in view · {slides} slides · {time}": "檢視中 {n} 張照片 · {slides} 張幻燈片 · {time}",
+  "{n} pages": "{n} 頁",
+  "{n} JPEG files": "{n} 個 JPEG 檔案",
+  "{s} s of AV1 video": "{s} 秒 AV1 視訊",
+  "Slideshow exported: {what}": "幻燈片播放已匯出：{what}",
+  " · {n} skipped (could not be rendered)": " · 已略過 {n} 張（無法算繪）"
 }

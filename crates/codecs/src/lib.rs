@@ -11,6 +11,7 @@
 //! - [`decode_thumbnail`] is the fast path for grid thumbnails (EXIF thumbnail or DCT-scaled decode).
 //! - [`encode`] writes JPEG, PNG, TIFF, lossless WebP and (native, feature `avif`) AVIF, embedding
 //!   ICC/EXIF/XMP. [`icc::write_matrix_trc`] builds profiles for export.
+//! - [`video`] encodes AV1 video (native, feature `avif`) and writes it as MP4 or WebM.
 //!
 //! No decoder panics on malformed input (property-tested).
 #![forbid(unsafe_code)]
@@ -33,6 +34,7 @@ mod psd;
 mod sniff;
 pub mod space;
 mod tiff_codec;
+pub mod video;
 mod webp;
 
 pub use encode::{

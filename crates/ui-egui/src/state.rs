@@ -537,6 +537,10 @@ pub enum Dialog {
     ContactSheet {
         options: lightcraft_engine::contact_sheet::Options,
     },
+    /// View ▸ Export Slideshow…: format, size, quality, frame rate, container.
+    SlideshowExport {
+        settings: lightcraft_engine::slideshow_export::ExportSettings,
+    },
     /// `parent`: the folder to create it in (none: the top level).
     NewAlbum {
         name: String,

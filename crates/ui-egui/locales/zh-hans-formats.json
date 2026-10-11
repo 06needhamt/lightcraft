@@ -237,5 +237,11 @@
   "Imported {name}": "已导入 {name}",
   "Skipped {problem}": "已跳过：{problem}",
   "…and {more} more": "…还有 {more} 个",
-  "Template preview: {name}": "模板预览：{name}"
+  "Template preview: {name}": "模板预览：{name}",
+  "{n} photos in view · {slides} slides · {time}": "视图中 {n} 张照片 · {slides} 张幻灯片 · {time}",
+  "{n} pages": "{n} 页",
+  "{n} JPEG files": "{n} 个 JPEG 文件",
+  "{s} s of AV1 video": "{s} 秒 AV1 视频",
+  "Slideshow exported: {what}": "幻灯片放映已导出：{what}",
+  " · {n} skipped (could not be rendered)": " · 已跳过 {n} 张（无法渲染）"
 }

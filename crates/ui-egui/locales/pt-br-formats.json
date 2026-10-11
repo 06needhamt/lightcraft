@@ -237,5 +237,11 @@
   "Imported {name}": "{name} importado",
   "Skipped {problem}": "Ignorado: {problem}",
   "…and {more} more": "…e mais {more}",
-  "Template preview: {name}": "Prévia do modelo: {name}"
+  "Template preview: {name}": "Prévia do modelo: {name}",
+  "{n} photos in view · {slides} slides · {time}": "{n} fotos na visualização · {slides} slides · {time}",
+  "{n} pages": "{n} páginas",
+  "{n} JPEG files": "{n} arquivos JPEG",
+  "{s} s of AV1 video": "{s} s de vídeo AV1",
+  "Slideshow exported: {what}": "Apresentação exportada: {what}",
+  " · {n} skipped (could not be rendered)": " · {n} ignoradas (não foi possível renderizar)"
 }

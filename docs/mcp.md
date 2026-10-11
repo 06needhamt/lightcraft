@@ -210,6 +210,12 @@ it skipped), `cmd_slideshow_templates_apply {id}` replaces the settings with one
 `{id: "previous"}` for the session), `cmd_slideshow_preview {template: id}` previews one without applying it, and
 `cmd_slideshow_templates_save` / `update` / `rename` / `delete` / `import` / `export` manage the user's own (JSON files
 in `<settings>/slideshow-templates`).
+`cmd_slideshow_export {format: "pdf"|"jpeg"|"video", path, size?, quality?, fps?, container?: "mp4"|"webm",
+fullScreen?, name?, ids?, wait?}` writes the slideshow (titles included) as a PDF (a page per slide), a numbered JPEG
+sequence in a folder, or an AV1 video (no audio). It runs in the background and returns `{taskId, total, …}`:
+`cmd_activity_list` shows its progress, `cmd_activity_cancel {id: taskId}` stops it (nothing is left on disk) and
+`cmd_slideshow_exportStatus` gives the result (`pages`, `files`, or `frames` / `samples` / `seconds` for video) or the
+error. With `wait: true` the call blocks and replies with the result.
 
 ## Resources
 

@@ -1962,5 +1962,20 @@
   "A light grey wall with a white mat and a soft shadow; the caption and the rating under the photo.": "Uma parede cinza-clara com passe-partout branco e sombra suave; a legenda e a classificação abaixo da foto.",
   "Every photo cropped to fill the whole screen, with slow crossfades.": "Cada foto recortada para preencher a tela inteira, com transições lentas.",
   "A 16:9 frame with black bars above and below, the title in the corner, fades through black and a closing card.": "Um quadro 16:9 com faixas pretas acima e abaixo, o título no canto, transições pelo preto e uma cartela final.",
-  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "Um fundo ardósia escuro com a exposição, ISO e distância focal, e depois a câmera e a lente, abaixo de cada foto."
+  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "Um fundo ardósia escuro com a exposição, ISO e distância focal, e depois a câmera e a lente, abaixo de cada foto.",
+  "Exporting slideshow": "Exportando apresentação",
+  "Export Slideshow…": "Exportar apresentação…",
+  "Export Slideshow": "Exportar apresentação",
+  "Export Slideshow: folder for the JPEG files": "Exportar apresentação: pasta para os arquivos JPEG",
+  "Frame rate": "Taxa de quadros",
+  "Container": "Contêiner",
+  "Export PDF…": "Exportar PDF…",
+  "Export JPEG…": "Exportar JPEG…",
+  "Export Video…": "Exportar vídeo…",
+  "Automatically show full screen": "Mostrar automaticamente em tela cheia",
+  "One page per slide (the long side in pixels = points), with the slide duration and fade for the viewer's presentation mode.": "Uma página por slide (o lado maior em pixels = pontos), com a duração e o esmaecimento do slide para o modo de apresentação do visualizador.",
+  "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "Arquivos JPEG numerados (nome-001.jpg…) em uma pasta nova cujo nome é escolhido na próxima etapa.",
+  "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "Vídeo AV1, cada slide exibido pela sua duração com seus esmaecimentos. Sem som: a música ainda não é exportada.",
+  "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "Os slides usam o layout, as sobreposições e as telas de abertura e encerramento da apresentação, na ordem da visualização.",
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "As fotos da visualização como slides, com os ajustes acima. O progresso aparece na pilha de atividades."
 }
