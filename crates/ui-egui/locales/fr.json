@@ -1925,5 +1925,18 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "Déplace les fichiers et leurs fichiers annexes XMP dans ce dossier ; n'écrase jamais rien",
   "Appearance Settings…": "Réglages d’apparence…",
   "Add to favorites": "Ajouter aux favoris",
-  "Remove from favorites": "Retirer des favoris"
+  "Remove from favorites": "Retirer des favoris",
+  "Appearance": "Apparence",
+  "Appearance Mode": "Mode d’apparence",
+  "Sync with System": "Synchroniser avec le système",
+  "Light Mode": "Mode clair",
+  "Dark Mode": "Mode sombre",
+  "Next Appearance Mode": "Mode d’apparence suivant",
+  "Light Theme": "Thème clair",
+  "Dark Theme": "Thème sombre",
+  "In Use": "Utilisé",
+  "Charcoal": "Anthracite",
+  "Midnight": "Minuit",
+  "Silver": "Argent",
+  "Paper": "Papier"
 }

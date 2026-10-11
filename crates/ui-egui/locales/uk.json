@@ -2119,5 +2119,18 @@
   "Moves the files and their XMP sidecars into this folder; never overwrites": "Переміщує файли та їхні XMP-файли до цієї теки; нічого не перезаписує",
   "Appearance Settings…": "Налаштування вигляду…",
   "Add to favorites": "Додати до вибраного",
-  "Remove from favorites": "Видалити з вибраного"
+  "Remove from favorites": "Видалити з вибраного",
+  "Appearance": "Вигляд",
+  "Appearance Mode": "Режим вигляду",
+  "Sync with System": "Як у системі",
+  "Light Mode": "Світлий режим",
+  "Dark Mode": "Темний режим",
+  "Next Appearance Mode": "Наступний режим вигляду",
+  "Light Theme": "Світла тема",
+  "Dark Theme": "Темна тема",
+  "In Use": "Використовується",
+  "Charcoal": "Графіт",
+  "Midnight": "Опівніч",
+  "Silver": "Срібло",
+  "Paper": "Папір"
 }
