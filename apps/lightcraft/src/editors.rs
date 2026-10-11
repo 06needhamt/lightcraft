@@ -36,11 +36,7 @@ pub fn open_with(path: &str, app: &str) -> Result<(), String> {
             c.arg(path);
             c
         }
-        Launcher::Default if cfg!(target_os = "windows") => {
-            let mut c = Command::new("cmd");
-            c.args(["/C", "start", "", path]);
-            c
-        }
+        Launcher::Default if cfg!(target_os = "windows") => windows_default_command(path),
         Launcher::Default => {
             let mut c = Command::new("xdg-open");
             c.arg(path);
@@ -63,6 +59,15 @@ pub fn open_with(path: &str, app: &str) -> Result<(), String> {
         }
     };
     c.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Windows: open `path` in its default application through Explorer, given the path as its one
+/// argument. Not `cmd /C start`: cmd.exe would read `&`, `^`, `%` or `|` in a file name as its own
+/// syntax (running what follows an `&` as a command).
+fn windows_default_command(path: &str) -> Command {
+    let mut c = Command::new("explorer.exe");
+    c.arg(path.replace('/', "\\"));
+    c
 }
 
 fn launcher(app: &str) -> Result<Launcher, String> {
@@ -174,6 +179,17 @@ fn desktop_exec(entry: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file name with cmd.exe syntax in it goes to Explorer as one plain argument, not
+    /// through a shell.
+    #[test]
+    fn windows_default_open_goes_through_explorer_not_cmd() {
+        let path = r"C:/Edits/a & b ^c %PATH% | d.psd";
+        let c = windows_default_command(path);
+        assert_eq!(c.get_program(), "explorer.exe");
+        let args: Vec<_> = c.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        assert_eq!(args, [r"C:\Edits\a & b ^c %PATH% | d.psd"]);
+    }
 
     #[test]
     fn windows_lookup_prefers_the_recorded_install_folder() {

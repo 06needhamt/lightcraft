@@ -316,26 +316,24 @@ fn resource_section(meta: &EncodeMeta) -> Vec<u8> {
 /// PackBits: append one encoded row of `src` to `out` (runs of 2+ equal bytes as repeats, the
 /// rest as literals of at most 128 bytes).
 fn packbits(src: &[u8], out: &mut Vec<u8>) {
-    let mut i = 0;
-    while i < src.len() {
-        let b = src[i];
-        let mut run = 1;
-        while run < 128 && i + run < src.len() && src[i + run] == b {
-            run += 1;
-        }
+    let mut rest = src;
+    while let Some(&b) = rest.first() {
+        // a run of 2 to 128 equal bytes
+        let run = rest.iter().take(128).take_while(|&&x| x == b).count();
         if run >= 2 {
-            out.push((1i16 - run as i16) as i8 as u8);
+            // 1 - run in 2..=128: -1..=-127, as a signed byte
+            out.push((1 - run as i16) as i8 as u8);
             out.push(b);
-            i += run;
+            rest = rest.get(run..).unwrap_or_default();
             continue;
         }
-        // a literal: up to the next pair of equal bytes
-        let start = i;
-        while i < src.len() && i - start < 128 && !(i + 1 < src.len() && src[i] == src[i + 1]) {
-            i += 1;
-        }
-        out.push((i - start - 1) as u8);
-        out.extend_from_slice(&src[start..i]);
+        // a literal of 1 to 128 bytes: up to the next pair of equal bytes, or the end of the row
+        let unpaired = rest.windows(2).take(128).take_while(|w| w.first() != w.get(1)).count();
+        let len = if unpaired.saturating_add(1) == rest.len() { rest.len() } else { unpaired };
+        let (lit, tail) = rest.split_at_checked(len.clamp(1, 128)).unwrap_or((rest, &[][..]));
+        out.push(lit.len().saturating_sub(1) as u8);
+        out.extend_from_slice(lit);
+        rest = tail;
     }
 }
 

@@ -145,10 +145,10 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     check(ui, "settings.confirmDelete", &mut app.ui.settings.confirm_delete, "Confirm before moving photos to Recently Deleted");
     heading(ui, t, crate::i18n::tr("External Editing"));
     row(ui, t, crate::i18n::tr("PhotoCraft"), |ui| {
-        let r = ui.add(
-            egui::TextEdit::singleline(&mut app.ui.settings.photocraft_path).hint_text(crate::i18n::tr("Found automatically")).desired_width(220.0),
-        );
-        register(ui.ctx(), "field:photocraftPath", r.rect);
+        crate::text_field::TextField::singleline("field:photocraftPath", &mut app.ui.settings.photocraft_path)
+            .hint(crate::i18n::tr("Found automatically"))
+            .width(220.0)
+            .show(ui);
     });
     edit_file_rows(ui, t, "photocraftFile", &mut app.ui.settings.photocraft_file);
     hint(
@@ -159,9 +159,10 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         ),
     );
     row(ui, t, crate::i18n::tr("Other editor"), |ui| {
-        let r = ui
-            .add(egui::TextEdit::singleline(&mut app.ui.settings.external_editor).hint_text(crate::i18n::tr("System default")).desired_width(220.0));
-        register(ui.ctx(), "field:externalEditor", r.rect);
+        crate::text_field::TextField::singleline("field:externalEditor", &mut app.ui.settings.external_editor)
+            .hint(crate::i18n::tr("System default"))
+            .width(220.0)
+            .show(ui);
     });
     edit_file_rows(ui, t, "externalFile", &mut app.ui.settings.external_file);
     hint(ui, t, crate::i18n::tr("Edit in Other Editor (⌥⌘E) opens the copy in this application (an app name on macOS, a program path elsewhere)."));
