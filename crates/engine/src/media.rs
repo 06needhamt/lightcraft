@@ -62,7 +62,7 @@ impl SettingsHashes {
 }
 
 /// Bump when the pipeline's output changes, to invalidate cached thumbnails.
-pub const RENDER_CACHE_VERSION: u64 = 60;
+pub const RENDER_CACHE_VERSION: u64 = 61;
 
 /// Thumbnails render at one of these long edges (so window/cell size changes reuse the cache).
 pub const THUMB_SIZES: [usize; 4] = [128, 256, 384, 512];
@@ -846,7 +846,8 @@ impl RenderJob {
                     (Some(d), Some(_)) => {
                         let keep = self.view_cache.is_some() && self.request.quality == Quality::Full;
                         let (s, h) = crate::display::finish_render(&mut rendered.image, d, keep);
-                        if let Some(h) = h {
+                        // (an HDR edit's HDR histogram stays)
+                        if let Some(h) = h.filter(|_| rendered.histogram.hdr.is_none()) {
                             rendered.histogram = h;
                         }
                         srgb = s;
@@ -903,6 +904,22 @@ pub fn develop(src: &Arc<Rgb32f>, info: &SourceInfo, s: &DevelopSettings, req: &
 /// it rendered on the GPU, or the GPU was not tried). The reason is this render's own, not the
 /// process-wide [`lightcraft_gpu::last_fallback`].
 pub fn develop_reporting(
+    src: &Arc<Rgb32f>,
+    info: &SourceInfo,
+    s: &DevelopSettings,
+    req: &RenderRequest,
+    stages: Option<&StageCache>,
+    gpu: bool,
+) -> (Rendered, Option<String>) {
+    let (mut rendered, fallback) = develop_image(src, info, s, req, stages, gpu);
+    // an HDR edit's preview is its SDR rendition: its histogram shows the HDR range instead
+    if let Some(h) = lightcraft_pipeline::hdr_histogram(src, info, s, req) {
+        rendered.histogram = h;
+    }
+    (rendered, fallback)
+}
+
+fn develop_image(
     src: &Arc<Rgb32f>,
     info: &SourceInfo,
     s: &DevelopSettings,
@@ -1293,6 +1310,23 @@ impl crate::Session {
             (Source::File { path }, Some(l)) if p.kind == MediaKind::Raw && crate::import::has_import_look(p) => Some((path.clone(), l.clone())),
             _ => None,
         }
+    }
+
+    /// Whether `p`'s thumbnail can be the camera's own JPEG, so a frontend can skip the sensor
+    /// decode behind it.
+    ///
+    /// The grid shows this JPEG first in any case ([`QuickJob`]: "grid thumbnails of unedited raws
+    /// likewise start from the embedded preview"), and then paid for a render of the raw to replace
+    /// it. That render decodes the whole sensor — 50 of a 56 MB Fuji RAF's bytes — for a 512 px
+    /// thumbnail the 4 416 × 2 944 embedded JPEG already covers, and on a share at 1.2 MB/s it is
+    /// 45 s a photo: a 149-photo folder spent 8.3 GB of traffic on thumbnails, and the queue behind
+    /// it delayed the render the user was waiting for.
+    ///
+    /// Only unedited raws answer `true`: any edit must be rendered, and `has_import_look` is what
+    /// says the photo still looks the way it did at import. A photo the user edits re-renders
+    /// through the ordinary path, because its thumbnail key (settings hash) changes.
+    pub fn embedded_thumb_is_final(&self, p: &Photo) -> bool {
+        self.embedded_of(p).is_some()
     }
 
     /// The camera's embedded preview of a raw file, for the face scan. Faces are read from the unedited picture, so the

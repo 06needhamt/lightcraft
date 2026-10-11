@@ -124,15 +124,14 @@ pub fn specs() -> Vec<CommandSpec> {
 /// the library and stack it on top of the original. The host opens the file in the editor.
 fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "photo.editExternal";
-    let id = s.active().ok_or_else(|| bad(C, "no active photo"))?;
-    let ph = s.catalog.photo(id).cloned().ok_or_else(|| bad(C, "no photo"))?;
-    let dir = match &ph.source {
-        Source::File { path } => Path::new(path).parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_default(),
-        Source::Demo { .. } => match super::str_param(p, "dir") {
-            Some(d) => d.to_string(),
-            None => return Err(bad(C, "a generated demo photo has no folder: give `dir`")),
-        },
-    };
+    let mut ids = s.targets(p);
+    ids.dedup();
+    if ids.is_empty() {
+        return Err(bad(C, "no active photo"));
+    }
+    if ids.len() > MAX_EDIT_COPIES {
+        return Err(bad(C, format!("{} photos selected: edit at most {MAX_EDIT_COPIES} at a time", ids.len())));
+    }
     let space = match super::str_param(p, "colorSpace").unwrap_or("adobeRgb") {
         "srgb" => lightcraft_pipeline::OutputSpace::Srgb,
         "displayP3" => lightcraft_pipeline::OutputSpace::DisplayP3,
@@ -157,6 +156,31 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
         conflict: crate::export::Conflict::Unique,
         ..Default::default()
     };
+    let mut copies = Vec::new();
+    for id in ids {
+        copies.push(edit_copy(s, p, id, &opts)?);
+    }
+    let new: Vec<lightcraft_catalog::PhotoId> = copies.iter().filter_map(|c| c["id"].as_u64()).map(lightcraft_catalog::PhotoId).collect();
+    s.selection = crate::Selection { active: new.first().copied(), ids: new };
+    let first = copies.first().cloned().unwrap_or(Value::Null);
+    Ok(json!({"path": first["path"], "id": first["id"], "original": first["original"], "copies": copies}))
+}
+
+/// Most photos one Edit In renders (each becomes a full-size file on disk and a library photo).
+const MAX_EDIT_COPIES: usize = 50;
+
+/// One photo's edit copy for [`edit_external`]: rendered with `opts` next to its original (a demo
+/// photo into `dir`), added to the library and stacked on top of the original, expanded.
+fn edit_copy(s: &mut Session, p: &Value, id: lightcraft_catalog::PhotoId, opts: &crate::export::ExportOptions) -> Result<Value> {
+    const C: &str = "photo.editExternal";
+    let ph = s.catalog.photo(id).cloned().ok_or_else(|| bad(C, format!("no photo {}", id.0)))?;
+    let dir = match &ph.source {
+        Source::File { path } => Path::new(path).parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_default(),
+        Source::Demo { .. } => match super::str_param(p, "dir") {
+            Some(d) => d.to_string(),
+            None => return Err(bad(C, "a generated demo photo has no folder: give `dir`")),
+        },
+    };
     let mut written = Vec::new();
     let mut write = |path: &str, bytes: &[u8]| -> std::result::Result<(), String> {
         // durable: the TIFF becomes a library photo the external editor then changes
@@ -165,14 +189,13 @@ fn edit_external(s: &mut Session, p: &Value) -> Result<Value> {
         Ok(())
     };
     let to = crate::export::Destination { dir, exact: None };
-    crate::export::export_batch(s, &[id], &opts, &to, &mut write, &|path| Path::new(path).exists()).map_err(|e| bad(C, e))?;
-    let ext = format!(".{}", format.extension());
+    crate::export::export_batch(s, &[id], opts, &to, &mut write, &|path| Path::new(path).exists()).map_err(|e| bad(C, e))?;
+    let ext = format!(".{}", opts.format.extension());
     let out = written.into_iter().find(|w| w.ends_with(&ext)).ok_or_else(|| bad(C, "nothing was written"))?;
     let r = s.execute("library.import", &json!({"paths": [out]}))?;
     let new = r["imported"].get(0).and_then(Value::as_u64).ok_or_else(|| bad(C, "the edit copy could not be added"))?;
     // stack: the edit on top of the original, expanded so both show
     let _ = s.execute("stack.group", &json!({"ids": [new, id.0], "top": new, "collapsed": false}));
-    s.selection = crate::Selection::single(lightcraft_catalog::PhotoId(new));
     Ok(json!({"path": out, "id": new, "original": id.0}))
 }
 
@@ -363,7 +386,7 @@ pub fn edit_specs() -> Vec<CommandSpec> {
             "Edit Copy for External Editor",
             [],
             None,
-            "{colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, format?: tiff (default) | psd, bitDepth?: 16 (default) | 8, dir?} — render the active photo with its edits as `<name>-Edit.tif` (or `.psd`, flat, which PhotoCraft saves back to in place) next to it, add it stacked on the original and select it → {path, id, original} (the app then opens it in the external editor)",
+            "{ids?, colorSpace?: adobeRgb (default) | proPhoto | displayP3 | srgb, format?: tiff (default) | psd, bitDepth?: 16 (default) | 8, dir?} — render each selected photo (or `ids`, at most 50) with its edits as `<name>-Edit.tif` (or `.psd`, flat, which PhotoCraft saves back to in place) next to it, add each stacked on its original and select the copies → {path, id, original (the first copy), copies: [{path, id, original}]} (the app then opens them in the external editor)",
             has_active,
             edit_external
         ),
