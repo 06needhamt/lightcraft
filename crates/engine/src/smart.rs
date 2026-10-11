@@ -202,9 +202,11 @@ pub fn migrate(from: &Path, to: &Path, what: Existing) -> (usize, Vec<String>) {
     }
     for src in files(from) {
         let Some(name) = src.file_name() else { continue };
-        let dst = name.to_str().and_then(|n| n.strip_suffix(".lcsp")).filter(|stem| {
-            stem.len() == 32 && stem.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
-        }).map_or_else(|| to.join(name), |stem| to.join(&stem[..2]).join(name));
+        let dst = name
+            .to_str()
+            .and_then(|n| n.strip_suffix(".lcsp"))
+            .filter(|stem| stem.len() == 32 && stem.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()))
+            .map_or_else(|| to.join(name), |stem| to.join(&stem[..2]).join(name));
         let r = match what {
             Existing::Discard => std::fs::remove_file(&src),
             _ => {
