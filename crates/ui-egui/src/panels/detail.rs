@@ -1148,16 +1148,7 @@ fn general_interaction(
         return;
     }
     if app.ui.tool == "colorRange" {
-        // click: sample the colour for the selected mask's colour range; ⇧-click adds (up to 5)
-        if resp.clicked()
-            && let Some(q) = resp.interact_pointer_pos()
-        {
-            let n = map.norm(q);
-            let add = ui.input(|i| i.modifiers.shift);
-            if let Err(e) = app.run("mask.sampleColor", json!({"x": n.x, "y": n.y, "add": add})) {
-                app.toast(ui.ctx(), e);
-            }
-        }
+        color_range_pick(app, ui, resp, map);
         return;
     }
     if app.ui.tool == "pointColor" {
@@ -1546,6 +1537,21 @@ fn radial_body_contains(shape: &MaskShape, at: Point, map: &CanvasMap) -> bool {
 /// The Masking tool on the photo: outlines and handles of the selected mask, a pin per mask
 /// component (click selects its mask, drag moves the component), and brush painting. The mask
 /// itself shows as a rendered overlay ([`view_overlay`]).
+/// Colour Range eyedropper: a click samples the colour under it for the selected mask's
+/// colour range, at normalized frame coordinates (crop, rotation and zoom aware);
+/// ⇧-click adds a sample (up to 5).
+fn color_range_pick(app: &mut LightcraftApp, ui: &egui::Ui, resp: &egui::Response, map: &CanvasMap) {
+    if resp.clicked()
+        && let Some(q) = resp.interact_pointer_pos()
+    {
+        let n = map.norm(q);
+        let add = ui.input(|i| i.modifiers.shift);
+        if let Err(e) = app.run("mask.sampleColor", json!({"x": n.x, "y": n.y, "add": add})) {
+            app.toast(ui.ctx(), e);
+        }
+    }
+}
+
 fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
     let tint = {
         let [r, g, b] = app.ui.mask_overlay_color;
@@ -1637,6 +1643,15 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                 }
             }
         }
+    }
+    // Colour Range "Pick": the Masking panel owns the loupe's clicks (general_interaction
+    // never runs while it is open), so the eyedropper is handled here too.
+    if app.ui.tool == "colorRange" {
+        if resp.hovered() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+        }
+        color_range_pick(app, ui, resp, map);
+        return;
     }
     // Object tool: a click includes what's under it, ⌥-click leaves it out
     if app.ui.tool == "object" {
