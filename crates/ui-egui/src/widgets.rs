@@ -209,10 +209,12 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         }
     });
     let label_resp = ui.interact(label_rect, id.with("label"), Sense::click());
+    crate::widgets::announce(&label_resp, crate::i18n::tr_format!("Reset {name}", name = label_text.clone()));
     register(ui.ctx(), format!("slider:{}", spec.id), track_rect);
     // the value: click it to type an exact one (over the label, so it takes the click)
     let value_rect = Rect::from_min_max(pos2(label_rect.right() - 64.0, label_rect.top()), label_rect.max);
     let value_resp = ui.interact(value_rect, id.with("value"), if enabled { Sense::click() } else { Sense::hover() });
+    crate::widgets::announce(&value_resp, format!("{label_text}: {}", crate::i18n::tr("Click to type a value")));
     register(ui.ctx(), format!("sliderValue:{}", spec.id), value_rect);
     // say that an exact value can be typed here (issue #534: an exact crop angle was hard to find)
     let value_resp = if enabled { value_resp.on_hover_text(crate::i18n::tr("Click to type a value")) } else { value_resp };
@@ -436,6 +438,7 @@ pub fn section_header(ui: &mut Ui, id: &str, title: &str, open: bool, enabled: O
     {
         let eye = Rect::from_center_size(pos2(r.right() - 34.0, r.center().y), vec2(18.0, 18.0));
         let er = ui.interact(eye, ui.id().with(("eye", id)), Sense::click());
+        crate::widgets::announce_selected(&er, crate::i18n::tr("Show / hide"), on);
         register(ui.ctx(), format!("sectionEye:{id}"), eye);
         paint(ui.painter(), eye, Icon::Eye, if on { t.icon } else { t.text_disabled });
         if !on {
@@ -520,6 +523,7 @@ pub fn segmented(ui: &mut Ui, id: &str, items: &[(&str, &str)], active: Option<u
                 let label = crate::i18n::tr(label);
                 let i = row_i * per_row + j;
                 let (r, resp) = ui.allocate_exact_size(vec2(seg_w, 24.0), Sense::click());
+                crate::widgets::announce_selected(&resp, label.to_string(), active == Some(i));
                 register(ui.ctx(), format!("button:{id}-{key}"), r);
                 let fill = if active == Some(i) {
                     t.pressed
@@ -576,6 +580,7 @@ pub fn stars(ui: &mut Ui, id: &str, rating: u8, size: f32) -> Option<u8> {
     let mut rects = [Rect::NOTHING; 5];
     for (i, slot) in (0..5u8).zip(rects.iter_mut()) {
         let (r, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
+        crate::widgets::announce_selected(&resp, format!("{} ★", i + 1), i < rating);
         register(ui.ctx(), format!("star:{id}:{}", i + 1), r);
         if resp.hovered() {
             hover_n = Some(i + 1);
@@ -727,6 +732,18 @@ mod access_tests {
 /// whose caption is a separate label beside it.
 pub(crate) fn screen_reader_name(ctx: &egui::Context, id: egui::Id, name: &str) {
     ctx.accesskit_node_builder(id, |node| node.set_label(name.to_string()));
+}
+
+/// A hand-drawn clickable area (an icon, a tile, a row) announced as a button named `name`.
+pub(crate) fn announce(resp: &egui::Response, name: impl Into<String>) {
+    let name = name.into();
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, resp.enabled(), name.clone()));
+}
+
+/// The same for one that is on or off (a toggle, a selected row or swatch).
+pub(crate) fn announce_selected(resp: &egui::Response, name: impl Into<String>, selected: bool) {
+    let name = name.into();
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, resp.enabled(), selected, name.clone()));
 }
 
 /// `r`, named `name` for screen readers: a plain egui field or slider whose caption is drawn

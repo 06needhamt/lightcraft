@@ -8,6 +8,7 @@
 
 pub mod album_picker;
 pub mod brush_live;
+pub mod canvas_keys;
 pub mod control;
 pub mod credits;
 pub mod date_picker;
@@ -47,6 +48,8 @@ mod tests_album_picker;
 mod tests_appearance;
 #[cfg(test)]
 mod tests_before_after;
+#[cfg(test)]
+mod tests_canvas_keys;
 #[cfg(test)]
 mod tests_compare;
 #[cfg(test)]

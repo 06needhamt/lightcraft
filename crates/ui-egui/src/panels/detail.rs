@@ -421,6 +421,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // tool's overlays need the frame's own geometry.
     let display_aspect = visible_texture_aspect.filter(|a| !crop_tool && (a / aspect - 1.0).abs() > 0.02).unwrap_or(aspect);
     let resp = ui.interact(canvas, egui::Id::new("loupe"), Sense::click_and_drag());
+    crate::widgets::announce(&resp, crate::i18n::tr("Photo"));
     let mut target_rect = fit_rect(main_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan);
     let mut img_rect = animated_rect(ui.ctx(), &mut app.ui.zoom_anim, target_rect);
     let mut navigating = false;
@@ -872,6 +873,7 @@ fn region_overlay(
             for (h, (fx, fy, cursor)) in REGION_HANDLES.iter().enumerate() {
                 let c = pos2(rect.left() + fx * rect.width(), rect.top() + fy * rect.height());
                 let resp = ui.interact(Rect::from_center_size(c, vec2(14.0, 14.0)), egui::Id::new(("region-handle", index, h)), Sense::drag());
+                crate::widgets::announce(&resp, crate::i18n::tr("Resize region"));
                 if resp.hovered() || resp.dragged() {
                     ui.ctx().set_cursor_icon(*cursor);
                 }
@@ -916,6 +918,7 @@ fn region_overlay(
         if dragging.is_none() && live.is_none() && pointer.is_some_and(|h| rect.expand(3.0).contains(h)) {
             let xr = Rect::from_center_size(pos2(rect.right() - 13.0, rect.top() + 13.0), vec2(16.0, 16.0));
             let resp = ui.interact(xr, egui::Id::new(("region-x", index)), Sense::click());
+            crate::widgets::announce(&resp, crate::i18n::tr("Remove region"));
             register(ui.ctx(), format!("regionRemove:{index}"), xr);
             let fill = Color32::from_black_alpha(if resp.hovered() { 235 } else { 190 });
             p.rect_filled(xr, 2.0, fill);
@@ -965,6 +968,7 @@ fn region_overlay(
         if is_face && live.is_none() {
             // a click on the label opens the name box, filled with the name or the guess
             let resp = ui.interact(label, egui::Id::new(("region-label", index)), Sense::click());
+            crate::widgets::announce(&resp, crate::i18n::tr("Click to name this face"));
             register(ui.ctx(), format!("regionLabel:{index}"), label);
             if resp.on_hover_text("Click to name this face").clicked() {
                 let start = r.name.clone().or_else(|| hint.and_then(|h| h.suggestion.as_ref().map(|(n, _)| n.clone()))).unwrap_or_default();
@@ -1000,6 +1004,7 @@ fn filter_pill(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect) {
     let w = (g.size().x + 40.0).min((canvas.width() - 24.0).max(60.0));
     let r = Rect::from_min_size(canvas.min + vec2(12.0, 3.0), vec2(w, 20.0));
     let resp = ui.interact(r, egui::Id::new("loupe-filter-pill"), Sense::click());
+    crate::widgets::announce(&resp, crate::i18n::tr("Filters"));
     register(ui.ctx(), "loupe:filters", r);
     p.rect_filled(r, 10.0, Color32::from_black_alpha(if resp.hovered() { 225 } else { 185 }));
     let text_clip = Rect::from_min_max(r.min, pos2(r.right() - 24.0, r.max.y));
@@ -1065,6 +1070,7 @@ fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, img: Rect
     p.rect_stroke(view.expand(1.5), 0.0, Stroke::new(1.0, Color32::from_black_alpha(160)), StrokeKind::Outside);
     register(ui.ctx(), "canvas:navigator", frame);
     let resp = ui.interact(frame.expand(5.0), egui::Id::new("navigator"), Sense::click_and_drag());
+    crate::widgets::announce(&resp, crate::i18n::tr("Navigator"));
     if (resp.clicked() || resp.dragged())
         && let Some(q) = resp.interact_pointer_pos()
     {
@@ -1290,6 +1296,10 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         p.rect_filled(Rect::from_center_size(*h, vec2(s, 3.0)), 0.0, Color32::WHITE);
         p.rect_filled(Rect::from_center_size(*h, vec2(3.0, s)), 0.0, Color32::WHITE);
     }
+    // the keyboard: each handle (and the box itself) a stand-in Tab reaches and the arrows move
+    if crop_keys(app, ui, map, &handles, &pts, d, frame) {
+        return;
+    }
     let inside = |q: Pos2| {
         let n = map.norm(q);
         let s = to_straight(n, d.crop.geometry.angle, frame);
@@ -1397,6 +1407,64 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         angle_readout(ui, at, shown_angle, resp.rect);
     }
     let _ = id;
+}
+
+/// The crop handles' names for screen readers, in `crop.drag`'s numbering: 0..3 corners, 4..7
+/// edges (top, right, bottom, left), 8 the whole box.
+const CROP_HANDLE_NAMES: [&str; 9] = [
+    "Crop top-left corner",
+    "Crop top-right corner",
+    "Crop bottom-right corner",
+    "Crop bottom-left corner",
+    "Crop top edge",
+    "Crop right edge",
+    "Crop bottom edge",
+    "Crop left edge",
+    "Crop box",
+];
+
+/// Keyboard stand-ins for the crop handles: an arrow press drags the focused one by a step (one
+/// undo step each), as a pointer drag from its place would. Return applies the crop. True when the
+/// frame is over (the crop was applied).
+fn crop_keys(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    map: &CanvasMap,
+    handles: &[Pos2],
+    pts: &[Pos2],
+    d: &DevelopSettings,
+    frame: &Frame,
+) -> bool {
+    let r = d.crop.geometry.rect;
+    let centre = if pts.len() == 4 { pts.iter().fold(Pos2::ZERO, |acc, q| acc + q.to_vec2() / 4.0) } else { return false };
+    let pct = |v: f64| if v.is_finite() { (v * 100.0).round() as i64 } else { 0 };
+    let value = format!("left {}%, top {}%, right {}%, bottom {}%", pct(r.x0), pct(r.y0), pct(r.x1), pct(r.y1));
+    for (i, name) in CROP_HANDLE_NAMES.iter().enumerate() {
+        let Some(at) = handles.get(i).copied().or_else(|| (i == 8).then_some(centre)) else { continue };
+        let keys = crate::canvas_keys::handle(ui, &format!("crop:{i}"), crate::i18n::tr(name), value.clone(), at);
+        if keys.activated {
+            let _ = app.run("tool.done", json!({}));
+            return true;
+        }
+        let Some((dx, dy)) = keys.delta else { continue };
+        // the drag runs in the straightened crop frame, as a pointer drag from the handle would;
+        // the arrows follow the screen
+        let angle = d.crop.geometry.angle;
+        let to_q = at + vec2(dx as f32 * map.rect.width(), dy as f32 * map.rect.height());
+        let (from, to) = (to_straight(map.norm(at), angle, frame), to_straight(map.norm(to_q), angle, frame));
+        let started = app.run("develop.beginInteraction", json!({"label": "Crop"})).and_then(|_| app.begin_crop().map(|_| serde_json::Value::Null));
+        if let Err(e) = started {
+            app.ui.status = e;
+            let _ = app.session.cancel_interaction();
+            return false;
+        }
+        let _ = app.run(
+            "crop.drag",
+            json!({"handle": i, "from": [from.x, from.y], "to": [to.x, to.y], "start": [r.x0, r.y0, r.x1, r.y1], "keepRatio": false}),
+        );
+        let _ = app.run("develop.endInteraction", json!({}));
+    }
+    false
 }
 
 /// The crop angle as the rotation readout shows it: like the Straighten value, in degrees.
@@ -1769,6 +1837,7 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             }
         }
     }
+    mask_keys(app, ui, map, d, &grips);
     // Object selections (SAM 3) of the selected mask: each click, green to include, red to exclude
     // (clicks still on their way to the model included)
     let pending = app.session.segmenter.pending_clicks().cloned();
@@ -1930,6 +1999,48 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     }
 }
 
+/// A mask handle's name for screen readers: `handle` 0 is the component's pin, 1..5 a radial
+/// gradient's right / bottom / left / top edge and rotation, 1..2 a linear gradient's start and end.
+fn mask_handle_name(mask: &str, shape: &MaskShape, handle: u8) -> String {
+    let part = match (shape, handle) {
+        (_, 0) => "pin",
+        (MaskShape::Radial { .. }, 1) => "right edge",
+        (MaskShape::Radial { .. }, 2) => "bottom edge",
+        (MaskShape::Radial { .. }, 3) => "left edge",
+        (MaskShape::Radial { .. }, 4) => "top edge",
+        (MaskShape::Radial { .. }, _) => "rotation",
+        (MaskShape::Linear { .. }, 1) => "start",
+        (MaskShape::Linear { .. }, _) => "end",
+        _ => "handle",
+    };
+    format!("{mask} {}", crate::i18n::tr(part))
+}
+
+/// Keyboard stand-ins for the mask handles and pins: an arrow press moves the focused one by a
+/// step (one undo step), as dragging it would; Return on a pin selects its mask.
+fn mask_keys(app: &mut LightcraftApp, ui: &mut egui::Ui, map: &CanvasMap, d: &DevelopSettings, grips: &[(u32, usize, u8, Pos2)]) {
+    for &(mid, ci, handle, q) in grips {
+        let Some(m) = d.masks.iter().find(|m| m.id == mid) else { continue };
+        let Some(shape) = m.components.get(ci).map(|c| &c.shape) else { continue };
+        let at = map.norm(q);
+        let mask_name = if m.name.trim().is_empty() { format!("{} {mid}", crate::i18n::tr("Mask")) } else { m.name.clone() };
+        let name = mask_handle_name(&mask_name, shape, handle);
+        let keys = crate::canvas_keys::handle(ui, &format!("mask:{mid}:{ci}:{handle}"), &name, crate::canvas_keys::position_text(at.x, at.y), q);
+        if keys.activated && app.session.active_mask != Some(mid) {
+            let _ = app.run("mask.select", json!({"id": mid}));
+        }
+        let Some((dx, dy)) = keys.delta else { continue };
+        if app.session.active_mask != Some(mid) {
+            let _ = app.run("mask.select", json!({"id": mid}));
+        }
+        let to = Point::new(at.x + dx, at.y + dy);
+        let new_shape = moved_shape(shape, handle, Point::new(dx, dy), to, map, false);
+        let _ = app.run("develop.beginInteraction", json!({"label": "Edit Mask"}));
+        let _ = app.run("mask.update", json!({"id": mid, "component": ci, "shape": new_shape}));
+        let _ = app.run("develop.endInteraction", json!({}));
+    }
+}
+
 /// Long-edge units → normalized units for x and y.
 fn frame_long_norm(map: &CanvasMap) -> (f64, f64) {
     // derive from the mapping: 1 normalized unit in x and y in screen points
@@ -1977,6 +2088,9 @@ fn remove_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respo
         pin(&p, tq, sel);
         register(ui.ctx(), format!("spotPin:{i}"), Rect::from_center_size(tq, vec2(14.0, 14.0)));
         grips.push((i, false, tq, r));
+    }
+    if spot_keys(app, ui, map, d, &grips) {
+        return;
     }
     let r = (app.ui.remove_size as f64 * long) as f32;
     // a target or source under `q`: the selected spot's first, then the nearest pin
@@ -2060,6 +2174,61 @@ fn remove_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respo
             json!({"mode": mode, "points": pts, "size": app.ui.remove_size, "feather": app.ui.remove_feather, "opacity": app.ui.remove_opacity}),
         );
     }
+}
+
+/// Keyboard stand-ins for the Remove tool: each spot's target and source (an arrow press moves
+/// it a step, one undo step; Return selects the spot), and a placement point that the arrows move
+/// and Return turns into a new spot of the brush's size there. True when a spot was added.
+fn spot_keys(app: &mut LightcraftApp, ui: &mut egui::Ui, map: &CanvasMap, d: &DevelopSettings, grips: &[(usize, bool, Pos2, f32)]) -> bool {
+    for &(spot, source, q, _) in grips {
+        let at = map.norm(q);
+        let name =
+            format!("{} {}{}", crate::i18n::tr("Spot"), spot + 1, if source { format!(" {}", crate::i18n::tr("source")) } else { String::new() });
+        let size = d.spots.get(spot).map(|s| s.size).unwrap_or_default();
+        let value = format!("{}, {} {:.0}%", crate::canvas_keys::position_text(at.x, at.y), crate::i18n::tr("size"), size * 100.0);
+        let keys = crate::canvas_keys::handle(ui, &format!("spot:{spot}:{}", if source { "source" } else { "target" }), &name, value, q);
+        if (keys.activated || keys.delta.is_some()) && app.session.active_spot != Some(spot) {
+            let _ = app.run("spot.select", json!({"index": spot}));
+        }
+        if let Some((dx, dy)) = keys.delta {
+            let _ = app.run("develop.beginInteraction", json!({"label": "Edit Spot"}));
+            let _ = app.run("spot.update", json!({"index": spot, if source { "moveSource" } else { "move" }: [dx, dy]}));
+            let _ = app.run("develop.endInteraction", json!({}));
+        }
+    }
+    // where a new spot goes: the photo's centre at first, then wherever the arrows took it
+    let key = egui::Id::new("lc-spot-placement");
+    let place: (f64, f64) = ui.data(|m| m.get_temp(key)).unwrap_or((0.5, 0.5));
+    let q = map.screen(Point::new(place.0, place.1));
+    let keys = crate::canvas_keys::handle(
+        ui,
+        "spot:new",
+        crate::i18n::tr("New spot (Return adds it here)"),
+        crate::canvas_keys::position_text(place.0, place.1),
+        q,
+    );
+    if let Some((dx, dy)) = keys.delta {
+        let moved = ((place.0 + dx).clamp(0.0, 1.0), (place.1 + dy).clamp(0.0, 1.0));
+        ui.data_mut(|m| m.insert_temp(key, moved));
+    }
+    if crate::canvas_keys::has_focus(ui.ctx()) && ui.memory(|m| m.has_focus(crate::canvas_keys::id("spot:new"))) {
+        let r = (app.ui.remove_size as f64 * (map.rect.width().max(map.rect.height())) as f64) as f32;
+        ui.painter().circle_stroke(q, r, Stroke::new(1.0, Color32::WHITE));
+    }
+    if keys.activated {
+        let mode = match app.ui.tool.as_str() {
+            "heal" => "heal",
+            "clone" => "clone",
+            "fill" => "fill",
+            _ => "remove",
+        };
+        let _ = app.run(
+            "spot.add",
+            json!({"mode": mode, "points": [[place.0, place.1]], "size": app.ui.remove_size, "feather": app.ui.remove_feather, "opacity": app.ui.remove_opacity}),
+        );
+        return true;
+    }
+    false
 }
 
 // ------------------------------------------------------------------------ red eye
@@ -2160,6 +2329,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 continue;
             }
             let resp = ui.interact(cr, egui::Id::new(("film", id.0)), Sense::click());
+            crate::widgets::announce(&resp, app.session.catalog.photo(*id).map(|p| p.file_name.clone()).unwrap_or_default());
             register(ui.ctx(), format!("film:{}", id.0), cr);
             let state = app.session.selection.state_of(*id);
             let sel = state == lightcraft_engine::SelectionState::Active;

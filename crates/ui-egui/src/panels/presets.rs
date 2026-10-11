@@ -86,6 +86,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 let open_id = egui::Id::new(("preset-group", &g));
                 let open: bool = ui.data(|d| d.get_temp(open_id)).unwrap_or(true);
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+                crate::widgets::announce(&resp, g.to_string());
                 register(ui.ctx(), format!("presetGroup:{g}"), r);
                 paint(
                     ui.painter(),
@@ -114,6 +115,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 for pr in items {
                     let (pid, name, fav) = (pr.id.clone(), crate::i18n::builtin_label(&pr.name, pr.builtin).to_string(), pr.favorite);
                     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::click());
+                    crate::widgets::announce(&resp, name.clone());
                     register(ui.ctx(), format!("preset:{pid}"), r);
                     let is_last = last.as_ref().is_some_and(|(l, _)| *l == pid);
                     if is_last {
