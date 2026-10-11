@@ -1358,64 +1358,100 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                     l.ends_with(".cube") || l.ends_with(".zip") || std::path::Path::new(p.as_str()).is_dir()
                 })
                 .collect();
-            let profiles = if lut_paths.is_empty() {
-                0
-            } else {
-                app.session
-                    .execute("profile.import", &json!({"paths": lut_paths}))
-                    .ok()
-                    .and_then(|v| v["imported"].as_array().map(Vec::len))
-                    .unwrap_or(0)
-            };
+            // one toast for both halves (a second toast would replace the first)
+            let mut parts: Vec<String> = Vec::new();
+            // `name: reason` for each file that couldn't be imported
+            let mut problems: Vec<String> = Vec::new();
+            let mut profiles_result = Value::Null;
+            if !lut_paths.is_empty() {
+                match app.session.execute("profile.import", &json!({"paths": lut_paths})) {
+                    Ok(v) => {
+                        let profiles = v["imported"].as_array().map_or(0, Vec::len);
+                        if profiles > 0 {
+                            parts.push(crate::i18n::tr_format!(
+                                "Imported {profiles} profile{} (Profile browser ▸ their groups)",
+                                if profiles == 1 { "" } else { "s" },
+                                profiles = profiles
+                            ));
+                        }
+                        problems.extend(v["failed"].as_array().into_iter().flatten().map(|f| {
+                            let name = f.get(0).and_then(Value::as_str).unwrap_or_default();
+                            let reason = f.get(1).and_then(Value::as_str).unwrap_or_default();
+                            format!("{name}: {reason}")
+                        }));
+                        profiles_result = v;
+                    }
+                    Err(e) => {
+                        problems.push(e.to_string());
+                        profiles_result = json!({"error": e.to_string()});
+                    }
+                }
+            }
             let preset_paths: Vec<&String> = paths.iter().filter(|p| !p.to_ascii_lowercase().ends_with(".cube")).collect();
             let r = if preset_paths.is_empty() {
                 Ok(json!({"imported": [], "failed": [], "skipped": 0}))
             } else {
                 app.session.execute("preset.import", &json!({"paths": preset_paths})).map_err(|e| e.to_string())
             };
-            if profiles > 0 {
-                app.toast(
-                    &ctx,
-                    crate::i18n::tr_format!(
-                        "Imported {profiles} profile{} (Profile browser ▸ their groups)",
-                        if profiles == 1 { "" } else { "s" },
-                        profiles = profiles
-                    ),
-                );
-            }
-            if let Ok(v) = &r {
+            if let (false, Ok(v)) = (preset_paths.is_empty(), &r) {
                 let n = v["imported"].as_array().map_or(0, Vec::len);
                 let failed = v["failed"].as_array().map_or(0, Vec::len);
-                let mut msg = match (n, failed) {
-                    (0, 0) => "No new presets".to_string(),
-                    (n, 0) => crate::i18n::tr_format!("Imported {n} preset{}", if n == 1 { "" } else { "s" }, n = n),
-                    (n, f) => crate::i18n::tr_format!(
+                let profile_news = !parts.is_empty() || !problems.is_empty();
+                let msg = match (n, failed) {
+                    // a zip of LUTs only: the profile half already says what happened
+                    (0, 0) if profile_news => None,
+                    (0, 0) => Some("No new presets".to_string()),
+                    (n, 0) => Some(crate::i18n::tr_format!("Imported {n} preset{}", if n == 1 { "" } else { "s" }, n = n)),
+                    (n, f) => Some(crate::i18n::tr_format!(
                         "Imported {n} preset{}, {f} file{} not readable",
                         if n == 1 { "" } else { "s" },
                         if f == 1 { "" } else { "s" },
                         f = f,
                         n = n
-                    ),
+                    )),
                 };
-                // settings with no counterpart here (the other editor's profiles, masks…)
-                let mut skipped: Vec<&str> = v["imported"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .flat_map(|i| i["unmapped"].as_array().into_iter().flatten())
-                    .filter_map(Value::as_str)
-                    .collect();
-                skipped.sort_unstable();
-                skipped.dedup();
-                if !skipped.is_empty() {
-                    let names: Vec<&str> = skipped.iter().take(3).copied().collect();
-                    msg += &crate::i18n::tr_format!(" — not carried over: {}{}", names.join(", "), if skipped.len() > 3 { "…" } else { "" });
+                if let Some(mut msg) = msg {
+                    // settings with no counterpart here (the other editor's profiles, masks…)
+                    let mut skipped: Vec<&str> = v["imported"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .flat_map(|i| i["unmapped"].as_array().into_iter().flatten())
+                        .filter_map(Value::as_str)
+                        .collect();
+                    skipped.sort_unstable();
+                    skipped.dedup();
+                    if !skipped.is_empty() {
+                        let names: Vec<&str> = skipped.iter().take(3).copied().collect();
+                        msg += &crate::i18n::tr_format!(" — not carried over: {}{}", names.join(", "), if skipped.len() > 3 { "…" } else { "" });
+                    }
+                    parts.push(msg);
                 }
-                app.toast(&ctx, msg);
                 if n > 0 {
                     app.ui.presets = true;
                 }
             }
+            let mut msg = parts.join(" · ");
+            if !problems.is_empty() {
+                let detail =
+                    format!("{}{}", problems.iter().take(2).cloned().collect::<Vec<_>>().join("; "), if problems.len() > 2 { "…" } else { "" });
+                if msg.is_empty() {
+                    msg = crate::i18n::tr_format!("Import failed: {e}", e = detail);
+                } else {
+                    msg += &crate::i18n::tr_format!(" · {} failed: {}", problems.len(), detail);
+                }
+                app.toast_error(&ctx, msg);
+            } else if !msg.is_empty() {
+                app.toast(&ctx, msg);
+            }
+            let r = r.map(|mut v| {
+                if !lut_paths.is_empty()
+                    && let Some(o) = v.as_object_mut()
+                {
+                    o.insert("profiles".into(), profiles_result);
+                }
+                v
+            });
             return Some(r);
         }
         "file.importKeywords" => {
