@@ -40,6 +40,8 @@ pub fn parse_backends(s: &str) -> Option<BackendChoice> {
         "" => None,
         "auto" | "default" => Some(BackendChoice::Auto),
         "off" | "none" | "cpu" | "0" | "false" | "no" => Some(BackendChoice::Off),
+        // the window's OpenGL renderer (see `WindowRenderer`): compute keeps its default
+        "glow" => Some(BackendChoice::Auto),
         _ => {
             let b = Backends::from_comma_list(&s);
             (!b.is_empty()).then_some(BackendChoice::Use(b))
@@ -192,6 +194,87 @@ pub fn read_init_marker(path: &std::path::Path) -> Option<String> {
     Some(text.trim().to_string())
 }
 
+/// What draws the desktop window: egui-wgpu on one wgpu backend, or eframe's OpenGL renderer
+/// (glow) as the last resort when no wgpu backend can build the window's pipeline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WindowRenderer {
+    /// egui-wgpu on exactly one backend.
+    Wgpu(Backends),
+    /// eframe's glow (OpenGL) renderer.
+    Glow,
+}
+
+impl WindowRenderer {
+    /// The name used in `LIGHTCRAFT_GPU_BACKEND`, the remembered-renderer file and the logs.
+    pub fn name(self) -> &'static str {
+        match self {
+            WindowRenderer::Glow => "glow",
+            WindowRenderer::Wgpu(b) if b == Backends::DX12 => "dx12",
+            WindowRenderer::Wgpu(b) if b == Backends::VULKAN => "vulkan",
+            WindowRenderer::Wgpu(b) if b == Backends::METAL => "metal",
+            WindowRenderer::Wgpu(b) if b == Backends::GL => "gl",
+            WindowRenderer::Wgpu(_) => "wgpu",
+        }
+    }
+
+    /// One renderer name (`dx12`, `vulkan`, `metal`, `gl`, `glow`); anything else (lists, `auto`,
+    /// `off`, unknown names) is `None`.
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim().to_ascii_lowercase();
+        if s == "glow" {
+            return Some(WindowRenderer::Glow);
+        }
+        match parse_backends(&s)? {
+            BackendChoice::Use(b) if [Backends::DX12, Backends::VULKAN, Backends::METAL, Backends::GL].contains(&b) => Some(WindowRenderer::Wgpu(b)),
+            _ => None,
+        }
+    }
+}
+
+/// The renderer the environment forces for the window: `LIGHTCRAFT_GPU_BACKEND` (`app`), else
+/// `WGPU_BACKEND` (`wgpu`), when it names exactly one renderer.
+pub fn forced_window_renderer(app: Option<&str>, wgpu: Option<&str>) -> Option<WindowRenderer> {
+    app.and_then(WindowRenderer::parse).or_else(|| wgpu.and_then(WindowRenderer::parse))
+}
+
+/// The order in which the window's renderers are tried on `os`: the forced one (environment)
+/// first, then the one remembered from the last good start, then the platform chain — on Windows
+/// DX12, Vulkan, GL, then glow. DX12 stays first: with Vulkan loaded, a broken Vulkan driver can
+/// crash the process uncatchably (issue #136), so Vulkan is touched only after DX12 failed.
+/// `failed` (the renderer the last start died in) goes last, as a last resort only. Backends not
+/// in `compiled`, and glow without `glow`, are left out; the list is never empty.
+pub fn window_renderer_order(
+    forced: Option<WindowRenderer>,
+    remembered: Option<WindowRenderer>,
+    failed: Option<WindowRenderer>,
+    os: &str,
+    compiled: Backends,
+    glow: bool,
+) -> Vec<WindowRenderer> {
+    let platform = match os {
+        "windows" => vec![Backends::DX12, Backends::VULKAN, Backends::GL],
+        "macos" | "ios" => vec![Backends::METAL],
+        _ => vec![Backends::VULKAN, Backends::GL],
+    };
+    let chain = platform.into_iter().map(WindowRenderer::Wgpu).chain([WindowRenderer::Glow]);
+    let usable = |r: &WindowRenderer| match r {
+        WindowRenderer::Glow => glow,
+        WindowRenderer::Wgpu(b) => !b.is_empty() && compiled.contains(*b),
+    };
+    let not_failed = |r: &WindowRenderer| Some(*r) != failed;
+    let candidates = forced.into_iter().chain(remembered.filter(not_failed)).chain(chain.filter(not_failed)).chain(failed);
+    let mut out: Vec<WindowRenderer> = Vec::new();
+    for r in candidates {
+        if usable(&r) && !out.contains(&r) {
+            out.push(r);
+        }
+    }
+    if out.is_empty() {
+        out.push(WindowRenderer::Wgpu(default_window_backends(os) & compiled));
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -279,5 +362,45 @@ mod tests {
         assert_eq!(take_init_marker(&m), None);
         assert_eq!(read_init_marker(&m), None);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The window's renderer fallback: forced, remembered, the platform chain, the failed one last.
+    #[test]
+    fn window_renderer_fallback_order() {
+        use WindowRenderer::{Glow, Wgpu};
+        let all = Backends::DX12 | Backends::VULKAN | Backends::GL | Backends::METAL;
+        let (dx, vk, gl) = (Wgpu(Backends::DX12), Wgpu(Backends::VULKAN), Wgpu(Backends::GL));
+        assert_eq!(window_renderer_order(None, None, None, "windows", all, true), [dx, vk, gl, Glow]);
+        assert_eq!(window_renderer_order(None, None, None, "windows", all, false), [dx, vk, gl]);
+        // a build without GL
+        assert_eq!(window_renderer_order(None, None, None, "windows", Backends::DX12 | Backends::VULKAN, true), [dx, vk, Glow]);
+        // remembered from the last good start goes first
+        assert_eq!(window_renderer_order(None, Some(vk), None, "windows", all, true), [vk, dx, gl, Glow]);
+        // the environment wins over the remembered one
+        assert_eq!(window_renderer_order(Some(gl), Some(vk), None, "windows", all, true), [gl, vk, dx, Glow]);
+        assert_eq!(window_renderer_order(Some(Glow), None, None, "windows", all, true)[0], Glow);
+        // the last start died in DX12: tried last only (also when it was remembered)
+        assert_eq!(window_renderer_order(None, Some(dx), Some(dx), "windows", all, true), [vk, gl, Glow, dx]);
+        // a forced backend that is not in the build is skipped
+        assert_eq!(window_renderer_order(Some(Wgpu(Backends::METAL)), None, None, "windows", Backends::DX12, false), [dx]);
+        // never empty
+        assert!(!window_renderer_order(None, None, None, "windows", Backends::empty(), false).is_empty());
+        assert_eq!(window_renderer_order(None, None, None, "macos", all, true), [Wgpu(Backends::METAL), Glow]);
+    }
+
+    #[test]
+    fn window_renderer_names_round_trip() {
+        for n in ["dx12", "vulkan", "metal", "gl", "glow"] {
+            assert_eq!(WindowRenderer::parse(n).map(WindowRenderer::name), Some(n));
+        }
+        assert_eq!(WindowRenderer::parse(" DX12 "), Some(WindowRenderer::Wgpu(Backends::DX12)));
+        for n in ["auto", "off", "vulkan,gl", "", "bogus"] {
+            assert_eq!(WindowRenderer::parse(n), None, "{n}");
+        }
+        assert_eq!(forced_window_renderer(Some("glow"), Some("dx12")), Some(WindowRenderer::Glow));
+        assert_eq!(forced_window_renderer(Some("auto"), Some("vulkan")), Some(WindowRenderer::Wgpu(Backends::VULKAN)));
+        assert_eq!(forced_window_renderer(None, None), None);
+        // `glow` only concerns the window: compute keeps its default, without a warning
+        assert_eq!(parse_backends("glow"), Some(BackendChoice::Auto));
     }
 }
