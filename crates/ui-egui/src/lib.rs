@@ -42,11 +42,11 @@ mod tests_activity;
 #[cfg(test)]
 mod tests_album_picker;
 #[cfg(test)]
-mod tests_copy_paste_dialogs;
+mod tests_before_after;
 #[cfg(test)]
 mod tests_compare;
 #[cfg(test)]
-mod tests_before_after;
+mod tests_copy_paste_dialogs;
 #[cfg(test)]
 mod tests_crop_rotate;
 #[cfg(test)]
@@ -451,11 +451,7 @@ impl LightcraftApp {
             let completed = match id {
                 "library.compact" => Some(format!("✓ {}", i18n::tr("Optimize Library"))),
                 "library.clearPreviews" => Some(format!("✓ {}", i18n::tr("Clear Preview Cache"))),
-                "develop.autoSync" => Some(format!(
-                    "{}: {}",
-                    i18n::tr("Auto Sync"),
-                    i18n::tr(if self.session.auto_sync { "On" } else { "Off" })
-                )),
+                "develop.autoSync" => Some(format!("{}: {}", i18n::tr("Auto Sync"), i18n::tr(if self.session.auto_sync { "On" } else { "Off" }))),
                 _ => None,
             };
             if let Some(message) = completed {
@@ -1167,11 +1163,8 @@ pub fn split_presets(dropped: Vec<String>) -> (Vec<String>, Vec<String>) {
     let stem_of = |p: &str| std::path::Path::new(p).file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let name_of = |p: &str| std::path::Path::new(p).file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
     let is_xmp = |p: &str| std::path::Path::new(p).extension().is_some_and(|e| e.eq_ignore_ascii_case("xmp"));
-    let photo_names: Vec<(String, String)> = dropped
-        .iter()
-        .filter(|p| !is_preset_file(p))
-        .flat_map(|p| [(dir_of(p), stem_of(p)), (dir_of(p), name_of(p))])
-        .collect();
+    let photo_names: Vec<(String, String)> =
+        dropped.iter().filter(|p| !is_preset_file(p)).flat_map(|p| [(dir_of(p), stem_of(p)), (dir_of(p), name_of(p))]).collect();
     let (mut presets, mut photos) = (Vec::new(), Vec::new());
     for p in dropped {
         if !is_preset_file(&p) {
