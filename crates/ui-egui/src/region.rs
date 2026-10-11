@@ -70,11 +70,10 @@ pub struct ViewSizes {
     pub native_long: usize,
     /// The largest texture the GPU takes.
     pub texture_side: usize,
-    /// 1.0, or less while a slider is dragged (a draft of the whole-frame render; see
-    /// [`drag_scale`]).
-    pub draft_scale: f32,
-    /// A slider is being dragged: the render is a draft, never above the canvas size.
-    pub drafting: bool,
+    /// While a slider is dragged, the scale of the whole-frame draft against the render at rest
+    /// (1.0 or [`CPU_DRAFT_SCALE`], from [`DragScale`]); a draft is never above the canvas size.
+    /// `None`: no drag.
+    pub draft: Option<f32>,
     /// Whether a window can be drawn over the whole-frame render (not with a diagnostic overlay
     /// that needs whole-frame context, soft proofing, or a read too far for one window). Mask
     /// overlays are window-safe.
@@ -93,13 +92,95 @@ pub struct LoupePlan {
     pub window_edge: Option<usize>,
 }
 
-/// Size of a slider drag's whole-frame draft on the CPU, against the render at rest.
+/// Size of a slider drag's whole-frame draft when full size would be too slow (the CPU renders
+/// it, or full-size drafts of this drag went over [`DRAFT_BUDGET_MS`]), against the render at rest.
 pub const CPU_DRAFT_SCALE: f32 = 0.6;
 
-/// [`ViewSizes::draft_scale`] for the loupe: a drag on the GPU renders at full size (a canvas-sized
-/// draft takes a few ms there, issue #330); on the CPU it renders a smaller draft to keep up.
-pub fn drag_scale(drafting: bool, gpu: bool) -> f32 {
-    if drafting && !gpu { CPU_DRAFT_SCALE } else { 1.0 }
+/// The slider budget (ms): a drag whose full-size drafts take longer gets smaller drafts next time.
+pub const DRAFT_BUDGET_MS: f64 = 16.0;
+
+/// The most (photo, control) pairs [`DragScale`] remembers as too slow for full-size drafts.
+const SLOW_DRAGS_KEPT: usize = 256;
+
+/// The size of a slider drag's whole-frame draft, chosen when the drag starts and kept until it
+/// ends (a change in the middle would make the resolution jump). A drag renders at full size when
+/// the GPU draws the view and no earlier drag of the same control on this photo went over budget
+/// at that size; otherwise at [`CPU_DRAFT_SCALE`] (issue #330). Whether the GPU drew a render is
+/// not enough on its own: some views (a LUT profile, refined masks, a photo past a GPU limit) fall
+/// back to the CPU per render, which only the time a draft took shows.
+#[derive(Clone, Debug, Default)]
+pub struct DragScale {
+    /// The drag running now: (photo, control) and its scale.
+    current: Option<((lightcraft_catalog::PhotoId, String), f32)>,
+    /// How long the current drag's full-size drafts took (ms).
+    samples: Vec<f64>,
+    /// Key of the whole-frame render last timed (each render is timed once).
+    seen: Option<u64>,
+    /// Drags whose full-size drafts went over budget.
+    slow: std::collections::HashSet<(lightcraft_catalog::PhotoId, String)>,
+}
+
+impl DragScale {
+    /// The draft scale for this frame, or `None` without a drag. `drag` is the photo and control
+    /// being dragged; `gpu` whether the GPU draws this view; `shown` the key of the whole-frame
+    /// render on screen (a render from before the drag is not one of its drafts).
+    pub fn scale(&mut self, drag: Option<(lightcraft_catalog::PhotoId, &str)>, gpu: bool, shown: Option<u64>) -> Option<f32> {
+        let Some((photo, control)) = drag else {
+            self.finish();
+            return None;
+        };
+        match &self.current {
+            Some(((p, c), s)) if *p == photo && c == control => return Some(*s),
+            Some(_) => self.finish(),
+            None => {}
+        }
+        let key = (photo, control.to_string());
+        let s = if gpu && !self.slow.contains(&key) { 1.0 } else { CPU_DRAFT_SCALE };
+        self.current = Some((key, s));
+        self.seen = shown;
+        Some(s)
+    }
+
+    /// The whole-frame render on screen: `key` identifies it, `ms` is how long it took. Times the
+    /// current drag's full-size drafts.
+    pub fn observe(&mut self, key: u64, ms: f64) {
+        let full = matches!(self.current, Some((_, s)) if s >= 1.0);
+        if !full || self.seen == Some(key) {
+            return;
+        }
+        self.seen = Some(key);
+        if ms.is_finite() && ms >= 0.0 && self.samples.len() < 1024 {
+            self.samples.push(ms);
+        }
+    }
+
+    /// Remember drags of `control` on `photo` as too slow for full-size drafts (tests).
+    #[cfg(test)]
+    pub fn remember_slow(&mut self, photo: lightcraft_catalog::PhotoId, control: &str) {
+        self.slow.insert((photo, control.to_string()));
+    }
+
+    /// The drag ended: remember it if its full-size drafts were over budget.
+    fn finish(&mut self) {
+        if let Some((key, _)) = self.current.take()
+            && over_budget(&self.samples)
+        {
+            if self.slow.len() >= SLOW_DRAGS_KEPT {
+                self.slow.clear();
+            }
+            self.slow.insert(key);
+        }
+        self.samples.clear();
+        self.seen = None;
+    }
+}
+
+/// Whether a drag's draft times (ms) are over [`DRAFT_BUDGET_MS`]: the median, leaving out the
+/// first draft (it rebuilds the stage caches the others reuse).
+fn over_budget(samples: &[f64]) -> bool {
+    let mut rest: Vec<f64> = samples.iter().skip(1).copied().collect();
+    rest.sort_by(f64::total_cmp);
+    rest.get(rest.len() / 2).is_some_and(|median| *median > DRAFT_BUDGET_MS)
 }
 
 /// The loupe's render plan. The cost of a render follows the canvas, not the zoom: the whole-frame
@@ -107,12 +188,12 @@ pub fn drag_scale(drafting: bool, gpu: bool) -> f32 {
 pub fn plan(settings: &crate::state::AppSettings, v: ViewSizes) -> LoupePlan {
     let canvas_long = if v.canvas_long.is_finite() { v.canvas_long.max(8.0) } else { 8.0 };
     let drawn_long = if v.drawn_long.is_finite() { v.drawn_long.max(8.0) } else { canvas_long };
-    let scale = if v.draft_scale.is_finite() { v.draft_scale.clamp(0.1, 1.0) } else { 1.0 };
+    let scale = v.draft.map_or(1.0, |s| if s.is_finite() { s.clamp(0.1, 1.0) } else { 1.0 });
     if !v.windows {
         // the whole frame at the size it is drawn (soft proof or a whole-frame diagnostic has no
         // window); while a slider drags, a canvas-sized draft as with windows: a drag at 1:1 must
         // not render the photo's every pixel each frame
-        let long = if v.drafting { drawn_long.min(canvas_long) } else { drawn_long };
+        let long = if v.draft.is_some() { drawn_long.min(canvas_long) } else { drawn_long };
         let main_edge = settings.loupe_edge(long * scale, v.native_long, v.texture_side);
         return LoupePlan { main_edge, window_edge: None };
     }
@@ -237,7 +318,7 @@ mod tests {
     const BIG: usize = 16384;
 
     fn sizes(drawn: f32, canvas: f32, native: usize) -> ViewSizes {
-        ViewSizes { drawn_long: drawn, canvas_long: canvas, native_long: native, texture_side: BIG, draft_scale: 1.0, drafting: false, windows: true }
+        ViewSizes { drawn_long: drawn, canvas_long: canvas, native_long: native, texture_side: BIG, draft: None, windows: true }
     }
 
     fn auto() -> AppSettings {
@@ -288,7 +369,7 @@ mod tests {
     #[test]
     fn a_drag_shrinks_the_whole_frame_draft_not_the_window() {
         let still = plan(&auto(), sizes(24000.0, 2800.0, 6000));
-        let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(24000.0, 2800.0, 6000) });
+        let drag = plan(&auto(), ViewSizes { draft: Some(0.6), ..sizes(24000.0, 2800.0, 6000) });
         assert!(drag.main_edge < still.main_edge, "{drag:?} vs {still:?}");
         assert_eq!(drag.window_edge, still.window_edge);
     }
@@ -298,9 +379,9 @@ mod tests {
     // windowed path
     #[test]
     fn without_a_window_a_drag_drafts_at_the_canvas_size() {
-        let no_window = |draft_scale: f32| ViewSizes { windows: false, draft_scale, drafting: draft_scale < 1.0, ..sizes(24000.0, 2800.0, 6000) };
-        let still = plan(&auto(), no_window(1.0));
-        let drag = plan(&auto(), no_window(0.6));
+        let no_window = |draft: Option<f32>| ViewSizes { windows: false, draft, ..sizes(24000.0, 2800.0, 6000) };
+        let still = plan(&auto(), no_window(None));
+        let drag = plan(&auto(), no_window(Some(0.6)));
         assert_eq!(still.window_edge, None);
         assert!(still.main_edge > 2800, "at rest the zoomed frame: {still:?}");
         assert!(drag.main_edge <= 2800, "a drag drafts at most the canvas: {drag:?}");
@@ -309,27 +390,85 @@ mod tests {
     // Given a slider drag, the GPU renders it at full size and the CPU a smaller draft (#330)
     #[test]
     fn a_drag_shrinks_the_draft_only_on_the_cpu() {
-        assert_eq!(drag_scale(true, true), 1.0);
-        assert_eq!(drag_scale(true, false), CPU_DRAFT_SCALE);
-        assert_eq!(drag_scale(false, true), 1.0);
-        assert_eq!(drag_scale(false, false), 1.0);
+        use lightcraft_catalog::PhotoId;
+        let mut gpu = DragScale::default();
+        assert_eq!(gpu.scale(None, true, None), None, "no drag, no draft");
+        assert_eq!(gpu.scale(Some((PhotoId(1), "Exposure")), true, None), Some(1.0));
+        let mut cpu = DragScale::default();
+        assert_eq!(cpu.scale(Some((PhotoId(1), "Exposure")), false, None), Some(CPU_DRAFT_SCALE));
     }
 
-    // Given a drag at fit on the GPU, the draft is as sharp as the render at rest
+    // Given a drag that started before the GPU was ready, it keeps its size until it ends: the
+    // resolution never jumps in the middle of a drag
     #[test]
-    fn a_gpu_drag_at_fit_keeps_the_resolution() {
+    fn a_drag_keeps_its_draft_size_until_it_ends() {
+        use lightcraft_catalog::PhotoId;
+        let mut d = DragScale::default();
+        let drag = Some((PhotoId(1), "Exposure"));
+        assert_eq!(d.scale(drag, false, None), Some(CPU_DRAFT_SCALE));
+        assert_eq!(d.scale(drag, true, None), Some(CPU_DRAFT_SCALE), "the GPU came up mid-drag");
+        assert_eq!(d.scale(None, true, None), None);
+        assert_eq!(d.scale(drag, true, None), Some(1.0), "the next drag gets full size");
+        // and the other way: the GPU lost mid-drag keeps the drag at full size until it ends
+        assert_eq!(d.scale(drag, false, None), Some(1.0));
+    }
+
+    // Given full-size drafts over the slider budget (a LUT profile or refined mask the CPU renders,
+    // a photo past a GPU limit, a slow GPU), the next drag of that control on that photo drafts
+    // small; other controls and photos keep full size
+    #[test]
+    fn a_drag_over_budget_drafts_small_the_next_time() {
+        use lightcraft_catalog::PhotoId;
+        let mut d = DragScale::default();
+        let exposure = Some((PhotoId(1), "Exposure"));
+        assert_eq!(d.scale(exposure, true, Some(7)), Some(1.0));
+        d.observe(7, 400.0); // the render from before the drag: not a draft of it
+        for (key, ms) in [(8, 300.0), (9, 40.0), (10, 45.0), (11, 9.0)] {
+            d.observe(key, ms);
+            d.observe(key, ms); // a render is timed once, however many frames show it
+        }
+        assert_eq!(d.scale(None, true, None), None);
+        assert_eq!(d.scale(exposure, true, None), Some(CPU_DRAFT_SCALE));
+        assert_eq!(d.scale(Some((PhotoId(1), "Contrast")), true, None), Some(1.0));
+        assert_eq!(d.scale(Some((PhotoId(2), "Exposure")), true, None), Some(1.0));
+    }
+
+    // Given full-size drafts within budget (the first one, rebuilding the stage caches, may be
+    // slow), the next drag stays at full size
+    #[test]
+    fn a_drag_within_budget_stays_full_size() {
+        use lightcraft_catalog::PhotoId;
+        let mut d = DragScale::default();
+        let drag = Some((PhotoId(1), "Exposure"));
+        d.scale(drag, true, None);
+        for (key, ms) in [(1, 120.0), (2, 4.0), (3, 6.0), (4, 30.0), (5, 5.0)] {
+            d.observe(key, ms);
+        }
+        d.scale(None, true, None);
+        assert_eq!(d.scale(drag, true, None), Some(1.0));
+        // hostile times are ignored, never a panic
+        for (key, ms) in [(6, f64::NAN), (7, f64::INFINITY), (8, -1.0)] {
+            d.observe(key, ms);
+        }
+        d.scale(None, true, None);
+        assert_eq!(d.scale(drag, true, None), Some(1.0));
+    }
+
+    // Given a drag at fit at full size, the draft is as sharp as the render at rest
+    #[test]
+    fn a_full_size_drag_at_fit_keeps_the_resolution() {
         for drawn in [1400.0, 2800.0] {
             let still = plan(&auto(), sizes(drawn, drawn, 6000));
-            let drag = plan(&auto(), ViewSizes { draft_scale: drag_scale(true, true), drafting: true, ..sizes(drawn, drawn, 6000) });
+            let drag = plan(&auto(), ViewSizes { draft: Some(1.0), ..sizes(drawn, drawn, 6000) });
             assert_eq!(drag, still, "{drawn}");
         }
     }
 
-    // Given no window and a drag on the GPU, the draft is still at most the canvas: a drag at 1:1
+    // Given no window and a full-size drag, the draft is still at most the canvas: a drag at 1:1
     // must not render the photo's every pixel each frame
     #[test]
-    fn a_gpu_drag_without_a_window_drafts_at_the_canvas_size() {
-        let drag = plan(&auto(), ViewSizes { windows: false, draft_scale: 1.0, drafting: true, ..sizes(24000.0, 2800.0, 6000) });
+    fn a_full_size_drag_without_a_window_drafts_at_the_canvas_size() {
+        let drag = plan(&auto(), ViewSizes { windows: false, draft: Some(1.0), ..sizes(24000.0, 2800.0, 6000) });
         assert!(drag.main_edge <= 2816, "{drag:?}");
     }
 
@@ -365,7 +504,7 @@ mod tests {
     fn a_drag_at_fit_on_a_large_display_keeps_the_window() {
         for drawn in [3300.0, 3840.0, 4096.0, 5120.0] {
             let still = plan(&auto(), sizes(drawn, drawn, 6000));
-            let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(drawn, drawn, 6000) });
+            let drag = plan(&auto(), ViewSizes { draft: Some(0.6), ..sizes(drawn, drawn, 6000) });
             assert!(still.window_edge.is_some(), "{drawn}: {still:?}");
             assert_eq!(drag.window_edge, still.window_edge, "{drawn}");
         }
@@ -409,7 +548,7 @@ mod tests {
     // Given a drag at fit on a Retina Mac, the window does not switch on (it would flicker with the drag)
     #[test]
     fn a_drag_at_fit_does_not_switch_the_window_on() {
-        let p = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(2800.0, 2800.0, 6000) });
+        let p = plan(&auto(), ViewSizes { draft: Some(0.6), ..sizes(2800.0, 2800.0, 6000) });
         assert_eq!(p.window_edge, None);
     }
 
@@ -480,7 +619,7 @@ mod tests {
     #[test]
     fn hostile_sizes_give_a_usable_plan() {
         for v in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -3.0, 0.0] {
-            let p = plan(&auto(), ViewSizes { drawn_long: v, canvas_long: v, draft_scale: v, ..sizes(1.0, 1.0, 6000) });
+            let p = plan(&auto(), ViewSizes { drawn_long: v, canvas_long: v, draft: Some(v), ..sizes(1.0, 1.0, 6000) });
             assert!((8..=2560).contains(&p.main_edge), "{v}: {p:?}");
         }
         let p = plan(&auto(), sizes(1000.0, 1000.0, 0));

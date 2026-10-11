@@ -433,6 +433,44 @@ mod in_the_loupe {
         assert!(w * hh <= 3_000_000, "{w}×{hh}: the window holds what is on screen, not the frame");
     }
 
+    /// Drag Exposure in the loupe and return the long edge of the whole-frame draft shown, with
+    /// the largest a small (CPU-sized) draft of the photo as drawn can be.
+    fn drag_exposure(h: &mut Headless) -> (usize, usize) {
+        h.app.session.begin_interaction("Exposure").unwrap();
+        h.request("engine.execute", json!({"command": "develop.set", "params": {"control": "light.exposure", "value": 0.5}}), T);
+        h.settle(SETTLE);
+        let image = h.app.image_rect.expect("the photo was drawn");
+        let small = (image.width().max(image.height()) * crate::region::CPU_DRAFT_SCALE) as usize + crate::state::LOUPE_EDGE_STEP;
+        (rendered_long_edge(h), small)
+    }
+
+    // Given a drag whose full-size drafts were too slow before (the CPU, a LUT profile, a slow
+    // GPU), when the same slider is dragged again, then it drafts small (#330)
+    #[test]
+    fn a_slow_drag_drafts_small() {
+        // the GPU device up front (the loupe never waits for it): with one, it is the earlier
+        // drag's time that makes this drag small
+        let _ = lightcraft_engine::gpu::available();
+        let (mut h, _) = detail();
+        let id = h.app.session.active().expect("a photo is open");
+        h.app.drag_scale.remember_slow(id, "Exposure");
+        let (main, small) = drag_exposure(&mut h);
+        assert!(main <= small, "the draft is {main} px, a small one at most {small}");
+    }
+
+    // Given soft proofing (rendered on the CPU even with a GPU), a drag drafts small (#330)
+    #[test]
+    fn a_soft_proofed_drag_drafts_small() {
+        // the GPU device up front (the loupe never waits for it): with one, this is the case where
+        // the GPU is there and the render still goes to the CPU
+        let _ = lightcraft_engine::gpu::available();
+        let (mut h, _) = detail();
+        h.app.ui.soft_proof = true;
+        h.settle(SETTLE);
+        let (main, small) = drag_exposure(&mut h);
+        assert!(main <= small, "the draft is {main} px, a small one at most {small}");
+    }
+
     fn tile(h: &Headless, slot: Slot) -> Option<(usize, usize)> {
         h.app.renderer.textures.get(&slot).map(|t| (t.size[0], t.size[1]))
     }
