@@ -251,6 +251,45 @@ mod tests {
         assert_eq!(crate::embedded_preview_color_space(b"not a TIFF"), None);
     }
 
+    /// Issue #778: any make's raw falls back to its EXIF ColorSpace, with Uncalibrated + InteropIndex "R03" read as
+    /// Adobe RGB; the Nikon note wins; a DNG is left alone.
+    #[test]
+    fn preview_color_space_falls_back_to_the_exif_color_space() {
+        let file = |make: &str, cs: u16, interop: Option<&str>, note: Option<u16>, dng: bool| {
+            let mut exif = IfdBuilder::new();
+            exif.set(0xA001, Value::Short(vec![cs]));
+            if let Some(i) = interop {
+                let mut io = IfdBuilder::new();
+                io.set(0x0001, Value::Ascii(i.into()));
+                exif.set_child(t::INTEROP_IFD, io);
+            }
+            if let Some(v) = note {
+                let mut mn = IfdBuilder::new();
+                mn.set(0x001e, Value::Short(vec![v]));
+                let mut bytes = b"Nikon   ".to_vec();
+                bytes.extend(TiffWriter::new(ByteOrder::Little, false).write(&[mn]).unwrap());
+                exif.set(t::MAKER_NOTE, Value::Undefined(bytes));
+            }
+            let mut ifd0 = IfdBuilder::new();
+            ifd0.set(t::MAKE, Value::Ascii(make.into()));
+            if dng {
+                ifd0.set(t::DNG_VERSION, Value::Byte(vec![1, 4, 0, 0]));
+            }
+            ifd0.set_child(t::EXIF_IFD, exif);
+            TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap()
+        };
+        use crate::PreviewColorSpace::{AdobeRgb, Srgb};
+        let f = crate::embedded_preview_color_space;
+        assert_eq!(f(&file("SONY", 0xFFFF, Some("R03"), None, false)), Some(AdobeRgb));
+        assert_eq!(f(&file("SONY", 1, Some("R98"), None, false)), Some(Srgb));
+        assert_eq!(f(&file("SONY", 0xFFFF, Some("R98"), None, false)), None);
+        assert_eq!(f(&file("SONY", 0xFFFF, None, None, false)), None);
+        assert_eq!(f(&file("Canon", 0xFFFF, Some("R03"), None, false)), Some(AdobeRgb));
+        assert_eq!(f(&file("NIKON CORPORATION", 1, Some("R98"), Some(2), false)), Some(AdobeRgb));
+        assert_eq!(f(&file("NIKON CORPORATION", 0xFFFF, Some("R03"), None, false)), Some(AdobeRgb));
+        assert_eq!(f(&file("Canon", 0xFFFF, Some("R03"), None, true)), None);
+    }
+
     #[test]
     fn nikon_crop_area_preserves_sensor_origin_and_rejects_invalid_rectangles() {
         let (w, h) = (32, 24);

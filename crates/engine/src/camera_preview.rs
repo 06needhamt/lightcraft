@@ -22,8 +22,9 @@ use lightcraft_raw::{RawFormat, RawImage, color::CameraTransform, profile::HsvTa
 /// that leave the fitted look alone. `RENDER_CACHE_VERSION` covers renders; this covers proxies.
 ///
 /// 1: the fit as of #499's follow-up; 2: Sony DRO (tone curve lowered to Sony's curve without DRO)
-/// and the ILCE-7CR profile (#528, #583, #568, #616).
-pub const LOOK_VERSION: u32 = 2;
+/// and the ILCE-7CR profile (#528, #583, #568, #616); 3: the camera JPEG read in the colour space the raw's EXIF
+/// states, for every make (#778).
+pub const LOOK_VERSION: u32 = 3;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
