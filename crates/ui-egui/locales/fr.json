@@ -1907,5 +1907,6 @@
   "Intent:": "Mode de rendu :",
   "Perceptual": "Perceptif",
   "Relative": "Relatif",
-  "Simulate Paper & Ink": "Simuler le papier et l'encre"
+  "Simulate Paper & Ink": "Simuler le papier et l'encre",
+  "Content-Aware": "Contenu pris en compte"
 }

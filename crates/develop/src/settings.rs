@@ -963,6 +963,8 @@ pub enum SpotMode {
     Remove,
     Heal,
     Clone,
+    /// Content-aware: the spot is rebuilt from patches of its surroundings (no single source).
+    Fill,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
