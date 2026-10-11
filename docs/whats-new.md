@@ -11,6 +11,16 @@
 - Quitting while a task that can be stopped is running asks first ("Quit Anyway" stops it).
 - Agents list and stop tasks with `activity.list` and `activity.cancel`; `ui.inspect` reports them as `activity`.
 
+### Importing a deleted photo again
+- Importing a file whose photo is in Recently Deleted brings the photo back, with its edits, rating and albums
+  (issue #706; before, the import skipped it as "already in the library" while the grid showed it deleted). The
+  import review checks such files, marks them "Will be restored" and counts them as "in Recently Deleted"; the
+  choice next to that (Restore them / Import as new / Leave them) now starts on Restore. Files dropped on the window
+  restore the photo too and say "Restored 1 photo from Recently Deleted". A deleted photo whose file was moved is
+  relinked to the file it is imported from. Browsing a folder in Local, Auto Import and a Lightroom catalog import
+  never restore anything. Agents: `library.import` → `onDeleted` defaults to `restore` (`skip` keeps the old
+  behaviour, `fresh` imports a clean copy and deletes the old record).
+
 ## 2026-10-09
 
 ### Smart album rules
