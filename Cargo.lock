@@ -3096,6 +3096,7 @@ dependencies = [
  "lightcraft-develop",
  "lightcraft-geom",
  "lightcraft-meta",
+ "lightcraft-raw",
  "log",
  "proptest",
  "serde",

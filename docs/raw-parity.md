@@ -188,7 +188,7 @@ sample files. A pointer for contributors, not legal advice.
 | Camera Matching looks | 481 models (plus phone-maker looks) | none (the per-file JPEG fit imitates the camera's own look) |
 | Creative profiles | Adobe Color, Portrait, Landscape, Vivid, Monochrome… | our own looks (Color, Neutral, Vivid, Landscape, Portrait, Monochrome) |
 | DCP / dual-illuminant model | ✅ | dual-illuminant DNG colour (ColorMatrix / ForwardMatrix 1-2, CameraCalibration, AnalogBalance), HueSatMap, LookTable, ProfileToneCurve; external `.dcp` never loaded (clean-room) |
-| White balance in Kelvin | ✅ for every model | absolute Kelvin only where matrices exist; per-file fits give relative WB (#296, #730) |
+| White balance in Kelvin | ✅ for every model | absolute Kelvin where the camera has colour matrices (its own, or one of the 52 spectral rows), also for files whose look is a per-file fit (#730); other raws keep the relative scale (#296) |
 
 **How far the default rendering is from Adobe's** (CIE ΔE; measured where stated):
 
@@ -203,7 +203,7 @@ sample files. A pointer for contributors, not legal advice.
   desaturated), the largest group of open core-path issues.
 
 **Colour score ~35%** (estimated): most decoded files start close to the camera's own look (ΔE ~5),
-about 10% start far off (ΔE ~18), nothing is calibrated, Kelvin WB is missing for fitted cameras, and
+about 10% start far off (ΔE ~18), nothing is calibrated, Kelvin WB is missing for fitted cameras without colour matrices, and
 the distance to Adobe Standard is unmeasured. In the readiness numbers this becomes a colour factor
 of ×0.85 for a working photographer (they correct colour by hand, at a cost) and ×0.75 for the
 essentials user (the default look is what they keep).
@@ -257,7 +257,7 @@ Beyond decoding:
 
 | Gap | Hours | Needs |
 |---|---:|---|
-| Measured colour calibration for the ~60 popular bodies, Kelvin WB, render-fidelity suite against Lightroom | 80–150 | chart shots per camera (a human with cameras) or licensable measured data |
+| Measured colour calibration for the ~60 popular bodies, Kelvin WB for cameras without matrices, render-fidelity suite against Lightroom | 80–150 | chart shots per camera (a human with cameras) or licensable measured data |
 | Lens profile database of our own (fitting tools, data format, top 100 lenses), maker-note vignetting / CA | 40–80 | calibration shots (a human with lenses) |
 | Demosaic and highlight quality measured against Lightroom; X-Trans AI denoise | 15–30 | |
 | **Total RAW** | **255–480 h** (decoding list above 120–220 h; ~60% parallelizes) | |
