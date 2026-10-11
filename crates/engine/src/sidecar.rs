@@ -468,20 +468,40 @@ impl Session {
     }
 
     /// Write the photo's XMP sidecar, merged into an existing one (see the module docs).
-    pub fn save_sidecar(&self, id: PhotoId) -> Result<SidecarSaved> {
+    pub fn save_sidecar(&mut self, id: PhotoId) -> Result<SidecarSaved> {
         self.save_sidecar_with(id, &StemOwners::of(&self.catalog))
     }
 
-    pub(crate) fn save_sidecar_with(&self, id: PhotoId, owners: &StemOwners) -> Result<SidecarSaved> {
+    pub(crate) fn save_sidecar_with(&mut self, id: PhotoId, owners: &StemOwners) -> Result<SidecarSaved> {
         let p = self.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?;
         if p.copy_of.is_some() {
             return Err(EngineError::Other(format!("{} is a virtual copy: its settings live only in the library", p.file_name)));
         }
         let orig = file_path(p).ok_or_else(|| EngineError::Other(format!("{} is not a file on disk", p.file_name)))?;
-        let path = sidecar_path(orig, owners.naming(p, self.xmp.naming));
+        let naming = owners.naming(p, self.xmp.naming);
+        let preferred = sidecar_path(orig, naming);
+        let other = if naming == SidecarNaming::Stem { SidecarNaming::Full } else { SidecarNaming::Stem };
+        let candidates: Vec<PathBuf> = [naming, other]
+            .into_iter()
+            .filter(|n| *n != SidecarNaming::Stem || owners.naming(p, SidecarNaming::Stem) == SidecarNaming::Stem)
+            .flat_map(|n| {
+                let path = sidecar_path(orig, n);
+                [path.clone(), path.with_extension("XMP")]
+            })
+            .collect();
+        // A separated packet is still the photo's metadata. Repair it before a fresh write
+        // occupies its destination; a failure preserves the queue and both existing packets.
+        self.repair_sidecars_for_paths(&candidates, &crate::rename::RealFs)
+            .map_err(|e| EngineError::Other(format!("{}: unfinished XMP repair: {e}", preferred.display())))?;
+        // Keep an existing packet's spelling/style so foreign properties survive this save and
+        // subsequent Undo/Redo writes. Shared stems owned by another photo were excluded above.
+        let path = candidates.into_iter().find(|path| path.is_file()).unwrap_or(preferred);
+        self.validate_sidecar_packets_for_paths(std::slice::from_ref(&path), &crate::rename::RealFs)?;
+        let p = self.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?;
         let err = |e: std::io::Error| EngineError::Other(format!("{}: {e}", path.display()));
         let (data, merged, backup) = sidecar_contents(&path, sidecar_packet(p, &self.catalog), &(self.clock)()).map_err(err)?;
         write_atomic(&path, data.as_bytes()).map_err(err)?;
+        self.note_sidecar_write(&path, data.as_bytes());
         Ok(SidecarSaved { path, merged, backup })
     }
 
@@ -517,9 +537,22 @@ impl Session {
     }
 
     /// Auto-write: sidecars for photos changed by `ops` (errors are logged, not returned).
-    pub(crate) fn auto_write_sidecars(&self, ops: &[Op]) {
+    pub(crate) fn auto_write_sidecars(&mut self, ops: &[Op]) {
         let mut ids = Vec::new();
         ops.iter().for_each(|o| op_photos(o, &mut ids));
+        self.auto_write_sidecar_ids(ids);
+    }
+
+    /// Gather changed IDs before the saves mutate retained physical repair queues.
+    pub(crate) fn auto_write_sidecars_since(&mut self, log_start: usize) {
+        let mut ids = Vec::new();
+        if let Some(ops) = self.pending_log.get(log_start..) {
+            ops.iter().for_each(|o| op_photos(o, &mut ids));
+        }
+        self.auto_write_sidecar_ids(ids);
+    }
+
+    fn auto_write_sidecar_ids(&mut self, ids: Vec<PhotoId>) {
         if ids.is_empty() {
             return;
         }
@@ -633,3 +666,15 @@ mod tests {
         assert_eq!(v, vec![PhotoId(1), PhotoId(3)]);
     }
 }
+
+#[cfg(test)]
+#[path = "sidecar/tests_repair_saves.rs"]
+mod tests_repair_saves;
+
+#[cfg(test)]
+#[path = "sidecar/tests_repair_companions.rs"]
+mod tests_repair_companions;
+
+#[cfg(test)]
+#[path = "sidecar/tests_repair_provenance.rs"]
+mod tests_repair_provenance;
