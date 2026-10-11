@@ -27,6 +27,7 @@ pub mod merge;
 mod model_setup;
 pub mod panels;
 pub mod pick;
+pub mod recheck;
 pub mod region;
 pub mod render;
 pub mod shortcuts;
@@ -110,6 +111,8 @@ mod tests_preset_import;
 mod tests_preview_limit;
 #[cfg(test)]
 mod tests_quit_unsaved;
+#[cfg(test)]
+mod tests_recheck;
 #[cfg(test)]
 mod tests_sam_setup;
 #[cfg(test)]
@@ -1039,6 +1042,7 @@ impl LightcraftApp {
         sync::poll_run(self, ctx);
         import::tick(self, ctx);
         lightroom_import::tick(self, ctx);
+        recheck::tick(self);
         tasks::poll(self, ctx);
         self.preview_build_status(ctx);
         self.save_status(ctx);

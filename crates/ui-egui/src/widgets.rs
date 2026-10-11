@@ -58,8 +58,11 @@ pub fn preview_only_explanation(reason: &str) -> String {
 }
 
 /// A panel notice for a raw shown from its embedded preview (Edit, Info): an amber info icon,
-/// "Preview only" and the explanation. Registered as `notice:previewOnly:{key}`.
-pub fn preview_only_notice(ui: &mut Ui, key: &str, reason: &str) {
+/// "Preview only", the explanation and a Reload from Disk button (`button:reloadPreviewOnly:{key}`:
+/// for a file a newer version can decode that was offline when its library opened). Registered as
+/// `notice:previewOnly:{key}`. `true` when the button was clicked.
+pub fn preview_only_notice(ui: &mut Ui, key: &str, reason: &str) -> bool {
+    let mut reload = false;
     let t = Tokens::get(ui.ctx());
     let r = egui::Frame::NONE
         .fill(t.canvas)
@@ -75,11 +78,14 @@ pub fn preview_only_notice(ui: &mut Ui, key: &str, reason: &str) {
             });
             ui.add_space(2.0);
             ui.label(egui::RichText::new(preview_only_explanation(reason)).size(11.5).color(t.text_label));
+            ui.add_space(6.0);
+            reload = text_button(ui, &format!("reloadPreviewOnly:{key}"), "Reload from Disk", false).clicked();
         })
         .response;
     let r = r.on_hover_text(crate::i18n::tr_format!("Decoder: {reason}", reason = reason));
     r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, crate::i18n::tr("Preview only: editing the camera's embedded JPEG")));
     register(ui.ctx(), format!("notice:previewOnly:{key}"), r.rect);
+    reload
 }
 
 // ------------------------------------------------------------------ colour helpers

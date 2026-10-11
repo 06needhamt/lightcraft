@@ -751,6 +751,10 @@ pub struct UiState {
     #[cfg(test)]
     #[serde(skip)]
     pub find_missing_test_delay: Option<std::time::Duration>,
+    /// The library (its `Session::library_generation`) whose preview-only raws were rechecked
+    /// (`crate::recheck`).
+    #[serde(skip)]
+    pub rechecked_library: Option<u64>,
     #[serde(skip)]
     pub status: String,
     #[serde(skip)]
@@ -1158,6 +1162,7 @@ impl Default for UiState {
             last_find_missing_result: None,
             #[cfg(test)]
             find_missing_test_delay: None,
+            rechecked_library: None,
             status: String::new(),
             dialog: None,
         }

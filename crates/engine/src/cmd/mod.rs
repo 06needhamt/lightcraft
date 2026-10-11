@@ -33,6 +33,7 @@ mod prefs;
 mod preset_files;
 pub mod previews;
 mod query;
+pub mod recheck;
 mod sync;
 mod xmp;
 
@@ -157,6 +158,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(before::specs());
         v.extend(browse::specs());
         v.extend(missing::specs());
+        v.extend(recheck::specs());
         v.extend(sync::specs());
         v.extend(metadata::specs());
         v.extend(geocode::specs());

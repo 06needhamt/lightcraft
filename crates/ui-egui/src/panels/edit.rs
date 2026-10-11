@@ -133,9 +133,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         });
     });
     if let Some(why) = &preview_only {
-        egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 0, bottom: 12 }).show(ui, |ui| {
-            crate::widgets::preview_only_notice(ui, "edit", why);
-        });
+        let reload = egui::Frame::NONE
+            .inner_margin(egui::Margin { left: 24, right: 22, top: 0, bottom: 12 })
+            .show(ui, |ui| crate::widgets::preview_only_notice(ui, "edit", why))
+            .inner;
+        if reload {
+            reload_preview_only(app, ui.ctx(), id);
+        }
     }
     let n = app.session.selection.ids.len();
     if n > 1 && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
@@ -1679,6 +1683,18 @@ fn quick_develop(app: &mut LightcraftApp, ui: &mut egui::Ui, n: usize) {
             }
         });
     });
+}
+
+/// The preview-only notice's Reload from Disk: re-read the photo's file (a raw a newer version can
+/// decode, whose drive was offline when the library opened), and say what came of it.
+pub(crate) fn reload_preview_only(app: &mut LightcraftApp, ctx: &egui::Context, id: PhotoId) {
+    let r = app.run("photo.reload", json!({"ids": [id.0]}));
+    let decoded = app.session.catalog.photo(id).is_some_and(|p| p.preview_only.is_none());
+    match r {
+        Err(e) => app.toast_error(ctx, e),
+        Ok(_) if decoded => app.toast(ctx, crate::i18n::tr("This raw is now developed from its raw data")),
+        Ok(_) => app.toast(ctx, crate::i18n::tr("This raw variant still can't be decoded")),
+    }
 }
 
 #[cfg(test)]

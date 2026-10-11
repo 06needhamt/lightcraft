@@ -203,6 +203,16 @@ JSON params (documented in each tool's description and by `list_commands`). Pass
 leave these per-command tools out when a client struggles with a large tool list; `run_command`
 still reaches every command.
 
+### Preview-only raws after an update
+
+A raw LightCraft couldn't decode when it was imported is shown from its embedded preview
+(`previewOnly` in `catalog.query`). The desktop app rechecks such photos in the background when a
+library opens in a newer (or older) LightCraft version, so a raw the new decoder handles develops
+from its raw data without a manual Reload. Headless sessions don't do this on their own: call
+`cmd_library_recheckPreviewOnly` (`{all: true}` ignores the version stamps, e.g. to test a decoder
+build) → `{checked, updated, cleared}`. Like the app's recheck, it isn't an undo step and keeps
+develop settings and history.
+
 ## Resources
 
 `resources/list` / `resources/read` serve JSON snapshots:
