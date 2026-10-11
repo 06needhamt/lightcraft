@@ -397,11 +397,7 @@ impl MoveFs for RealFs {
 /// byte for byte, and only then remove the original. A copy that doesn't match is removed.
 fn move_across_volumes(fs: &RealFs, a: &Path, b: &Path) -> std::io::Result<()> {
     fs.copy_no_replace(a, b)?;
-    let same = match (std::fs::read(a), std::fs::read(b)) {
-        (Ok(x), Ok(y)) => x == y,
-        _ => false,
-    };
-    if !same {
+    if !same_contents(a, b).unwrap_or(false) {
         let _ = std::fs::remove_file(b);
         return Err(std::io::Error::other(format!("the copy at {} did not match the original; the original was kept", b.display())));
     }
@@ -409,6 +405,43 @@ fn move_across_volumes(fs: &RealFs, a: &Path, b: &Path) -> std::io::Result<()> {
         // the original stays: drop the copy so the file isn't in two places
         let _ = std::fs::remove_file(b);
     })
+}
+
+/// Whether files `a` and `b` hold the same bytes: lengths first, then 1 MiB chunks at a time, so
+/// a large raw or video is never read into memory whole.
+fn same_contents(a: &Path, b: &Path) -> std::io::Result<bool> {
+    use std::io::Read;
+    const CHUNK: usize = 1 << 20;
+    let (mut fa, mut fb) = (std::fs::File::open(a)?, std::fs::File::open(b)?);
+    if fa.metadata()?.len() != fb.metadata()?.len() {
+        return Ok(false);
+    }
+    let (mut ba, mut bb) = (vec![0u8; CHUNK], vec![0u8; CHUNK]);
+    loop {
+        let n = read_full(&mut fa, &mut ba)?;
+        let m = read_full(&mut fb, &mut bb)?;
+        if n != m || ba.get(..n) != bb.get(..m) {
+            return Ok(false);
+        }
+        if n == 0 {
+            return Ok(true);
+        }
+    }
+}
+
+/// Fill `buf` from `r` as far as the file goes; the number of bytes read (less than the buffer
+/// only at the end of the file).
+fn read_full(r: &mut impl std::io::Read, buf: &mut [u8]) -> std::io::Result<usize> {
+    let mut filled = 0;
+    while let Some(rest) = buf.get_mut(filled..).filter(|r| !r.is_empty()) {
+        match r.read(rest) {
+            Ok(0) => break,
+            Ok(k) => filled = filled.saturating_add(k),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(filled)
 }
 
 /// `from` → `to` differs only in letter case and `to` is that very file (a case-insensitive
@@ -783,6 +816,31 @@ impl Session {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    /// The cross-volume move's check compares files chunk by chunk: equal files across several
+    /// chunks, a difference in the last chunk, different lengths, a missing file.
+    #[test]
+    fn same_contents_compares_in_chunks() {
+        let dir = std::env::temp_dir().join(format!("lc-same-contents-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let big: Vec<u8> = (0..(2usize << 20) + 123).map(|i| (i % 251) as u8).collect();
+        let (a, b) = (dir.join("a"), dir.join("b"));
+        std::fs::write(&a, &big).unwrap();
+        std::fs::write(&b, &big).unwrap();
+        assert!(same_contents(&a, &b).unwrap());
+        let mut other = big.clone();
+        *other.last_mut().unwrap() ^= 1;
+        std::fs::write(&b, &other).unwrap();
+        assert!(!same_contents(&a, &b).unwrap());
+        std::fs::write(&b, &big[..big.len() - 1]).unwrap();
+        assert!(!same_contents(&a, &b).unwrap());
+        std::fs::write(&a, b"").unwrap();
+        std::fs::write(&b, b"").unwrap();
+        assert!(same_contents(&a, &b).unwrap());
+        assert!(same_contents(&a, &dir.join("missing")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A model volume: files by path with contents; case-insensitive (default APFS/NTFS) or
     /// case-sensitive (Linux, case-sensitive APFS). `fail` makes renames from a matching source fail.
