@@ -2,6 +2,10 @@
 
 ## 2026-10-11
 
+### `--import <folder>` takes HEIC
+- `lightcraft-cli run --import <folder>` (and the MCP tools that take folders) now picks up HEIC, HEIF and Nikon NRW
+  files, the same files as `library.import` (issue #1080). They used to be skipped without a word.
+
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
   (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a
