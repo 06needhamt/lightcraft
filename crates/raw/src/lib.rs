@@ -35,11 +35,13 @@ pub mod highlight;
 #[cfg(feature = "jxl")]
 mod jxl;
 pub mod ljpeg;
+pub(crate) mod llvc;
 pub mod opcodes;
 mod preview;
 pub mod profile;
 mod saturation;
 pub mod semantic;
+pub mod sparse;
 pub mod spectral;
 mod tiffraw;
 mod unpack;
@@ -103,6 +105,8 @@ pub enum RawFormat {
     /// full-resolution CFA image with black/white levels, a default crop and `AsShotNeutral`):
     /// Hasselblad 3FR and FFF. Read by the DNG reader.
     CfaTiff,
+    /// Kodak DCS520C TIFF: a two-component lossless JPEG CFA sub-IFD with a response curve (`vendor::kodak`).
+    KodakDcs,
     /// Another TIFF-based raw (3FR, IIQ, ERF, KDC, DCR, MOS, …).
     OtherTiff,
 }
@@ -123,6 +127,7 @@ impl RawFormat {
                 | RawFormat::Pef
                 | RawFormat::CfaTiff
                 | RawFormat::Srw
+                | RawFormat::KodakDcs
         )
     }
 }
@@ -193,6 +198,9 @@ pub fn probe(bytes: &[u8]) -> Option<RawFormat> {
     }
     if make.starts_with("SAMSUNG") && samsung_raw {
         return Some(RawFormat::Srw);
+    }
+    if vendor::kodak::raw_ifd(&t, bytes).is_some() {
+        return Some(RawFormat::KodakDcs);
     }
     if dng::is_plain_cfa_tiff(&t, bytes) {
         return Some(RawFormat::CfaTiff);
@@ -324,10 +332,13 @@ pub fn decode(bytes: &[u8]) -> Result<RawImage> {
 /// [`RawImage::info`] of the decoded image. Black and white levels are not included (some formats
 /// measure them from the samples).
 ///
-/// A few uncompressed vendor formats derive part of this from the samples themselves (Nikon
-/// NEF: optically masked trailing columns; Olympus ORF: the bit depth of 16-bit files, and the CFA
-/// phase of files without an Exif `CFAPattern`; Pentax PEF without crop tags: dark borders); for
-/// those the samples are read (unpacked, nothing to decompress) and dropped.
+/// A few vendor formats derive part of this from the samples themselves (Nikon NEF: optically
+/// masked trailing columns; Olympus ORF: the bit depth of 16-bit files, and the CFA phase of files
+/// without an Exif `CFAPattern`; Pentax PEF without crop tags: dark borders). Those read the
+/// samples they need and drop them: ORF and PEF unpack their uncompressed data; NEF reads only the
+/// first 128 rows (`vendor::nef::MASK_ROWS`), which both the probe and the full decode judge the masked
+/// columns from, so a compressed NEF probes in a few milliseconds instead of decoding its whole
+/// Huffman stream (issue #708).
 pub fn probe_info(bytes: &[u8]) -> Result<RawInfo> {
     decode_with(bytes, Mode::Header).map(RawImage::into_info)
 }
@@ -347,7 +358,7 @@ fn decode_with(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         RawFormat::Dng => dng::decode(bytes, mode).map(lift_clipped),
         RawFormat::Cr2 => vendor::cr2::decode(bytes, mode),
         RawFormat::Cr3 => vendor::cr3::decode(bytes, mode),
-        RawFormat::Nef | RawFormat::Nrw => vendor::nef::decode(bytes),
+        RawFormat::Nef | RawFormat::Nrw => vendor::nef::decode(bytes, mode),
         RawFormat::Arw => vendor::arw::decode(bytes, mode),
         RawFormat::Raf => vendor::raf::decode(bytes, mode),
         RawFormat::Rw2 => vendor::rw2::decode(bytes, mode),
@@ -355,6 +366,7 @@ fn decode_with(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         RawFormat::Orf => vendor::orf::decode(bytes, mode),
         RawFormat::CfaTiff => dng::decode_as(bytes, mode, RawFormat::CfaTiff).map(lift_clipped),
         RawFormat::Srw => vendor::srw::decode(bytes, mode),
+        RawFormat::KodakDcs => vendor::kodak::decode(bytes, mode),
         RawFormat::OtherTiff => Err(RawError::Unsupported(other_tiff_reason(bytes))),
         other => Err(RawError::Unsupported(format!("{other:?} files are not decoded yet"))),
     }

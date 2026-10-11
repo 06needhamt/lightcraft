@@ -175,6 +175,19 @@ impl HeadlessView {
     }
 
     /// Every piece of text the last frame painted (labels, tooltips, values), in paint order.
+    /// Every shape of the last frame, with `Shape::Vec` flattened.
+    pub fn painted_shapes(&self) -> Vec<egui::epaint::Shape> {
+        fn flat(shape: &egui::epaint::Shape, out: &mut Vec<egui::epaint::Shape>) {
+            match shape {
+                egui::epaint::Shape::Vec(shapes) => shapes.iter().for_each(|shape| flat(shape, out)),
+                other => out.push(other.clone()),
+            }
+        }
+        let mut out = Vec::new();
+        self.shapes.iter().for_each(|s| flat(&s.shape, &mut out));
+        out
+    }
+
     pub fn painted_text(&self) -> Vec<String> {
         fn texts(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
             match shape {
@@ -1762,6 +1775,29 @@ mod tests {
         assert!(w1 < 700.0, "{w1}");
     }
 
+    /// With a watermark on, the Export dialog shows the first photo with the watermark on it.
+    #[test]
+    fn export_dialog_previews_the_watermark() {
+        let mut h = demo([1400.0, 900.0]);
+        let t = Duration::from_secs(10);
+        h.request("engine.execute", json!({"command": "dialog.export", "params": {}}), t);
+        let preview = |h: &mut Headless| {
+            let r = h.request("ui.widgets", json!({}), t);
+            r["result"].as_array().and_then(|a| a.iter().find(|w| w["id"] == "image:exportWatermarkPreview")).map(|w| w["rect"].clone())
+        };
+        h.settle(SETTLE);
+        assert!(preview(&mut h).is_none(), "no preview without a watermark");
+        if let Some(crate::state::Dialog::Export { opts, .. }) = &mut h.app.ui.dialog {
+            opts.watermark = Some(lightcraft_engine::export::Watermark { text: "© LightCraft".into(), ..Default::default() });
+        }
+        let t0 = Instant::now();
+        while preview(&mut h).is_none() && t0.elapsed() < Duration::from_secs(30) {
+            h.step();
+        }
+        let rect = preview(&mut h).expect("the watermark preview is shown");
+        assert!(rect[2].as_f64().unwrap() > 50.0 && rect[3].as_f64().unwrap() > 50.0, "{rect}");
+    }
+
     #[test]
     fn export_dialog_runs_in_the_background() {
         let mut h = demo([1200.0, 900.0]);
@@ -1879,6 +1915,49 @@ mod tests {
         h.app.ui.right = crate::state::RightPanel::Edit;
         h.settle(SETTLE);
         assert!(ids(&mut h, "notice:previewOnly:").is_empty());
+    }
+
+    #[test]
+    fn crop_default_browsing_is_read_only_and_drag_is_one_edit() {
+        let mut h = demo([1200.0, 800.0]);
+        let photos: Vec<_> = h.app.session.visible_cloned().into_iter().filter(|id| !h.app.session.catalog.photo(*id).unwrap().is_edited()).collect();
+        h.app.run("library.select", json!({"ids": [photos[0].0]})).unwrap();
+        h.app.ui.right = crate::state::RightPanel::Crop;
+        h.app.run("crop.aspect", json!({"aspect": "1x1"})).unwrap();
+        let saved = serde_json::to_value(&h.app.ui).unwrap();
+        for &photo in &photos[1..3] {
+            h.app.run("library.select", json!({"ids": [photo.0]})).unwrap();
+            let before = h.app.session.catalog.photo(photo).unwrap().clone();
+            let undo = h.app.session.undo.len();
+            h.settle(SETTLE);
+            let after = h.app.session.catalog.photo(photo).unwrap();
+            assert_eq!(after.develop, before.develop);
+            assert_eq!(after.history.len(), before.history.len());
+            assert!(!after.is_edited());
+            assert_eq!(h.app.session.undo.len(), undo);
+            assert_eq!(h.app.crop_tool_aspect(), Some((100, 100)));
+        }
+        let photo = photos[2];
+        let before = h.app.session.develop_of(photo).unwrap();
+        let undo = h.app.session.undo.len();
+        h.app.run("develop.beginInteraction", json!({"label": "Crop"})).unwrap();
+        h.app.begin_crop().unwrap();
+        h.app.run("crop.drag", json!({"handle": "bottomRight", "from": [0.8, 0.8], "to": [0.7, 0.7]})).unwrap();
+        h.app.run("develop.endInteraction", json!({})).unwrap();
+        assert_eq!(h.app.session.develop_of(photo).unwrap().crop.aspect, Some((100, 100)));
+        assert_eq!(h.app.session.undo.len(), undo + 1);
+        h.app.run("edit.undo", json!({})).unwrap();
+        assert_eq!(h.app.session.develop_of(photo).unwrap(), before);
+        h.app.ui = serde_json::from_value(saved).unwrap();
+        assert_eq!(h.app.crop_tool_aspect(), Some((100, 100)));
+        h.app.run("crop.aspect", json!({"aspect": "toggle"})).unwrap();
+        assert_eq!(h.app.ui.crop_default_aspect, Some(json!("free")));
+        assert_eq!(h.app.session.develop_of(photo).unwrap(), before);
+        h.app.ui.crop_default_aspect = Some(json!("original"));
+        let p = h.app.session.catalog.photo(photo).unwrap();
+        assert_eq!(h.app.crop_tool_aspect(), Some((p.width * 100, p.height * 100)));
+        h.settle(SETTLE);
+        assert_eq!(h.app.session.develop_of(photo).unwrap(), before);
     }
 
     /// While cropping: O cycles the guides, ⇧O mirrors them, A locks / unlocks the aspect.
@@ -2223,6 +2302,50 @@ mod tests {
         h.request("ui.key", json!({"key": "Enter"}), t);
         assert!((exposure(&h) - 1.5).abs() < 1e-9, "{}", exposure(&h));
         assert_eq!(h.app.session.undo.len(), undo0 + 1);
+    }
+
+    /// Reset takes precedence over the value being typed when its button is clicked.
+    #[test]
+    fn reset_button_wins_over_an_active_numeric_draft() {
+        let mut h = demo([960.0, 600.0]);
+        let t = Duration::from_secs(10);
+        let ask = |h: &mut Headless, method: &str, params: serde_json::Value| {
+            let r = h.request(method, params, t);
+            assert_eq!(r["ok"], true, "{method}: {r}");
+            r["result"].clone()
+        };
+        ask(&mut h, "engine.execute", json!({"command": "app.gpu", "params": {"enabled": false}}));
+        ask(&mut h, "ui.set", json!({"settings": {"gpu": false, "previewEdge": 1280}, "presets": false}));
+        ask(&mut h, "engine.execute", json!({"command": "library.select", "params": {"ids": [1], "active": 1}}));
+        ask(
+            &mut h,
+            "ui.set",
+            json!({"view": "detail", "right": "edit", "leftPanel": false, "rightWidth": 330, "openSections": ["light"], "histogram": false}),
+        );
+        let active = h.app.session.active().unwrap();
+        for (text, terminal) in [("0.75", "Enter"), ("-1,5", "Escape")] {
+            ask(&mut h, "ui.clickWidget", json!({"id": "sliderValue:light.exposure"}));
+            ask(&mut h, "ui.text", json!({"text": text}));
+            ask(&mut h, "ui.key", json!({"key": terminal}));
+            let value = ask(&mut h, "engine.execute", json!({"command": "develop.get", "params": {}}));
+            assert_eq!(value["light"]["exposure"].as_f64(), Some(0.75), "{terminal}: {value}");
+        }
+        ask(&mut h, "ui.clickWidget", json!({"id": "sliderValue:light.exposure"}));
+        ask(&mut h, "ui.text", json!({"text": "2.0"}));
+        assert_eq!(h.view.ctx.memory(|m| m.focused()), Some(crate::text_field::id("sliderField:light.exposure")));
+        assert!(h.app.widgets.iter().any(|(id, _)| id == "sliderField:light.exposure"));
+        assert!(h.painted_text().iter().any(|text| text == "2.0"), "the replacement draft must be visible before Reset");
+        assert_eq!(h.app.session.develop_of(active).unwrap().light.exposure, 0.75, "the draft is not committed yet");
+        ask(&mut h, "ui.clickWidget", json!({"id": "button:reset"}));
+        let reset = ask(&mut h, "engine.execute", json!({"command": "develop.get", "params": {}}));
+        assert_eq!(
+            reset["light"]["exposure"].as_f64(),
+            Some(0.0),
+            "Reset must win over the active numeric draft: {reset}; history={:?}; last_inverse={:?}; focus={:?}",
+            h.app.session.undo.iter().map(|entry| entry.label.as_str()).collect::<Vec<_>>(),
+            h.app.session.undo.last().map(|entry| &entry.op),
+            h.view.ctx.memory(|m| m.focused()),
+        );
     }
 
     /// A slider's typed value is a shared text field: right-click ▸ Paste replaces the value
@@ -2605,9 +2728,9 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// The import review offers what to do with files that are in Recently Deleted (issue #298):
-    /// they are unchecked until Restore or Import as new is chosen; then confirming restores the
-    /// photo (with its edits) or imports the file afresh.
+    /// The import review offers what to do with files that are in Recently Deleted (issues #298,
+    /// #706): they are checked, to be restored, by default; Leave them unchecks them; confirming
+    /// restores the photo (with its edits) or, with Import as new, imports the file afresh.
     #[test]
     fn import_review_offers_recently_deleted_files() {
         for (choice, tag) in [("restore", "r"), ("fresh", "f")] {
@@ -2634,9 +2757,12 @@ mod tests {
             h.request("engine.execute", json!({"command": "file.addPhotos", "params": {"paths": [dir.to_string_lossy()]}}), t);
             h.step_until(SETTLE, |h| matches!(h.app.ui.dialog, Some(crate::state::Dialog::Import { .. })));
             let Some(crate::state::Dialog::Import { opts }) = &mut h.app.ui.dialog else { panic!("no import review") };
-            assert_eq!(opts.selected_paths().len(), 1, "only the new file: the trashed one waits for a choice");
+            assert_eq!(opts.on_deleted, "restore", "the default brings a deleted photo back");
+            assert_eq!(opts.selected_paths().len(), 2, "the trashed file is checked from the start: it will be restored");
+            opts.set_on_deleted("");
+            assert_eq!(opts.selected_paths().len(), 1, "Leave them: only the new file");
             opts.set_on_deleted(choice);
-            assert_eq!(opts.selected_paths().len(), 2, "the trashed file is checked once a choice is made");
+            assert_eq!(opts.selected_paths().len(), 2, "the trashed file is checked again once a choice is made");
             // a per-cell choice survives switching between the two options, and "Leave them" unchecks
             let trashed = (0..opts.candidates.len()).find(|i| opts.is_trashed(*i)).unwrap();
             opts.checked[trashed] = false;
@@ -2721,9 +2847,10 @@ mod tests {
         assert!(matches!(h.app.ui.dialog, Some(crate::state::Dialog::Import { .. })), "still open");
     }
 
-    /// Adding a file again that is in Recently Deleted shows it there (side panel opened, photo
-    /// selected) instead of only saying "duplicate skipped"; its menus offer Restore, and once
-    /// restored a re-add selects it in All Photos.
+    /// Adding a file again (dropped on the window, no review) whose photo is in Recently Deleted
+    /// brings the photo back, selected in All Photos, and says so (issue #706) — it is not
+    /// skipped as a duplicate; the trash view's menus offer Restore and Delete Permanently, and a
+    /// re-add of a photo that is in the library selects it in All Photos.
     #[test]
     fn readding_a_deleted_photo_shows_it_in_recently_deleted() {
         let dir = std::env::temp_dir().join(format!("lc-ui-readd-{}", std::process::id()));
@@ -2750,6 +2877,7 @@ mod tests {
         crate::import::start_paths(&mut h.app, paths.clone()).unwrap();
         h.settle(SETTLE);
         let id = h.app.session.selection.active.expect("imported photo selected");
+        let n0 = h.app.session.catalog.len();
         h.request("engine.execute", json!({"command": "photo.delete", "params": {"ids": [id.0]}}), t);
         assert!(h.app.session.catalog.photo(id).unwrap().deleted);
         let photo_items = |app: &LightcraftApp| -> Vec<String> {
@@ -2759,14 +2887,22 @@ mod tests {
         };
         assert!(!photo_items(&h.app).contains(&"photo.restore".to_string()), "Restore only for deleted photos");
 
-        h.app.ui.left_panel = false;
         crate::import::start_paths(&mut h.app, paths.clone()).unwrap();
         finish_import(&mut h);
-        assert_eq!(h.app.session.source, lightcraft_engine::LibrarySource::RecentlyDeleted);
-        assert_eq!(h.app.session.selection.ids, vec![id]);
-        assert!(h.app.ui.left_panel, "the side panel listing Recently Deleted is opened");
+        assert!(!h.app.session.catalog.photo(id).unwrap().deleted, "re-adding the file restores the photo");
+        assert_eq!(h.app.session.catalog.len(), n0, "no second record");
+        assert_eq!(h.app.session.source, lightcraft_engine::LibrarySource::All);
+        assert_eq!(h.app.session.selection.ids, vec![id], "the restored photo is selected");
         let toast = h.app.ui.toast.clone().expect("toast").0;
-        assert!(toast.contains("Recently Deleted") && toast.contains("Restore"), "{toast}");
+        assert!(toast.contains("Restored 1 photo from Recently Deleted"), "{toast}");
+        assert!(!photo_items(&h.app).contains(&"photo.restore".to_string()));
+        // undo of the re-add puts it back in Recently Deleted; the trash view's menus offer Restore
+        h.request("engine.execute", json!({"command": "edit.undo"}), t);
+        assert!(h.app.session.catalog.photo(id).unwrap().deleted, "one undo step");
+        h.request("engine.execute", json!({"command": "library.source", "params": {"kind": "recentlyDeleted"}}), t);
+        h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [id.0]}}), t);
+        h.settle(SETTLE);
+        assert_eq!(h.app.session.source, lightcraft_engine::LibrarySource::RecentlyDeleted);
         let items = photo_items(&h.app);
         assert!(items.contains(&"photo.restore".to_string()) && items.contains(&"photo.deletePermanently".to_string()), "{items:?}");
         assert!(!items.contains(&"photo.delete".to_string()), "{items:?}");
@@ -3124,6 +3260,56 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// With no profile chosen, previews follow the profile of the screen showing the window (the
+    /// host's `screen_profile`: macOS doesn't colour-manage the window, issue #787), read again so
+    /// a move to another screen is followed. A chosen profile wins; choosing none goes back to the
+    /// screen's at once; a screen without a profile is sRGB.
+    #[test]
+    fn previews_follow_the_screen_profile_while_none_is_chosen() {
+        use lightcraft_codecs::{NamedSpace, icc::write_named};
+        use std::sync::{Arc, Mutex};
+        let id = |space| lightcraft_engine::display::Display::from_bytes("", &write_named(space)).unwrap().id();
+        let dir = std::env::temp_dir().join(format!("lightcraft-screen-profile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chosen = dir.join("prophoto.icc");
+        std::fs::write(&chosen, write_named(NamedSpace::ProPhoto)).unwrap();
+        let chosen = chosen.to_string_lossy().to_string();
+
+        let screen = Arc::new(Mutex::new(Some(write_named(NamedSpace::DisplayP3))));
+        let mut h = demo([1000.0, 700.0]);
+        let read = screen.clone();
+        h.app.services.screen_profile = Some(Box::new(move || read.lock().unwrap().clone()));
+        let t = Duration::from_secs(10);
+        h.step();
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::DisplayP3)), "the screen's profile");
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {}}), t);
+        assert_eq!((r["result"]["screen"].clone(), r["result"]["path"].clone()), (json!(true), Value::Null), "{r}");
+        assert!(h.app.ui.settings.display_profile.is_empty(), "nothing is saved as the setting");
+
+        // the window moves to another screen
+        *screen.lock().unwrap() = Some(write_named(NamedSpace::AdobeRgb));
+        assert!(h.step_until(SETTLE, |h| h.app.renderer.display_id() == Some(id(NamedSpace::AdobeRgb))));
+
+        // a chosen profile wins over the screen's
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {"path": chosen}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        *screen.lock().unwrap() = Some(write_named(NamedSpace::DisplayP3));
+        for _ in 0..90 {
+            h.step();
+        }
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::ProPhoto)));
+
+        // none chosen again: the screen's profile, at once
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {"path": null}}), t);
+        assert_eq!(r["result"]["screen"], true, "{r}");
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::DisplayP3)));
+
+        // a screen without a profile: sRGB
+        *screen.lock().unwrap() = None;
+        assert!(h.step_until(SETTLE, |h| h.app.renderer.display_id().is_none()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Settings (⌘,): tabs switch, app settings change the UI state, library settings go through
     /// the engine; the delete confirmation guards ⌫.
     #[test]
@@ -3145,10 +3331,21 @@ mod tests {
         assert_eq!(h.app.ui.settings.startup_view, crate::state::StartupView::Detail);
         // Interface: filmstrip names off, grid badges always
         h.request("ui.clickWidget", json!({"id": "button:settingsTab-interface"}), t);
+        // Appearance cards (one row per theme, with its favorite star) sit above these controls;
+        // scroll the compact settings viewport past them.
+        h.request("ui.hoverWidget", json!({"id": "radio:theme-charcoal"}), t);
+        h.request("ui.scroll", json!({"dy": -700.0}), t);
+        for _ in 0..4 {
+            h.step();
+        }
         h.request("ui.clickWidget", json!({"id": "check:settings.filmNames"}), t);
         assert!(!h.app.ui.settings.film_names);
         h.request("ui.clickWidget", json!({"id": "button:settingsGridBadges-1"}), t);
         assert_eq!(h.app.ui.settings.grid_badges, crate::state::GridBadges::Always);
+        h.request("ui.scroll", json!({"dy": 700.0}), t);
+        for _ in 0..4 {
+            h.step();
+        }
         // Performance: the thumbnail cache size goes to the library preferences
         h.request("ui.clickWidget", json!({"id": "button:settingsTab-performance"}), t);
         h.request("ui.clickWidget", json!({"id": "button:settingsCache-0"}), t);

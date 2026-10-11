@@ -144,7 +144,7 @@ fn crop(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         });
         ui.horizontal(|ui| {
             ui.label(crate::i18n::tr("Aspect Ratio"));
-            let cur = aspect_label(d.crop.aspect, original);
+            let cur = aspect_label(app.crop_tool_aspect(), original);
             let t = Tokens::get(ui.ctx());
             let r = crate::widgets::dropdown(ui, "cropAspect", crate::i18n::tr(&cur), t.font(12.5), t.text);
 
@@ -157,7 +157,7 @@ fn crop(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 ui.separator();
                 custom_aspect(app, ui);
             });
-            let locked = d.crop.aspect.is_some();
+            let locked = app.crop_tool_aspect().is_some();
             if text_button(ui, "cropLock", if locked { "Locked" } else { "Lock" }, locked).clicked() {
                 let _ = app.run("crop.aspect", json!({"aspect": "toggle"}));
             }
@@ -343,7 +343,7 @@ fn remove(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     header(ui, "Remove");
     padded(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
-            for (label, tool) in [("Remove", "remove"), ("Heal", "heal"), ("Clone", "clone")] {
+            for (label, tool) in [("Remove", "remove"), ("Content-Aware", "fill"), ("Heal", "heal"), ("Clone", "clone")] {
                 if text_button(ui, &format!("removeMode-{tool}"), label, app.ui.tool == tool).clicked() {
                     app.ui.tool = tool.into();
                 }
@@ -383,6 +383,7 @@ fn remove(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             lightcraft_develop::SpotMode::Heal => "Heal",
             lightcraft_develop::SpotMode::Clone => "Clone",
             lightcraft_develop::SpotMode::Remove => "Remove",
+            lightcraft_develop::SpotMode::Fill => "Content-Aware",
         };
         super::edit::sub_title(ui, &crate::i18n::tr_format!("{mode} spot {} of {}", i + 1, d.spots.len(), mode = mode));
     }
@@ -669,6 +670,13 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     }
                 }
             });
+            if text_button(ui, "fillLocation", crate::i18n::tr("Fill Location"), false)
+                .on_hover_text(crate::i18n::tr("Fill empty City, State and Country from GPS (offline GeoNames place names)"))
+                .clicked()
+                && let Err(e) = app.run("metadata.reverseGeocode", json!({}))
+            {
+                app.toast_error(ui.ctx(), e);
+            }
         }
         if let Some(a) = p.analysis {
             let mut line = crate::i18n::tr_format!("Focus {:.0}", a.sharpness);
@@ -686,12 +694,11 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         if let lightcraft_catalog::Source::File { path } = &p.source {
             let avail = &app.session.media.availability;
             let online = !avail.is_offline(path);
-            let smart = app
-                .session
-                .media
-                .smart_dir
-                .as_ref()
-                .is_some_and(|d| avail.exists(&d.join(lightcraft_engine::smart::file_name(&p)).to_string_lossy()) == Some(true));
+            let smart = app.session.media.smart_dir.as_ref().is_some_and(|d| {
+                let shard = lightcraft_engine::smart::sharded_file_path(d, &p);
+                let legacy = d.join(lightcraft_engine::smart::file_name(&p));
+                avail.exists(&shard.to_string_lossy()) == Some(true) || avail.exists(&legacy.to_string_lossy()) == Some(true)
+            });
             if !online || smart {
                 let text = match (online, smart) {
                     (false, true) => "Original offline · editing the smart preview",
