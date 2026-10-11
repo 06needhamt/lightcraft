@@ -24,6 +24,7 @@ pub mod keywords;
 pub mod library;
 pub mod lut_profiles;
 pub mod manage;
+pub mod mask_effect_files;
 pub mod mask_effects;
 mod masks;
 mod merge;
