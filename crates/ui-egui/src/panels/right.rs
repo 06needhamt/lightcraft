@@ -114,9 +114,11 @@ fn custom_aspect(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
         ui.label(crate::i18n::tr("Custom"));
         let a = ui.add(egui::TextEdit::singleline(&mut w).desired_width(34.0));
+        crate::widgets::screen_reader_name(ui.ctx(), a.id, crate::i18n::tr("Width"));
         register(ui.ctx(), "field:cropCustomW", a.rect);
         ui.label("×");
         let b = ui.add(egui::TextEdit::singleline(&mut h).desired_width(34.0));
+        crate::widgets::screen_reader_name(ui.ctx(), b.id, crate::i18n::tr("Height"));
         register(ui.ctx(), "field:cropCustomH", b.rect);
         let go = text_button(ui, "cropCustomApply", "Apply", false);
         apply = go.clicked() || ((a.lost_focus() || b.lost_focus()) && ui.input(|i| i.key_pressed(egui::Key::Enter)));
@@ -644,6 +646,7 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.label(egui::RichText::new("GPS").size(11.5).color(t.text_dim));
         let mut text: String = ui.data(|d| d.get_temp(gid)).unwrap_or_else(|| gps.clone());
         let r = ui.add(egui::TextEdit::singleline(&mut text).hint_text(crate::i18n::tr("latitude, longitude")).desired_width(f32::INFINITY));
+        crate::widgets::screen_reader_name(ui.ctx(), r.id, "GPS");
         register(ui.ctx(), "field:gps", r.rect);
         if r.has_focus() {
             ui.data_mut(|d| d.insert_temp(gid, text.clone()));
@@ -796,7 +799,7 @@ fn meta_field(app: &mut LightcraftApp, ui: &mut egui::Ui, label: &str, key: &str
     } else {
         crate::text_field::TextField::singleline(&widget, &mut text)
     };
-    let r = field.width(f32::INFINITY).show(ui);
+    let r = field.label(crate::i18n::tr(label)).width(f32::INFINITY).show(ui);
     // the typed text outlives frames while it is edited (the photo's value is drawn otherwise)
     if r.editing {
         ui.data_mut(|d| d.insert_temp(id, text.clone()));
