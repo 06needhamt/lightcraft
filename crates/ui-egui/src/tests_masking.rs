@@ -1211,6 +1211,7 @@ fn color_range_pick_button_samples_the_photo() {
     click(&mut h, "button:colorPick0");
     assert!(h.app.ui.tool.is_empty());
     h.settle(SETTLE);
+}
 
 #[test]
 fn a_selected_develop_slider_accepts_wheel_nudges() {
@@ -1232,6 +1233,7 @@ fn a_selected_develop_slider_accepts_wheel_nudges() {
     h.step();
     let after = lightcraft_develop::controls::get(&develop(&h), "light.exposure");
     assert!(after > before, "selected exposure did not increase: {before} -> {after}");
+}
 
 /// Issue #517: a fast brush stroke (pointer samples several brush widths apart) shows on the photo
 /// while the button is held as the continuous, feathered band it will be once committed, not as
