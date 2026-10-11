@@ -1037,6 +1037,7 @@ mod tests {
         assert!(matches!(qp_map(&[0, 0, 1, 0x52, 0x94], 1, 4), Err(RawError::Unsupported(_))));
     }
 
+    #[test]
     fn long_qp_prefixes_and_escapes_as_on_the_eos_r5_mark_ii() {
         // EOS R5 Mark II maps (QP 150–162) jump by up to 12 where k is 0: an 18-zero prefix that an
         // escape after 16 zeros misread, then a real escape (23 zeros, 1, symbol 23 = −12).
