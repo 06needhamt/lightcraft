@@ -18,9 +18,22 @@ fn import(s: &mut Session, p: &Value) -> Result<Value> {
     let mut imported = Vec::new();
     let mut failed = Vec::new();
     let mut skipped = 0usize;
+    // Lightroom local adjustment (brush) presets become mask effects
+    let mut effects = Vec::new();
     for top in &paths {
         let from_dir = std::path::Path::new(top).is_dir();
         for f in expand_preset_paths(std::slice::from_ref(top)) {
+            if f.to_ascii_lowercase().ends_with(".lrtemplate") {
+                let text = std::fs::read(&f).map(|b| String::from_utf8_lossy(&b).to_string()).unwrap_or_default();
+                if super::mask_effects::is_lr_local_template(&text) {
+                    let stem = std::path::Path::new(&f).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+                    match super::mask_effects::parse_lr_local_template(&text, &stem) {
+                        Ok((e, unmapped)) => effects.push((e, unmapped, f.clone())),
+                        Err(e) => failed.push(json!([f, e])),
+                    }
+                    continue;
+                }
+            }
             // presets in a folder go to a group named after it (unless the file names its own)
             // the path from the imported folder (inclusive) to the file's folder
             let base = std::path::Path::new(top).parent().unwrap_or(std::path::Path::new(""));
@@ -45,7 +58,12 @@ fn import(s: &mut Session, p: &Value) -> Result<Value> {
             }
         }
     }
-    Ok(json!({"imported": imported, "skipped": skipped, "failed": failed}))
+    let effects = if dry {
+        effects.iter().map(|(e, unmapped, file)| json!({"name": e.name, "file": file, "unmapped": unmapped})).collect()
+    } else {
+        super::mask_effects::add_effects(s, effects)?
+    };
+    Ok(json!({"imported": imported, "skipped": skipped, "failed": failed, "effects": effects}))
 }
 
 fn export(s: &mut Session, p: &Value) -> Result<Value> {
@@ -83,7 +101,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Import Presets",
             [],
             None,
-            "{paths: [file or folder], group?, dryRun?} — .lcpreset, XMP presets, .lrtemplate, photos carrying edits (DNG/JPEG/TIFF \"DNG presets\"), Luminar looks (.lmp, .mplumpack collections) and .zip bundles of these; folders give their name as group; crs: fields mapped per docs/xmp-interop.md → {imported: [{id,name,group,file,unmapped}], skipped, failed}",
+            "{paths: [file or folder], group?, dryRun?} — .lcpreset, XMP presets, .lrtemplate, photos carrying edits (DNG/JPEG/TIFF \"DNG presets\"), Luminar looks (.lmp, .mplumpack collections) and .zip bundles of these; folders give their name as group; crs: fields mapped per docs/xmp-interop.md; Lightroom local adjustment presets (.lrtemplate) become mask effects (`mask.effects`) → {imported: [{id,name,group,file,unmapped}], skipped, failed, effects: [{name,file,unmapped}]}",
             always,
             import
         ),

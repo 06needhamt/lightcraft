@@ -64,13 +64,20 @@ const LOCAL: &[(&str, &str, f64)] = &[
     ("LocalClarity", "clarity", 100.0),
 ];
 
-fn adjust(c: &XmpValue) -> Value {
+/// Is `crs` (without the `crs:` prefix) a local slider field we map?
+pub(crate) fn is_local_field(crs: &str) -> bool {
+    LOCAL.iter().any(|(k, _, _)| *k == crs)
+}
+
+/// Our local adjustment values from the `Local*` slider fields that `get` finds (the name without
+/// the `crs:` prefix → the stored fraction); process-version 2012 fields win over the older ones.
+pub(crate) fn local_values(get: impl Fn(&str) -> Option<f64>) -> serde_json::Map<String, Value> {
     let mut a = serde_json::Map::new();
     for (crs, ours, k) in LOCAL {
         if a.contains_key(*ours) {
             continue;
         }
-        if let Some(v) = num(c, &format!("crs:{crs}")) {
+        if let Some(v) = get(crs).filter(|v| v.is_finite()) {
             let lim = if *ours == "exposure" {
                 4.0
             } else if *ours == "color_hue" {
@@ -82,6 +89,11 @@ fn adjust(c: &XmpValue) -> Value {
             a.insert((*ours).into(), json!(v));
         }
     }
+    a
+}
+
+fn adjust(c: &XmpValue) -> Value {
+    let mut a = local_values(|crs| num(c, &format!("crs:{crs}")));
     let amount = num(c, "crs:CorrectionAmount").unwrap_or(1.0);
     a.insert("amount".into(), json!((amount * 100.0).clamp(0.0, 200.0)));
     Value::Object(a)

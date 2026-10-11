@@ -971,7 +971,7 @@ fn pick_source(s: &mut Session, id: crate::PhotoId, d: &lightcraft_develop::Deve
     lightcraft_pipeline::spots::pick_source(&src, &info, d, spot, avoid)
 }
 
-fn clamp_local(mut a: LocalAdjustments) -> LocalAdjustments {
+pub(crate) fn clamp_local(mut a: LocalAdjustments) -> LocalAdjustments {
     let c = |v: &mut f64, lo: f64, hi: f64| *v = if v.is_finite() { v.clamp(lo, hi) } else { 0.0 };
     c(&mut a.exposure, -4.0, 4.0);
     for v in [
