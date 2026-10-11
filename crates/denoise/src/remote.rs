@@ -416,6 +416,11 @@ impl Remote {
         let bytes = field(&v, "bytes").ok_or_else(|| self.err("an answer without its size"))?;
         let out = read_payload(&mut r, bytes, 3 * 4 * t * t).map_err(|e| self.err(e))?;
         self.pool.lock().unwrap_or_else(PoisonError::into_inner).push((r, s));
+        // the other computer's numbers go straight into the render: NaN or infinity (an f16 can carry
+        // both) is a failed tile, which `Shared` runs here instead
+        if !out.iter().all(|v| v.is_finite()) {
+            return Err(self.err("the answer holds values that aren't finite"));
+        }
         Ok(out)
     }
 }
