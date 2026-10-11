@@ -68,6 +68,15 @@ struct Tile {
     qp: Option<Range<usize>>,
 }
 
+/// The byte ranges of a CRX sample (relative to its start) that [`validate`] reads: the tile, plane
+/// and band headers, and each tile's quantization map. `sample` must hold its first
+/// `config.header_size` bytes; the rest is only measured.
+pub(crate) fn header_ranges(sample: &[u8], config: &Cr3Compression) -> Result<Vec<Range<usize>>> {
+    let tiles = layout(sample, config)?;
+    let header = 0..config.header_size as usize;
+    Ok(std::iter::once(header).chain(tiles.into_iter().filter_map(|t| t.qp)).collect())
+}
+
 /// Decode to full sensor-order CFA samples, including masked borders.
 pub(crate) fn decode(sample: &[u8], config: &Cr3Compression) -> Result<Vec<u16>> {
     supports(config)?;

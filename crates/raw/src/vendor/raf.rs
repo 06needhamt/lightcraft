@@ -85,7 +85,7 @@ fn pair(h: &Header, tag: u16) -> Option<(usize, usize)> {
     Some((u16::from_be_bytes([d[0], d[1]]) as usize, u16::from_be_bytes([d[2], d[3]]) as usize))
 }
 
-fn raw_ifd(raw: &[u8]) -> Result<Ifd> {
+pub(crate) fn raw_ifd(raw: &[u8]) -> Result<Ifd> {
     let tiff = Tiff::parse(raw).map_err(|_| RawError::Unsupported("RAF without a raw IFD (older FinePix layout)".into()))?;
     let off = tiff.ifds.first().and_then(|i| i.u64(0xf000)).ok_or_else(|| RawError::Unsupported("RAF without a raw IFD".into()))?;
     let (ifd, _) = lightcraft_tiff::parse_ifd_at(raw, off, ByteOrder::Little, 0, false, &Default::default())?;
