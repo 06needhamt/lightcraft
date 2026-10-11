@@ -3,8 +3,8 @@
 //!
 //! Hosts that have a file system (the desktop app, the CLI, the MCP server) share these defaults so a model
 //! installed from one is there for the others. Nothing here is applied automatically: a [`Session`] has no
-//! face- or denoise-models folder until a host asks for one ([`Session::with_default_face_models`],
-//! [`Session::with_default_denoise_models`]), so tests stay hermetic.
+//! face-, denoise- or SAM 3 model folder until a host asks for one ([`Session::with_default_face_models`],
+//! [`Session::with_default_denoise_models`], [`Session::with_default_sam3_model`]), so tests stay hermetic.
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -58,7 +58,25 @@ pub fn default_denoise_models_dir() -> Option<PathBuf> {
         .or_else(|| config_dir().map(|d| d.join("denoise-models")))
 }
 
+/// Where the SAM 3 model is kept: `$LIGHTCRAFT_SAM3_DIR` if set, else `<config>/models/sam3`.
+pub fn default_sam3_dir() -> Option<PathBuf> {
+    sam3_dir(std::env::var_os("LIGHTCRAFT_SAM3_DIR"), config_dir())
+}
+
+/// [`default_sam3_dir`] for a given override and config folder: a non-empty override wins.
+fn sam3_dir(var: Option<std::ffi::OsString>, config: Option<PathBuf>) -> Option<PathBuf> {
+    var.filter(|v| !v.is_empty()).map(PathBuf::from).or_else(|| config.map(|d| d.join("models").join("sam3")))
+}
+
 impl Session {
+    /// Look for the SAM 3 model in the shared default folder ([`default_sam3_dir`]), and for the user's
+    /// download mirrors in `<config>/models/sam3-mirrors.txt`.
+    pub fn with_default_sam3_model(mut self) -> Self {
+        self.segmenter.dir = default_sam3_dir();
+        self.segmenter.mirrors_file = config_dir().map(|d| d.join("models").join("sam3-mirrors.txt"));
+        self
+    }
+
     /// Keep face models in the shared default folder ([`default_face_models_dir`]).
     pub fn with_default_face_models(mut self) -> Self {
         self.face_models_dir = default_face_models_dir();
@@ -128,5 +146,21 @@ mod config_tests {
         use std::os::unix::ffi::OsStringExt as _;
         let value = OsString::from_vec(b"isolated/\xff".to_vec());
         assert_eq!(config_dir_with(Platform::Mac, |_| Some(value.clone())), Some(PathBuf::from(value)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A non-empty `LIGHTCRAFT_SAM3_DIR` wins; unset or empty falls back to `<config>/models/sam3` (issue #619).
+    #[test]
+    fn sam3_dir_prefers_the_override() {
+        let config = PathBuf::from("cfg");
+        let fallback = Some(config.join("models").join("sam3"));
+        assert_eq!(sam3_dir(Some("elsewhere".into()), Some(config.clone())), Some(PathBuf::from("elsewhere")));
+        assert_eq!(sam3_dir(None, Some(config.clone())), fallback);
+        assert_eq!(sam3_dir(Some(std::ffi::OsString::new()), Some(config)), fallback);
+        assert_eq!(sam3_dir(None, None), None);
     }
 }

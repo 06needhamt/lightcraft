@@ -14,16 +14,35 @@ pub enum PreviewColorSpace {
     AdobeRgb,
 }
 
-/// Nikon maker-note ColorSpace (0x001e: 1 = sRGB, 2 = Adobe RGB), per Nikon tag documentation.
-/// This is a fallback only: a JPEG's own ICC/EXIF colour declaration takes precedence.
+/// The colour space the raw says its embedded JPEG is in, for a JPEG that declares none itself (no ICC profile,
+/// no EXIF), first available first: the Nikon maker-note ColorSpace (0x001e: 1 = sRGB, 2 = Adobe RGB, per Nikon
+/// tag documentation); the raw's own EXIF ColorSpace (0xA001: 1 = sRGB), or Uncalibrated (0xFFFF) with the
+/// Interoperability IFD's InteropIndex "R03", the DCF option file for Adobe RGB (as a Sony body shot in Adobe RGB
+/// writes, issue #778; per the Exif and DCF specifications), not for a DNG. This is a fallback only: a JPEG's own ICC/EXIF colour
+/// declaration takes precedence.
 pub fn embedded_preview_color_space(bytes: &[u8]) -> Option<PreviewColorSpace> {
     let tiff = Tiff::parse(bytes).ok()?;
-    let make = tiff.ifds.first()?.string(t::MAKE)?;
-    if !make.to_ascii_uppercase().starts_with("NIKON") {
+    let make = tiff.ifds.first()?.string(t::MAKE).unwrap_or_default();
+    let exif = tiff.exif()?;
+    if make.to_ascii_uppercase().starts_with("NIKON")
+        && let Some(space) = nikon_color_space(bytes, &tiff, exif, &make)
+    {
+        return Some(space);
+    }
+    // a DNG's EXIF describes the original capture; its previews are rendered by the converter
+    if tiff.ifds.first()?.contains(t::DNG_VERSION) {
         return None;
     }
-    let e = tiff.exif()?.get(t::MAKER_NOTE)?;
-    let mn = makernote::parse_makernote(bytes, e.offset, e.count() as u64, tiff.order, &make)?;
+    match exif.u16(0xA001)? {
+        1 => Some(PreviewColorSpace::Srgb),
+        0xFFFF if exif.interop.as_deref()?.bytes(0x0001)?.starts_with(b"R03") => Some(PreviewColorSpace::AdobeRgb),
+        _ => None,
+    }
+}
+
+fn nikon_color_space(bytes: &[u8], tiff: &Tiff, exif: &Ifd, make: &str) -> Option<PreviewColorSpace> {
+    let e = exif.get(t::MAKER_NOTE)?;
+    let mn = makernote::parse_makernote(bytes, e.offset, e.count() as u64, tiff.order, make)?;
     match mn.ifd.u16(0x001e)? {
         1 => Some(PreviewColorSpace::Srgb),
         2 => Some(PreviewColorSpace::AdobeRgb),

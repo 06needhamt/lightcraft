@@ -1,16 +1,22 @@
 //! Vendor raw formats (TIFF-based) and helpers shared by them.
 
 pub mod arw;
+pub mod arw6;
+mod arw6_curve;
+#[cfg(test)]
+pub(crate) mod arw6_testenc;
 mod arw_lens;
 pub mod cr2;
 pub mod cr3;
 pub mod crx;
 pub(crate) mod crx_wavelet;
+pub mod kodak;
 pub mod nef;
 pub mod nefc;
 pub mod orf;
 pub mod pef;
 pub mod raf;
+mod raf_lens;
 mod rafc;
 pub mod rw2;
 mod sr2;
