@@ -423,7 +423,10 @@ mod in_the_loupe {
         h.request("engine.execute", json!({"command": "develop.set", "params": {"control": "light.exposure", "value": 0.5}}), T);
         h.settle(SETTLE);
         let main = rendered_long_edge(&h);
-        assert!(main <= 1000 && main * 4 < native, "the whole-frame draft is {main} px for a {native} px photo");
+        // canvas-sized: the whole canvas on the GPU, a 0.6 draft of it on the CPU (#330)
+        let canvas = h.app.canvas_rect.expect("the loupe was drawn");
+        let canvas_long = canvas.width().max(canvas.height()) as usize + crate::state::LOUPE_EDGE_STEP;
+        assert!(main <= canvas_long && main * 4 < native, "the whole-frame draft is {main} px for a {native} px photo");
         let region = h.app.region_view.expect("the window is drafted too");
         assert_eq!(region.full.0.max(region.full.1), native, "at 100 %, magnified by the GPU");
         let (w, hh) = region_tile(&h).expect("a window draft");

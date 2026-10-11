@@ -70,8 +70,11 @@ pub struct ViewSizes {
     pub native_long: usize,
     /// The largest texture the GPU takes.
     pub texture_side: usize,
-    /// 1.0, or less while a slider is dragged (a draft of the whole-frame render).
+    /// 1.0, or less while a slider is dragged (a draft of the whole-frame render; see
+    /// [`drag_scale`]).
     pub draft_scale: f32,
+    /// A slider is being dragged: the render is a draft, never above the canvas size.
+    pub drafting: bool,
     /// Whether a window can be drawn over the whole-frame render (not with a diagnostic overlay
     /// that needs whole-frame context, soft proofing, or a read too far for one window). Mask
     /// overlays are window-safe.
@@ -90,6 +93,15 @@ pub struct LoupePlan {
     pub window_edge: Option<usize>,
 }
 
+/// Size of a slider drag's whole-frame draft on the CPU, against the render at rest.
+pub const CPU_DRAFT_SCALE: f32 = 0.6;
+
+/// [`ViewSizes::draft_scale`] for the loupe: a drag on the GPU renders at full size (a canvas-sized
+/// draft takes a few ms there, issue #330); on the CPU it renders a smaller draft to keep up.
+pub fn drag_scale(drafting: bool, gpu: bool) -> f32 {
+    if drafting && !gpu { CPU_DRAFT_SCALE } else { 1.0 }
+}
+
 /// The loupe's render plan. The cost of a render follows the canvas, not the zoom: the whole-frame
 /// render is canvas-sized, and the window holds only the pixels on screen at no more than 100 %.
 pub fn plan(settings: &crate::state::AppSettings, v: ViewSizes) -> LoupePlan {
@@ -100,7 +112,7 @@ pub fn plan(settings: &crate::state::AppSettings, v: ViewSizes) -> LoupePlan {
         // the whole frame at the size it is drawn (soft proof or a whole-frame diagnostic has no
         // window); while a slider drags, a canvas-sized draft as with windows: a drag at 1:1 must
         // not render the photo's every pixel each frame
-        let long = if scale < 1.0 { drawn_long.min(canvas_long) } else { drawn_long };
+        let long = if v.drafting { drawn_long.min(canvas_long) } else { drawn_long };
         let main_edge = settings.loupe_edge(long * scale, v.native_long, v.texture_side);
         return LoupePlan { main_edge, window_edge: None };
     }
@@ -225,7 +237,7 @@ mod tests {
     const BIG: usize = 16384;
 
     fn sizes(drawn: f32, canvas: f32, native: usize) -> ViewSizes {
-        ViewSizes { drawn_long: drawn, canvas_long: canvas, native_long: native, texture_side: BIG, draft_scale: 1.0, windows: true }
+        ViewSizes { drawn_long: drawn, canvas_long: canvas, native_long: native, texture_side: BIG, draft_scale: 1.0, drafting: false, windows: true }
     }
 
     fn auto() -> AppSettings {
@@ -276,7 +288,7 @@ mod tests {
     #[test]
     fn a_drag_shrinks_the_whole_frame_draft_not_the_window() {
         let still = plan(&auto(), sizes(24000.0, 2800.0, 6000));
-        let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, ..sizes(24000.0, 2800.0, 6000) });
+        let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(24000.0, 2800.0, 6000) });
         assert!(drag.main_edge < still.main_edge, "{drag:?} vs {still:?}");
         assert_eq!(drag.window_edge, still.window_edge);
     }
@@ -286,12 +298,39 @@ mod tests {
     // windowed path
     #[test]
     fn without_a_window_a_drag_drafts_at_the_canvas_size() {
-        let no_window = |draft_scale: f32| ViewSizes { windows: false, draft_scale, ..sizes(24000.0, 2800.0, 6000) };
+        let no_window = |draft_scale: f32| ViewSizes { windows: false, draft_scale, drafting: draft_scale < 1.0, ..sizes(24000.0, 2800.0, 6000) };
         let still = plan(&auto(), no_window(1.0));
         let drag = plan(&auto(), no_window(0.6));
         assert_eq!(still.window_edge, None);
         assert!(still.main_edge > 2800, "at rest the zoomed frame: {still:?}");
         assert!(drag.main_edge <= 2800, "a drag drafts at most the canvas: {drag:?}");
+    }
+
+    // Given a slider drag, the GPU renders it at full size and the CPU a smaller draft (#330)
+    #[test]
+    fn a_drag_shrinks_the_draft_only_on_the_cpu() {
+        assert_eq!(drag_scale(true, true), 1.0);
+        assert_eq!(drag_scale(true, false), CPU_DRAFT_SCALE);
+        assert_eq!(drag_scale(false, true), 1.0);
+        assert_eq!(drag_scale(false, false), 1.0);
+    }
+
+    // Given a drag at fit on the GPU, the draft is as sharp as the render at rest
+    #[test]
+    fn a_gpu_drag_at_fit_keeps_the_resolution() {
+        for drawn in [1400.0, 2800.0] {
+            let still = plan(&auto(), sizes(drawn, drawn, 6000));
+            let drag = plan(&auto(), ViewSizes { draft_scale: drag_scale(true, true), drafting: true, ..sizes(drawn, drawn, 6000) });
+            assert_eq!(drag, still, "{drawn}");
+        }
+    }
+
+    // Given no window and a drag on the GPU, the draft is still at most the canvas: a drag at 1:1
+    // must not render the photo's every pixel each frame
+    #[test]
+    fn a_gpu_drag_without_a_window_drafts_at_the_canvas_size() {
+        let drag = plan(&auto(), ViewSizes { windows: false, draft_scale: 1.0, drafting: true, ..sizes(24000.0, 2800.0, 6000) });
+        assert!(drag.main_edge <= 2816, "{drag:?}");
     }
 
     // Given the user capped the preview size, the whole-frame render obeys it, and a fit view
@@ -326,7 +365,7 @@ mod tests {
     fn a_drag_at_fit_on_a_large_display_keeps_the_window() {
         for drawn in [3300.0, 3840.0, 4096.0, 5120.0] {
             let still = plan(&auto(), sizes(drawn, drawn, 6000));
-            let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, ..sizes(drawn, drawn, 6000) });
+            let drag = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(drawn, drawn, 6000) });
             assert!(still.window_edge.is_some(), "{drawn}: {still:?}");
             assert_eq!(drag.window_edge, still.window_edge, "{drawn}");
         }
@@ -370,7 +409,7 @@ mod tests {
     // Given a drag at fit on a Retina Mac, the window does not switch on (it would flicker with the drag)
     #[test]
     fn a_drag_at_fit_does_not_switch_the_window_on() {
-        let p = plan(&auto(), ViewSizes { draft_scale: 0.6, ..sizes(2800.0, 2800.0, 6000) });
+        let p = plan(&auto(), ViewSizes { draft_scale: 0.6, drafting: true, ..sizes(2800.0, 2800.0, 6000) });
         assert_eq!(p.window_edge, None);
     }
 
