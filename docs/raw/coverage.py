@@ -83,6 +83,8 @@ def classify(maker, camera, ext_field):
                 return "preview", "SRW", "compressed SRW is not decoded"
             return "unverified", "SRW", "uncompressed / packed SRW"
     e = es[0] if es else ""
+    if e == "MEF":
+        return "unverified", "MEF", "MEF decoder (uncompressed 12-bit)"
     if e == "ERF":
         return "unverified", "ERF", "ERF decoder (12-bit 16-byte blocks)"
     if e in ("CRW", "3FR", "FFF", "IIQ", "MOS", "KDC", "MRW", "X3F", "RAW", "ORI"):

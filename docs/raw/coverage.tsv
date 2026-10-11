@@ -673,7 +673,7 @@ Mamiya	Mamiya M18	TIF	2008	unsupported	TIF is not imported
 Mamiya	Mamiya M22	TIF	2008	unsupported	TIF is not imported
 Mamiya	Mamiya M31	TIF	2008	unsupported	TIF is not imported
 Mamiya	Mamiya DM40	MOS	2010	preview	MOS is opened from its embedded JPEG only
-Mamiya	ZD	MEF	2005	unsupported	MEF is not imported
+Mamiya	ZD	MEF	2005	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Motorola	Moto G Power (2021) Front Camera	DNG	2021	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Motorola	Moto G Power (2021) Rear Macro Camera	DNG	2021	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Motorola	Moto G Power (2021) Rear Wide Camera	DNG	2021	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)

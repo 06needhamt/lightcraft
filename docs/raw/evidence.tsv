@@ -251,3 +251,4 @@ Sony	ZV-E10	verified	issue #535: raw.pixls.us bulk check of all 100 Sony bodies 
 Epson	R-D1	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1s	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1x	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Mamiya	ZD	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)

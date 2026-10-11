@@ -67,7 +67,20 @@ fn median(v: &mut [f64]) -> Option<f64> {
 fn from_preview(bytes: &[u8], f: &Frame) -> Option<[f32; 3]> {
     let jpeg = crate::preview::embedded_preview(bytes)?;
     let (px, pw, ph, ch) = crate::tiffraw::lossy_jpeg(&jpeg, 3).ok()?;
-    if ch != 3 || pw.checked_mul(ph)? > MAX_PREVIEW_PIXELS {
+    if ch != 3 {
+        return None;
+    }
+    from_rgb(&px, pw, ph, f)
+}
+
+/// Gains from an 8-bit RGB preview `pw` x `ph` (rows of RGB triplets) showing the crop: its neutral pixels, else
+/// grey world. For raws whose preview is an uncompressed RGB image rather than a JPEG.
+pub(crate) fn as_shot_rgb(px: &[u8], pw: usize, ph: usize, f: &Frame) -> Option<[f32; 3]> {
+    from_rgb(px, pw, ph, f).or_else(|| grey_world(f))
+}
+
+fn from_rgb(px: &[u8], pw: usize, ph: usize, f: &Frame) -> Option<[f32; 3]> {
+    if pw.checked_mul(ph)? > MAX_PREVIEW_PIXELS || px.len() < pw * ph * 3 {
         return None;
     }
     // the preview must show the crop: aspect ratios within 3%

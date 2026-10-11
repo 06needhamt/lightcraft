@@ -14,7 +14,7 @@ use crate::backend::{Backend, ProgressHook};
 pub const PHOTO_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "tif", "tiff", "webp", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "rwl", "raw", "pef", "srw", "psd", "jxl",
     "gif", "bmp", "avif", // containers LightCraft cannot decode but imports as preview only (their embedded JPEG)
-    "iiq", "crw", "mrw", "x3f", "kdc", "mos", "erf", "3fr", "fff",
+    "iiq", "crw", "mrw", "x3f", "kdc", "mos", "erf", "3fr", "fff", "mef",
 ];
 
 /// Headless backend: a [`Session`] with filesystem hooks.

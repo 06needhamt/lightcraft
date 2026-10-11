@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (Epson ERF decoded, 3 bodies verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (Mamiya MEF and Epson ERF decoded) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -114,6 +114,8 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 ## Progress log
 
+- 2026-10-12: Mamiya MEF (ZD) decodes from sensor data and is imported; verified on a CC0 file. 239 models
+  verified, 35 unsupported; headline numbers unchanged.
 - 2026-10-12: Epson ERF (R-D1, R-D1s, R-D1x) decodes from sensor data, white balance measured from each
   file's preview; 3 bodies verified on CC0 files. 238 models verified; headline numbers unchanged.
 - 2026-10-11: Canon EOS R5 Mark II C-RAW decodes from sensor data (57% of its files opened as a
@@ -163,6 +165,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Mamiya MEF decoded and imported: ZD verified (239); headline numbers unchanged |
 | 2026-10-12 | minor | Epson ERF decoded: 3 more verified models (238); headline numbers unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |

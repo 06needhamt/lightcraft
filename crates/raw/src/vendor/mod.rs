@@ -12,6 +12,7 @@ pub mod crx;
 pub(crate) mod crx_wavelet;
 pub mod erf;
 pub mod kodak;
+pub mod mef;
 pub mod nef;
 pub mod nefc;
 pub mod orf;
