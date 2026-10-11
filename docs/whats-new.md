@@ -1,5 +1,26 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Slideshow templates
+- Settings ▸ Slideshow now opens with a template browser, like Lightroom Classic's Template Browser. A template holds
+  everything about how a slideshow looks and plays: the playback timing and fades, the layout, options and backdrop,
+  the overlays and the intro and ending screens. Click one to apply it; point at one to see it on the selected photo in
+  the preview beside it without changing anything.
+- Five built-in templates of our own: Plain Black (the photo on black), Gallery Wall (a light wall, a white mat and a
+  soft shadow, with the caption and rating under the photo), Edge to Edge (photos cropped to fill the screen), Cinema
+  Wide (16:9 with black bars, the title in the corner, fades through black and a closing card) and Shooting Data (the
+  exposure, ISO, focal length, camera and lens under each photo on a dark backdrop).
+- Save the current settings as a template of your own; right-click it to update it with the current settings, rename,
+  export or delete it, and import templates others share with you. Your templates are `.json` files in the settings
+  folder's `slideshow-templates` folder, shared by all your libraries.
+- Applying a template can't be undone with Edit ▸ Undo (slideshow settings are library preferences), so the settings it
+  replaced are listed as "Previous settings" until you quit: click that to go back.
+- A template file that can't be used (damaged, from a newer LightCraft, too large) is listed as skipped instead of
+  stopping the others, and a template whose identity plate image or background photo isn't there still applies, with a
+  note saying what is missing. Agents use `slideshow.templates.*`, and `slideshow.preview {template}` renders a template
+  without applying it.
+
 ## 2026-10-10
 
 ### Slideshow intro and ending screens

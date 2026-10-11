@@ -654,6 +654,8 @@ fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         ui.allocate_ui_with_layout(egui::vec2(SLIDESHOW_COLUMN_W, tall), top_down, |ui| {
             ui.set_width(SLIDESHOW_COLUMN_W);
             egui::ScrollArea::vertical().id_salt("settingsSlideshowScroll").max_height(tall).auto_shrink([false, true]).show(ui, |ui| {
+                super::slide_templates::section(app, ui, t);
+                ui.add_space(6.0);
                 playback_section(app, ui, t);
                 ui.add_space(6.0);
                 super::slide_layout::sections(app, ui, t);

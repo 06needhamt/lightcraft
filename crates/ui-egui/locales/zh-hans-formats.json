@@ -228,5 +228,14 @@
   "+{n} more": "还有 {n} 项",
   "1 task is still running: {names}. Quitting stops it.": "仍有 1 个任务在运行：{names}。退出将停止它。",
   "{n} tasks are still running: {names}. Quitting stops them.": "仍有 {n} 个任务在运行：{names}。退出将停止它们。",
-  "{what} merge cancelled": "已取消 {what} 合并"
+  "{what} merge cancelled": "已取消 {what} 合并",
+  "Applied {name}": "已应用 {name}",
+  "Delete “{name}”?": "删除“{name}”？",
+  "Updated {name}": "已更新 {name}",
+  "Exported to {path}": "已导出到 {path}",
+  "Saved template {name}": "已保存模板 {name}",
+  "Imported {name}": "已导入 {name}",
+  "Skipped {problem}": "已跳过：{problem}",
+  "…and {more} more": "…还有 {more} 个",
+  "Template preview: {name}": "模板预览：{name}"
 }

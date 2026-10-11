@@ -228,5 +228,14 @@
   "+{n} more": "ещё {n}",
   "1 task is still running: {names}. Quitting stops it.": "Ещё выполняется задача: {names}. Выход прервёт её.",
   "{n} tasks are still running: {names}. Quitting stops them.": "Ещё выполняется задач: {n} — {names}. Выход прервёт их.",
-  "{what} merge cancelled": "{what}: слияние отменено"
+  "{what} merge cancelled": "{what}: слияние отменено",
+  "Applied {name}": "Применено: {name}",
+  "Delete “{name}”?": "Удалить «{name}»?",
+  "Updated {name}": "Обновлено: {name}",
+  "Exported to {path}": "Экспортировано в {path}",
+  "Saved template {name}": "Шаблон {name} сохранён",
+  "Imported {name}": "Импортировано: {name}",
+  "Skipped {problem}": "Пропущено: {problem}",
+  "…and {more} more": "…и ещё {more}",
+  "Template preview: {name}": "Просмотр шаблона: {name}"
 }

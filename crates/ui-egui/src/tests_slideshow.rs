@@ -233,6 +233,8 @@ fn playback_settings_drive_the_slideshow_and_bad_ones_are_refused() {
     run(&mut h, "view.slideshowOptions", json!({}));
     h.step();
     assert!(h.app.widgets.iter().any(|(w, _)| w == "check:settings.slideshowRandom"));
+    // (below the Templates at the top of the tab)
+    reveal(&mut h, "check:settings.slideshowRandom");
     let r = h.request("ui.clickWidget", json!({"id": "check:settings.slideshowRandom"}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.step();
@@ -608,4 +610,116 @@ fn settings_shows_the_titles_and_the_preview_shows_a_title_screen() {
     assert_eq!(r["ok"], true, "{r}");
     assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).is_some_and(|t| t.photo == first)));
     h.settle(SETTLE);
+}
+
+/// Settings ▸ Slideshow ▸ Templates: built-ins listed, hover previews on the selected photo
+/// without changing anything, a click applies, and the user's own templates are saved, updated,
+/// renamed and deleted from the browser.
+#[test]
+fn template_browser_previews_on_hover_applies_and_manages_user_templates() {
+    use lightcraft_engine::slide_template::SlideLook;
+    let mut h = grid();
+    let dir = std::env::temp_dir().join(format!("lc-ui-sstpl-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    h.app.session.slide_templates_dir = Some(dir.clone());
+    let first = h.app.session.visible_cloned()[0];
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    run(&mut h, "view.slideshowOptions", json!({}));
+    assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).is_some_and(|t| t.photo == first)));
+    let has = |h: &Headless, w: &str| h.app.widgets.iter().any(|(id, _)| id == w);
+    let rect = |h: &Headless, w: &str| h.app.widgets.iter().find(|(id, _)| id == w).map(|(_, r)| *r).unwrap();
+    for w in [
+        "template:builtin:plain-black",
+        "template:builtin:gallery-wall",
+        "template:builtin:edge-to-edge",
+        "template:builtin:cinema-wide",
+        "template:builtin:shooting-data",
+        "field:slideshowTemplateName",
+        "button:slideshowTemplateSave",
+    ] {
+        assert!(has(&h, w), "{w}");
+    }
+    // hover: the preview shows Gallery Wall (its light grey wall in the margin), nothing changes
+    let before = SlideLook::of(&h.app.session);
+    let r = h.request("ui.hoverWidget", json!({"id": "template:builtin:gallery-wall"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(crate::panels::slide_templates::hovered(&h.view.ctx).as_deref(), Some("builtin:gallery-wall"));
+    let grey = |h: &Headless| {
+        let r = rect(h, "slideshow:preview");
+        let img = h.paint();
+        let c = painted(&img, (r.left() + 3.0) as usize, r.center().y as usize);
+        c.iter().all(|v| (200..=230).contains(v))
+    };
+    assert!(h.step_until(SETTLE, grey), "the hovered template on the selected photo");
+    assert_eq!(SlideLook::of(&h.app.session), before, "hovering changes nothing");
+    assert!(h.app.session.slide_templates_previous.is_none());
+    // a click applies it
+    let r = h.request("ui.clickWidget", json!({"id": "template:builtin:gallery-wall"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.session.slide_overlays.rating_stars.enabled && h.app.session.slide_layout.stroke_border);
+    assert!(has(&h, "template:previous"), "Previous settings appear");
+    // save as a template of our own
+    let r = h.request("ui.clickWidget", json!({"id": "field:slideshowTemplateName"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "Holiday / 2026"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowTemplateSave"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(dir.join("Holiday _ 2026.json").exists(), "the separator never makes a folder");
+    h.step();
+    assert!(has(&h, "template:user:Holiday _ 2026"));
+    // update it from its menu with changed settings
+    run(&mut h, "slideshow.layout", json!({"backdropColor": "#123456"}));
+    let r = h.request("ui.clickWidget", json!({"id": "template:user:Holiday _ 2026", "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    for w in ["button:slideshowTemplateUpdate", "button:slideshowTemplateRename", "button:slideshowTemplateExport", "button:slideshowTemplateDelete"]
+    {
+        assert!(has(&h, w), "{w}");
+    }
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowTemplateUpdate"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(h.app.session.slide_template("user:Holiday _ 2026").unwrap().look.layout.backdrop_color, [0x12, 0x34, 0x56]);
+    // rename it in place
+    let r = h.request("ui.clickWidget", json!({"id": "template:user:Holiday _ 2026", "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowTemplateRename"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert!(has(&h, "field:slideshowTemplateRename"));
+    let r = h.request("ui.key", json!({"key": "a", "cmd": true}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.text", json!({"text": "Summer"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.key", json!({"key": "enter"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert!(has(&h, "template:user:Summer"), "{:?}", h.app.session.slide_templates().templates.iter().map(|t| t.id.clone()).collect::<Vec<_>>());
+    // delete it (after confirming)
+    let r = h.request("ui.clickWidget", json!({"id": "template:user:Summer", "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowTemplateDelete"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert!(dir.join("Summer.json").exists(), "not before it is confirmed");
+    let r = h.request("ui.clickWidget", json!({"id": "button:slideshowTemplateDeleteConfirm"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(!dir.join("Summer.json").exists());
+    // back to the settings before Gallery Wall
+    let r = h.request("ui.clickWidget", json!({"id": "template:previous"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(SlideLook::of(&h.app.session).overlays, before.overlays);
+    h.settle(SETTLE);
+    let _ = std::fs::remove_dir_all(dir);
 }

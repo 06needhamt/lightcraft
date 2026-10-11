@@ -32,7 +32,9 @@ impl Drop for Headless {
 
 impl Default for Headless {
     fn default() -> Self {
-        Self::new(Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models())
+        Self::new(
+            Session::new().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models().with_default_slide_templates(),
+        )
     }
 }
 
@@ -43,7 +45,14 @@ impl Headless {
 
     /// A headless session with the procedurally generated demo library.
     pub fn demo() -> Self {
-        Self::new(Session::with_demo().with_fs().with_default_denoise_models().with_system_clock().with_default_face_models())
+        Self::new(
+            Session::with_demo()
+                .with_fs()
+                .with_default_denoise_models()
+                .with_system_clock()
+                .with_default_face_models()
+                .with_default_slide_templates(),
+        )
     }
 
     fn photo_or_active(&self, p: &Value) -> Result<PhotoId, String> {

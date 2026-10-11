@@ -6,12 +6,15 @@
 //! the identity plate, rating stars, text overlays with tokens and the watermark drawn on every
 //! slide (also a library preference). `slideshow.titles`: the intro and ending screens (colour,
 //! identity plate or text, scale, duration; a library preference). `slideshow.preview` composes
-//! one slide, or a title screen, as a PNG.
+//! one slide, or a title screen, as a PNG (with the library's settings, or a template's).
+//! `slideshow.templates.*`: the Template Browser (built-in and user templates; see
+//! [`crate::slide_template`]).
 
 use lightcraft_catalog::PhotoId;
 use serde_json::{Value, json};
 
 use super::{CommandSpec, always, bad, cmd, str_param};
+use crate::slide_template::{self as tpl, SlideLook};
 use crate::{Result, Session};
 
 /// Largest side `slideshow.preview` renders.
@@ -71,7 +74,7 @@ fn titles(s: &mut Session, p: &Value) -> Result<Value> {
 
 /// A slide size from the request: both sides given, one (the other from the aspect preview), or
 /// neither (1280 wide). Each side 16–[`PREVIEW_MAX`].
-fn preview_size(s: &Session, p: &Value) -> Result<(usize, usize)> {
+fn preview_size(layout: &lightcraft_slideshow::SlideSettings, p: &Value) -> Result<(usize, usize)> {
     const C: &str = "slideshow.preview";
     let side = |k: &str| -> Result<Option<usize>> {
         match p.get(k) {
@@ -82,7 +85,7 @@ fn preview_size(s: &Session, p: &Value) -> Result<(usize, usize)> {
             },
         }
     };
-    let ratio = s.slide_layout.aspect.ratio(f64::NAN);
+    let ratio = layout.aspect.ratio(f64::NAN);
     let clamp = |v: f64| (v.round() as usize).clamp(16, PREVIEW_MAX);
     Ok(match (side("width")?, side("height")?) {
         (Some(w), Some(h)) => (w, h),
@@ -110,7 +113,7 @@ fn encode_png(img: &lightcraft_raster::Rgba8) -> Result<Vec<u8>> {
 }
 
 /// `slideshow.preview {title}`: a title screen (whether or not it is switched on).
-fn preview_title(s: &mut Session, p: &Value, title: &Value) -> Result<Value> {
+fn preview_title(s: &mut Session, p: &Value, title: &Value, look: &SlideLook) -> Result<Value> {
     const C: &str = "slideshow.preview";
     let t = title
         .as_str()
@@ -119,18 +122,18 @@ fn preview_title(s: &mut Session, p: &Value, title: &Value) -> Result<Value> {
     if p.get("id").is_some_and(|v| !v.is_null()) {
         return Err(bad(C, "pass `id` or `title`, not both"));
     }
-    let (w, h) = preview_size(s, p)?;
+    let (w, h) = preview_size(&look.layout, p)?;
     let path = str_param(p, "path").map(str::trim).filter(|x| !x.is_empty());
     if let Some(path) = path {
         s.check_write_target(path).map_err(|e| bad(C, e))?;
     }
-    let c = s.title_compose(t, w, h);
+    let c = crate::slide_title::TitleCompose::new(&look.titles, &look.overlays, t, w, h);
     let img = c.compose();
     let png = encode_png(&img)?;
     let rect = |r: lightcraft_slideshow::Rect| json!([r.x0, r.y0, r.x1, r.y1]);
     let mut out = json!({
         "title": t.id(),
-        "enabled": s.slide_titles.screen(t).enabled,
+        "enabled": look.titles.screen(t).enabled,
         "width": img.width,
         "height": img.height,
         "plate": c.plate_box().map(rect),
@@ -141,8 +144,19 @@ fn preview_title(s: &mut Session, p: &Value, title: &Value) -> Result<Value> {
 
 fn preview(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "slideshow.preview";
+    // a template's look (the Template Browser's hover preview), else the library's settings
+    let template = match p.get("template") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(id)) => Some(s.slide_template(id.trim()).map_err(|e| bad(C, e))?),
+        Some(v) => return Err(bad(C, format!("`template` must be a template id, not {v}"))),
+    };
+    let look = template.as_ref().map_or_else(|| SlideLook::of(s), |t| t.look.clone());
     if let Some(t) = p.get("title").filter(|v| !v.is_null()) {
-        return preview_title(s, p, t);
+        let mut out = preview_title(s, p, t, &look)?;
+        if let Some(t) = &template {
+            out["template"] = json!(t.id);
+        }
+        return Ok(out);
     }
     let id = match p.get("id") {
         None | Some(Value::Null) => s.active().ok_or_else(|| bad(C, "no photo selected (select one or pass `id`)"))?,
@@ -151,13 +165,13 @@ fn preview(s: &mut Session, p: &Value) -> Result<Value> {
     if s.catalog.photo(id).is_none() {
         return Err(bad(C, format!("no photo {}", id.0)));
     }
-    let (w, h) = preview_size(s, p)?;
+    let (w, h) = preview_size(&look.layout, p)?;
     let path = str_param(p, "path").map(str::trim).filter(|x| !x.is_empty());
     if let Some(path) = path {
         s.check_write_target(path).map_err(|e| bad(C, e))?;
     }
-    let settings = s.slide_layout.clone();
-    let img = s.slide_now(&settings, id, w, h).map_err(crate::EngineError::Other)?;
+    let settings = look.layout.clone();
+    let img = s.slide_now_look(&settings, &look.overlays, id, w, h).map_err(crate::EngineError::Other)?;
     let png = encode_png(&img)?;
     let aspect = s.slide_photo_aspect(id).unwrap_or(1.5);
     let l = lightcraft_slideshow::layout(&settings, aspect, img.width, img.height);
@@ -170,8 +184,11 @@ fn preview(s: &mut Session, p: &Value) -> Result<Value> {
         "photo": rect(l.visible),
     });
     let photo = s.catalog.photo(id).cloned();
-    let o = crate::slide_overlay::SlideOverlays::resolve(&s.slide_overlays, photo.as_deref());
+    let o = crate::slide_overlay::SlideOverlays::resolve(&look.overlays, photo.as_deref());
     out["overlays"] = o.boxes(&l).into_iter().map(|(k, r)| json!({"kind": k.id(), "box": rect(r)})).collect();
+    if let Some(t) = &template {
+        out["template"] = json!(t.id);
+    }
     deliver(&png, path, &mut out)?;
     Ok(out)
 }
@@ -190,6 +207,104 @@ fn base64(bytes: &[u8]) -> String {
         out.push(if chunk.len() > 2 { at(0) } else { '=' });
     }
     out
+}
+
+// ------------------------------------------------------------------------------- templates
+
+/// The settings as the `slideshow.*` commands return them (for template replies).
+fn settings_json(s: &Session) -> Value {
+    json!({
+        "playback": s.slideshow.to_json(),
+        "layout": s.slide_layout.to_json(),
+        "overlays": s.slide_overlays.to_json(),
+        "titles": s.slide_titles.to_json(),
+    })
+}
+
+fn tpl_list(s: &mut Session, _p: &Value) -> Result<Value> {
+    let l = s.slide_templates();
+    Ok(json!({
+        "templates": l.templates.iter().map(|t| t.info()).collect::<Vec<_>>(),
+        "previous": s.slide_templates_previous.is_some(),
+        "folder": s.slide_templates_dir.as_ref().map(|d| d.to_string_lossy().to_string()),
+        "problems": l.problems,
+    }))
+}
+
+/// The template `id` or `name` names.
+fn named(s: &mut Session, p: &Value, c: &str) -> Result<std::sync::Arc<tpl::Template>> {
+    s.slide_template_named(str_param(p, "id"), str_param(p, "name")).map_err(|e| bad(c, e))
+}
+
+fn tpl_apply(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.apply";
+    let t = named(s, p, C)?;
+    let warnings = s.apply_slide_look(&t.look)?;
+    let mut out = json!({"applied": t.id, "name": t.name, "warnings": warnings, "previous": s.slide_templates_previous.is_some()});
+    out["settings"] = settings_json(s);
+    Ok(out)
+}
+
+fn tpl_reply(t: &tpl::Template) -> Value {
+    t.info()
+}
+
+fn tpl_save(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.save";
+    let name = str_param(p, "name").ok_or_else(|| bad(C, "missing `name`"))?;
+    let replace = match p.get("replace") {
+        None | Some(Value::Null) => false,
+        Some(v) => v.as_bool().ok_or_else(|| bad(C, format!("`replace` must be true or false, not {v}")))?,
+    };
+    let t = s.save_slide_template(name, replace).map_err(|e| bad(C, e))?;
+    Ok(tpl_reply(&t))
+}
+
+fn id_param<'a>(p: &'a Value, c: &str) -> Result<&'a str> {
+    str_param(p, "id").map(str::trim).filter(|x| !x.is_empty()).ok_or_else(|| bad(c, "missing `id` (a template id from slideshow.templates.list)"))
+}
+
+fn tpl_update(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.update";
+    let id = id_param(p, C)?;
+    let t = s.update_slide_template(id).map_err(|e| bad(C, e))?;
+    Ok(tpl_reply(&t))
+}
+
+fn tpl_rename(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.rename";
+    let id = id_param(p, C)?;
+    let name = str_param(p, "name").ok_or_else(|| bad(C, "missing `name`"))?;
+    let t = s.rename_slide_template(id, name).map_err(|e| bad(C, e))?;
+    Ok(tpl_reply(&t))
+}
+
+fn tpl_delete(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.delete";
+    let id = id_param(p, C)?;
+    let t = s.delete_slide_template(id).map_err(|e| bad(C, e))?;
+    Ok(json!({"deleted": t.id, "name": t.name}))
+}
+
+fn tpl_import(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.import";
+    let path = str_param(p, "path").map(str::trim).filter(|x| !x.is_empty()).ok_or_else(|| bad(C, "missing `path`"))?;
+    let (t, renamed) = s.import_slide_template(std::path::Path::new(path)).map_err(|e| bad(C, e))?;
+    let mut out = tpl_reply(&t);
+    out["renamed"] = json!(renamed);
+    out["warnings"] = json!(t.look.warnings(s));
+    Ok(out)
+}
+
+fn tpl_export(s: &mut Session, p: &Value) -> Result<Value> {
+    const C: &str = "slideshow.templates.export";
+    let id = id_param(p, C)?;
+    let path = str_param(p, "path").map(str::trim).filter(|x| !x.is_empty()).ok_or_else(|| bad(C, "missing `path`"))?;
+    let t = s.slide_template(id).map_err(|e| bad(C, e))?;
+    s.check_write_target(path).map_err(|e| bad(C, e))?;
+    let bytes = serde_json::to_vec_pretty(&t.to_doc()).map_err(|e| crate::EngineError::Other(e.to_string()))?;
+    crate::export::write_file(path, &bytes).map_err(crate::EngineError::Other)?;
+    Ok(json!({"id": t.id, "name": t.name, "path": path}))
 }
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -231,11 +346,83 @@ pub fn specs() -> Vec<CommandSpec> {
             titles
         ),
         cmd!(
+            query "slideshow.templates.list",
+            "Slideshow Templates",
+            [],
+            None,
+            "{} → {templates: [{id: \"builtin:…\"|\"user:…\", name, builtin, group: \"builtin\"|\"user\", description?, path? (a user template's file)}], previous: bool (the settings before the last apply can be restored with apply {id: \"previous\"}), folder: the user templates folder | null, problems: [\"file: why it was skipped\"]} — built-ins first, then user templates by name (files in <settings>/slideshow-templates, at most 1000)",
+            always,
+            tpl_list
+        ),
+        cmd!(
+            "slideshow.templates.apply",
+            "Apply Slideshow Template",
+            [],
+            None,
+            "{id: template id | \"previous\" (the settings before the last apply) | name: template name (case-insensitive)} — replaces the playback (prepare previews kept), layout, overlays and titles settings with the template's and saves them with the library; there is no undo: the replaced settings are kept as \"previous\" for this session → {applied, name, warnings: [a background photo not in this library, an unreadable identity plate / watermark image…], previous, settings: {playback, layout, overlays, titles}}",
+            always,
+            tpl_apply
+        ),
+        cmd!(
+            "slideshow.templates.save",
+            "Save Slideshow Template",
+            [],
+            None,
+            "{name: 1–80 characters, replace?: bool (over a user template of that name)} — the current playback, layout, overlays and titles settings as a user template, <settings>/slideshow-templates/<name>.json (path separators and other reserved characters become _); a name taken (case-insensitive) or a built-in's is refused unless replace → {id, name, builtin, group, path}",
+            always,
+            tpl_save
+        ),
+        cmd!(
+            "slideshow.templates.update",
+            "Update Slideshow Template",
+            [],
+            None,
+            "{id: user template} — replace its settings with the current ones (name kept); built-ins can't change → {id, name, builtin, group, path}",
+            always,
+            tpl_update
+        ),
+        cmd!(
+            "slideshow.templates.rename",
+            "Rename Slideshow Template",
+            [],
+            None,
+            "{id: user template, name} — its file follows the name; a name taken is refused → {id (the new one), name, builtin, group, path}",
+            always,
+            tpl_rename
+        ),
+        cmd!(
+            "slideshow.templates.delete",
+            "Delete Slideshow Template",
+            [],
+            None,
+            "{id: user template} — deletes its file → {deleted, name}",
+            always,
+            tpl_delete
+        ),
+        cmd!(
+            "slideshow.templates.import",
+            "Import Slideshow Template",
+            [],
+            None,
+            "{path: a template .json file (at most 256 KB)} — checked like a saved one (format, version, every setting) and saved as a user template under its name (else the file's); a name taken gets \" (2)\"… → {id, name, builtin, group, path, renamed, warnings}",
+            always,
+            tpl_import
+        ),
+        cmd!(
+            "slideshow.templates.export",
+            "Export Slideshow Template",
+            [],
+            None,
+            "{id: template (built-in or user), path: .json file to write} → {id, name, path}",
+            always,
+            tpl_export
+        ),
+        cmd!(
             query "slideshow.preview",
             "Slideshow Slide Preview",
             [],
             None,
-            "{id?: photo (default: the active one) | title?: \"intro\"|\"ending\", width?, height?: pixels (16–4096; one given: the other from the aspect preview; neither: 1280 wide), path?: write the PNG here} — the photo's slide composed with the slideshow layout and overlays → {id, width, height, cell: [x0,y0,x1,y1], photo: [x0,y0,x1,y1] (the visible photo, slide pixels), overlays: [{kind: identityPlate|ratingStars|textN|watermark, box: [x0,y0,x1,y1]}], path | png (base64 PNG)}; with `title`, that title screen (`slideshow.titles`; drawn even while it is off) → {title, enabled, width, height, plate: [x0,y0,x1,y1] | null (the plate or text), path | png}",
+            "{id?: photo (default: the active one) | title?: \"intro\"|\"ending\", template?: a template id (slideshow.templates.list): compose with its settings instead of the library's, which don't change (the Template Browser's hover preview), width?, height?: pixels (16–4096; one given: the other from the aspect preview; neither: 1280 wide), path?: write the PNG here} — the photo's slide composed with the slideshow layout and overlays → {id, width, height, cell: [x0,y0,x1,y1], photo: [x0,y0,x1,y1] (the visible photo, slide pixels), overlays: [{kind: identityPlate|ratingStars|textN|watermark, box: [x0,y0,x1,y1]}], path | png (base64 PNG)}; with `title`, that title screen (`slideshow.titles`; drawn even while it is off) → {title, enabled, width, height, plate: [x0,y0,x1,y1] | null (the plate or text), path | png}",
             always,
             preview
         ),

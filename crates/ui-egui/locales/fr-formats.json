@@ -228,5 +228,14 @@
   "+{n} more": "+{n} autres",
   "1 task is still running: {names}. Quitting stops it.": "1 tâche est encore en cours : {names}. Quitter l'arrête.",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n} tâches sont encore en cours : {names}. Quitter les arrête.",
-  "{what} merge cancelled": "Fusion {what} annulée"
+  "{what} merge cancelled": "Fusion {what} annulée",
+  "Applied {name}": "{name} appliqué",
+  "Delete “{name}”?": "Supprimer « {name} » ?",
+  "Updated {name}": "{name} mis à jour",
+  "Exported to {path}": "Exporté vers {path}",
+  "Saved template {name}": "Modèle {name} enregistré",
+  "Imported {name}": "{name} importé",
+  "Skipped {problem}": "Ignoré : {problem}",
+  "…and {more} more": "…et {more} de plus",
+  "Template preview: {name}": "Aperçu du modèle : {name}"
 }

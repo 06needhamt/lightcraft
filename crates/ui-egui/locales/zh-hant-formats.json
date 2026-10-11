@@ -228,5 +228,14 @@
   "+{n} more": "還有 {n} 項",
   "1 task is still running: {names}. Quitting stops it.": "仍有 1 個工作在執行：{names}。結束將停止它。",
   "{n} tasks are still running: {names}. Quitting stops them.": "仍有 {n} 個工作在執行：{names}。結束將停止它們。",
-  "{what} merge cancelled": "已取消{what}合併"
+  "{what} merge cancelled": "已取消{what}合併",
+  "Applied {name}": "已套用 {name}",
+  "Delete “{name}”?": "刪除「{name}」？",
+  "Updated {name}": "已更新 {name}",
+  "Exported to {path}": "已匯出到 {path}",
+  "Saved template {name}": "已儲存範本 {name}",
+  "Imported {name}": "已匯入 {name}",
+  "Skipped {problem}": "已略過：{problem}",
+  "…and {more} more": "…還有 {more} 個",
+  "Template preview: {name}": "範本預覽：{name}"
 }

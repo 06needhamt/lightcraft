@@ -228,5 +228,14 @@
   "+{n} more": "+{n} weitere",
   "1 task is still running: {names}. Quitting stops it.": "1 Aufgabe läuft noch: {names}. Beenden bricht sie ab.",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n} Aufgaben laufen noch: {names}. Beenden bricht sie ab.",
-  "{what} merge cancelled": "{what}-Zusammenfügung abgebrochen"
+  "{what} merge cancelled": "{what}-Zusammenfügung abgebrochen",
+  "Applied {name}": "{name} angewendet",
+  "Delete “{name}”?": "„{name}“ löschen?",
+  "Updated {name}": "{name} aktualisiert",
+  "Exported to {path}": "Exportiert nach {path}",
+  "Saved template {name}": "Vorlage {name} gespeichert",
+  "Imported {name}": "{name} importiert",
+  "Skipped {problem}": "Übersprungen: {problem}",
+  "…and {more} more": "…und {more} weitere",
+  "Template preview: {name}": "Vorlagenvorschau: {name}"
 }
