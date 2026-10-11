@@ -82,6 +82,7 @@
   "Reset {} Channel": "Redefinir canal {}",
   "Restore {}": "Restaurar {}",
   "Restore {} Photo{}": "Restaurar {} foto{:.0}",
+  "Restored {} photo{} from Recently Deleted": "Restauradas {} foto{:.0} de Excluídos recentemente",
   "Saved export preset “{}”": "Predefinição de exportação “{}” salva",
   "Show {hidden} hidden location{}": "Mostrar {hidden} local{:.0} oculto",
   "Showing {n} of {}": "Mostrando {n} de {}",
@@ -133,6 +134,7 @@
   "{} spot(s) on this photo": "{} ponto(s) nesta foto",
   "· {dups} already in the library": "· {dups} já na biblioteca",
   "· {n} photo{}": "· {n} foto{:.0}",
+  "· {trashed} in Recently Deleted": "· {trashed} em Excluídos recentemente",
   "… and {more} more": "… e mais {more}",
   " ({unsure} with several look-alike files: use Locate)": " ({unsure} com vários arquivos parecidos: use Localizar)",
   " · {:.0}% clipped": " · {:.0}% recortado",
@@ -228,5 +230,8 @@
   "+{n} more": "+{n} mais",
   "1 task is still running: {names}. Quitting stops it.": "1 tarefa ainda está em andamento: {names}. Sair a interrompe.",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n} tarefas ainda estão em andamento: {names}. Sair as interrompe.",
-  "{what} merge cancelled": "{what} mesclagem cancelada"
+  "{what} merge cancelled": "{what} mesclagem cancelada",
+  "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)": "Fotos locais ignoradas: {n}{0:.0} — álbuns contêm fotos da biblioteca (adicione-as às Minhas fotos primeiro)",
+  "New Folder in “{name}”": "Nova pasta em “{name}”",
+  "Moved {} photo(s)": "{} foto(s) movida(s)"
 }

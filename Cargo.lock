@@ -3078,9 +3078,15 @@ dependencies = [
  "lightcraft-ui-egui",
  "log",
  "muda",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "pollster 1.0.1",
  "rfd",
  "serde_json",
+ "winit",
  "winresource",
+ "zbus",
 ]
 
 [[package]]
@@ -3091,6 +3097,7 @@ dependencies = [
  "lightcraft-develop",
  "lightcraft-geom",
  "lightcraft-meta",
+ "lightcraft-raw",
  "log",
  "proptest",
  "serde",
@@ -3105,6 +3112,7 @@ version = "0.6.0"
 dependencies = [
  "dhat",
  "lightcraft-codecs",
+ "lightcraft-denoise",
  "lightcraft-engine",
  "lightcraft-mcp",
  "lightcraft-merge",
@@ -3210,9 +3218,11 @@ dependencies = [
  "lightcraft-develop",
  "lightcraft-faces",
  "lightcraft-fetch",
+ "lightcraft-geocode",
  "lightcraft-geom",
  "lightcraft-gpu",
  "lightcraft-heif",
+ "lightcraft-lensdb",
  "lightcraft-merge",
  "lightcraft-meta",
  "lightcraft-pipeline",
@@ -3259,6 +3269,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "lightcraft-geocode"
+version = "0.6.0"
+dependencies = [
+ "miniz_oxide 0.8.9",
+ "serde",
+]
+
+[[package]]
 name = "lightcraft-geom"
 version = "0.6.0"
 dependencies = [
@@ -3290,6 +3308,22 @@ version = "0.6.0"
 dependencies = [
  "heic-rs",
  "rayon",
+]
+
+[[package]]
+name = "lightcraft-inpaint"
+version = "0.6.0"
+dependencies = [
+ "rayon",
+]
+
+[[package]]
+name = "lightcraft-lensdb"
+version = "0.6.0"
+dependencies = [
+ "lightcraft-develop",
+ "lightcraft-geom",
+ "quick-xml 0.38.4",
 ]
 
 [[package]]
@@ -3339,6 +3373,7 @@ dependencies = [
  "lightcraft-color",
  "lightcraft-develop",
  "lightcraft-geom",
+ "lightcraft-inpaint",
  "lightcraft-raster",
  "lightcraft-raw",
  "lightcraft-scenes",
