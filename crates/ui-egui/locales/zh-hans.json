@@ -1989,5 +1989,8 @@
   "Adding to Apple Photos…": "正在添加到 Apple 照片…",
   "not added to Apple Photos (cancelled)": "未添加到 Apple 照片（已取消）",
   "The first time, macOS asks whether LightCraft may control Photos.": "首次使用时，macOS 会询问是否允许 LightCraft 控制“照片”。",
-  "Adding to Apple Photos": "正在添加到 Apple 照片"
+  "Adding to Apple Photos": "正在添加到 Apple 照片",
+  "Export to": "导出到",
+  "Specific folder": "指定文件夹",
+  "Same folder as original photo": "与原始照片相同的文件夹"
 }

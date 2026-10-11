@@ -151,6 +151,29 @@ pub enum Conflict {
     Skip,
 }
 
+/// Where a batch's files go (Lightroom Classic's Export To).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DestinationMode {
+    /// One folder for the whole batch ([`Destination::dir`]).
+    #[default]
+    SpecificFolder,
+    /// Each photo's own folder: the folder its original is in. A photo without one on disk (a
+    /// demo photo, a photo in the browser's storage) or whose folder is gone gets an error.
+    SameAsOriginal,
+}
+
+impl DestinationMode {
+    /// `specificFolder` / `sameAsOriginal` (any case).
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "specificfolder" => Some(Self::SpecificFolder),
+            "sameasoriginal" => Some(Self::SameAsOriginal),
+            _ => None,
+        }
+    }
+}
+
 /// A named set of `app.export` params.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExportPreset {
@@ -645,6 +668,8 @@ pub struct ExportOptions {
     pub naming: String,
     /// First `{seq}` value.
     pub start_number: u32,
+    /// A specific folder for the whole batch, or each photo's own folder.
+    pub destination_mode: DestinationMode,
     /// Created inside the destination folder (empty = none).
     pub subfolder: String,
     /// When a file of the same name exists in the destination folder.
@@ -695,6 +720,7 @@ impl Default for ExportOptions {
             sharpen_amount: SharpenAmount::Standard,
             naming: "{name}".into(),
             start_number: 1,
+            destination_mode: DestinationMode::SpecificFolder,
             subfolder: String::new(),
             conflict: Conflict::Unique,
             tiff_compression: TiffCompression::Deflate,
@@ -736,6 +762,7 @@ pub const OPTION_PARAMS: &[&str] = &[
     "sharpenAmount",
     "naming",
     "startNumber",
+    "destinationMode",
     "subfolder",
     "conflict",
     "tiffCompression",
@@ -924,6 +951,7 @@ impl ExportOptions {
                 "sharpen" => one_of(k, v, &["none", "screen", "matte", "glossy"])?,
                 "sharpenAmount" => one_of(k, v, &["low", "standard", "high"])?,
                 "conflict" => one_of(k, v, &["unique", "overwrite", "skip"])?,
+                "destinationMode" => one_of(k, v, &["specificFolder", "sameAsOriginal"])?,
                 "tiffCompression" => one_of(k, v, &["none", "lzw", "zip", "deflate"])?,
                 "jxlEffort" => one_of(k, v, &["fast", "normal"])?,
                 "dngCompression" => {
@@ -1036,6 +1064,7 @@ impl ExportOptions {
             sharpen_amount: enm(p, "sharpenAmount").unwrap_or(d.sharpen_amount),
             naming: s("naming").map_or(d.naming, str::to_string),
             start_number: u("startNumber").map_or(d.start_number, |v| v.min(999_999) as u32),
+            destination_mode: s("destinationMode").and_then(DestinationMode::parse).unwrap_or(d.destination_mode),
             subfolder: s("subfolder").map_or(d.subfolder, |v| v.trim().replace(['\\', ':', '\0'], "_")),
             conflict: enm(p, "conflict").unwrap_or(d.conflict),
             tiff_compression: match s("tiffCompression").map(str::to_ascii_lowercase).as_deref() {
@@ -1554,6 +1583,9 @@ pub fn export_photo(session: &mut crate::Session, id: lightcraft_catalog::PhotoI
 pub struct PreparedExport {
     pub photo: lightcraft_catalog::PhotoId,
     pub file_name: String,
+    /// The folder of the photo's original on disk ([`DestinationMode::SameAsOriginal`]); `None`
+    /// for a demo photo or one in the browser's storage.
+    pub source_dir: Option<String>,
     work: Work,
     /// The library's originals, which [`run_batch`] never writes over (shared by a batch).
     guard: std::sync::Arc<crate::originals::OriginalGuard>,
@@ -1613,6 +1645,7 @@ fn prepare_guarded(
 ) -> Result<PreparedExport, String> {
     let p = session.catalog.photo(id).ok_or("no such photo")?;
     let file_name = o.file_name_for(p, seq);
+    let source_dir = original_folder(&p.source);
     // HDR output only for photos edited in HDR; the rest of the batch exports as usual
     let sdr_opts;
     let o = if o.hdr && !p.develop.hdr.enabled {
@@ -1648,7 +1681,18 @@ fn prepare_guarded(
         };
         (work, weight)
     };
-    Ok(PreparedExport { photo: id, file_name, work, guard, weight })
+    Ok(PreparedExport { photo: id, file_name, source_dir, work, guard, weight })
+}
+
+/// The folder a photo's original is in, for [`DestinationMode::SameAsOriginal`]. None for a demo
+/// photo, and on the web, where an original lives in the browser's storage, not in a folder.
+fn original_folder(source: &lightcraft_catalog::Source) -> Option<String> {
+    let lightcraft_catalog::Source::File { path } = source else { return None };
+    if cfg!(target_arch = "wasm32") {
+        return None;
+    }
+    let dir = std::path::Path::new(path).parent()?.to_string_lossy().to_string();
+    (!dir.is_empty()).then_some(dir)
 }
 
 /// Working memory of rendering a photo of `full_px` pixels (long edge `long`) from source level
@@ -1733,8 +1777,9 @@ pub enum DngCompression {
 }
 
 /// The destination of a batch: a folder (with `ExportOptions::subfolder` and the conflict policy
-/// applied to each file together with its sidecars), or one exact file path (single photo; an
-/// ordinary file already there is replaced). Either way a catalogued original (or its sidecar)
+/// applied to each file together with its sidecars; with [`DestinationMode::SameAsOriginal`] each
+/// photo's own folder instead of `dir`), or one exact file path (single photo; an ordinary file
+/// already there is replaced). Either way a catalogued original (or its sidecar)
 /// is never written over: see [`crate::originals`].
 #[derive(Clone, Debug, Default)]
 pub struct Destination {
@@ -1931,12 +1976,12 @@ fn run_batch_with(
             if !progress(i, &item.file_name) {
                 break;
             }
-            let (photo, name, guard) = (item.photo, item.file_name.clone(), item.guard.clone());
-            placer.place(photo, name, &guard, run_gated(item))?;
+            let (photo, name, guard, source_dir) = (item.photo, item.file_name.clone(), item.guard.clone(), item.source_dir.clone());
+            placer.place(photo, name, source_dir.as_deref(), &guard, run_gated(item))?;
         }
         return Ok(std::mem::take(&mut placer.out));
     }
-    let heads: Vec<_> = items.iter().map(|i| (i.photo, i.file_name.clone(), i.guard.clone())).collect();
+    let heads: Vec<_> = items.iter().map(|i| (i.photo, i.file_name.clone(), i.guard.clone(), i.source_dir.clone())).collect();
     let queue = Queue {
         lane: std::sync::Mutex::new(Lane { items: items.into_iter().map(Some).collect(), next: 0, placed: 0, stop: false, done: Default::default() }),
         cv: std::sync::Condvar::new(),
@@ -1951,12 +1996,12 @@ fn run_batch_with(
             }
         }
         let placed = || {
-            for (i, (photo, name, guard)) in heads.into_iter().enumerate() {
+            for (i, (photo, name, guard, source_dir)) in heads.into_iter().enumerate() {
                 if !progress(i, &name) {
                     break;
                 }
                 let e = queue.result(i);
-                placer.place(photo, name, &guard, e)?;
+                placer.place(photo, name, source_dir.as_deref(), &guard, e)?;
             }
             Ok::<_, String>(())
         };
@@ -2067,12 +2112,11 @@ impl Queue {
     }
 }
 
-/// Where a batch's files go: each photo's path (subfolder, conflict policy, sidecars, never an
-/// original) and its write, in batch order.
+/// Where a batch's files go: each photo's path (destination folder, subfolder, conflict policy,
+/// sidecars, never an original) and its write, in batch order.
 struct Placer<'a> {
     o: &'a ExportOptions,
     to: &'a Destination,
-    dir: String,
     single: bool,
     taken: std::collections::HashSet<String>,
     out: Vec<serde_json::Value>,
@@ -2093,29 +2137,53 @@ impl<'a> Placer<'a> {
         exists: &'a dyn Fn(&str) -> bool,
         stop_on_error: bool,
     ) -> Placer<'a> {
-        let dir = if o.subfolder.is_empty() { to.dir.clone() } else { join_path(&to.dir, &o.subfolder) };
-        Placer { o, to, dir, single: false, taken: Default::default(), out: Vec::new(), write, exists, stop_on_error }
+        Placer { o, to, single: false, taken: Default::default(), out: Vec::new(), write, exists, stop_on_error }
     }
 
-    /// Place photo `photo`'s export result (file `name`): write it and record the outcome. `Err`
-    /// only when it failed and `stop_on_error` is set.
+    /// The folder photo `name` (its original in `source_dir`) is written to: the batch's folder or
+    /// the photo's own ([`DestinationMode`]), plus the subfolder. An error for a photo with no
+    /// folder of its own, or whose folder is gone: never a file written somewhere else instead.
+    fn folder_for(&self, name: &str, source_dir: Option<&str>) -> Result<String, String> {
+        let base = match self.o.destination_mode {
+            DestinationMode::SpecificFolder => self.to.dir.clone(),
+            DestinationMode::SameAsOriginal => {
+                let Some(d) = source_dir else {
+                    return Err(format!(
+                        "{name}: the photo has no folder on disk (a demo photo or one in the browser's storage), so it can't be exported to the same folder as its original; choose a specific folder"
+                    ));
+                };
+                if !(self.exists)(d) {
+                    return Err(format!("{name}: the original's folder is missing ({d}); reconnect it or choose a specific folder"));
+                }
+                d.to_string()
+            }
+        };
+        Ok(if self.o.subfolder.is_empty() { base } else { join_path(&base, &self.o.subfolder) })
+    }
+
+    /// Place photo `photo`'s export result (file `name`, its original in `source_dir`): write it
+    /// and record the outcome. `Err` only when it failed and `stop_on_error` is set.
     fn place(
         &mut self,
         photo: lightcraft_catalog::PhotoId,
         name: String,
+        source_dir: Option<&str>,
         guard: &crate::originals::OriginalGuard,
         e: Result<Exported, String>,
     ) -> Result<(), String> {
         use serde_json::json;
-        let (o, dir, exists) = (self.o, &self.dir, self.exists);
-        let e = match e {
-            Ok(e) => e,
+        // an exact file path needs no folder
+        let dir = if self.to.exact.is_some() && self.single { Ok(String::new()) } else { self.folder_for(&name, source_dir) };
+        let (o, exists) = (self.o, self.exists);
+        let (dir, e) = match dir.and_then(|dir| e.map(|e| (dir, e))) {
+            Ok(v) => v,
             Err(err) if self.stop_on_error => return Err(err),
             Err(err) => {
                 self.out.push(json!({"photo": photo.0, "file": name, "error": err}));
                 return Ok(());
             }
         };
+        let dir = dir.as_str();
         // the exported file and its sidecars
         let group = |main: &str| std::iter::once(main.to_string()).chain(e.sidecars.iter().map(|(x, _)| sidecar_path(main, x))).collect::<Vec<_>>();
         let path = match self.to.exact.as_deref().filter(|_| self.single) {
@@ -3006,6 +3074,35 @@ mod tests {
         assert_eq!(ExportOptions::from_params(&ExportOptions::default().to_json()).unwrap(), ExportOptions::default());
         // null is "not given", as a dropped key is
         ExportOptions::from_params(&json!({"quality": 92, "longEdge": null, "watermark": null})).unwrap();
+    }
+
+    /// Issue #956: `destinationMode` picks a specific folder (the default) or each photo's own
+    /// folder; it is checked like the other params and kept in presets and Export with Previous.
+    #[test]
+    fn destination_mode_param() {
+        use serde_json::json;
+        assert_eq!(ExportOptions::default().destination_mode, DestinationMode::SpecificFolder);
+        for (v, want) in [
+            ("sameAsOriginal", DestinationMode::SameAsOriginal),
+            ("SameAsOriginal", DestinationMode::SameAsOriginal),
+            ("specificFolder", DestinationMode::SpecificFolder),
+        ] {
+            assert_eq!(ExportOptions::from_params(&json!({"destinationMode": v})).unwrap().destination_mode, want, "{v}");
+        }
+        let e = ExportOptions::from_params(&json!({"destinationMode": "nextToIt"})).unwrap_err().to_string();
+        assert!(e.contains("`destinationMode` must be one of specificFolder|sameAsOriginal"), "{e}");
+        assert!(ExportOptions::from_params(&json!({"destinationMode": 1})).is_err());
+        assert!(
+            ExportOptions::from_params(&json!({"destinationMod": "sameAsOriginal"}))
+                .unwrap_err()
+                .to_string()
+                .contains("did you mean `destinationMode`")
+        );
+        // saved (a preset, `lastExport`) and read back
+        let o = ExportOptions { destination_mode: DestinationMode::SameAsOriginal, subfolder: "Exports".into(), ..Default::default() };
+        let j = o.to_json();
+        assert_eq!(j["destinationMode"], "sameAsOriginal");
+        assert_eq!(ExportOptions::from_params(&ExportOptions::known_keys_only(&j)).unwrap(), o);
     }
 
     /// Issue #183: the `watermark` object's keys, kinds and ranges are checked (and documented in

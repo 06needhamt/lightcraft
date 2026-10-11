@@ -1186,6 +1186,12 @@ mod tests {
         let r = run_item(&mut app, "app.export", json!({"preset": "Tiny PNG", "dir": "  "}));
         assert_eq!(r.unwrap_err(), crate::control::NO_EXPORT_FOLDER);
         assert_eq!(written.lock().unwrap().len(), n, "nothing written without a folder");
+        // "Same folder as original photo" needs no folder; a demo photo has none of its own, so it
+        // gets its own error rather than a file written elsewhere (issue #956)
+        let r = run_item(&mut app, "app.export", json!({"preset": "Tiny PNG", "dir": "  ", "destinationMode": "sameAsOriginal"}));
+        let e = r.unwrap_err();
+        assert!(e.contains("no folder on disk"), "{e}");
+        assert_eq!(written.lock().unwrap().len(), n, "nothing written for a photo without a folder");
     }
 
     #[test]
