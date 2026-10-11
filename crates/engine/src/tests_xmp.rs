@@ -703,9 +703,11 @@ fn external_edit_copies_every_selected_photo() {
     let dir = temp_dir("extedit-many");
     let paths: Vec<String> = ["a", "b", "c"]
         .iter()
-        .map(|n| {
+        .zip(9u8..)
+        .map(|(n, seed)| {
             let p = dir.join(format!("{n}.png"));
-            write_png(&p, 9);
+            // different bytes: the import keeps one of identical files
+            write_png(&p, seed);
             p.to_string_lossy().into_owned()
         })
         .collect();
@@ -726,6 +728,8 @@ fn external_edit_copies_every_selected_photo() {
         assert!(s.selection.contains(new), "the copies are selected");
     }
     assert_eq!(r["path"], copies[0]["path"], "the single-copy fields name the first copy");
+    // an edit since the first copy: identical bytes would be skipped as a duplicate import
+    s.execute("develop.set", &json!({"ids": [originals[1]], "control": "light.exposure", "value": 0.5})).unwrap();
     let one = s.execute("photo.editExternal", &json!({"ids": [originals[1]]})).unwrap();
     assert_eq!(one["copies"].as_array().map(Vec::len), Some(1));
     let _ = std::fs::remove_dir_all(&dir);
