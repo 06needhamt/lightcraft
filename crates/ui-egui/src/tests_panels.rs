@@ -1227,6 +1227,7 @@ fn recognise_faces_stays_off_until_a_model_is_chosen() {
     assert!(!enabled(&mut h), "the box switches recognition off");
     click(&mut h);
     assert!(enabled(&mut h), "and on again, with a model chosen");
+}
 
 /// Issue #684: albums hold library photos. For a browsed (Local) photo the grid's right-click
 /// Add to Album is off, Photo ▸ Add to Album says to Add to My Photos first with its entries off,
