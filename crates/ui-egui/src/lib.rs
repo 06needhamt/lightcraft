@@ -427,6 +427,25 @@ impl LightcraftApp {
             // Keep it hidden after release; O / the overlay eye can show it again.
             self.ui.mask_overlay = false;
         }
+        if r.is_ok() {
+            // These commands finish synchronously, so their completion would otherwise
+            // be invisible once the activity stack is gone. Never show success on error.
+            let completed = match id {
+                "library.compact" => Some(format!("✓ {}", i18n::tr("Optimize Library"))),
+                "library.clearPreviews" => Some(format!("✓ {}", i18n::tr("Clear Preview Cache"))),
+                "develop.autoSync" => Some(format!(
+                    "{}: {}",
+                    i18n::tr("Auto Sync"),
+                    i18n::tr(if self.session.auto_sync { "On" } else { "Off" })
+                )),
+                _ => None,
+            };
+            if let Some(message) = completed {
+                // Menu clicks can arrive before the next frame updates last_time.
+                let now = self.tasks.repaint.as_ref().map(|ctx| ctx.input(|i| i.time)).unwrap_or(self.last_time);
+                self.ui.toast = Some((message, now + TOAST_SECONDS, None));
+            }
+        }
         if r.is_ok() && id == "photo.label" {
             let label = params.get("label").and_then(Value::as_str).and_then(lightcraft_catalog::ColorLabel::parse);
             let text = match label {
