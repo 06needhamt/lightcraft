@@ -2105,5 +2105,10 @@
   "Appearance Settings…": "Erscheinungsbild-Einstellungen…",
   "Add to favorites": "Zu Favoriten hinzufügen",
   "Remove from favorites": "Aus Favoriten entfernen",
-  "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt"
+  "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt",
+  "Add to Apple Photos": "Zu Apple Fotos hinzufügen",
+  "Adding to Apple Photos…": "Wird zu Apple Fotos hinzugefügt…",
+  "not added to Apple Photos (cancelled)": "nicht zu Apple Fotos hinzugefügt (abgebrochen)",
+  "The first time, macOS asks whether LightCraft may control Photos.": "Beim ersten Mal fragt macOS, ob LightCraft Fotos steuern darf.",
+  "Adding to Apple Photos": "Wird zu Apple Fotos hinzugefügt"
 }

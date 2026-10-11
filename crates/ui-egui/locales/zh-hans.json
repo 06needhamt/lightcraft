@@ -1985,5 +1985,10 @@
   "save goes through.": "才能完成保存。",
   "smart album value|No": "智能相册取值|否",
   "smart album value|Yes": "智能相册取值|是",
-  "{n} photos opened for editing; each is stacked with its original": "已打开 {n} 张照片进行编辑；每张都与其原片堆叠在一起"
+  "{n} photos opened for editing; each is stacked with its original": "已打开 {n} 张照片进行编辑；每张都与其原片堆叠在一起",
+  "Add to Apple Photos": "添加到 Apple 照片",
+  "Adding to Apple Photos…": "正在添加到 Apple 照片…",
+  "not added to Apple Photos (cancelled)": "未添加到 Apple 照片（已取消）",
+  "The first time, macOS asks whether LightCraft may control Photos.": "首次使用时，macOS 会询问是否允许 LightCraft 控制“照片”。",
+  "Adding to Apple Photos": "正在添加到 Apple 照片"
 }
