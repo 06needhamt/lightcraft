@@ -12,7 +12,8 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 $id = [Guid]::NewGuid().ToString('N')
 $root = Join-Path ([IO.Path]::GetTempPath()) "lightcraft-install-folder-$id"
-$key = "Software\LightCraftInstallerTests\$id"
+$testsKey = 'Software\LightCraftInstallerTests'
+$key = "$testsKey\$id"
 $product = [Guid]::NewGuid().ToString('B')
 $upgrade = [Guid]::NewGuid().ToString('B')
 $view = if ($Arch -eq 'x86') { [Microsoft.Win32.RegistryView]::Registry32 } else { [Microsoft.Win32.RegistryView]::Registry64 }
@@ -72,20 +73,25 @@ try {
   $legacy = Join-Path $root 'legacy app café'
   $modern = Join-Path $root 'remembered app'
   $explicit = Join-Path $root 'explicit app'
-  New-Item -ItemType Directory -Path $legacy, $modern, $explicit | Out-Null
-  [IO.File]::WriteAllText((Join-Path $legacy 'lightcraft.exe'), 'test placeholder; never executed')
+  $emptied = Join-Path $root 'emptied app'
+  New-Item -ItemType Directory -Path $legacy, $modern, $explicit, $emptied | Out-Null
+  $legacyExe = Join-Path $legacy 'lightcraft.exe'
+  [IO.File]::WriteAllText($legacyExe, 'test placeholder; never executed')
   $programFiles = if ($Arch -eq 'x86' -and ${env:ProgramFiles(x86)}) { ${env:ProgramFiles(x86)} } else { $env:ProgramFiles }
   $cases = @(
     @{ Name = 'fresh'; Expected = (Join-Path $programFiles 'LightCraft') },
-    @{ Name = 'legacy-app-paths'; Legacy = $true; Expected = $legacy },
+    @{ Name = 'legacy-app-paths'; Legacy = $legacyExe; Expected = $legacy },
+    # A stale unquoted path with a space used to resolve to the parent of the text before the space.
+    @{ Name = 'legacy-folder-deleted'; Legacy = (Join-Path $root 'deleted app\lightcraft.exe'); Expected = (Join-Path $programFiles 'LightCraft') },
+    @{ Name = 'legacy-exe-deleted'; Legacy = (Join-Path $emptied 'lightcraft.exe'); Expected = (Join-Path $programFiles 'LightCraft') },
     @{ Name = 'remembered-folder'; Modern = $true; Expected = $modern },
-    @{ Name = 'remembered-beats-legacy'; Modern = $true; Legacy = $true; Expected = $modern },
-    @{ Name = 'explicit-beats-legacy'; Legacy = $true; Explicit = $true; Expected = $explicit },
-    @{ Name = 'explicit-beats-both'; Modern = $true; Legacy = $true; Explicit = $true; Expected = $explicit }
+    @{ Name = 'remembered-beats-legacy'; Modern = $true; Legacy = $legacyExe; Expected = $modern },
+    @{ Name = 'explicit-beats-legacy'; Legacy = $legacyExe; Explicit = $true; Expected = $explicit },
+    @{ Name = 'explicit-beats-both'; Modern = $true; Legacy = $legacyExe; Explicit = $true; Expected = $explicit }
   )
   foreach ($case in $cases) {
     $registry.DeleteSubKeyTree($key, $false)
-    if ($case.Legacy) { Set-TestValue 'Software\Microsoft\Windows\CurrentVersion\App Paths\lightcraft.exe' '' (Join-Path $legacy 'lightcraft.exe') }
+    if ($case.Legacy) { Set-TestValue 'Software\Microsoft\Windows\CurrentVersion\App Paths\lightcraft.exe' '' $case.Legacy }
     if ($case.Modern) { Set-TestValue 'Software\LightCraft' 'InstallFolder' "$modern\" }
     $arguments = @('/i', "`"$msi`"")
     if ($case.Explicit) { $arguments += "INSTALLFOLDER=`"$explicit`"" }
@@ -108,6 +114,12 @@ try {
     if ($installed) { Invoke-Msi @('/x', $product) (Join-Path $root 'cleanup.log') -AllowAbsent }
   } finally {
     $registry.DeleteSubKeyTree($key, $false)
+    $tests = $registry.OpenSubKey($testsKey)
+    if ($tests) {
+      $empty = $tests.SubKeyCount -eq 0 -and $tests.ValueCount -eq 0
+      $tests.Dispose()
+      if ($empty) { $registry.DeleteSubKey($testsKey, $false) }
+    }
     $registry.Dispose()
     # Keep logs on failure; they explain MSI failures that otherwise only report an exit code.
     if ($passed) { Remove-Item -Recurse -Force $root } else { Write-Output "Test artifacts retained: $root" }
