@@ -937,7 +937,7 @@ impl LightcraftApp {
             {
                 self.toast(ctx, e);
             }
-            let (presets, photos): (Vec<String>, Vec<String>) = dropped.into_iter().partition(|p| is_preset_file(p));
+            let (presets, photos) = split_presets(dropped);
             if !presets.is_empty() {
                 let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
             }
@@ -1160,8 +1160,42 @@ pub fn is_preset_file(path: &str) -> bool {
     ["lcpreset", "lrtemplate", "xmp", "zip", "cube", "lmp", "mplumpack"].contains(&ext.as_str())
 }
 
+/// Splits dropped files into presets and everything else. An `.xmp` dropped next to a photo with the same
+/// name (`IMG_1.xmp` or `IMG_1.CR2.xmp` beside `IMG_1.CR2`) is that photo's sidecar, not a preset, and is left out.
+pub fn split_presets(dropped: Vec<String>) -> (Vec<String>, Vec<String>) {
+    let dir_of = |p: &str| std::path::Path::new(p).parent().map(|d| d.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let stem_of = |p: &str| std::path::Path::new(p).file_stem().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let name_of = |p: &str| std::path::Path::new(p).file_name().map(|n| n.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let is_xmp = |p: &str| std::path::Path::new(p).extension().is_some_and(|e| e.eq_ignore_ascii_case("xmp"));
+    let photo_names: Vec<(String, String)> = dropped
+        .iter()
+        .filter(|p| !is_preset_file(p))
+        .flat_map(|p| [(dir_of(p), stem_of(p)), (dir_of(p), name_of(p))])
+        .collect();
+    let (mut presets, mut photos) = (Vec::new(), Vec::new());
+    for p in dropped {
+        if !is_preset_file(&p) {
+            photos.push(p);
+        } else if is_xmp(&p) && photo_names.contains(&(dir_of(&p), stem_of(&p))) {
+            // a photo's sidecar travels with the photo
+        } else {
+            presets.push(p);
+        }
+    }
+    (presets, photos)
+}
+
 #[cfg(test)]
 mod drop_tests {
+    #[test]
+    fn photo_sidecars_are_not_presets() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let dropped = v(&["/a/IMG_1.CR2", "/a/IMG_1.xmp", "/a/IMG_2.jpg", "/a/IMG_2.jpg.XMP", "/a/Look.xmp", "/b/IMG_1.xmp"]);
+        let (presets, photos) = super::split_presets(dropped);
+        assert_eq!(photos, v(&["/a/IMG_1.CR2", "/a/IMG_2.jpg"]));
+        assert_eq!(presets, v(&["/a/Look.xmp", "/b/IMG_1.xmp"]));
+    }
+
     #[test]
     fn detection_results_are_summarised_in_words() {
         let r =
