@@ -2039,5 +2039,8 @@
   "Downloading model": "Modell wird heruntergeladen",
   "Finding faces": "Gesichter werden gesucht",
   "Synchronizing folder": "Ordner wird synchronisiert",
-  "Looking for changes": "Änderungen werden gesucht"
+  "Looking for changes": "Änderungen werden gesucht",
+  "imported earlier switch over with Photo ▸ Reload from Disk.": "Bereits importierte Fotos wechseln mit Foto → Vom Datenträger neu laden zur RAW-Bearbeitung.",
+  "Canon EOS R5 Mark II C-RAW files that opened as \"preview only\" (more than half of them, depending on the": "C-RAW-Dateien der Canon EOS R5 Mark II, die als „Nur Vorschau“ geöffnet wurden (je nach Motiv mehr als die Hälfte),",
+  "scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos": "werden jetzt wie die übrigen RAW-Dateien der Kamera aus ihren Sensordaten mit allen Werkzeugen bearbeitet."
 }

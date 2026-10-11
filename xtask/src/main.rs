@@ -512,6 +512,27 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "https://raw.pixls.us/getfile.php/6587/nice/Canon%20-%20EOS%20R8%20-%203:2.CR3",
         "df33cf394573645ce03dea1b2e9f0b5cc2b7734e9e3391ee7114151414cf2812",
     ),
+    // EOS R5 Mark II, full frame and 1.6x crop mode: odd-height (2825- / 1787-row) Bayer planes.
+    (
+        "cr3-canon-r5m2-raw.cr3",
+        "https://raw.pixls.us/getfile.php/7881/nice/Canon%20-%20EOS%20R5%20Mark%20II%20-%20RAW%20%283:2%29.CR3",
+        "d6e6aa3b493ea8936dff0efb0cc17c87471437e7317bce37c8c82ba08b9cab7b",
+    ),
+    (
+        "cr3-canon-r5m2-craw.cr3",
+        "https://raw.pixls.us/getfile.php/7882/nice/Canon%20-%20EOS%20R5%20Mark%20II%20-%20CRAW%20%283:2%29.CR3",
+        "b3c08a5c7a97299dfd58896a12b939e7b43ec78682761812524825e6e5d087be",
+    ),
+    (
+        "cr3-canon-r5m2-apsc-raw.cr3",
+        "https://raw.pixls.us/getfile.php/7883/nice/Canon%20-%20EOS%20R5%20Mark%20II%20-%20RAW%20%283:2%29.CR3",
+        "9f88c0ff012924193b7f4497559d133dfe626766d600b5d67689156721739ead",
+    ),
+    (
+        "cr3-canon-r5m2-apsc-craw.cr3",
+        "https://raw.pixls.us/getfile.php/7884/nice/Canon%20-%20EOS%20R5%20Mark%20II%20-%20CRAW%20%283:2%29.CR3",
+        "6a597497776a6abbfab8fcf12d0086ac7a3f8afea2879d61accf6bbf48d357d7",
+    ),
     (
         "dng-adobe-canon-5d3-linear-lj92.dng",
         "https://raw.pixls.us/getfile.php/1032/nice/Adobe%20DNG%20Converter%20-%20Canon%20EOS%205D%20Mark%20III%20-%20Lossless%20JPEG%20compression%2C%20rgb%20%283:2%29.DNG",

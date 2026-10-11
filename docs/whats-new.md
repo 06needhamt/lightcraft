@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-11
+
+### Canon EOS R5 Mark II
+- Canon EOS R5 Mark II C-RAW files that opened as "preview only" (more than half of them, depending on the
+  scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos
+  imported earlier switch over with Photo ▸ Reload from Disk.
+
 ## 2026-10-10
 
 ### Activity stack
