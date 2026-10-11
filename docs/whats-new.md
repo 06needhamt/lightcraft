@@ -6,6 +6,10 @@
 - The loupe says "Rendering…" at the bottom of the photo when what it shows isn't the finished photo yet: the
   camera's embedded JPEG while a raw decodes, the previous render while an edit renders, or the magnified frame
   while the 1:1 detail is on its way. It appears once that has lasted half a second, so quick renders never show it.
+- If LightCraft can't open a photo (its original is on a drive that isn't connected, or the file is damaged) but has
+  its embedded JPEG or a thumbnail to show, the loupe now says so at the bottom of the photo ("Original offline · no
+  smart preview" or "This photo can't be opened", the reason on hover) instead of showing that preview as if it were
+  the photo.
 
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
