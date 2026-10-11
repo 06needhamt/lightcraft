@@ -41,6 +41,11 @@
   the other editor (Edit in Other Editor, now ⌥⌘E), and where PhotoCraft is if you use a portable copy.
 - Export can write PSD too (flat, 8- or 16-bit).
 
+### Reliability
+- Upgrading from a Windows installer older than 0.6 (such as 0.5.0) keeps LightCraft in the folder it was installed
+  in, instead of moving it back to Program Files (issue #399). If that folder has been deleted since, the upgrade
+  installs to Program Files.
+
 ## 2026-10-10
 
 ### Dialogs fit the window
