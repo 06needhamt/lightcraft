@@ -3106,6 +3106,7 @@ version = "0.6.0"
 dependencies = [
  "dhat",
  "lightcraft-codecs",
+ "lightcraft-denoise",
  "lightcraft-engine",
  "lightcraft-mcp",
  "lightcraft-merge",
