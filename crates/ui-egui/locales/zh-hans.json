@@ -1908,5 +1908,13 @@
   "Perceptual": "可感知",
   "Relative": "相对",
   "Simulate Paper & Ink": "模拟纸张和油墨",
-  "Content-Aware": "内容识别"
+  "Content-Aware": "内容识别",
+  "Sidebar Sections": "边栏分区",
+  "Reset Sidebar Sections": "重置边栏分区",
+  "Hide This Section": "隐藏此分区",
+  "No folders to browse": "没有可浏览的文件夹",
+  "No photos yet": "还没有照片",
+  "No imported folders yet": "还没有导入的文件夹",
+  "Show Sidebar Section": "显示边栏分区",
+  "Move Sidebar Section": "移动边栏分区"
 }

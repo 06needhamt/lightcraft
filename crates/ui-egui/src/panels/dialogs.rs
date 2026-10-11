@@ -932,6 +932,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     export_synonyms,
                     person,
                     add_to_selected,
+                    ..
                 } => {
                     ui.label(egui::RichText::new(crate::i18n::tr("Keyword Name")).color(t.text_dim));
                     // several fields: the name takes the focus when the dialog opens, not after
@@ -1517,6 +1518,7 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
             export_synonyms,
             person,
             add_to_selected,
+            reveal,
         } => {
             let mut params = json!({
                 "synonyms": synonyms.split(',').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>(),
@@ -1543,7 +1545,11 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
                     params["name"] = json!(name);
                     params["parent"] = if *inside { json!(parent) } else { serde_json::Value::Null };
                     params["addToSelected"] = json!(add_to_selected);
-                    app.run("keyword.create", params)
+                    let r = app.run("keyword.create", params);
+                    if *reveal && let Ok(made) = &r {
+                        app.ui.reveal_keyword = made["keyword"].as_str().map(str::to_string);
+                    }
+                    r
                 }
             }
         }

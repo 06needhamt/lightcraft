@@ -1622,5 +1622,15 @@
   "Perceptual": "Перцепционный",
   "Relative": "Относительный",
   "Simulate Paper & Ink": "Имитировать бумагу и краску",
-  "Content-Aware": "С учётом содержимого"
+  "Content-Aware": "С учётом содержимого",
+  "Sidebar Sections": "Разделы боковой панели",
+  "Reset Sidebar Sections": "Сбросить разделы боковой панели",
+  "Hide This Section": "Скрыть этот раздел",
+  "No folders to browse": "Нет папок для просмотра",
+  "No photos yet": "Фотографий пока нет",
+  "No imported folders yet": "Импортированных папок пока нет",
+  "Show Sidebar Section": "Показать раздел боковой панели",
+  "Move Sidebar Section": "Переместить раздел боковой панели",
+  "Move Up": "Переместить вверх",
+  "Move Down": "Переместить вниз"
 }

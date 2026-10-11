@@ -1908,5 +1908,13 @@
   "Perceptual": "感知",
   "Relative": "相對",
   "Simulate Paper & Ink": "模擬紙張和油墨",
-  "Content-Aware": "內容感知"
+  "Content-Aware": "內容感知",
+  "Sidebar Sections": "側邊欄區段",
+  "Reset Sidebar Sections": "重設側邊欄區段",
+  "Hide This Section": "隱藏此區段",
+  "No folders to browse": "沒有可瀏覽的資料夾",
+  "No photos yet": "還沒有照片",
+  "No imported folders yet": "還沒有匯入的資料夾",
+  "Show Sidebar Section": "顯示側邊欄區段",
+  "Move Sidebar Section": "移動側邊欄區段"
 }

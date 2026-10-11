@@ -1908,5 +1908,13 @@
   "Perceptual": "Perceptual",
   "Relative": "Relativo",
   "Simulate Paper & Ink": "Simular papel y tinta",
-  "Content-Aware": "Según el contenido"
+  "Content-Aware": "Según el contenido",
+  "Sidebar Sections": "Secciones de la barra lateral",
+  "Reset Sidebar Sections": "Restablecer secciones de la barra lateral",
+  "Hide This Section": "Ocultar esta sección",
+  "No folders to browse": "No hay carpetas para explorar",
+  "No photos yet": "Aún no hay fotos",
+  "No imported folders yet": "Aún no hay carpetas importadas",
+  "Show Sidebar Section": "Mostrar sección de la barra lateral",
+  "Move Sidebar Section": "Mover sección de la barra lateral"
 }

@@ -141,6 +141,9 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("dialog.newFolder", "New Folder…", Some("Cmd+Shift+N"), "File"),
     ("dialog.smartAlbum", "New Smart Album…", None, "File"),
     ("view.photoCounts", "Show Photo Counts", None, "View"),
+    ("view.sidebarSection", "Show Sidebar Section", None, ""),
+    ("view.sidebarMoveSection", "Move Sidebar Section", None, ""),
+    ("view.sidebarReset", "Reset Sidebar Sections", None, ""),
     ("view.slideshow", "Slideshow", Some("Cmd+Alt+Enter"), "View"),
     ("view.secondWindow", "Second Window", Some("Cmd+F11"), "Window"),
     ("tool.keywordPainter", "Keyword Painter", None, ""),
@@ -268,6 +271,28 @@ pub fn parse_rgb(v: &Value) -> Option<[u8; 3]> {
     Some([c(0)?, c(1)?, c(2)?])
 }
 
+/// The left-sidebar section a `view.sidebar*` command names (`section`), which this build must have.
+fn sidebar_section_param(command: &str, p: &Value) -> Result<crate::sidebar::SidebarSection, String> {
+    use crate::sidebar::SidebarSection;
+    let Some(name) = p.get("section").and_then(Value::as_str) else {
+        return Err(format!("{command}: `section` is needed ({})", SidebarSection::ids()));
+    };
+    let section = SidebarSection::from_id(name).ok_or_else(|| format!("{command}: unknown section `{name}` ({})", SidebarSection::ids()))?;
+    if !section.available() {
+        return Err(format!("{command}: there is no `{name}` section here"));
+    }
+    Ok(section)
+}
+
+/// An optional true / false parameter: absent or null is `None`, anything else is refused.
+fn bool_param(command: &str, p: &Value, key: &str) -> Result<Option<bool>, String> {
+    match p.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(other) => Err(format!("{command}: `{key}` must be true or false, not {other}")),
+    }
+}
+
 /// Handle UI commands; `None` means "not a UI command — send it to the engine".
 pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Result<Value, String>> {
     if matches!(id, "ui.dock" | "ui.dock.reset") {
@@ -330,6 +355,60 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.photoCounts" => {
             app.ui.show_counts = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.show_counts);
             Ok(json!({"show": app.ui.show_counts}))
+        }
+        "view.sidebarSection" => {
+            // {section, show?, collapsed?}: show or hide a section of the left sidebar, fold or
+            // unfold it; with neither, a shown section is hidden and a hidden one shown
+            let args = sidebar_section_param(id, p).and_then(|s| Ok((s, bool_param(id, p, "show")?, bool_param(id, p, "collapsed")?)));
+            let (section, show, collapsed) = match args {
+                Ok(args) => args,
+                Err(e) => return Some(Err(e)),
+            };
+            let layout = &mut app.ui.sidebar;
+            match (show, collapsed) {
+                (None, None) => layout.set_hidden(section, !layout.is_hidden(section)),
+                _ => {
+                    if let Some(show) = show {
+                        layout.set_hidden(section, !show);
+                    }
+                    if let Some(collapsed) = collapsed {
+                        layout.set_collapsed(section, collapsed);
+                    }
+                }
+            }
+            Ok(json!({"section": section.id(), "show": !layout.is_hidden(section), "collapsed": layout.is_collapsed(section)}))
+        }
+        "view.sidebarMoveSection" => {
+            // {section, direction: up | down} one place among the shown sections, or
+            // {section, before: <section> | null} just above another section (null: last)
+            let section = match sidebar_section_param(id, p) {
+                Ok(s) => s,
+                Err(e) => return Some(Err(e)),
+            };
+            let layout = &mut app.ui.sidebar;
+            let moved = match (p.get("direction"), p.get("before")) {
+                (Some(d), None) => match d.as_str() {
+                    Some("up") => layout.move_by(section, true),
+                    Some("down") => layout.move_by(section, false),
+                    _ => return Some(Err(format!("{id}: `direction` must be \"up\" or \"down\", not {d}"))),
+                },
+                (None, Some(Value::Null)) => layout.move_before(section, None),
+                (None, Some(b)) => {
+                    let before = b.as_str().and_then(crate::sidebar::SidebarSection::from_id);
+                    let Some(before) = before else {
+                        return Some(Err(format!("{id}: `before` must be a section ({}) or null, not {b}", crate::sidebar::SidebarSection::ids())));
+                    };
+                    layout.move_before(section, Some(before))
+                }
+                _ => return Some(Err(format!("{id}: give either `direction` (up|down) or `before` (a section, or null for last)"))),
+            };
+            let order: Vec<&str> = layout.sections().iter().map(|s| s.id.id()).collect();
+            Ok(json!({"section": section.id(), "moved": moved, "order": order}))
+        }
+        "view.sidebarReset" => {
+            // every section shown and open, in the usual order
+            app.ui.sidebar = Default::default();
+            Ok(json!({"sidebar": app.ui.sidebar}))
         }
         "view.gridToggle" => {
             app.ui.view = if app.ui.view == ViewMode::PhotoGrid { ViewMode::SquareGrid } else { ViewMode::PhotoGrid };

@@ -124,6 +124,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "view.people",
             "---",
             "view.leftPanel",
+            "@Sidebar Sections",
             "view.photoCounts",
             "view.faceBoxes",
             "view.filmstrip",
@@ -460,6 +461,19 @@ fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
                 ));
             }
             v.push(item("dialog.labelNames", Value::Null, "Edit Label Names…", None, true, None));
+            v
+        }
+        "Sidebar Sections" => {
+            // one checkable item per section, in the order the sidebar lists them
+            let layout = &app.ui.sidebar;
+            let mut v: Vec<MenuNode> = layout
+                .sections()
+                .iter()
+                .filter(|s| s.id.available())
+                .map(|s| item("view.sidebarSection", json!({"section": s.id.id()}), s.id.title(), None, true, Some(!s.hidden)))
+                .collect();
+            v.push(MenuNode::Separator);
+            v.push(item("view.sidebarReset", Value::Null, "Reset Sidebar Sections", None, !layout.is_default(), None));
             v
         }
         "Grid Info" => ["filename", "exposure", "date"]

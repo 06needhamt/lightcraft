@@ -385,8 +385,11 @@ pub struct UiState {
     pub show_counts: bool,
     /// Face / pet boxes (read from XMP) over the photo in the loupe.
     pub face_boxes: bool,
-    /// Left-sidebar sections folded shut by their header (`albums`, `local`, `byDate`,
-    /// `keywords`); the rest are open.
+    /// The left sidebar's sections: their order, which are hidden and which are folded shut.
+    pub sidebar: crate::sidebar::SidebarLayout,
+    /// What settings files said before [`UiState::sidebar`]: the ids of the folded sections. Read
+    /// so they stay folded ([`UiState::sanitized`] moves them over), never written.
+    #[serde(skip_serializing)]
     pub collapsed_sidebar: Vec<String>,
     /// A face's name being typed in the loupe.
     #[serde(skip)]
@@ -456,9 +459,15 @@ pub struct UiState {
     /// An album just made: the Albums tree opens the folders down to it, once.
     #[serde(skip)]
     pub reveal_album: Option<u64>,
+    /// A keyword just made from the sidebar: Keywords opens down to it, once.
+    #[serde(skip)]
+    pub reveal_keyword: Option<String>,
     /// An album or folder row being dragged in the sidebar (dropped on a folder to move it there).
     #[serde(skip)]
     pub dragging_album: Option<u64>,
+    /// A sidebar section being dragged by its header (dropped between sections to move it there).
+    #[serde(skip)]
+    pub dragging_section: Option<crate::sidebar::SidebarSection>,
     /// Selected curve channel in the Curve flyout.
     pub curve_channel: String,
     /// Selected mixer mode: "hue" | "saturation" | "luminance" | "all".
@@ -652,6 +661,9 @@ pub enum Dialog {
         person: bool,
         /// A new keyword is given to the selected photos.
         add_to_selected: bool,
+        /// Opened from the sidebar's Keywords header: the new keyword is shown there once made.
+        #[serde(default)]
+        reveal: bool,
     },
     /// Edit Keyword Set: a set's name and its nine slots (an empty one is an empty slot). `replaces`:
     /// the set being edited (renamed when the name changes); `None` saves a new set (from Recent
@@ -875,6 +887,7 @@ impl Default for UiState {
             grid_info: "filename".into(),
             show_counts: true,
             face_boxes: true,
+            sidebar: Default::default(),
             collapsed_sidebar: Vec::new(),
             name_edit: None,
             person_page: None,
@@ -900,7 +913,9 @@ impl Default for UiState {
             quit: false,
             dragging_photos: None,
             reveal_album: None,
+            reveal_keyword: None,
             dragging_album: None,
+            dragging_section: None,
             curve_channel: "parametric".into(),
             mixer_mode: "hue".into(),
             grading_mode: "3way".into(),
@@ -979,15 +994,9 @@ impl UiState {
             self.open_sections.push(id.to_string());
         }
     }
+    /// Whether the sidebar section with this id is folded shut (an unknown id: no).
     pub fn sidebar_section_collapsed(&self, id: &str) -> bool {
-        self.collapsed_sidebar.iter().any(|s| s == id)
-    }
-    pub fn toggle_sidebar_section(&mut self, id: &str) {
-        if self.sidebar_section_collapsed(id) {
-            self.collapsed_sidebar.retain(|s| s != id);
-        } else {
-            self.collapsed_sidebar.push(id.to_string());
-        }
+        crate::sidebar::SidebarSection::from_id(id).is_some_and(|s| self.sidebar.is_collapsed(s))
     }
     pub fn flyout_open(&self, id: &str) -> bool {
         self.open_flyouts.iter().any(|s| s == id)
@@ -1005,6 +1014,7 @@ impl UiState {
         self.left_width = LEFT_WIDTH.clamp(self.left_width);
         self.right_width = RIGHT_WIDTH.clamp(self.right_width);
         self.brush_size = self.brush_size.clamp(0.002, 0.5);
+        self.sidebar.adopt_collapsed(&std::mem::take(&mut self.collapsed_sidebar));
         self.dialog = None;
         self.fullscreen = false;
         if !crate::state::PREVIEW_LIMITS.contains(&self.settings.preview_limit) {

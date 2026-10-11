@@ -29,6 +29,7 @@ pub mod pick;
 pub mod region;
 pub mod render;
 pub mod shortcuts;
+pub mod sidebar;
 pub mod softpaint;
 pub mod state;
 pub mod sync;
@@ -1196,6 +1197,7 @@ impl LightcraftApp {
         pick::poll(self, &ctx);
         panels::grid::drag_feedback(self, &ctx);
         panels::left::album_drag_feedback(self, &ctx);
+        panels::left::section_drag_feedback(self, &ctx);
         panels::keyword_list::drag_feedback(self, &ctx);
         panels::toast(self, &ctx);
         self.widgets = widgets::take_registry(&ctx);

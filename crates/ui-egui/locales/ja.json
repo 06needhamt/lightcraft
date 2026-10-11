@@ -1910,5 +1910,13 @@
   "Perceptual": "知覚的",
   "Relative": "相対的",
   "Simulate Paper & Ink": "紙とインキをシミュレート",
-  "Content-Aware": "コンテンツに応じる"
+  "Content-Aware": "コンテンツに応じる",
+  "Sidebar Sections": "サイドバーのセクション",
+  "Reset Sidebar Sections": "サイドバーのセクションをリセット",
+  "Hide This Section": "このセクションを隠す",
+  "No folders to browse": "参照できるフォルダがありません",
+  "No photos yet": "写真はまだありません",
+  "No imported folders yet": "読み込んだフォルダはまだありません",
+  "Show Sidebar Section": "サイドバーのセクションを表示",
+  "Move Sidebar Section": "サイドバーのセクションを移動"
 }

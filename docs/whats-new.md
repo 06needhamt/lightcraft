@@ -27,6 +27,20 @@
   Preview or Photos. Moving the window to another screen is followed; **Use Screen Profile** goes back to it after
   choosing a profile file.
 
+### Sidebar sections
+- Arrange the left sidebar your way: drag Albums, Local, By Date, Folders or Keywords by its header to move it (a line
+  shows where it will go), or right-click a header for Move Up / Move Down.
+- Hide the sections you don't use: View ▸ Sidebar Sections, or right-click a header ▸ Hide This Section. Right-click
+  the My Photos title to bring one back, or choose Reset Sidebar Sections. The arrangement is remembered.
+- In a long section, the header stays at the top of the sidebar while you scroll through its rows, so you always see
+  which section you are in and can fold it from there.
+- Sections are easier to tell apart: a hairline between them, the fold chevron in the same column as the rows'
+  triangles, a highlight under the pointer. A folded section shows how many rows it holds, counts of 0 are fainter,
+  and a section with nothing in it says so instead of disappearing.
+- Recently Deleted is listed with All Photos, Recently Added and Picks under My Photos.
+- Keywords has a + in its header, like Albums: Create Keyword Tag without opening the Keyword List.
+- Agents: `view.sidebarSection`, `view.sidebarMoveSection`, `view.sidebarReset`; `ui.set` takes `sidebar`.
+
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
   folder scans, exports (and the contact sheet PDF), Synchronize Folder, Build / Smart Previews, Lightroom catalog import, Photo Merge, model downloads, the face scan,

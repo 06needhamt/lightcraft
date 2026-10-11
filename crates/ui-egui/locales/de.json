@@ -2066,5 +2066,13 @@
   "Content-Aware": "Inhaltsbasiert",
   "imported earlier switch over with Photo ▸ Reload from Disk.": "Bereits importierte Fotos wechseln mit Foto → Vom Datenträger neu laden zur RAW-Bearbeitung.",
   "Canon EOS R5 Mark II C-RAW files that opened as \"preview only\" (more than half of them, depending on the": "C-RAW-Dateien der Canon EOS R5 Mark II, die als „Nur Vorschau“ geöffnet wurden (je nach Motiv mehr als die Hälfte),",
-  "scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos": "werden jetzt wie die übrigen RAW-Dateien der Kamera aus ihren Sensordaten mit allen Werkzeugen bearbeitet."
+  "scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos": "werden jetzt wie die übrigen RAW-Dateien der Kamera aus ihren Sensordaten mit allen Werkzeugen bearbeitet.",
+  "Sidebar Sections": "Seitenleistenbereiche",
+  "Reset Sidebar Sections": "Seitenleistenbereiche zurücksetzen",
+  "Hide This Section": "Diesen Bereich ausblenden",
+  "No folders to browse": "Keine Ordner zum Durchsuchen",
+  "No photos yet": "Noch keine Fotos",
+  "No imported folders yet": "Noch keine importierten Ordner",
+  "Show Sidebar Section": "Seitenleistenbereich anzeigen",
+  "Move Sidebar Section": "Seitenleistenbereich verschieben"
 }
