@@ -308,6 +308,10 @@ fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
         return ctx.input(|input| input.key_pressed(Key::Escape))
             && app.widgets.iter().any(|(widget, _)| widget.starts_with("sliderField:") && crate::text_field::was_editing(ctx, widget));
     }
+    // a selected slider keeps its arrow keys; everything else is a shortcut
+    if crate::widgets::slider_has_focus(ctx) {
+        return ctx.input(|input| [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown].iter().any(|key| input.key_pressed(*key)));
+    }
     let chrome = app
         .ui
         .docking

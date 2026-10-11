@@ -64,7 +64,10 @@ struct Partial {
     target: PathBuf,
 }
 fn partial(style: SidecarNaming, upper_stem: bool, upper_full: bool, shared: bool) -> Partial {
-    let dir = crate::tests_xmp::temp_dir("sidecar-provenance");
+    // one folder per fixture: tests run in parallel, and each removes its folder at the end
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = crate::tests_xmp::temp_dir(&format!("sidecar-provenance-{n}"));
     let a = dir.join("a.jpg");
     let b = dir.join("Trip.jpg");
     std::fs::write(&a, b"tiny physical photo; rename does not decode").unwrap();

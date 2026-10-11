@@ -1337,6 +1337,9 @@ fn color_range_pick_button_samples_the_photo() {
 #[test]
 fn a_selected_develop_slider_accepts_wheel_nudges() {
     let mut h = detail("panel.edit");
+    // the demo may open on the Edit panel already, which `panel.edit` then toggles shut
+    let r = h.request("ui.set", json!({"right": "edit"}), T);
+    assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
     let name = "slider:light.exposure";
     let panel = h.app.widgets.iter().find(|(id, _)| id == "panel:right_panel").unwrap().1;
