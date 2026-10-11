@@ -141,7 +141,7 @@ fn camera_levels(maker: Option<&Ifd>, bits: u8) -> CameraLevels {
         Some(16..=19) => (71, 329, 797),
         Some(32 | 33) => (85, 343, 811),
         Some(34 | 48) => (105, 363, 641),
-        Some(64 | 65) => (105, 383, 661),
+        Some(64..=66) => (105, 383, 661),
         _ => return CameraLevels::default(),
     };
     let full = ((1u32 << u32::from(bits.clamp(1, 16))) - 1) as f32;
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn color_data_uses_versioned_as_shot_offsets() {
         for (version, wb_at, black_at, white_at) in
-            [(16, 71, 329, 797), (19, 71, 329, 797), (33, 85, 343, 811), (48, 105, 363, 641), (64, 105, 383, 661)]
+            [(16, 71, 329, 797), (19, 71, 329, 797), (33, 85, 343, 811), (48, 105, 363, 641), (64, 105, 383, 661), (66, 105, 383, 661)]
         {
             let m = maker(version, wb_at, black_at, white_at);
             let levels = camera_levels(Some(&m), 14);
