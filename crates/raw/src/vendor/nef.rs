@@ -58,7 +58,8 @@ fn default_crop(mn: Option<&makernote::MakerNote>, w: usize, h: usize) -> Rect {
 }
 
 /// A body that records no CropArea, measured on its own files: the image area inside the sensor data (where the
-/// camera's full-size JPEG sits when the two are aligned) and the level where its channels clip.
+/// camera's full-size JPEG sits when the two are aligned) and, when the data's own top is wrong, the level where its
+/// channels clip.
 struct MeasuredBody {
     model: &'static str,
     /// Sensor data size and sample depth of the measured files.
@@ -66,7 +67,7 @@ struct MeasuredBody {
     bits: u32,
     /// Image area in sensor pixels: x, y, width, height.
     crop: (usize, usize, usize, usize),
-    white: f32,
+    white: Option<f32>,
 }
 
 /// * **NIKON D4** (148 uncompressed 14-bit NEFs from one body, 2023–2026, ISO 100–10000): the data is 4992 × 3292,
@@ -74,8 +75,66 @@ struct MeasuredBody {
 ///   4928 × 3280 JPEG sits at (8, 6). Without this area the optical black shows as purple stripes on both sides.
 ///   Green saturates at 15546–15672 while red and blue run on to 15687–16383, so the data's own top (~16300) leaves
 ///   clipped highlights magenta; one level of 15520 for every channel turns them white and keeps the white balance.
-const MEASURED_BODIES: &[MeasuredBody] =
-    &[MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: 15520.0 }];
+/// * **NIKON D7000** and **NIKON D5100** (and the Coolpix A, the same readout): the data is 4992 × 3280, the picture its
+///   first 4948 columns, then 36 masked ones at one level (~600, with a black level of 0) and 8 of 0. The masked
+///   columns sit above the dark-column trim's threshold, so without this area they show as a coloured bar on the right
+///   edge (the top in portrait; issue #976). The camera's 4928 × 3264 JPEG sits at (8, 8): in the D5100's 3 CC0
+///   samples, and in the D7000's one clean one, with the D5100 and Coolpix A as siblings (see below).
+/// * **The other bodies** below keep masked or dark lines inside the whole data (the survey in `docs/nikon-bodies.md`):
+///   each crop is its camera JPEG's frame as `cargo xtask raw-frame` measures it on raw.pixls.us CC0 samples, with at
+///   least 3 clean files agreeing: of the model (bit depths pooled: both read out the same area), or, with at least
+///   one of its own, together with models of the same readout (data and JPEG size) that agree on the same frame
+///   (*siblings*). The D4's 12-bit mode reads out the 14-bit area measured above; the Df, the same readout, agrees on
+///   (8, 6) in 6 files. Bodies whose crop holds only picture beyond the camera frame have no entry (no change).
+const MEASURED_BODIES: &[MeasuredBody] = &[
+    MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: Some(15520.0) },
+    MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
+    MeasuredBody { model: "NIKON D7000", size: (4992, 3280), bits: 14, crop: (8, 8, 4928, 3264), white: None },
+    MeasuredBody { model: "NIKON D7000", size: (4992, 3280), bits: 12, crop: (8, 8, 4928, 3264), white: None },
+    MeasuredBody { model: "NIKON D5100", size: (4992, 3280), bits: 14, crop: (8, 8, 4928, 3264), white: None },
+    // siblings: D7000 (4), D5100 (3); masked: right 36
+    MeasuredBody { model: "COOLPIX A", size: (4992, 3280), bits: 14, crop: (8, 8, 4928, 3264), white: None },
+    // 6 files each; masked: left 2, right 2
+    MeasuredBody { model: "NIKON D3", size: (4288, 2844), bits: 12, crop: (15, 6, 4256, 2832), white: None },
+    MeasuredBody { model: "NIKON D3", size: (4288, 2844), bits: 14, crop: (15, 6, 4256, 2832), white: None },
+    MeasuredBody { model: "NIKON D3S", size: (4288, 2844), bits: 12, crop: (15, 6, 4256, 2832), white: None },
+    MeasuredBody { model: "NIKON D3S", size: (4288, 2844), bits: 14, crop: (15, 6, 4256, 2832), white: None },
+    MeasuredBody { model: "NIKON D700", size: (4288, 2844), bits: 12, crop: (15, 6, 4256, 2832), white: None },
+    MeasuredBody { model: "NIKON D700", size: (4288, 2844), bits: 14, crop: (15, 6, 4256, 2832), white: None },
+    // 6 and 4 files; masked: right up to 32
+    MeasuredBody { model: "NIKON D300", size: (4352, 2868), bits: 12, crop: (15, 10, 4288, 2848), white: None },
+    MeasuredBody { model: "NIKON D300", size: (4352, 2868), bits: 14, crop: (15, 10, 4288, 2848), white: None },
+    MeasuredBody { model: "NIKON D300S", size: (4352, 2868), bits: 12, crop: (15, 10, 4288, 2848), white: None },
+    MeasuredBody { model: "NIKON D300S", size: (4352, 2868), bits: 14, crop: (15, 10, 4288, 2848), white: None },
+    // D2X (1) and D2Xs (2) as siblings; dark: right 1
+    MeasuredBody { model: "NIKON D2Xs", size: (4320, 2868), bits: 12, crop: (16, 10, 4288, 2848), white: None },
+    // D3000, D40X, D60, D80: one file each, siblings; masked: right 4, bottom 3
+    MeasuredBody { model: "NIKON D3000", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
+    MeasuredBody { model: "NIKON D40X", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
+    MeasuredBody { model: "NIKON D60", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
+    MeasuredBody { model: "NIKON D80", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
+    // 3 files; dark: bottom 4
+    MeasuredBody { model: "NIKON D4S", size: (4936, 3288), bits: 12, crop: (4, 4, 4928, 3280), white: None },
+    MeasuredBody { model: "NIKON D4S", size: (4936, 3288), bits: 14, crop: (4, 4, 4928, 3280), white: None },
+    // 4 files; dark: bottom up to 4
+    MeasuredBody { model: "NIKON D5600", size: (6016, 4016), bits: 12, crop: (8, 8, 6000, 4000), white: None },
+    MeasuredBody { model: "NIKON D5600", size: (6016, 4016), bits: 14, crop: (8, 8, 6000, 4000), white: None },
+    // 4 files each; masked: right 8
+    MeasuredBody { model: "NIKON D600", size: (6080, 4028), bits: 12, crop: (8, 6, 6016, 4016), white: None },
+    MeasuredBody { model: "NIKON D600", size: (6080, 4028), bits: 14, crop: (8, 6, 6016, 4016), white: None },
+    MeasuredBody { model: "NIKON D610", size: (6080, 4028), bits: 12, crop: (8, 6, 6016, 4016), white: None },
+    MeasuredBody { model: "NIKON D610", size: (6080, 4028), bits: 14, crop: (8, 6, 6016, 4016), white: None },
+    // D800: 6 files; D800E: 2, with the D800 as sibling; masked: right 14 (issue #914, the top in portrait)
+    MeasuredBody { model: "NIKON D800", size: (7424, 4924), bits: 12, crop: (8, 6, 7360, 4912), white: None },
+    MeasuredBody { model: "NIKON D800", size: (7424, 4924), bits: 14, crop: (8, 6, 7360, 4912), white: None },
+    MeasuredBody { model: "NIKON D800E", size: (7424, 4924), bits: 14, crop: (8, 6, 7360, 4912), white: None },
+    // 3 files; dark: bottom 1
+    MeasuredBody { model: "NIKON D810", size: (7380, 4928), bits: 12, crop: (12, 8, 7360, 4912), white: None },
+    MeasuredBody { model: "NIKON D810", size: (7380, 4928), bits: 14, crop: (12, 8, 7360, 4912), white: None },
+    // 6 files; masked: left 2, right 42 (the D4's readout)
+    MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
+    MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: None },
+];
 
 fn measured_body(model: &str, w: usize, h: usize, bits: u32) -> Option<&'static MeasuredBody> {
     MEASURED_BODIES.iter().find(|b| b.model == model.trim() && b.size == (w, h) && b.bits == bits)
@@ -165,9 +224,9 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     // the white level is measured from the whole image (or known for a measured body); the probe (no samples in its
     // result) takes the nominal one
     let white = match (body, mode) {
-        (Some(b), _) => b.white,
-        (None, Mode::Full) => white_from_data(samples, bits),
-        (None, Mode::Header) => ((1u32 << bits.clamp(1, 16)) - 1) as f32,
+        (Some(&MeasuredBody { white: Some(white), .. }), _) => white,
+        (_, Mode::Full) => white_from_data(samples, bits),
+        (_, Mode::Header) => ((1u32 << bits.clamp(1, 16)) - 1) as f32,
     };
     let crop = match body {
         Some(&MeasuredBody { crop: (x, y, cw, ch), .. }) if x + cw <= active_w && y + ch <= h => Rect::new(x, y, cw, ch),
@@ -275,6 +334,22 @@ mod tests {
     /// [`nef_with_note`] in either byte order (file and maker note).
     #[allow(clippy::too_many_arguments)]
     fn nef_in(order: ByteOrder, compression: u16, bits: u16, strips: Vec<Vec<u8>>, w: u32, h: u32, rps: u32, note: Option<IfdBuilder>) -> Vec<u8> {
+        nef_model_in(order, "NIKON TEST", compression, bits, strips, w, h, rps, note)
+    }
+
+    /// [`nef_in`] from camera `model`.
+    #[allow(clippy::too_many_arguments)]
+    fn nef_model_in(
+        order: ByteOrder,
+        model: &str,
+        compression: u16,
+        bits: u16,
+        strips: Vec<Vec<u8>>,
+        w: u32,
+        h: u32,
+        rps: u32,
+        note: Option<IfdBuilder>,
+    ) -> Vec<u8> {
         let mut raw = IfdBuilder::new();
         raw.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![0]));
         raw.set(t::IMAGE_WIDTH, Value::Long(vec![w]));
@@ -287,7 +362,7 @@ mod tests {
         raw.set_image(ImageData::Strips { rows_per_strip: rps, strips });
         let mut ifd0 = IfdBuilder::new();
         ifd0.set(t::MAKE, Value::Ascii("NIKON CORPORATION".into()));
-        ifd0.set(t::MODEL, Value::Ascii("NIKON TEST".into()));
+        ifd0.set(t::MODEL, Value::Ascii(model.into()));
         if let Some(mn) = note {
             let mut bytes = b"Nikon\0\x02\x10\0\0".to_vec();
             bytes.extend(TiffWriter::new(order, false).write(&[mn]).unwrap());
@@ -392,9 +467,49 @@ mod tests {
         assert_eq!((d4.metadata.width, d4.metadata.height), (Some(4928), Some(3280)));
         let developed = d4.develop(crate::Method::Bilinear).unwrap();
         assert_eq!((developed.width, developed.height), (4928, 3280));
-        for other in [decode_as("NIKON D5", 14), decode_as("NIKON D4", 12)] {
-            assert_eq!(other.crop, Rect::new(0, 0, w, h));
-            assert_ne!(other.white, vec![15520.0]);
+        // the 12-bit mode reads out the same area but keeps the white level from its data
+        let d4_12 = decode_as("NIKON D4", 12);
+        assert_eq!(d4_12.crop, Rect::new(8, 6, 4928, 3280));
+        assert_ne!(d4_12.white, vec![15520.0]);
+        let other = decode_as("NIKON D5", 14);
+        assert_eq!(other.crop, Rect::new(0, 0, w, h));
+        assert_ne!(other.white, vec![15520.0]);
+    }
+
+    /// Issue #976: the D7000 and D5100 record no CropArea, and their 36 masked columns at ~600 were developed as a
+    /// coloured bar. Their measured area applies to the measured models, data sizes and depths only.
+    #[test]
+    fn measured_d7000_and_d5100_image_area() {
+        let (w, h) = (4992usize, 3280usize);
+        let decode_as = |model: &str, bits: u16| {
+            let nef = nef_model_in(ByteOrder::Big, model, 1, bits, vec![vec![0x10; w * h * 2]], w as u32, h as u32, h as u32, None);
+            crate::decode(&nef).unwrap()
+        };
+        for (model, bits) in [("NIKON D7000", 14), ("NIKON D7000", 12), ("NIKON D5100", 14)] {
+            let raw = decode_as(model, bits);
+            assert_eq!(raw.crop, Rect::new(8, 8, 4928, 3264), "{model} {bits}-bit");
+            assert_eq!((raw.metadata.width, raw.metadata.height), (Some(4928), Some(3264)));
+            let developed = raw.develop(crate::Method::Bilinear).unwrap();
+            assert_eq!((developed.width, developed.height), (4928, 3264));
+        }
+        // another model, or the D5100's unmeasured 12-bit mode, keeps the whole data
+        for (model, bits) in [("NIKON D7100", 14), ("NIKON D5100", 12), ("NIKON D7000 ", 16)] {
+            assert_eq!(decode_as(model, bits).crop, Rect::new(0, 0, w, h), "{model} {bits}-bit");
+        }
+    }
+
+    /// Every measured entry is a crop inside its data, once per model, data size and depth, with a white level (if
+    /// any) inside its bit range.
+    #[test]
+    fn measured_bodies_are_consistent() {
+        let mut seen = std::collections::HashSet::new();
+        for b in MEASURED_BODIES {
+            let (x, y, w, h) = b.crop;
+            assert!(w > 0 && h > 0 && x + w <= b.size.0 && y + h <= b.size.1, "{}: crop outside its data", b.model);
+            assert!(seen.insert((b.model, b.size, b.bits)), "{} {:?} {}-bit listed twice", b.model, b.size, b.bits);
+            assert!(matches!(b.bits, 12 | 14), "{}: {}-bit", b.model, b.bits);
+            assert!(b.white.is_none_or(|v| v > 0.0 && v < (1u32 << b.bits) as f32), "{}: white level", b.model);
+            assert_eq!(b.model.trim(), b.model, "{}: model names are matched trimmed", b.model);
         }
     }
 

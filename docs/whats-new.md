@@ -2,6 +2,12 @@
 
 ## 2026-10-11
 
+### Nikon raws without coloured edge bars
+- Raws from older Nikon bodies no longer show a thin coloured or dark bar along one edge (the right edge, or the top
+  of a portrait photo): masked sensor columns were being developed as part of the picture (issues #976, #914). The
+  D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600, Coolpix A, D3000, D40X,
+  D60, D80 and D2Xs now show the area the camera itself frames, a few pixels smaller than before.
+
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
   (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a

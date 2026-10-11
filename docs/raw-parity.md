@@ -1,6 +1,6 @@
 # RAW parity: cameras, formats, demosaic, colour and lens profiles
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (EOS R5 Mark II decoded and verified: CRX QP-map escape, odd-height planes) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6 (Camera Raw 18.7)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (Nikon image areas of bodies without CropArea surveyed and measured, issues #976 / #914; NEF decode gaps listed) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6 (Camera Raw 18.7)
 
 Raw processing is the deepest single dimension of Lightroom parity: a photographer whose camera
 does not decode, or decodes with the wrong colour, cannot switch. This document measures it model by
@@ -89,7 +89,7 @@ committed table is stale.
 |---|---:|---:|---:|---|
 | Canon | 33% | 73% | 19% | 18 of the 22 popular bodies write CR3; 4 of them verified (M50, R8, R100, R5 Mark II), the rest at 0.6 |
 | Sony | 27% | 98% | 91% | bulk-checked |
-| Nikon | 16% | 91% | 12% | decoders cover every NEF coding but HE; few bodies verified |
+| Nikon | 16% | 91% | 12% | decoders cover NEF codings but HE and the compressed NEFs without a linearization table (D100, D1X, Coolpix P330 / P7700 / P7800, D4S and D810 small raw); few bodies verified; image area of every body without `CropArea` surveyed ([nikon-bodies.md](nikon-bodies.md)) |
 | Fujifilm | 10% | 91% | 45% | |
 | Panasonic | 4% | 100% | 98% | bulk-checked |
 | OM / Olympus | 3% | 3% | 1% | compressed ORF |
@@ -121,6 +121,8 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | NEF | uncompressed, lossless, lossy type 1 / 2, lossy after split | ✅ | D5100, D7000, D7500, Z f corpus; ~60 NEFs by hand; #633 |
 | NEF | packed 14-bit stored under a compressed tag (Z 6II uncompressed) | ⬜ | #769; fix in PR #671 (not merged) |
 | NEF | High Efficiency / HE★ (JPEG XS) | ⬜ | named, preview (#193); needs a JPEG XS decoder |
+| NEF | compressed without a linearization table (D100, D1X, Coolpix P330 / P7700 / P7800 NRW, D4S and D810 small raw) | ⬜ | refused as unsupported; one raw.pixls.us sample each ([nikon-bodies.md](nikon-bodies.md)) |
+| NEF | image area of bodies without `CropArea` | 🟡 | 36 model / size / depth groups cropped to their measured camera frame (D800 #914, D7000 #976, Df, D3, D300, D600 …); D3200, D3100, D200, D50, Nikon 1 V1 / V2 pending more samples: [nikon-bodies.md](nikon-bodies.md) |
 | ARW | uncompressed, cRAW (ARW2), lossless LJ92 (L / M / S) | ✅ | 86 bodies (#535); M/S black level 1024 |
 | ARW | packed 12-bit (A900) | ✅ | one CC0 file; A850 unmeasured |
 | ARW | ARW6 Compressed / HQ (compression 32766; ILCE-7RM6) | ✅ | 8 CC0 files; 12-bit mode unsupported; `docs/arw6-compression.md` |
@@ -266,6 +268,7 @@ Beyond decoding:
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-11 | minor | Nikon: every body without `CropArea` surveyed ([nikon-bodies.md](nikon-bodies.md)); 36 model / size / depth groups cropped to their measured camera frame (#976, #914), 6 pending; NEF row no longer claims every coding but HE decodes (compressed NEFs without a linearization table listed) |
 | 2026-10-10 | minor | Compressed ORF: pointer to the two Olympus patents that describe the method, as a clean-room starting point |
 | 2026-10-11 | minor | EOS R5 Mark II verified (CRX QP-map first literal and limited-length escape, odd-height Bayer planes; 4 CC0 files pinned, QP maps of 33,665 private files): 235 verified, 942 unverified; use-weighted 85% (42% on verified bodies); decoding 77%, RAW readiness unchanged at ~56% |
 | 2026-10-10 (later) | major | Model-by-model measurement against Adobe's published list (1,446 models: 234 verified, 943 unverified, 233 preview, 36 unsupported); `docs/raw/` data and re-measure script; use-weighted share 84% (40% on verified bodies); variant matrix; colour and lens sections with scores; ranked next cameras; RAW readiness ~56% from written parts |
