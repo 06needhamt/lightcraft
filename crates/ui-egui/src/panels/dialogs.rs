@@ -694,6 +694,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             &WM_POSITIONS,
                             &mut wm.anchor,
                         );
+                        choices(ui, "Rotate", "exportWmRotation", &[(0u16, "0°"), (90, "90°"), (180, "180°"), (270, "270°")], &mut wm.rotation);
                         let mut size = wm.size as f64 * 100.0;
                         if !graphic && num(ui, &WM_SIZE, &mut size) {
                             wm.size = (size / 100.0) as f32;
