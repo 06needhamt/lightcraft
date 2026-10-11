@@ -82,6 +82,15 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let wb = &mut std::sync::Arc::make_mut(&mut d).wb;
         wb.temp = 6500.0;
         wb.tint = 0.0;
+    } else if raw {
+        // the Kelvin sliders show the white balance in effect: As Shot reads the file's as-shot white (the stored
+        // numbers can predate a decoder update, or the camera's matrices giving the file its Kelvin scale), a
+        // preset its Kelvin value, and a value written on the old relative scale the Kelvin it renders as
+        let info = app.session.source_info(id);
+        let (temp, tint) = lightcraft_engine::pipeline::local::effective_wb(&info, &d);
+        let wb = &mut std::sync::Arc::make_mut(&mut d).wb;
+        wb.temp = temp;
+        wb.tint = tint;
     }
     let preview_only = app.session.catalog.photo(id).and_then(|p| p.preview_only.clone());
 
@@ -92,6 +101,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         soft_proofing(app, ui, id);
     }
     // header: Edit + Auto / B&W / HDR
+    let mut reset_clicked = false;
     let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover());
     ui.painter().text(pos2(hr.left() + 24.0, hr.bottom() - 10.0), Align2::LEFT_CENTER, crate::i18n::tr("Edit"), t.semibold(15.0), t.text);
     egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 8, bottom: 14 }).show(ui, |ui| {
@@ -105,10 +115,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             if text_button(ui, "bw", crate::i18n::tr("B&W"), bw).clicked() {
                 let _ = app.run("develop.treatment", json!({}));
             }
+            // HDR editing, next to B&W as Lightroom has it
+            if text_button(ui, "hdr", crate::i18n::tr("HDR"), d.hdr.enabled)
+                .on_hover_text(crate::i18n::tr("Edit in HDR: highlights above SDR white, for HDR exports and displays"))
+                .clicked()
+            {
+                let _ = app.run("develop.hdr", json!({"enabled": !d.hdr.enabled}));
+            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if text_button(ui, "reset", crate::i18n::tr("Reset"), false).on_hover_text(crate::i18n::tr("Reset all edits (Cmd+Shift+R)")).clicked()
                 {
-                    let _ = app.run("develop.reset", json!({}));
+                    reset_clicked = true;
                 }
             });
         });
@@ -259,7 +276,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             app.ui.toggle_flyout("grading");
         }
         if open {
-            grading(app, ui, d);
+            grading(app, ui, d, id);
         }
         ui.add_space(8.0);
     });
@@ -378,6 +395,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.add_space(8.0);
     });
     ui.add_space(40.0);
+    // A pending numeric edit commits on blur before the explicit Reset takes precedence.
+    if reset_clicked {
+        let _ = app.run("develop.reset", json!({}));
+    }
 }
 
 /// The profile dropdown: Favorites, Recent, one submenu per group, then favourite toggle and
@@ -613,18 +634,53 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.horizontal(|ui| {
             ui.label(RichText::new(crate::i18n::tr("Profile:")).color(t.text_label));
             let cur = app.ui.proof.space;
-            egui::ComboBox::from_id_salt("proof-space").width(170.0).selected_text(cur.label()).show_ui(ui, |ui| {
+            let device = app.ui.proof_profile.as_ref().map(|(_, n)| n.clone());
+            let shown = device.clone().unwrap_or_else(|| cur.label().to_string());
+            let mut pick = false;
+            egui::ComboBox::from_id_salt("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
                 for s in OutputSpace::ALL {
-                    if ui.selectable_label(cur == s, s.label()).clicked() {
+                    if ui.selectable_label(device.is_none() && cur == s, s.label()).clicked() {
                         let _ = app.run("view.softProof", json!({"space": s}));
                     }
                 }
+                if let Some(n) = &device {
+                    let _ = ui.selectable_label(true, n);
+                }
+                if app.services.pick_display_profile.is_some() && ui.selectable_label(false, crate::i18n::tr("Other…")).clicked() {
+                    pick = true;
+                }
             });
+            if pick
+                && let Some(path) = app.services.pick_display_profile.as_mut().and_then(|pick| pick().into_iter().next())
+                && let Err(e) = app.run("view.softProof", json!({"profile": path}))
+            {
+                app.toast(ui.ctx(), e);
+            }
         });
+        if app.ui.proof_profile.is_some() {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(crate::i18n::tr("Intent:")).color(t.text_label));
+                use lightcraft_engine::proof::ProofIntent;
+                for (i, label) in [(ProofIntent::Perceptual, "Perceptual"), (ProofIntent::Relative, "Relative")] {
+                    let r = ui.selectable_label(app.ui.proof_intent == i, crate::i18n::tr(label));
+                    register(ui.ctx(), format!("button:proofIntent-{}", i.name()), r.rect);
+                    if r.clicked() && app.ui.proof_intent != i {
+                        let _ = app.run("view.softProof", json!({"intent": i.name()}));
+                    }
+                }
+            });
+            let mut paper = app.ui.proof_paper_ink;
+            let r = ui.checkbox(&mut paper, crate::i18n::tr("Simulate Paper & Ink"));
+            register(ui.ctx(), "button:proofPaperInk", r.rect);
+            if r.changed() {
+                let _ = app.run("view.softProof", json!({"paperInk": paper}));
+            }
+        }
         let r = ui.button(crate::i18n::tr("Create Proof Copy"));
         register(ui.ctx(), "button:createProofCopy", r.rect);
         if r.clicked() {
-            let name = crate::i18n::tr_format!("Proof Copy ({})", app.ui.proof.space.label());
+            let target = app.ui.proof_profile.as_ref().map_or_else(|| app.ui.proof.space.label().to_string(), |(_, n)| n.clone());
+            let name = crate::i18n::tr_format!("Proof Copy ({})", target);
             if app.run("photo.virtualCopy", json!({"ids": [id.0], "name": name})).is_ok() {
                 app.toast(ui.ctx(), crate::i18n::tr("Proof copy created"));
             }
@@ -1093,80 +1149,188 @@ fn point_color(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings) 
 // ------------------------------------------------------------------------------ HDR
 
 /// The Light panel's HDR row: the HDR switch and Visualize HDR, then (HDR on) the headroom limit.
+/// The Light panel's HDR settings while HDR editing is on (the switch itself is the HDR button
+/// next to B&W): Visualize HDR range and the headroom limit.
 fn hdr_row(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings) {
-    egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 4, bottom: 4 }).show(ui, |ui| {
-        ui.horizontal(|ui| {
-            let mut on = d.hdr.enabled;
-            if ui.checkbox(&mut on, "HDR").on_hover_text("Edit in HDR: highlights above SDR white, for HDR exports and displays").changed() {
-                let _ = app.run("develop.hdr", json!({"enabled": on}));
-            }
-            if d.hdr.enabled {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let mut v = app.ui.hdr_visualize;
-                    if ui
-                        .checkbox(&mut v, "Visualize HDR")
-                        .on_hover_text("Grey below SDR white; yellow, orange, red, magenta up to 1, 2, 3 and over 3 stops above it")
-                        .changed()
-                    {
-                        app.ui.hdr_visualize = v;
-                    }
-                });
-            }
-        });
-    });
-    if d.hdr.enabled {
-        control(app, ui, d, "hdr.maxEv", true);
+    if !d.hdr.enabled {
+        return;
     }
+    egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 4, bottom: 4 }).show(ui, |ui| {
+        let mut v = app.ui.hdr_visualize;
+        let r = ui.checkbox(&mut v, "Visualize HDR");
+        register(ui.ctx(), "check:hdrVisualize", r.rect);
+        if r.on_hover_text("Grey below SDR white; yellow, orange, red, magenta up to 1, 2, 3 and over 3 stops above it").changed() {
+            app.ui.hdr_visualize = v;
+        }
+    });
+    control(app, ui, d, "hdr.maxEv", true);
 }
 
 // ------------------------------------------------------------------------------ colour grading
 
-fn grading(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings) {
-    let t = Tokens::get(ui.ctx());
+/// The colour grading tabs: key, tooltip, icon.
+const GRADING_TABS: [(&str, &str, Icon); 4] = [
+    ("3way", "3-Way", Icon::GradeAll),
+    ("shadows", "Shadows", Icon::GradeShadows),
+    ("midtones", "Midtones", Icon::GradeMidtones),
+    ("highlights", "Highlights", Icon::GradeHighlights),
+];
+
+/// The wheels, in the order of `UiState::grading_hidden`.
+const GRADING_WHEELS: [(&str, &str); 3] = [("shadows", "Shadows"), ("midtones", "Midtones"), ("highlights", "Highlights")];
+
+fn grading(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings, photo: PhotoId) {
+    let mode = GRADING_TABS.iter().find(|(k, ..)| *k == app.ui.grading_mode).map_or("3way", |(k, ..)| *k);
+    egui::Frame::NONE.inner_margin(egui::Margin { left: 24, right: 22, top: 6, bottom: 2 }).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            for (key, tip, icon) in GRADING_TABS {
+                if crate::widgets::icon_button(ui, &format!("grading-{key}"), icon, vec2(28.0, 28.0), key == mode, true, tip).clicked() {
+                    app.ui.grading_mode = key.to_string();
+                }
+            }
+        });
+    });
     let w = ui.available_width();
-    let (area, _) = ui.allocate_exact_size(vec2(w, 250.0), Sense::hover());
-    let big = 44.0;
-    let small = 38.0;
-    let wheels = [
-        ("midtones", "Midtones", pos2(area.center().x, area.top() + 60.0), big),
-        ("shadows", "Shadows", pos2(area.left() + w * 0.28, area.top() + 170.0), small),
-        ("highlights", "Highlights", pos2(area.left() + w * 0.72, area.top() + 170.0), small),
-    ];
-    for (key, label, c, rad) in wheels {
-        let wh = match key {
-            "shadows" => d.grading.shadows,
-            "midtones" => d.grading.midtones,
-            _ => d.grading.highlights,
-        };
-        let r = Rect::from_center_size(c, vec2(rad * 2.0, rad * 2.0));
-        let resp = ui.interact(r, egui::Id::new(("wheel", key)), Sense::click_and_drag());
-        register(ui.ctx(), format!("wheel:{key}"), r);
-        paint_wheel(ui.painter(), c, rad);
-        let a = (wh.hue as f32).to_radians();
-        let dot = c + vec2(a.cos(), -a.sin()) * rad * (wh.sat as f32 / 100.0);
-        ui.painter().circle_filled(dot, 5.0, Color32::WHITE);
-        ui.painter().circle_stroke(dot, 5.0, Stroke::new(1.0, Color32::BLACK));
-        ui.painter().text(pos2(c.x, c.y + rad + 12.0), Align2::CENTER_CENTER, crate::i18n::tr(label), t.font(12.0), t.text_label);
-        if resp.drag_started() {
-            let _ = app.run("develop.beginInteraction", json!({"label": crate::i18n::tr_format!("{label} Grading", label = label)}));
+    if mode == "3way" {
+        // three wheels of one size: midtones on top, shadows and highlights below
+        let rad = 40.0;
+        let (area, _) = ui.allocate_exact_size(vec2(w, 276.0), Sense::hover());
+        let at = [
+            pos2(area.left() + w * 0.28, area.top() + 196.0),
+            pos2(area.center().x, area.top() + 70.0),
+            pos2(area.left() + w * 0.72, area.top() + 196.0),
+        ];
+        for (i, c) in at.into_iter().enumerate() {
+            grading_wheel(app, ui, d, photo, i, c, rad, true);
         }
-        if (resp.dragged() || resp.clicked())
-            && let Some(q) = resp.interact_pointer_pos()
-        {
-            let v = q - c;
-            let hue = ((-v.y).atan2(v.x).to_degrees() + 360.0) % 360.0;
-            let sat = (v.length() / rad * 100.0).min(100.0);
-            let _ = app.run("develop.set", json!({"values": {format!("grading.{key}.hue"): hue.round(), format!("grading.{key}.sat"): sat.round()}}));
+        for c in ["grading.shadows.lum", "grading.midtones.lum", "grading.highlights.lum"] {
+            control(app, ui, d, c, true);
         }
-        if resp.drag_stopped() || resp.clicked() {
-            let _ = app.run("develop.endInteraction", json!({}));
-        }
-        if resp.double_clicked() {
-            let _ = app.run("develop.set", json!({"values": {format!("grading.{key}.hue"): 0, format!("grading.{key}.sat"): 0}}));
+    } else {
+        let i = GRADING_WHEELS.iter().position(|(k, _)| *k == mode).unwrap_or(1);
+        let rad = (w * 0.3).clamp(40.0, 80.0);
+        let (area, _) = ui.allocate_exact_size(vec2(w, rad * 2.0 + 40.0), Sense::hover());
+        grading_wheel(app, ui, d, photo, i, pos2(area.center().x, area.top() + rad + 10.0), rad, false);
+        for part in ["hue", "sat", "lum"] {
+            control(app, ui, d, &format!("grading.{mode}.{part}"), true);
         }
     }
-    for c in ["grading.shadows.lum", "grading.midtones.lum", "grading.highlights.lum", "grading.blending", "grading.balance"] {
+    for c in ["grading.blending", "grading.balance"] {
         control(app, ui, d, c, true);
+    }
+}
+
+/// One colour grading wheel (`i` into [`GRADING_WHEELS`]) centred on `c`: drag to pick hue and
+/// saturation, double-click to reset, and an eye at its bottom-left corner that hides its effect
+/// on the photo for viewing. `readout`: show hue and saturation centred above the wheel while
+/// hovered (3-Way); otherwise the wheel is the large one and gets saturation guide rings.
+#[allow(clippy::too_many_arguments)]
+fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings, photo: PhotoId, i: usize, c: Pos2, rad: f32, readout: bool) {
+    let t = Tokens::get(ui.ctx());
+    let Some(&(key, label)) = GRADING_WHEELS.get(i) else { return };
+    let wh = match key {
+        "shadows" => d.grading.shadows,
+        "midtones" => d.grading.midtones,
+        _ => d.grading.highlights,
+    };
+    let hidden = app.ui.grading_hidden_for(photo).get(i).copied().unwrap_or(false);
+    let r = Rect::from_center_size(c, vec2(rad * 2.0, rad * 2.0));
+    // the corners (eye, readout) count as the wheel for hovering
+    let zone = r.expand(10.0);
+    let hovering = ui.rect_contains_pointer(zone);
+    let resp = ui.interact(r, egui::Id::new(("wheel", key)), Sense::click_and_drag());
+    register(ui.ctx(), format!("wheel:{key}"), r);
+    paint_wheel(ui.painter(), c, rad);
+    if hidden {
+        ui.painter().circle_filled(c, rad, Color32::from_black_alpha(150));
+    }
+    // the large single wheel: dashed rings at 25 / 50 / 75 % saturation to judge strength by eye
+    if !readout {
+        for f in [0.25f32, 0.5, 0.75] {
+            let ring_rad = rad * f;
+            let n = (ring_rad * std::f32::consts::TAU / 2.0).max(8.0) as usize;
+            let ring: Vec<Pos2> = (0..=n).map(|k| c + egui::Vec2::angled(k as f32 / n as f32 * std::f32::consts::TAU) * ring_rad).collect();
+            ui.painter().extend(egui::Shape::dashed_line(&ring, Stroke::new(0.8, Color32::from_white_alpha(45)), 4.0, 3.5));
+        }
+    }
+    let a = (wh.hue as f32).to_radians();
+    let dot = c + vec2(a.cos(), -a.sin()) * rad * (wh.sat as f32 / 100.0);
+    // Shift-drag: saturation only, the hue locked to the spoke the point is on (as in Lightroom).
+    // Pressing or releasing Shift mid-drag turns the lock on or off there.
+    let lock_id = egui::Id::new(("wheelHueLock", key));
+    let shift = ui.input(|i| i.modifiers.shift);
+    let lock = match resp.interact_pointer_pos() {
+        Some(q) if resp.dragged() && shift => {
+            // a point at the centre has no hue yet: lock to where the pointer is
+            let start = if wh.sat >= 1.0 { wh.hue as f32 } else { wheel_pick(q - c, rad, None).0 };
+            Some(ui.data_mut(|m| *m.get_temp_mut_or_insert_with(lock_id, || start)))
+        }
+        _ => {
+            ui.data_mut(|m| m.remove::<f32>(lock_id));
+            None
+        }
+    };
+    // while locked: the whole spoke, a guide for the saturation-only move
+    if let Some(h) = lock {
+        let a = h.to_radians();
+        ui.painter().line_segment([c, c + vec2(a.cos(), -a.sin()) * rad], Stroke::new(1.5, Color32::from_white_alpha(170)));
+    }
+    // the neutral centre (issue #559), under the point
+    ui.painter().circle_filled(c, 2.0, Color32::WHITE);
+    ui.painter().circle_filled(dot, 5.0, if hidden { Color32::from_gray(150) } else { Color32::WHITE });
+    ui.painter().circle_stroke(dot, 5.0, Stroke::new(1.0, Color32::BLACK));
+    ui.painter().text(pos2(c.x, c.y + rad + 12.0), Align2::CENTER_CENTER, crate::i18n::tr(label), t.font(12.0), t.text_label);
+    if resp.drag_started() {
+        let _ = app.run("develop.beginInteraction", json!({"label": crate::i18n::tr_format!("{label} Grading", label = label)}));
+    }
+    if (resp.dragged() || resp.clicked())
+        && let Some(q) = resp.interact_pointer_pos()
+    {
+        let (hue, sat) = wheel_pick(q - c, rad, lock);
+        let _ = app.run("develop.set", json!({"values": {format!("grading.{key}.hue"): hue.round(), format!("grading.{key}.sat"): sat.round()}}));
+    }
+    if resp.drag_stopped() || resp.clicked() {
+        let _ = app.run("develop.endInteraction", json!({}));
+    }
+    if resp.double_clicked() {
+        let _ = app.run("develop.set", json!({"values": {format!("grading.{key}.hue"): 0, format!("grading.{key}.sat"): 0}}));
+    }
+    // hue and saturation readout: centred above the wheel, shown like the eye (no fade)
+    if readout && (hovering || resp.dragged()) {
+        // set a little below the gap's midpoint: the eye reads it as centred there
+        ui.painter().text(
+            pos2(c.x, r.top() - 13.0),
+            Align2::CENTER_CENTER,
+            format!("H {}°  S {}", wh.hue.round() as i64, wh.sat.round() as i64),
+            t.font(11.0),
+            t.text_label,
+        );
+    }
+    // the eye: on top of the wheel, shown while hovering or while the wheel is hidden
+    if hovering || hidden {
+        let eye = Rect::from_center_size(r.left_bottom() + vec2(2.0, -2.0), vec2(16.0, 16.0));
+        let er = ui.interact(eye, egui::Id::new(("wheelEye", key)), Sense::click());
+        register(ui.ctx(), format!("wheelEye:{key}"), eye);
+        paint(ui.painter(), eye, if hidden { Icon::EyeOff } else { Icon::Eye }, if hidden { t.text_disabled } else { t.icon });
+        let er = er.on_hover_text(crate::i18n::tr(if hidden { "Show this wheel's effect" } else { "Hide this wheel's effect" }));
+        if er.clicked() {
+            app.ui.set_grading_hidden(photo, i, !hidden);
+        }
+    }
+}
+
+/// Hue (degrees) and saturation (0..100) for a pointer at offset `v` from a wheel's centre.
+/// `lock`: keep this hue and take the saturation from `v` projected onto its spoke (Shift-drag).
+pub(crate) fn wheel_pick(v: egui::Vec2, rad: f32, lock: Option<f32>) -> (f32, f32) {
+    let rad = rad.max(1.0);
+    match lock {
+        Some(h) => {
+            let a = h.to_radians();
+            let along = v.x * a.cos() - v.y * a.sin();
+            (h, (along / rad * 100.0).clamp(0.0, 100.0))
+        }
+        None => (((-v.y).atan2(v.x).to_degrees() + 360.0) % 360.0, (v.length() / rad * 100.0).min(100.0)),
     }
 }
 

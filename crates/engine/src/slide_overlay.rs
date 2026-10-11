@@ -500,7 +500,11 @@ impl OverlaySettings {
         let f = |v: f32, lo: f32, hi: f32, fb: f32| if v.is_finite() { v.clamp(lo, hi) } else { fb };
         w.size = f(w.size, 0.005, 0.5, d.size);
         w.opacity = f(w.opacity, 0.0, 1.0, d.opacity);
-        w.inset = f(w.inset, 0.0, 0.4, d.inset);
+        w.inset_x = f(w.inset_x, 0.0, 0.4, d.inset_x);
+        w.inset_y = f(w.inset_y, 0.0, 0.4, d.inset_y);
+        if !matches!(w.rotation, 0 | 90 | 180 | 270) {
+            w.rotation = 0;
+        }
         w.image_width = f(w.image_width, 0.01, 1.0, d.image_width);
         cut(&mut w.text);
         w.target = None;
@@ -574,7 +578,16 @@ impl OverlaySettings {
                             let mut cur = serde_json::to_value(&s.watermark).map_err(|e| e.to_string())?;
                             if let (Some(c), Some(o)) = (cur.as_object_mut(), v.as_object()) {
                                 for (k, v) in o.iter().filter(|(_, v)| !v.is_null()) {
-                                    c.insert(k.clone(), v.clone());
+                                    if k == "inset" {
+                                        // the legacy single margin sets whichever of the two the patch leaves out
+                                        for axis in ["insetX", "insetY"] {
+                                            if !o.contains_key(axis) {
+                                                c.insert(axis.into(), v.clone());
+                                            }
+                                        }
+                                    } else {
+                                        c.insert(k.clone(), v.clone());
+                                    }
                                 }
                             }
                             serde_json::from_value(cur).map_err(|e| format!("`watermark`: {e}"))?
@@ -1214,6 +1227,15 @@ mod tests {
                 assert!((va * 2.0 - vb).abs() <= 4.0, "{ka:?}: {ra:?} vs {rb:?}");
             }
         }
+    }
+
+    #[test]
+    fn watermark_takes_the_export_insets_and_rotation() {
+        let s = OverlaySettings::default().merged(&json!({"watermark": {"inset": 0.1, "insetY": 0.2, "rotation": 90}})).unwrap();
+        assert_eq!((s.watermark.inset_x, s.watermark.inset_y, s.watermark.rotation), (0.1, 0.2, 90));
+        let s = s.merged(&json!({"watermark": {"insetX": 0.05}})).unwrap();
+        assert_eq!((s.watermark.inset_x, s.watermark.inset_y), (0.05, 0.2));
+        assert!(OverlaySettings::default().merged(&json!({"watermark": {"rotation": 45}})).is_err());
     }
 
     #[test]

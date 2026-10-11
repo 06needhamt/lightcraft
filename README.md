@@ -13,6 +13,11 @@
 <h3 align="center">Your photos. Your pixels. Your machine.</h3>
 
 <p align="center">
+  <a href="README.md">English</a> ·
+  <a href="README.zh-hans.md">简体中文</a>
+</p>
+
+<p align="center">
   <b>Photo library and raw development; an open-source, clean-room reimplementation of Adobe Lightroom, rebuilt in pure Rust.</b><br>
   Native on macOS, Windows and Linux. In the browser via WebAssembly. Drivable end to end by AI agents over MCP.
 </p>
@@ -372,7 +377,7 @@ CRAFT_FONTS_DIR=../craft-fonts cargo run --release -p lightcraft
 ```
 
 Without it LightCraft builds and runs the same, but Chinese and Japanese text have no glyphs. Fonts are never committed to this
-repo; see [craftrules `standards/fonts.md`](https://github.com/storytold/craftrules/blob/main/standards/fonts.md).
+repo — the standard for what goes there lives with it: see the [craft-fonts README](https://github.com/storytold/craft-fonts#readme).
 
 **Interface language:** **Edit → Language** (English, 简体中文, 繁體中文（台灣）, 日本語, Português (Brasil), Español, Deutsch, Русский, Français) or **Settings → General →
 Language**; the choice applies immediately and persists. See [docs/localization.md](docs/localization.md).
@@ -486,6 +491,9 @@ option to start it. For unattended installs: `msiexec /i lightcraft-<ver>-window
 | Tarball | `lightcraft-<ver>-linux-x86_64.tar.gz` | `lightcraft-<ver>-linux-aarch64.tar.gz` | Unpack anywhere |
 
 RISC-V (riscv64): `lightcraft-<ver>-linux-riscv64.tar.gz`, a tarball only (glibc 2.39 or newer, e.g. Ubuntu 24.04+).
+
+On a Wayland desktop LightCraft runs through XWayland when it is available, because only X11 gives
+windows file drag-and-drop; set `LIGHTCRAFT_WAYLAND=1` to use native Wayland (sharper fractional scaling, no drop).
 
 ### FreeBSD
 

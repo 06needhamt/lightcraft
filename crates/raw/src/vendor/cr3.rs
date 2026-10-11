@@ -31,7 +31,7 @@ const ASPECT_INFO: u16 = 0x009a;
 /// Pick the first largest raw track. Equal-sized later tracks can be the Dual Pixel delta, which
 /// must never replace the main sensor image. An invalid full-size descriptor is reported, not
 /// silently replaced with the reduced raw preview.
-fn main_track(tracks: &[Cr3Track]) -> Option<&Cr3Track> {
+pub(crate) fn main_track(tracks: &[Cr3Track]) -> Option<&Cr3Track> {
     let mut best = None;
     let mut best_area = 0u64;
     for track in tracks {

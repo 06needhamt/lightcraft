@@ -177,7 +177,13 @@ fn prepared_exports_run_on_another_thread() {
 
 /// Issue #78: a GPU render whose work never ran (a driver that drops a submission without an
 /// error) gave an all-black export. The export must come from the CPU instead — the same
-/// image — with the reason recorded.
+/// image — with the reason recorded on the export itself.
+///
+/// Issue #675: this test runs beside every other engine test, many of them rendering on the GPU.
+/// It asks only about its own export (`Exported::gpu_fallback`), never the process-wide
+/// `lightcraft_gpu::last_fallback` another thread's render overwrites, and the simulated failure
+/// switches the GPU off for this thread alone, so neither the fault nor `reset_failures` reaches
+/// the other tests.
 #[test]
 fn export_falls_back_to_the_cpu_when_gpu_work_is_lost() {
     let mut s = Session::with_demo();
@@ -192,18 +198,26 @@ fn export_falls_back_to_the_cpu_when_gpu_work_is_lost() {
     let gpu = lightcraft_gpu::available();
     let healthy = mean(&export_photo(&mut s, id, &o, 1).unwrap().bytes);
     lightcraft_gpu::inject_fault(lightcraft_gpu::Fault::DropWork);
-    let faulted = export_photo(&mut s, id, &o, 1).unwrap().bytes;
+    let faulted = export_photo(&mut s, id, &o, 1).unwrap();
     if gpu {
-        let why = lightcraft_gpu::last_fallback().unwrap_or_default();
+        let why = faulted.gpu_fallback.clone().unwrap_or_default();
         assert!(why.contains("incomplete"), "{why}");
-        // the GPU is off for the process now: this export renders on the CPU
+        // the GPU is off for this thread now: the next export is not even tried on it
         assert!(!lightcraft_gpu::available());
+        assert!(lightcraft_gpu::unavailable_reason().unwrap_or_default().contains("incomplete"), "{:?}", lightcraft_gpu::unavailable_reason());
+        // the thread's own `inject_fault` stopped only its own GPU use: the others still have it
+        let elsewhere = std::thread::spawn(|| (lightcraft_gpu::available(), lightcraft_gpu::unavailable_reason())).join().unwrap();
+        assert_eq!(elsewhere, (true, None), "a simulated failure must not switch the GPU off for the other threads");
+    } else {
+        assert_eq!(faulted.gpu_fallback, None);
     }
-    let cpu = export_photo(&mut s, id, &o, 1).unwrap().bytes;
+    let cpu = export_photo(&mut s, id, &o, 1).unwrap();
+    assert_eq!(cpu.gpu_fallback, None, "not tried on the GPU: no fallback to report");
     lightcraft_gpu::reset_failures();
+    assert_eq!(lightcraft_gpu::available(), gpu, "reset_failures gives this thread the GPU back");
     let px = |b: &[u8]| lightcraft_codecs::decode(b, Default::default()).unwrap().image.data;
-    assert!(px(&faulted) == px(&cpu), "the fallback is the CPU render");
-    let m = mean(&faulted);
+    assert!(px(&faulted.bytes) == px(&cpu.bytes), "the fallback is the CPU render");
+    let m = mean(&faulted.bytes);
     assert!(m > 0.02, "not black: mean {m}");
     assert!((m - healthy).abs() < 0.01, "GPU {healthy} vs CPU {m}");
 }
@@ -439,4 +453,92 @@ fn hdr_avif_export_is_pq_rec2020() {
     assert!(hdr.bytes.windows(4).any(|w| w == b"clli"), "content light level box");
     // a photo without an HDR edit exports as an ordinary (sRGB) AVIF
     assert!(nclx(&sdr.bytes).is_none_or(|c| c[3] != 16));
+}
+
+/// "Remove location info" holds for the file-copying formats too: the sidecar and the DNG's
+/// packet carry no location, and an original that embeds GPS is refused rather than copied.
+#[test]
+fn remove_location_holds_for_original_and_dng_exports() {
+    let dir = temp_dir("export-noloc");
+    let gps =
+        lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 48.85, longitude: 2.35, altitude: None }), ..Default::default() };
+    // a raw with no embedded GPS, located in the catalog
+    let raw = dir.join("Raw.dng");
+    std::fs::write(&raw, synthetic_dng_with(None, Default::default())).unwrap();
+    // a JPEG with GPS in its EXIF
+    let jpg = dir.join("Geo.jpg");
+    let img = lightcraft_raster::Rgba8::from_fn(32, 24, |x, y| [(x * 8) as u8, (y * 10) as u8, 90, 255]);
+    let exif = lightcraft_meta::write_exif(&gps);
+    let meta = lightcraft_codecs::EncodeMeta { exif: Some(&exif), ..Default::default() };
+    std::fs::write(&jpg, lightcraft_codecs::encode_jpeg(&lightcraft_codecs::EncodeImage::rgba8(&img), 90, Default::default(), &meta).unwrap())
+        .unwrap();
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [raw.to_string_lossy(), jpg.to_string_lossy()]})).unwrap();
+    let id = |s: &Session, n: &str| s.catalog.photos().find(|p| p.file_name == n).unwrap().id;
+    let (rid, jid) = (id(&s, "Raw.dng"), id(&s, "Geo.jpg"));
+    s.execute("photo.setMeta", &json!({"ids": [rid.0, jid.0], "gps": [48.85, 2.35], "city": "Paris"})).unwrap();
+    let opts = |f: &str, remove: bool| ExportOptions::from_json(&json!({"format": f, "removeLocation": remove}));
+
+    // original raw: the sidecar keeps the location unless it is removed
+    let side = |e: &crate::export::Exported| lightcraft_meta::parse_xmp(std::str::from_utf8(&e.sidecars[0].1).unwrap()).unwrap().metadata;
+    let kept = side(&export_photo(&mut s, rid, &opts("original", false), 1).unwrap());
+    assert!(kept.gps.is_some() && kept.city.is_some());
+    let gone = side(&export_photo(&mut s, rid, &opts("original", true), 1).unwrap());
+    assert!(gone.gps.is_none() && gone.city.is_none(), "{gone:?}");
+
+    // dng: the embedded packet
+    let e = export_photo(&mut s, rid, &opts("dng", false), 1).unwrap();
+    assert!(lightcraft_meta::extract(&e.bytes).gps.is_some());
+    let e = export_photo(&mut s, rid, &opts("dng", true), 1).unwrap();
+    let m = lightcraft_meta::extract(&e.bytes);
+    assert!(m.gps.is_none() && m.city.is_none(), "{m:?}");
+
+    // original JPEG embedding GPS: copied as is normally, refused when the location must go
+    let e = export_photo(&mut s, jid, &opts("original", false), 1).unwrap();
+    assert!(lightcraft_meta::extract(&e.bytes).gps.is_some());
+    let err = export_photo(&mut s, jid, &opts("original", true), 1).err().unwrap();
+    assert!(err.contains("can't remove the location") && err.contains("export as JPEG"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An original raw whose own metadata holds GPS is refused under "Remove location info".
+#[test]
+fn remove_location_refuses_a_raw_that_embeds_gps() {
+    let dir = temp_dir("export-noloc-raw");
+    let gps = lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 10.0, longitude: 20.0, altitude: None }), ..Default::default() };
+    let raw = dir.join("Geo.dng");
+    let bytes = synthetic_dng_with(Some(&lightcraft_meta::write_xmp(&gps, None)), Default::default());
+    assert!(lightcraft_meta::extract(&bytes).gps.is_some(), "fixture embeds GPS");
+    std::fs::write(&raw, bytes).unwrap();
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [raw.to_string_lossy()]})).unwrap();
+    let id = s.catalog.photos().next().unwrap().id;
+    let err = export_photo(&mut s, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
+    assert!(err.contains("can't remove the location"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn hdr_png_export_is_16_bit_pq_rec2020() {
+    let mut s = Session::with_demo();
+    let id = sunset(&mut s);
+    let o = ExportOptions::from_json(&json!({"longEdge": 160, "format": "png", "hdr": true}));
+    assert!(o.hdr_output());
+    assert_eq!(o.effective_space(), lightcraft_pipeline::OutputSpace::Rec2020);
+    // a photo without an HDR edit exports as an ordinary (sRGB, 8-bit) PNG
+    let sdr = export_photo(&mut s, id, &o, 1).unwrap();
+    assert!(!sdr.bytes.windows(4).any(|w| w == b"cICP"));
+    assert_eq!(sdr.bytes[24], 8, "8-bit");
+    s.execute("develop.hdr", &json!({"enabled": true, "maxEv": 2})).unwrap();
+    let hdr = export_photo(&mut s, id, &o, 1).unwrap();
+    let at = hdr.bytes.windows(4).position(|w| w == b"cICP").expect("cICP chunk");
+    assert_eq!(&hdr.bytes[at + 4..at + 8], &[9, 16, 0, 1], "BT.2020, PQ, RGB, full range");
+    assert_eq!(hdr.bytes[24], 16, "16-bit");
+    // the highlights above SDR white are there: MaxCLL beyond the 203 cd/m² of SDR white
+    let at = hdr.bytes.windows(4).position(|w| w == b"cLLI").expect("cLLI chunk");
+    let max_cll = u32::from_be_bytes(hdr.bytes[at + 4..at + 8].try_into().unwrap()) as f32 / 10_000.0;
+    assert!(max_cll > 250.0 && max_cll <= 4.0 * 203.0 + 1.0, "MaxCLL {max_cll}");
+    // HDR output off: the HDR edit exports its SDR rendition
+    let plain = export_photo(&mut s, id, &ExportOptions::from_json(&json!({"longEdge": 160, "format": "png"})), 1).unwrap();
+    assert!(!plain.bytes.windows(4).any(|w| w == b"cICP"));
 }

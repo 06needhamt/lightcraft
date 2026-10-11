@@ -30,6 +30,7 @@ pub mod jpeg_par;
 mod jxl;
 mod other;
 mod png_codec;
+pub mod proof;
 mod psd;
 mod sniff;
 pub mod space;
@@ -39,7 +40,7 @@ mod webp;
 
 pub use encode::{
     ChromaSubsampling, EncodeImage, EncodeMeta, HDR_REFERENCE_WHITE_NITS, Samples, TiffCompression, encode_avif, encode_avif_pq, encode_jpeg,
-    encode_png, encode_tiff, encode_webp_lossless,
+    encode_png, encode_png_pq, encode_psd, encode_tiff, encode_webp_lossless,
 };
 pub use sniff::{Format, sniff};
 pub use space::{NamedSpace, SourceSpace, SpaceOrigin, Trc};
