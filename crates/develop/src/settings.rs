@@ -656,6 +656,33 @@ impl Default for Optics {
 pub struct EmbeddedLens {
     pub warp: Option<EmbeddedWarp>,
     pub vignette: Option<EmbeddedVignette>,
+    /// A DNG 1.6 `WarpRectilinear2` chain (up to [`WARP_STAGES`] stages, in `OpcodeList3` order; each stage warps
+    /// the result of the one before it). When any is set, `warp` is `None`: the chain holds every warp opcode.
+    pub stages: [Option<EmbeddedWarpStage>; WARP_STAGES],
+}
+
+/// Most warp stages an [`EmbeddedLens`] chain keeps.
+pub const WARP_STAGES: usize = 3;
+
+/// One DNG `WarpRectilinear2` (or a `WarpRectilinear` in a chain with one): per plane (R, G, B)
+/// `[kr0 .. kr14, kt0, kt1, min_valid_radius, max_valid_radius]`. For an output point at offset
+/// `d = (p − center) / radius` with `r = |d|` and `f = Σ krₚ·clamp(r, min, max)ᵖ`, the source point is
+/// `center + radius · (d·f + tangential(d))`, or `d / f` for the radial part when `reciprocal`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct EmbeddedWarpStage {
+    pub planes: [[f64; 19]; 3],
+    /// Optical centre, normalized to the oriented image (0..1).
+    pub center: Point,
+    /// Normalisation radius as a fraction of the oriented image's long edge.
+    pub radius: f64,
+    pub reciprocal: bool,
+}
+
+impl EmbeddedLens {
+    /// Whether a `WarpRectilinear2` chain is set.
+    pub fn has_stages(&self) -> bool {
+        self.stages.iter().any(Option::is_some)
+    }
 }
 
 /// DNG `WarpRectilinear`: per plane (R, G, B) `[kr0, kr1, kr2, kr3, kt0, kt1]`. For an output (corrected) point at

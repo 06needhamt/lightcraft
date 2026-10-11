@@ -44,12 +44,13 @@ fn meta_of(m: &lightcraft_meta::Metadata) -> (Meta, Option<String>) {
     (meta, m.capture_time.as_ref().map(|d| d.to_iso()))
 }
 
-/// Lens corrections embedded in a raw's `OpcodeList3` (`WarpRectilinear`, `FixVignetteRadial`: a DNG's own, or the
+/// Lens corrections embedded in a raw's `OpcodeList3` (`WarpRectilinear`, `WarpRectilinear2`, `FixVignetteRadial`: a DNG's own, or the
 /// raw reader's equivalent of the camera's correction, e.g. Panasonic / Leica RW2 distortion), re-expressed for the
 /// default-cropped, EXIF-oriented image. These are the only "profile" corrections LightCraft applies.
 pub fn embedded_lens(raw: &lightcraft_raw::RawInfo) -> Option<lightcraft_develop::EmbeddedLens> {
-    use lightcraft_develop::{EmbeddedLens, EmbeddedVignette, EmbeddedWarp};
+    use lightcraft_develop::{EmbeddedLens, EmbeddedVignette, EmbeddedWarp, EmbeddedWarpStage, WARP_STAGES};
     use lightcraft_geom::Point;
+    use lightcraft_raw::Opcode;
     let (aw, ah) = (raw.active_area.width as f64, raw.active_area.height as f64);
     if aw < 2.0 || ah < 2.0 {
         return None;
@@ -69,21 +70,54 @@ pub fn embedded_lens(raw: &lightcraft_raw::RawInfo) -> Option<lightcraft_develop
         (Point::new((px + 0.5 - cx0) / cw, (py + 0.5 - cy0) / ch), m / long)
     };
     let mut lens = EmbeddedLens::default();
-    for op in &raw.opcodes.list3 {
+    // opcodes in list order, minus the ones the DNG 1.6 skip rule drops (a WarpRectilinear that follows an optional
+    // WarpRectilinear2)
+    let ops: Vec<&Opcode> = lightcraft_raw::opcodes::applied_ops(&raw.opcodes.list3).collect();
+    // A DNG with a WarpRectilinear2 keeps every warp opcode as a chain of stages (each warps the one before's output);
+    // without one the first WarpRectilinear is the lens warp, as it always was.
+    let chain = ops.iter().any(|op| matches!(op, Opcode::WarpRectilinear2 { .. }));
+    let mut stages = Vec::new();
+    for op in ops {
         match op {
-            lightcraft_raw::Opcode::WarpRectilinear { planes, center } if !planes.is_empty() && lens.warp.is_none() => {
+            Opcode::WarpRectilinear2 { planes, center, reciprocal, .. } if !planes.is_empty() => {
+                let (center, radius) = centre(*center);
+                let p = |i: usize| planes[i.min(planes.len() - 1)];
+                stages.push(EmbeddedWarpStage { planes: [p(0), p(1), p(2)], center, radius, reciprocal: *reciprocal });
+            }
+            Opcode::WarpRectilinear { planes, center } if chain && !planes.is_empty() => {
+                // WarpRectilinear is the even-power case: kr0 + kr1 r² + kr2 r⁴ + kr3 r⁶, no radius limit
+                let (center, radius) = centre(*center);
+                let p = |i: usize| {
+                    let k = planes[i.min(planes.len() - 1)];
+                    let mut s = [0.0; lightcraft_raw::opcodes::WR2_LEN];
+                    s[0] = k[0];
+                    s[2] = k[1];
+                    s[4] = k[2];
+                    s[6] = k[3];
+                    s[15] = k[4];
+                    s[16] = k[5];
+                    s[18] = 1e6;
+                    s
+                };
+                stages.push(EmbeddedWarpStage { planes: [p(0), p(1), p(2)], center, radius, reciprocal: false });
+            }
+            Opcode::WarpRectilinear { planes, center } if !chain && !planes.is_empty() && lens.warp.is_none() => {
                 let (center, radius) = centre(*center);
                 let p = |i: usize| planes[i.min(planes.len() - 1)];
                 lens.warp = Some(EmbeddedWarp { planes: [p(0), p(1), p(2)], center, radius });
             }
-            lightcraft_raw::Opcode::FixVignetteRadial { k, center } if lens.vignette.is_none() => {
+            Opcode::FixVignetteRadial { k, center } if lens.vignette.is_none() => {
                 let (center, radius) = centre(*center);
                 lens.vignette = Some(EmbeddedVignette { k: *k, center, radius });
             }
             _ => {}
         }
     }
-    if lens.warp.is_none() && lens.vignette.is_none() {
+    // (more stages than a lens keeps: the first ones; real files carry two)
+    for (slot, st) in lens.stages.iter_mut().zip(stages.into_iter().take(WARP_STAGES)) {
+        *slot = Some(st);
+    }
+    if lens.warp.is_none() && lens.vignette.is_none() && !lens.has_stages() {
         return None;
     }
     Some(lightcraft_pipeline::optics::reorient_lens(&lens, raw.orientation, cw, ch))
