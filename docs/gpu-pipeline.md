@@ -85,6 +85,16 @@ harmless: rendering is then on the CPU until the box is checked again. The senti
 compute device; a crash while the window's renderer starts is avoided by the backend defaults above
 or worked around with `LIGHTCRAFT_GPU_BACKEND`.
 
+**The window's renderer and its fallback (Windows).** Before the window opens, each renderer is probed in
+order: DX12, Vulkan, GL, then eframe's OpenGL renderer (glow). A probe creates a device and builds egui's
+pipeline inside wgpu error scopes, so a driver that cannot compile egui's shaders ("The parameter is
+incorrect. (0x80070057)" in `egui_pipeline`) is logged and skipped instead of killing the app. The renderer
+that worked is remembered in the settings folder (`window-renderer`); a start that dies before the window is up
+leaves `window-init.marker`, and the next start (relaunched automatically, at most 4 times) tries that
+renderer last. `LIGHTCRAFT_GPU_BACKEND=dx12 | vulkan | gl | glow` (or `WGPU_BACKEND`) forces one; DX12 stays
+first because a broken Vulkan driver can crash the process uncatchably (#136). Compute keeps its own
+device and falls back to the CPU as before.
+
 **Troubleshooting a crash at startup (Windows).** Start LightCraft from a `.cmd` file or a terminal
 with `set LIGHTCRAFT_GPU_BACKEND=dx12` (the default since #136), or `=off` to keep the GPU out of
 rendering; `set VK_LOADER_DRIVERS_DISABLE=*igvk64*` (Vulkan loader) hides a specific Vulkan driver
