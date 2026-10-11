@@ -40,6 +40,26 @@ preview is never lost to a damaged header.
 [profile] preview …/DSCF9492.RAF: read 5857257 of 59277632 bytes (header 5857257, window 5857109)
 ```
 
+## The grid thumbnail is the embedded JPEG too
+
+A 512 px grid thumbnail of an unedited raw now keeps the camera's own JPEG instead of rendering the
+sensor behind it. The grid showed that JPEG first in any case and then queued a decode of the whole
+raw to replace it — for a folder of 149 Fuji RAFs that is 8.3 GB of traffic, 45 s a photo at
+1.2 MB/s, and a queue that delayed the render the user was actually waiting for (measured: the first
+loupe render of a cold photo finished 174 s after the click, most of it spent behind thumbnails).
+
+- `Session::embedded_thumb_is_final(photo)` says whether the photo is an unedited raw whose camera
+  JPEG the viewer is showing (the same "unedited raw" gate as the preview path: `has_import_look`).
+- `grid::skips_the_real_render(embedded_is_final, from_embedded)` is the decision, unit-tested:
+  a **cached render** as the stand-in, an **edited photo** and a **raw with no embedded JPEG** all
+  still render, because their thumbnail must show the pipeline's output rather than the camera's.
+- The thumbnail key still changes with the settings hash, so editing a photo re-renders its
+  thumbnail through the ordinary background path.
+
+Measured on the real folder: idle for a minute, the app read 12 previews (**26.9 MB**) and decoded
+**zero** raws for thumbnails, against 638 MB of whole-file reads for the same 12 photos before. The
+render queue stayed empty.
+
 ## Tests
 
 - `crates/raw/src/preview.rs`: the header-only range matches `embedded_preview` byte for byte; a

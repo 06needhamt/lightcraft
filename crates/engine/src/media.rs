@@ -1212,6 +1212,23 @@ impl crate::Session {
         }
     }
 
+    /// Whether `p`'s thumbnail can be the camera's own JPEG, so a frontend can skip the sensor
+    /// decode behind it.
+    ///
+    /// The grid shows this JPEG first in any case ([`QuickJob`]: "grid thumbnails of unedited raws
+    /// likewise start from the embedded preview"), and then paid for a render of the raw to replace
+    /// it. That render decodes the whole sensor — 50 of a 56 MB Fuji RAF's bytes — for a 512 px
+    /// thumbnail the 4 416 × 2 944 embedded JPEG already covers, and on a share at 1.2 MB/s it is
+    /// 45 s a photo: a 149-photo folder spent 8.3 GB of traffic on thumbnails, and the queue behind
+    /// it delayed the render the user was waiting for.
+    ///
+    /// Only unedited raws answer `true`: any edit must be rendered, and `has_import_look` is what
+    /// says the photo still looks the way it did at import. A photo the user edits re-renders
+    /// through the ordinary path, because its thumbnail key (settings hash) changes.
+    pub fn embedded_thumb_is_final(&self, p: &Photo) -> bool {
+        self.embedded_of(p).is_some()
+    }
+
     /// The camera's embedded preview of a raw file, for the face scan. Faces are read from the unedited picture, so the
     /// photo's edits do not matter, and the camera's own JPEG (oriented, display-ready) costs a fraction of decoding the
     /// raw. `None` for anything else, and where the host installed no loader.
