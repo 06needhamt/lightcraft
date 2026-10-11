@@ -21,6 +21,12 @@
   never restore anything. Agents: `library.import` → `onDeleted` defaults to `restore` (`skip` keeps the old
   behaviour, `fresh` imports a clean copy and deletes the old record).
 
+### Formats
+- File extensions match whatever their letter case: `IMG_0001.JPG` and `DSC_0002.NEF` as Nikon writes them, `.Jpg`
+  after a rename, an `.XMP` sidecar. Adding photos or a folder, Browse Folder (Local), drag-and-drop, the CLI and the
+  sidecar lookup always did; the Add Photos dialog on Linux did not until 0.5.0 (GTK and the desktop portal match
+  `*.jpg` case-sensitively, so `.JPG` and `.NEF` files were hidden — issues #342 and #705).
+
 ## 2026-10-09
 
 ### Smart album rules
