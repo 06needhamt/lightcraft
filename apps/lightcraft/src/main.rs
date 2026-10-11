@@ -23,6 +23,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod alloc_release;
+mod appearance;
 mod control_server;
 mod dialog_filter;
 mod editors;
@@ -579,6 +580,7 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
         // the library is a folder on disk: backed up with the user's other files
         backup_library: None,
         restore_library: None,
+        system_theme: appearance::service(),
     }
 }
 

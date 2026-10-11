@@ -2116,5 +2116,8 @@
   "Move to Folder": "Перемістити до теки",
   "Move to Folder…": "Перемістити до теки…",
   "Move Selected Photos Here": "Перемістити вибрані фото сюди",
-  "Moves the files and their XMP sidecars into this folder; never overwrites": "Переміщує файли та їхні XMP-файли до цієї теки; нічого не перезаписує"
+  "Moves the files and their XMP sidecars into this folder; never overwrites": "Переміщує файли та їхні XMP-файли до цієї теки; нічого не перезаписує",
+  "Appearance Settings…": "Налаштування вигляду…",
+  "Add to favorites": "Додати до вибраного",
+  "Remove from favorites": "Видалити з вибраного"
 }
