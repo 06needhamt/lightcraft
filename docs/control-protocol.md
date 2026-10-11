@@ -9,7 +9,13 @@
 ← {"id": 2, "ok": false, "error": "unknown command `nope`"}
 ```
 
-Requests are answered on the UI thread between frames (timeout 60 s).
+Requests are answered on the UI thread between frames (timeout 60 s). A request is given up
+if the app has not started it and draws no frame for 5 s. The reply is then `{"ok": false, "error": "the app drew no frame for 5 s, …"}`,
+and the app never runs that request later, so a retry doesn't do it twice. This happens on
+Wayland when the window is on a hidden workspace or minimized: the compositor sends no frame
+callbacks, so the app's loop is paused. Keep the window on screen while you drive it, or use
+headless snapshots or `lightcraft-cli mcp` without `--connect`. A request that has already started
+(a long command blocks frames) still gets the full 60 s.
 
 **Only requests are read.** Every line must be a JSON object with a string `method` (`id` and `params` are
 optional; blank lines are skipped). Anything else — text that isn't JSON, a JSON array or number, an object without

@@ -789,6 +789,11 @@ impl LightcraftApp {
     fn drain_control(&mut self, ctx: &egui::Context) {
         let Some(rx) = self.control_rx.take() else { return };
         while let Ok(req) = rx.try_recv() {
+            // a request its sender gave up on (the window drew nothing for a while) is not run
+            // late: it would happen twice once the sender retries (issue #718)
+            if !req.take() {
+                continue;
+            }
             let reply = req.reply.clone();
             match control::handle(self, ctx, &req) {
                 control::Outcome::Done(v) => {
