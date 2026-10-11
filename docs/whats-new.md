@@ -2,6 +2,15 @@
 
 ## 2026-10-11
 
+### JPEG XL export
+- Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
+  (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a
+  smaller file; Progressive files show a coarse version first. 8- or 16-bit, sRGB, Display P3 or Rec. 2020 (lossless
+  files also Adobe RGB and ProPhoto), metadata as for JPEG. With HDR output, photos edited in HDR are written as
+  16-bit Rec. 2020 PQ. Not in the web version yet.
+- Lossy JPEG XL files in Display P3 or Rec. 2020 now open in their real colours; saturated colours used to come in
+  noticeably duller.
+
 ### Open Library knows a Lightroom catalog
 - Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
   `.lrcat-data` folders, or the `.lrcat`) no longer makes an empty LightCraft library inside it (issue #891). The
@@ -31,6 +40,11 @@
 - Settings ▸ General ▸ External Editing: the format (PSD or TIFF), colour space and bit depth for PhotoCraft and for
   the other editor (Edit in Other Editor, now ⌥⌘E), and where PhotoCraft is if you use a portable copy.
 - Export can write PSD too (flat, 8- or 16-bit).
+
+### Reliability
+- Upgrading from a Windows installer older than 0.6 (such as 0.5.0) keeps LightCraft in the folder it was installed
+  in, instead of moving it back to Program Files (issue #399). If that folder has been deleted since, the upgrade
+  installs to Program Files.
 
 ### Slideshow templates
 - Settings ▸ Slideshow now opens with a template browser, like Lightroom Classic's Template Browser. A template holds
@@ -152,6 +166,15 @@
 - The top bar's appearance button cycles Auto, Light, Dark (a monitor, sun or moon), and View ▸
   Appearance lists the modes and themes. On Linux, Auto follows the desktop portal's colour scheme
   as it changes, without polling.
+
+### Add to Apple Photos (macOS)
+- The Export dialog has **Add to Apple Photos**, with an optional album. The files are exported to your folder as
+  usual and then added to Photos, into a top-level album of that name (made when it's missing). The toast says how
+  many Photos added, or why it added none. Export with Previous and export presets repeat it.
+- The first time, macOS asks whether LightCraft may control Photos. Photos may ask about duplicates; files it skips
+  show as a partial import.
+- Agents: `app.export {addToPhotos, photosAlbum}`, `export.addToPhotos {paths}` for files already on disk, and
+  `export.photosImports`. See [Add to Apple Photos](apple-photos.md).
 
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
