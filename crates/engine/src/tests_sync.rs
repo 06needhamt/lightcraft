@@ -32,7 +32,9 @@ impl Scratch {
         Scratch(dir)
     }
     fn path(&self, rel: &str) -> String {
-        self.0.join(rel).to_string_lossy().to_string()
+        // Fixtures use `/`; rebuild components so expected paths match the native separators
+        // returned by directory scans, including for files that have already been removed.
+        self.0.join(rel).components().collect::<PathBuf>().to_string_lossy().into_owned()
     }
 }
 
