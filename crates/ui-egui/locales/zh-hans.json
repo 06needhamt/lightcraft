@@ -1908,5 +1908,13 @@
   "Perceptual": "可感知",
   "Relative": "相对",
   "Simulate Paper & Ink": "模拟纸张和油墨",
-  "Content-Aware": "内容识别"
+  "Content-Aware": "内容识别",
+  "New Library…": "新建图库…",
+  "Open Recent Library": "打开最近的图库",
+  "Recent Libraries": "最近的图库",
+  "Clear Recent Libraries": "清除最近的图库",
+  "No Recent Libraries": "没有最近的图库",
+  "New Library: Choose Where to Put It": "新建图库：选择存放位置",
+  "New Library": "新建图库",
+  "Library name": "图库名称"
 }

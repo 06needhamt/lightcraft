@@ -1908,5 +1908,13 @@
   "Perceptual": "感知",
   "Relative": "相對",
   "Simulate Paper & Ink": "模擬紙張和油墨",
-  "Content-Aware": "內容感知"
+  "Content-Aware": "內容感知",
+  "New Library…": "新增圖庫…",
+  "Open Recent Library": "開啟最近的圖庫",
+  "Recent Libraries": "最近的圖庫",
+  "Clear Recent Libraries": "清除最近的圖庫",
+  "No Recent Libraries": "沒有最近的圖庫",
+  "New Library: Choose Where to Put It": "新增圖庫：選擇存放位置",
+  "New Library": "新增圖庫",
+  "Library name": "圖庫名稱"
 }

@@ -1908,5 +1908,13 @@
   "Perceptual": "Perceptual",
   "Relative": "Relativo",
   "Simulate Paper & Ink": "Simular papel e tinta",
-  "Content-Aware": "Sensível ao conteúdo"
+  "Content-Aware": "Sensível ao conteúdo",
+  "New Library…": "Nova biblioteca…",
+  "Open Recent Library": "Abrir biblioteca recente",
+  "Recent Libraries": "Bibliotecas recentes",
+  "Clear Recent Libraries": "Limpar bibliotecas recentes",
+  "No Recent Libraries": "Nenhuma biblioteca recente",
+  "New Library: Choose Where to Put It": "Nova biblioteca: escolha onde salvá-la",
+  "New Library": "Nova biblioteca",
+  "Library name": "Nome da biblioteca"
 }

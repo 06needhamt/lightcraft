@@ -1910,5 +1910,13 @@
   "Perceptual": "知覚的",
   "Relative": "相対的",
   "Simulate Paper & Ink": "紙とインキをシミュレート",
-  "Content-Aware": "コンテンツに応じる"
+  "Content-Aware": "コンテンツに応じる",
+  "New Library…": "新しいライブラリ…",
+  "Open Recent Library": "最近使ったライブラリを開く",
+  "Recent Libraries": "最近使ったライブラリ",
+  "Clear Recent Libraries": "最近使ったライブラリを消去",
+  "No Recent Libraries": "最近使ったライブラリはありません",
+  "New Library: Choose Where to Put It": "新しいライブラリ：保存場所を選択",
+  "New Library": "新しいライブラリ",
+  "Library name": "ライブラリ名"
 }

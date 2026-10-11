@@ -1622,5 +1622,13 @@
   "Perceptual": "Перцепционный",
   "Relative": "Относительный",
   "Simulate Paper & Ink": "Имитировать бумагу и краску",
-  "Content-Aware": "С учётом содержимого"
+  "Content-Aware": "С учётом содержимого",
+  "New Library…": "Новая библиотека…",
+  "Open Recent Library": "Открыть недавнюю библиотеку",
+  "Recent Libraries": "Недавние библиотеки",
+  "Clear Recent Libraries": "Очистить список недавних библиотек",
+  "No Recent Libraries": "Нет недавних библиотек",
+  "New Library: Choose Where to Put It": "Новая библиотека: выберите расположение",
+  "New Library": "Новая библиотека",
+  "Library name": "Название библиотеки"
 }

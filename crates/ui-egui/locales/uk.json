@@ -2102,5 +2102,13 @@
   "Perceptual": "Перцепційний",
   "Relative": "Відносний",
   "Simulate Paper & Ink": "Імітувати папір і фарбу",
-  "Content-Aware": "З урахуванням вмісту"
+  "Content-Aware": "З урахуванням вмісту",
+  "New Library…": "Нова бібліотека…",
+  "Open Recent Library": "Відкрити нещодавню бібліотеку",
+  "Recent Libraries": "Нещодавні бібліотеки",
+  "Clear Recent Libraries": "Очистити список нещодавніх бібліотек",
+  "No Recent Libraries": "Немає нещодавніх бібліотек",
+  "New Library: Choose Where to Put It": "Нова бібліотека: виберіть розташування",
+  "New Library": "Нова бібліотека",
+  "Library name": "Назва бібліотеки"
 }

@@ -182,8 +182,24 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let frame = egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider));
     frame.show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
-        let (hr, _) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
-        ui.painter().text(pos2(hr.left() + 18.0, hr.center().y), Align2::LEFT_CENTER, crate::i18n::tr("My Photos"), t.semibold(15.0), t.text);
+        let (hr, header) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::hover());
+        // the open library's name under the title, so nobody edits in the wrong one (issue #902)
+        let library = crate::panels::settings::open_library_name(app);
+        let title_y = if library.is_some() { hr.center().y - 7.0 } else { hr.center().y };
+        ui.painter().text(pos2(hr.left() + 18.0, title_y), Align2::LEFT_CENTER, crate::i18n::tr("My Photos"), t.semibold(15.0), t.text);
+        if let Some(name) = library {
+            ui.painter().with_clip_rect(hr.shrink2(vec2(18.0, 0.0))).text(
+                pos2(hr.left() + 18.0, hr.center().y + 10.0),
+                Align2::LEFT_CENTER,
+                name,
+                t.font(11.0),
+                t.text_dim,
+            );
+            crate::widgets::register(ui.ctx(), "label:libraryName", hr);
+            if let Some(l) = app.session.library.as_ref() {
+                header.on_hover_text(l.dir.display().to_string());
+            }
+        }
         let counts = app.caches.counts(&app.session.catalog);
         let (total, picks, deleted) = (counts.total, counts.picks, counts.deleted);
         egui::ScrollArea::both().id_salt("left-scroll").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
