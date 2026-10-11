@@ -227,3 +227,24 @@ fn containing_keywords_view_lists_parents_too() {
     }
     assert!(!has(&h, "keywordChip:beach"), "the chips give way");
 }
+
+/// Rename Keyword's "used by n photos" and Create Smart Album's live count scan the library once
+/// per change to it, not every frame the dialog is open.
+#[test]
+fn open_dialogs_count_once_per_library_change() {
+    let (mut h, ids) = two_selected();
+    h.app.ui.dialog = Some(crate::state::Dialog::RenameKeyword { from: "beach".into(), to: "beach".into() });
+    let before = h.app.caches.dialog_count_scans;
+    for _ in 0..10 {
+        h.step();
+    }
+    assert_eq!(h.app.caches.dialog_count_scans, before + 1, "unchanged frames reuse the count");
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [ids[1]], "keywords": ["sea"]}}));
+    h.step();
+    assert_eq!(h.app.caches.dialog_count_scans, before + 2, "a library change counts again");
+    h.app.ui.dialog = Some(crate::state::Dialog::NewSmartAlbum { name: "Beach".into(), parent: None });
+    for _ in 0..10 {
+        h.step();
+    }
+    assert_eq!(h.app.caches.dialog_count_scans, before + 3, "another dialog counts its own photos, once");
+}
