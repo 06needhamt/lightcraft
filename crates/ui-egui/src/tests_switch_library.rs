@@ -162,3 +162,41 @@ fn missing_recent_libraries_are_greyed_out_and_pruned_and_the_list_is_capped() {
     assert!(app.ui.settings.recent_libraries.is_empty());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A library another program has open is refused before the current one is closed: the current
+/// library stays open with its photos, and the window title keeps its name.
+#[test]
+fn switching_to_a_locked_library_keeps_the_current_one_open() {
+    let dir = temp("lockedlib");
+    let mut app = app_in(&dir);
+    app.run("app.newLibrary", json!({"path": dir.to_string_lossy(), "name": "Other"})).unwrap();
+    app.run("app.openLibrary", json!({"path": dir.join("first").to_string_lossy()})).unwrap();
+    // "another program" holds Other's lock
+    let other = dir.join("Other");
+    let held = lightcraft_catalog::LibraryLock::acquire(&other, "someone else").unwrap();
+    let e = app.run("app.openLibrary", json!({"path": other.to_string_lossy()})).unwrap_err();
+    assert!(e.contains("already open"), "{e}");
+    assert!(app.session.library.as_ref().unwrap().dir.ends_with("first"), "the current library stays");
+    assert!(app.session.library.as_ref().unwrap().on_disk);
+    assert!(app.ui.settings.library_path.ends_with("first"));
+    drop(held);
+    app.run("app.openLibrary", json!({"path": other.to_string_lossy()})).unwrap();
+    assert!(app.session.library.as_ref().unwrap().dir.ends_with("Other"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Library names that can't be folder names everywhere (Windows' reserved characters, a
+/// trailing dot) are refused; spaces around a name are trimmed.
+#[test]
+fn library_names_must_work_as_folder_names_on_every_system() {
+    let dir = temp("libnames");
+    let mut app = app_in(&dir);
+    for bad in ["a<b", "a>b", "a:b", "a\"b", "a/b", "a\\b", "a|b", "a?b", "a*b", "name.", "..", " ", "a\u{7}"] {
+        let e = app.run("app.newLibrary", json!({"path": dir.to_string_lossy(), "name": bad})).unwrap_err();
+        assert!(e.contains("library name"), "{bad:?}: {e}");
+    }
+    assert!(app.session.library.as_ref().unwrap().dir.ends_with("first"));
+    app.run("app.newLibrary", json!({"path": dir.to_string_lossy(), "name": "  Trip 2026  "})).unwrap();
+    assert_eq!(app.session.library.as_ref().unwrap().dir, dir.join("Trip 2026"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

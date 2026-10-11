@@ -673,17 +673,27 @@ pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String>
 }
 
 /// Close the current library and open the one at `path`. If it can't be opened (locked by
-/// another program, unreadable, a file), the error is returned and the current library stays open.
+/// another program, unreadable, a file), the error is returned and the current library stays open:
+/// the target is checked before anything is closed, and if opening it still fails the previous
+/// library is opened again (both errors are reported if that fails too).
 fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> {
-    let dir = lightcraft_engine::library::resolve_dir(std::path::Path::new(path)).map_err(|e| e.to_string())?;
+    let dir = app.session.check_library(std::path::Path::new(path)).map_err(|e| format!("{path}: {e}"))?;
     let path = dir.to_string_lossy().into_owned();
     // the library being left goes in the list too (also when it was opened at launch)
-    let previous = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy().into_owned());
+    let previous_dir = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone());
+    let previous = previous_dir.as_ref().map(|d| d.to_string_lossy().into_owned());
     app.session.close_library().map_err(|e| e.to_string())?;
-    app.session.open_library(&dir, false).map_err(|e| format!("{path}: {e}"))?;
+    let opened = app.session.open_library(&dir, false).map(|_| ()).map_err(|e| format!("{path}: {e}"));
     app.lightroom_last = None;
     app.renderer.forget_all();
     app.ui.compare = None;
+    if let Err(err) = opened {
+        let Some(prev) = previous_dir else { return Err(err) };
+        return match app.session.open_library(&prev, false) {
+            Ok(_) => Err(err),
+            Err(e) => Err(format!("{err}; reopening the previous library {} failed too: {e}", prev.display())),
+        };
+    }
     app.ui.settings.library_path = path.clone();
     if let Some(prev) = previous.filter(|p| p != &path && !app.ui.settings.recent_libraries.contains(p)) {
         remember_library(&mut app.ui.settings.recent_libraries, &prev);
@@ -768,10 +778,19 @@ pub fn new_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> 
     switch_library(app, &dir.to_string_lossy())
 }
 
+/// Characters a folder name can't hold on Windows (and `/`, which no system allows).
+const RESERVED_NAME_CHARS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
 fn valid_library_name(s: &str) -> Result<&str, String> {
     let n = s.trim();
-    if n.is_empty() || n == "." || n == ".." || n.contains(['/', '\\']) || n.chars().any(char::is_control) {
-        return Err(format!("app.newLibrary: {s:?} can't be a library name (a folder name, without / or \\)"));
+    // Windows drops trailing dots and spaces from a folder name: refuse them rather than
+    // creating a folder whose name differs from the one asked for (spaces around the name
+    // are trimmed first)
+    let bad = n.is_empty() || n == "." || n == ".." || n.ends_with(['.', ' ']) || n.contains(RESERVED_NAME_CHARS) || n.chars().any(char::is_control);
+    if bad {
+        return Err(format!(
+            "app.newLibrary: {s:?} can't be a library name (a folder name without < > : \" / \\ | ? * and not ending in a dot or space)"
+        ));
     }
     Ok(n)
 }

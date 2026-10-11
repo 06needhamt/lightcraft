@@ -272,6 +272,32 @@ impl SettingsLoad {
 }
 
 impl Session {
+    /// Check, without closing the library open now, that [`Session::open_library`] can be expected
+    /// to open `dir`: not a Lightroom catalog, not some other file, a readable folder (or one not
+    /// made yet), not locked by another program. Returns the library folder ([`resolve_dir`]).
+    /// Nothing is created; a library folder that exists gets its lock taken and released again.
+    /// Opening can still fail afterwards (a damaged catalog, a disk going away).
+    pub fn check_library(&self, dir: impl AsRef<Path>) -> Result<PathBuf> {
+        let dir = dir.as_ref().to_path_buf();
+        if let Some(place) = crate::lightroom_folder::lightroom_catalog_at(&dir) {
+            return Err(EngineError::LightroomCatalog { path: dir, catalog: place.catalog });
+        }
+        let dir = resolve_dir(&dir)?;
+        if !dir.exists() {
+            return Ok(dir);
+        }
+        if !dir.is_dir() {
+            return Err(EngineError::Other(format!("{} is not a folder", dir.display())));
+        }
+        std::fs::read_dir(&dir).map_err(|e| EngineError::Other(format!("can't open library {}: {e}", dir.display())))?;
+        // the library open in this session keeps its lock when reopened; any other must be free
+        let current = self.library.as_ref().is_some_and(|l| l.on_disk && same_dir(&l.dir, &dir));
+        if !current && is_library(&dir) {
+            drop(LibraryLock::acquire(&dir, &program_name()).map_err(|e| EngineError::LibraryInUse(e.to_string()))?);
+        }
+        Ok(dir)
+    }
+
     /// Open (or create) the library at `dir` into this session, replacing its catalog. With
     /// `seed_demo`, a newly created library starts with the procedural demo photos.
     ///
@@ -719,6 +745,34 @@ mod resolve_tests {
         let e = Session::new().with_fs().open_library(&other, false).err().unwrap().to_string();
         assert!(e.contains("is a file"), "{e}");
         assert!(!e.contains("File exists"), "{e}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `check_library` refuses what `open_library` would, without touching the open library.
+    #[test]
+    fn check_library_refuses_locked_libraries_files_and_lightroom_catalogs() {
+        let dir = std::env::temp_dir().join(format!("lc-check-lib-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (a, b) = (dir.join("a"), dir.join("b"));
+        std::fs::create_dir_all(&b).unwrap();
+        let mut s = Session::new().with_fs();
+        s.open_library(&b, false).unwrap();
+        s.close_library().unwrap();
+        s.open_library(&a, false).unwrap();
+        assert_eq!(s.check_library(&a).unwrap(), a, "the open library keeps its lock");
+        assert_eq!(s.check_library(&b).unwrap(), b);
+        assert_eq!(s.check_library(dir.join("new")).unwrap(), dir.join("new"));
+        assert!(!dir.join("new").exists(), "nothing created");
+        let held = LibraryLock::acquire(&b, "other").unwrap();
+        assert!(matches!(s.check_library(&b), Err(EngineError::LibraryInUse(_))));
+        drop(held);
+        assert!(s.check_library(&b).is_ok(), "the probe released its lock");
+        std::fs::write(dir.join("notes.txt"), b"x").unwrap();
+        assert!(s.check_library(dir.join("notes.txt")).is_err());
+        std::fs::write(dir.join("Cat.lrcat"), b"x").unwrap();
+        assert!(matches!(s.check_library(dir.join("Cat.lrcat")), Err(EngineError::LightroomCatalog { .. })));
+        assert!(s.library.as_ref().is_some_and(|l| l.dir == a));
+        drop(s);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
