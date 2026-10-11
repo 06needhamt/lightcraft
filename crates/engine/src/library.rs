@@ -322,6 +322,38 @@ impl SettingsLoad {
 }
 
 impl Session {
+    /// Take over what the thumbnail cache wrote under its name of before (`.jpg` files, which
+    /// photo galleries took for the person's photos: issues #610, #1066), once for a cache
+    /// folder that was not made or tidied by this build yet. On a thread of its own, with a row
+    /// in the activity stack that can stop it: a large cache is some 100 000 files to rename.
+    fn tidy_thumbnail_cache(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use std::sync::atomic::{AtomicBool, Ordering};
+            let cache = self.media.rendered.clone();
+            if !cache.disk().is_some_and(|d| d.needs_tidying()) {
+                return;
+            }
+            let stop = std::sync::Arc::new(AtomicBool::new(false));
+            let task = self.activity.start("cache", "Tidying the thumbnail cache", crate::activity::Cancel::Flag(stop.clone()));
+            let spawned = std::thread::Builder::new().name("lc-thumbs-tidy".into()).spawn(move || {
+                // the row stays while this runs (it is dropped with the closure, however that ends)
+                let _row = task;
+                if let Some(disk) = cache.disk() {
+                    // (also given up when the library is closed or another is opened: the cache
+                    // is retired then, and it is gone on with when this library opens again)
+                    let stopped = || stop.load(Ordering::Relaxed) || cache.generation() == u64::MAX;
+                    let taken = disk.take_over_old(&stopped, &|done, of| _row.progress(done as u64, of as u64));
+                    log::info!("thumbnail cache: {taken} thumbnails taken over under their new name in {}", disk.dir().display());
+                }
+            });
+            // (not started: the thumbnails are still found one by one, and it is tried at the next open)
+            if let Err(e) = spawned {
+                log::warn!("thumbnail cache: could not be tidied: {e}");
+            }
+        }
+    }
+
     /// Check, without closing the library open now, that [`Session::open_library`] can be expected
     /// to open `dir`: not a Lightroom catalog, not some other file, a readable folder (or one not
     /// made yet), not locked by another program. Returns the library folder ([`resolve_dir`]).
@@ -504,6 +536,7 @@ impl Session {
         self.media.clear_sources();
         if on_disk {
             self.media.attach_disk_cache(&dir.join("thumbs"), self.cache_bytes());
+            self.tidy_thumbnail_cache();
         }
         let view_written = self.view_json();
         self.library = Some(Library {

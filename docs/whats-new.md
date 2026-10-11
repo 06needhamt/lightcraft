@@ -218,6 +218,24 @@
 - Compare and Reference View panes say "Rendering…" (or that the photo can't be opened) the same way, so a
   magnified preview isn't taken for the photo when checking focus at 1:1.
 
+### The thumbnail cache is no longer taken for your photos
+- LightCraft's cached thumbnails no longer show up in Windows Photos / Gallery or other photo apps as pictures of
+  yours (issues #610, #1066). They were ordinary `.jpg` files in the library's `thumbs` folder, which is usually
+  inside Pictures, so every thumbnail (one for each photo, size and state of its edits) was listed as a photo.
+  They are now kept under a name that is no picture's. The ones already there are taken over, not rendered again:
+  the first time a library opens after this update, "Tidying the thumbnail cache" shows in the activity stack
+  while they are renamed (it can be stopped, and goes on at the next open).
+- Opening a library no longer rewrites the date of every thumbnail it shows, which made them all look new at each
+  launch. Reading a thumbnail writes nothing (but for one that went unused for a week, whose date is brought
+  forward); what was read is remembered for the session, so a full cache still lets go of what is not in use first.
+- A `thumbs` folder that holds nothing but the cache says that it is one (`CACHEDIR.TAG`), so backup programs that
+  go by that can leave it out. It is safe to delete while LightCraft is closed, as before. A `thumbs` folder that
+  also holds files of yours (a library opened on a photo folder that had one) is not tagged, and your files in it
+  are left as they are. Note that files there named exactly like the cache's own (`ab/ab…` with 32 hex digits and
+  `.jpg`) have always been taken for the cache's, and are renamed with it.
+- If you go back to an older version, it renders its thumbnails again as `.jpg`. This version then takes those
+  over one by one as they are used; the rest stay until the cache makes room.
+
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
   (`render in.raw -o out.jxl`). Quality as for JPEG, or Lossless; Effort (Fast / Normal) trades time for a
