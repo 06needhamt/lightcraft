@@ -127,6 +127,9 @@ impl InfoOverlay {
     }
 }
 
+/// How many libraries File ▸ Open Recent Library remembers.
+pub const RECENT_LIBRARIES: usize = 8;
+
 /// App-level preferences (Settings dialog). They belong to the app, not a library, and are
 /// saved with the UI state in the app's config folder (`ui.json`, key `settings`); library
 /// preferences (import defaults, XMP, cache size) live in the library's `prefs.json`.
@@ -135,6 +138,9 @@ impl InfoOverlay {
 pub struct AppSettings {
     /// Library opened at launch when no `--library` is given (empty = the default location).
     pub library_path: String,
+    /// Libraries opened recently, newest first (File ▸ Open Recent Library; at most
+    /// [`RECENT_LIBRARIES`]).
+    pub recent_libraries: Vec<String>,
     pub startup_view: StartupView,
     /// Ask before moving photos to Recently Deleted (keyboard and menu).
     pub confirm_delete: bool,
@@ -165,6 +171,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         AppSettings {
             library_path: String::new(),
+            recent_libraries: Vec::new(),
             startup_view: StartupView::Last,
             confirm_delete: false,
             gpu: true,

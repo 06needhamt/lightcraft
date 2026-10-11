@@ -301,6 +301,8 @@ pub struct LightcraftApp {
     pub lightroom: Option<lightroom_import::LightroomTask>,
     /// Last terminal Lightroom result, exposed by the command's status/wait response.
     pub lightroom_last: Option<Value>,
+    /// The library generation the window title and the recent list were last updated for.
+    pub shown_library: Option<u64>,
     /// A background export in progress.
     pub export: Option<export_task::ExportTask>,
     /// Background file-system work of other commands (Find Missing Photos, auto import…).
@@ -380,6 +382,7 @@ impl LightcraftApp {
             sync_run: None,
             lightroom: None,
             lightroom_last: None,
+            shown_library: None,
             export: None,
             tasks: Default::default(),
             last_export_result: None,
@@ -1009,6 +1012,29 @@ impl LightcraftApp {
         self.perf.max_update_ms = self.perf.max_update_ms.max(self.perf.update_ms);
     }
 
+    /// Once per library opened (at launch too): name it in the window title, so nobody edits in
+    /// the wrong one, and put it first in File ▸ Open Recent Library.
+    pub(crate) fn library_changed(&mut self, ctx: &egui::Context) {
+        let generation = self.session.library_generation();
+        if self.shown_library == Some(generation) {
+            return;
+        }
+        self.shown_library = Some(generation);
+        if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
+            let path = l.dir.to_string_lossy().into_owned();
+            panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
+        }
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.window_title()));
+    }
+
+    /// "LightCraft — <library name>" (just "LightCraft" for a library that isn't saved).
+    pub fn window_title(&self) -> String {
+        match panels::settings::open_library_name(self) {
+            Some(name) => format!("LightCraft — {name}"),
+            None => "LightCraft".to_string(),
+        }
+    }
+
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         i18n::set_language(self.ui.language);
@@ -1021,6 +1047,7 @@ impl LightcraftApp {
         if std::mem::take(&mut self.ui.quit) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+        self.library_changed(&ctx);
         // panels set it again this frame while the pointer rests on a preset or profile
         self.hover_preview = None;
         self.ai_mask_detail(&ctx);

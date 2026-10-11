@@ -1884,5 +1884,11 @@
   "Downloading model": "Descargando modelo",
   "Finding faces": "Buscando caras",
   "Synchronizing folder": "Sincronizando carpeta",
-  "Looking for changes": "Buscando cambios"
+  "Looking for changes": "Buscando cambios",
+  "New Library…": "Nueva biblioteca…",
+  "Open Recent Library": "Abrir biblioteca reciente",
+  "Recent Libraries": "Bibliotecas recientes",
+  "Clear Recent Libraries": "Borrar bibliotecas recientes",
+  "No Recent Libraries": "No hay bibliotecas recientes",
+  "New Library: Choose Where to Put It": "Nueva biblioteca: elige dónde guardarla"
 }

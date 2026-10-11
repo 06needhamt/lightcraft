@@ -1598,5 +1598,11 @@
   "Finding faces": "Поиск лиц",
   "Quit Anyway": "Всё равно выйти",
   "Synchronizing folder": "Синхронизация папки",
-  "Looking for changes": "Поиск изменений"
+  "Looking for changes": "Поиск изменений",
+  "New Library…": "Новая библиотека…",
+  "Open Recent Library": "Открыть недавнюю библиотеку",
+  "Recent Libraries": "Недавние библиотеки",
+  "Clear Recent Libraries": "Очистить список недавних библиотек",
+  "No Recent Libraries": "Нет недавних библиотек",
+  "New Library: Choose Where to Put It": "Новая библиотека: выберите расположение"
 }

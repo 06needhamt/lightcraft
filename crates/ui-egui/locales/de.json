@@ -2039,5 +2039,11 @@
   "Downloading model": "Modell wird heruntergeladen",
   "Finding faces": "Gesichter werden gesucht",
   "Synchronizing folder": "Ordner wird synchronisiert",
-  "Looking for changes": "Änderungen werden gesucht"
+  "Looking for changes": "Änderungen werden gesucht",
+  "New Library…": "Neue Bibliothek…",
+  "Open Recent Library": "Zuletzt verwendete Bibliothek öffnen",
+  "Recent Libraries": "Zuletzt verwendete Bibliotheken",
+  "Clear Recent Libraries": "Liste leeren",
+  "No Recent Libraries": "Keine zuletzt verwendeten Bibliotheken",
+  "New Library: Choose Where to Put It": "Neue Bibliothek: Speicherort wählen"
 }

@@ -1884,5 +1884,11 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "New Library…": "Nouvelle bibliothèque…",
+  "Open Recent Library": "Ouvrir une bibliothèque récente",
+  "Recent Libraries": "Bibliothèques récentes",
+  "Clear Recent Libraries": "Effacer les bibliothèques récentes",
+  "No Recent Libraries": "Aucune bibliothèque récente",
+  "New Library: Choose Where to Put It": "Nouvelle bibliothèque : choisir son emplacement"
 }

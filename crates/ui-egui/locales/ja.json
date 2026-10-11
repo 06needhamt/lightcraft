@@ -1886,5 +1886,11 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "New Library…": "新しいライブラリ…",
+  "Open Recent Library": "最近使ったライブラリを開く",
+  "Recent Libraries": "最近使ったライブラリ",
+  "Clear Recent Libraries": "最近使ったライブラリを消去",
+  "No Recent Libraries": "最近使ったライブラリはありません",
+  "New Library: Choose Where to Put It": "新しいライブラリ：保存場所を選択"
 }

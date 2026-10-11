@@ -2078,5 +2078,11 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "New Library…": "Нова бібліотека…",
+  "Open Recent Library": "Відкрити нещодавню бібліотеку",
+  "Recent Libraries": "Нещодавні бібліотеки",
+  "Clear Recent Libraries": "Очистити список нещодавніх бібліотек",
+  "No Recent Libraries": "Немає нещодавніх бібліотек",
+  "New Library: Choose Where to Put It": "Нова бібліотека: виберіть розташування"
 }
