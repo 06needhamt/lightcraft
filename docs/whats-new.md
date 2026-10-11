@@ -21,6 +21,12 @@
   buttons stay visible. Long lists in dialogs (What's New, All Metadata, Keyboard Shortcuts) get shorter to fit.
   Dialogs that fit look as before.
 
+### Previews match exports on Mac screens
+- On macOS, photos are shown through the profile of the screen the window is on while no monitor profile is chosen in
+  Settings ▸ Display (issue #787). On P3 screens previews used to look more saturated than the exported files in
+  Preview or Photos. Moving the window to another screen is followed; **Use Screen Profile** goes back to it after
+  choosing a profile file.
+
 ### Activity stack
 - Long-running tasks show in one place, top left under the top bar, as in Lightroom Classic (issue #345): imports and
   folder scans, exports (and the contact sheet PDF), Synchronize Folder, Build / Smart Previews, Lightroom catalog import, Photo Merge, model downloads, the face scan,

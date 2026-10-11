@@ -3217,6 +3217,56 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// With no profile chosen, previews follow the profile of the screen showing the window (the
+    /// host's `screen_profile`: macOS doesn't colour-manage the window, issue #787), read again so
+    /// a move to another screen is followed. A chosen profile wins; choosing none goes back to the
+    /// screen's at once; a screen without a profile is sRGB.
+    #[test]
+    fn previews_follow_the_screen_profile_while_none_is_chosen() {
+        use lightcraft_codecs::{NamedSpace, icc::write_named};
+        use std::sync::{Arc, Mutex};
+        let id = |space| lightcraft_engine::display::Display::from_bytes("", &write_named(space)).unwrap().id();
+        let dir = std::env::temp_dir().join(format!("lightcraft-screen-profile-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chosen = dir.join("prophoto.icc");
+        std::fs::write(&chosen, write_named(NamedSpace::ProPhoto)).unwrap();
+        let chosen = chosen.to_string_lossy().to_string();
+
+        let screen = Arc::new(Mutex::new(Some(write_named(NamedSpace::DisplayP3))));
+        let mut h = demo([1000.0, 700.0]);
+        let read = screen.clone();
+        h.app.services.screen_profile = Some(Box::new(move || read.lock().unwrap().clone()));
+        let t = Duration::from_secs(10);
+        h.step();
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::DisplayP3)), "the screen's profile");
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {}}), t);
+        assert_eq!((r["result"]["screen"].clone(), r["result"]["path"].clone()), (json!(true), Value::Null), "{r}");
+        assert!(h.app.ui.settings.display_profile.is_empty(), "nothing is saved as the setting");
+
+        // the window moves to another screen
+        *screen.lock().unwrap() = Some(write_named(NamedSpace::AdobeRgb));
+        assert!(h.step_until(SETTLE, |h| h.app.renderer.display_id() == Some(id(NamedSpace::AdobeRgb))));
+
+        // a chosen profile wins over the screen's
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {"path": chosen}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        *screen.lock().unwrap() = Some(write_named(NamedSpace::DisplayP3));
+        for _ in 0..90 {
+            h.step();
+        }
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::ProPhoto)));
+
+        // none chosen again: the screen's profile, at once
+        let r = h.request("engine.execute", json!({"command": "app.displayProfile", "params": {"path": null}}), t);
+        assert_eq!(r["result"]["screen"], true, "{r}");
+        assert_eq!(h.app.renderer.display_id(), Some(id(NamedSpace::DisplayP3)));
+
+        // a screen without a profile: sRGB
+        *screen.lock().unwrap() = None;
+        assert!(h.step_until(SETTLE, |h| h.app.renderer.display_id().is_none()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Settings (⌘,): tabs switch, app settings change the UI state, library settings go through
     /// the engine; the delete confirmation guards ⌫.
     #[test]
