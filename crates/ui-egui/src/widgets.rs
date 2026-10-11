@@ -195,18 +195,31 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // say that an exact value can be typed here (issue #534: an exact crop angle was hard to find)
     let value_resp = if enabled { value_resp.on_hover_text(crate::i18n::tr("Click to type a value")) } else { value_resp };
     let typing_id = id.with("typing");
-    // the text being typed and how many frames the field has been up: it takes the keyboard on its
-    // first frames (not on the click's own, whose release would take the focus straight back)
-    let mut typing: Option<(String, u8)> = ui.data(|m| m.get_temp(typing_id));
-    if enabled && typing.is_none() && value_resp.clicked() {
-        typing = Some((shown_value(spec, value).trim_start_matches('+').to_string(), 0));
+    // Keep the short focus-acquisition guard, but let an explicit Return/Escape end the edit.
+    let mut typing: Option<(String, u8, bool)> = ui.data(|m| m.get_temp(typing_id));
+    let value_pressed = value_resp.is_pointer_button_down_on() && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Primary));
+    // Focus on the owned primary press before fast typing; retain the readout's click activation.
+    if enabled && typing.is_none() && (value_resp.clicked() || value_pressed) {
+        typing = Some((shown_value(spec, value).trim_start_matches('+').to_string(), 0, value_pressed));
+    }
+    let value_released = ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary));
+    // The opening press must complete the readout's original click before the edit continues.
+    if value_released && typing.as_ref().is_some_and(|(_, _, pressed)| *pressed) && !value_resp.clicked() {
+        typing = None;
+        ui.data_mut(|m| m.remove::<(String, u8, bool)>(typing_id));
+        ui.memory_mut(|m| m.surrender_focus(crate::text_field::id(&format!("sliderField:{}", spec.id))));
     }
     let mut out = SliderOut::default();
     let span = (spec.max - spec.min).max(1e-9);
     let to_x = |v: f64| track_rect.left() + ((v - spec.min) / span).clamp(0.0, 1.0) as f32 * track_rect.width();
     let from_x = |x: f32| spec.min + ((x - track_rect.left()) / track_rect.width()).clamp(0.0, 1.0) as f64 * span;
     let mut v = value;
-    if let Some((mut text, frames)) = typing.take() {
+    if let Some((mut text, frames, pressed)) = typing.take() {
+        // Keep the owned opening release focused without restarting its draft or selection.
+        if pressed && value_released {
+            ui.memory_mut(|m| m.request_focus(crate::text_field::id(&format!("sliderField:{}", spec.id))));
+        }
+        let pressed = pressed && !value_released;
         // a child over the value, so the field never moves the rows around it
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(value_rect).layout(egui::Layout::right_to_left(egui::Align::Center)));
         // the old value is selected when the field takes the focus, so typing replaces it
@@ -216,11 +229,12 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
             .width(value_rect.width())
             .margin(egui::Margin::ZERO)
             .select_on_focus(true)
+            .begin_edit(frames == 0)
             .show(&mut child);
-        if frames < 2 {
+        if frames < 2 && !matches!(field.ending, Some(crate::text_field::Ending::Return | crate::text_field::Ending::Escape)) {
             field.response.request_focus();
-            typing = Some((text.clone(), frames + 1));
-            ui.data_mut(|m| m.insert_temp(typing_id, (text, frames + 1)));
+            typing = Some((text.clone(), frames + 1, pressed));
+            ui.data_mut(|m| m.insert_temp(typing_id, (text, frames + 1, pressed)));
         } else if field.ending.is_some() || !field.editing || !enabled {
             // Esc (or the slider turning off) keeps the old value; Return or clicking away applies
             let cancelled = !enabled || field.cancelled();
@@ -230,10 +244,10 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
                 out.drag_stopped = true;
                 v = nv;
             }
-            ui.data_mut(|m| m.remove::<(String, u8)>(typing_id));
+            ui.data_mut(|m| m.remove::<(String, u8, bool)>(typing_id));
         } else {
-            typing = Some((text.clone(), frames));
-            ui.data_mut(|m| m.insert_temp(typing_id, (text, frames)));
+            typing = Some((text.clone(), frames, pressed));
+            ui.data_mut(|m| m.insert_temp(typing_id, (text, frames, pressed)));
         }
     } else if resp.double_clicked() || label_resp.double_clicked() {
         out.reset = true;
@@ -635,3 +649,7 @@ pub(crate) fn elide_head(text: &str, max: f32, width: impl Fn(&str) -> f32) -> S
     }
     "…".to_string()
 }
+
+#[cfg(test)]
+#[path = "widgets/tests_numeric_entry.rs"]
+mod numeric_entry_tests;
