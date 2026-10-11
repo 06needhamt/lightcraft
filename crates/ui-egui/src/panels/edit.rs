@@ -566,7 +566,7 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     // EXIF strip
     if let Some(ph) = app.session.catalog.photo(id) {
         let m = &ph.meta;
-        let items: Vec<String> = [
+        let parts: Vec<String> = [
             m.iso.map(|i| format!("ISO {i}")),
             m.focal_mm.map(|f| format!("{f:.0}mm")),
             m.aperture.map(|a| format!("f/{a:.1}")),
@@ -576,18 +576,11 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         .flatten()
         .collect();
 
-        if !items.is_empty() {
+        if !parts.is_empty() {
+            let text = parts.join(" · ");
             let y = r.bottom() - 13.0;
-            let count = items.len() as f32;
-            for (i, s) in items.iter().enumerate() {
-                let x = r.left() + 18.0 + (r.width() - 36.0) * (i as f32 + 0.5) / count;
-                let align = match i {
-                    0 => Align2::LEFT_CENTER,
-                    _ if i == items.len() - 1 => Align2::RIGHT_CENTER,
-                    _ => Align2::CENTER_CENTER,
-                };
-                p.text(pos2(x, y), align, s, t.font(12.5), t.text_label);
-            }
+            let x = r.left() + r.width() / 2.0;
+            p.text(pos2(x, y), Align2::CENTER_CENTER, text, t.font(12.5), t.text_label);
         }
     }
 }
