@@ -676,7 +676,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         ui,
                         "Format",
                         "exportFormat",
-                        &[(F::Jpeg, "JPEG"), (F::Png, "PNG"), (F::Tiff, "TIFF"), (F::Webp, "WebP"), (F::Avif, "AVIF"), (F::Dng, "DNG"), (F::Original, "Original files")],
+                        &[(F::Jpeg, "JPEG"), (F::Png, "PNG"), (F::Tiff, "TIFF"), (F::Psd, "PSD"), (F::Webp, "WebP"), (F::Avif, "AVIF"), (F::Dng, "DNG"), (F::Original, "Original files")],
                         &mut opts.format,
                     );
                     if !opts.format.is_rendered() {

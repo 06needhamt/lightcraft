@@ -156,7 +156,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("dialog.export", "Export…", None, "File"),
     ("dialog.contactSheet", "Contact Sheet PDF…", None, "File"),
     ("app.contactSheet", "Export Contact Sheet PDF", None, ""),
-    ("photo.editInExternal", "Edit in External Editor", Some("Cmd+Shift+E"), "Photo"),
+    ("photo.editInPhotoCraft", "Edit in PhotoCraft", Some("Cmd+Shift+E"), "Photo>Edit In"),
+    ("photo.editInExternal", "Edit in Other Editor", Some("Cmd+Alt+E"), "Photo>Edit In"),
     ("dialog.mergeHdr", "HDR…", Some("Ctrl+H"), "Photo>Photo Merge"),
     ("dialog.mergePanorama", "Panorama…", Some("Ctrl+M"), "Photo>Photo Merge"),
     ("dialog.mergeHdrPanorama", "HDR Panorama…", None, "Photo>Photo Merge"),
@@ -1095,30 +1096,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.dialog = Some(Dialog::About);
             Ok(Value::Null)
         }
-        "photo.editInExternal" => {
-            // render an edit copy (stacked on the original), then open it in the editor
-            let mut params = p.clone();
-            if !params.is_object() {
-                params = json!({});
-            }
-            let r = match app.session.execute("photo.editExternal", &params) {
-                Ok(r) => r,
-                Err(e) => return Some(Err(e.to_string())),
-            };
-            let path = r["path"].as_str().unwrap_or_default().to_string();
-            if let Some(id) = r["id"].as_u64() {
-                app.ui.external_edits.push(id);
-            }
-            let editor = p.get("app").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| app.ui.settings.external_editor.clone());
-            if let Some(f) = app.services.open_with.as_mut()
-                && let Err(e) = f(&path, &editor)
-            {
-                app.toast(&ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e));
-            }
-            let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-            app.toast(&ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name));
-            Ok(r)
-        }
+        "photo.editInPhotoCraft" => edit_in(app, &ctx, p, true),
+        "photo.editInExternal" => edit_in(app, &ctx, p, false),
         "dialog.cull" => {
             app.ui.dialog = Some(Dialog::Cull { reject_below: 0.0, pick_best: true });
             Ok(Value::Null)
@@ -1668,6 +1647,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
             app.session.active().is_some()
         }
         "photo.tagFromTracklog" => app.session.active().is_some() && app.services.pick_tracklog.is_some(),
+        "photo.editInPhotoCraft" | "photo.editInExternal" => app.session.active().is_some() && app.services.open_with.is_some(),
         "app.exportPrevious" => app.session.active().is_some() && app.session.last_export.is_some(),
         "dialog.pasteSettings" => app.session.active().is_some() && app.session.clipboard.is_some(),
         "app.showInFinder" => {
@@ -1774,4 +1754,42 @@ fn show_in_finder(app: &mut LightcraftApp) -> Result<Value, String> {
     let reveal = app.services.reveal.as_mut().ok_or("not available here")?;
     reveal(&path)?;
     Ok(json!({"path": path}))
+}
+
+/// Photo ▸ Edit In: render a copy of the active photo with its edits (stacked on the original)
+/// as Settings ▸ External Editing asks for that editor, then open it there. `p` may override the
+/// file (`format`, `colorSpace`, `bitDepth`) and the editor (`app`). PhotoCraft is checked first,
+/// so a missing editor leaves no copy behind.
+fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: bool) -> Result<Value, String> {
+    let settings = &app.ui.settings;
+    let (file, configured) = if photocraft {
+        let path = settings.photocraft_path.trim();
+        (settings.photocraft_file, if path.is_empty() { crate::state::PHOTOCRAFT.to_string() } else { path.to_string() })
+    } else {
+        (settings.external_file, settings.external_editor.clone())
+    };
+    let editor = p.get("app").and_then(Value::as_str).map_or(configured, str::to_string);
+    if let Some(check) = app.services.check_editor.as_ref()
+        && let Err(e) = check(&editor)
+    {
+        app.toast(ctx, e.clone());
+        return Err(e);
+    }
+    let mut params = file.params();
+    if let (Some(o), Some(given)) = (params.as_object_mut(), p.as_object()) {
+        for (k, v) in given.iter().filter(|(k, _)| k.as_str() != "app") {
+            o.insert(k.clone(), v.clone());
+        }
+    }
+    let r = app.session.execute("photo.editExternal", &params).map_err(|e| e.to_string())?;
+    let path = r["path"].as_str().unwrap_or_default().to_string();
+    if let Some(id) = r["id"].as_u64() {
+        app.ui.external_edits.push(id);
+    }
+    let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    match app.services.open_with.as_mut().map(|f| f(&path, &editor)) {
+        Some(Err(e)) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        _ => app.toast(ctx, crate::i18n::tr_format!("{name} opened for editing; it is stacked with the original", name = name)),
+    }
+    Ok(r)
 }

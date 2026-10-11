@@ -383,7 +383,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
 | LR-EXP-DIALOG | Export dialog | P0 | ✅ | `cmd:dialog.export`, `cmd:app.export` (`preset`), `cmd:export.presets`, `cmd:export.savePreset`, `cmd:export.deletePreset`, `crates/ui-egui/src/panels/dialogs.rs`, `crates/engine/src/export.rs` | batch export; built-in presets (JPEG Small 2048 px / Large full size, Original + Settings, DNG) and saved user presets (library prefs) load into the dialog; deleting a user preset is command-only; on a short window the options scroll and Cancel / OK stay visible (LR-BEHAV-DIALOGS, issue #781) |
-| LR-EXP-TYPE | File types | P0 | ✅ | `cmd:app.export` (`format`), `crates/engine/src/export.rs` (`ExportFormat`), `crates/engine/src/tests_export.rs` | JPEG, PNG, TIFF, WebP, AVIF, DNG (raw photos: lossless re-encode with the edits in the embedded XMP), Original (+ XMP sidecar). No JXL encoder; non-raw → DNG not supported |
+| LR-EXP-TYPE | File types | P0 | ✅ | `cmd:app.export` (`format`), `crates/engine/src/export.rs` (`ExportFormat`), `crates/engine/src/tests_export.rs` | JPEG, PNG, TIFF, PSD (flat, 8/16-bit, no layers: `crates/codecs/src/psd.rs`), WebP, AVIF, DNG (raw photos: lossless re-encode with the edits in the embedded XMP), Original (+ XMP sidecar). No JXL encoder; non-raw → DNG not supported |
 | LR-EXP-DIM | Output size | P0 | ✅ | `cmd:app.export` (`longEdge`, `shortEdge`, `width`, `height`, `megapixels`, `percent`, `dontEnlarge`, `ppi`), `crates/engine/src/export.rs` (`Resize`), `crates/ui-egui/src/panels/dialogs.rs` | full size = the cropped native size (no longer upscaled); W × H fits either orientation; ppi written to JFIF / pHYs / TIFF tags |
 | LR-EXP-QUALITY | JPEG quality | P0 | ✅ | `cmd:app.export` (`quality`, `limitKb`) | |
 | LR-EXP-BITDEPTH | Bit depth | P1 | ✅ | `cmd:app.export` (`bitDepth`), `crates/pipeline/src/output.rs` (`OutputDepth`), `crates/engine/src/export.rs` | 16-bit PNG/TIFF rendered at 16 bits (TIFF defaults to 16), 32-bit float linear TIFF with a linear profile, 10-bit AVIF; high-bit-depth renders run on the CPU |
@@ -399,7 +399,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-EXP-DNGOPT | DNG options | P2 | 🟡 | `cmd:app.export` (`dngCompression`), `crates/engine/src/export.rs` | compression: lossless JPEG (default), ZIP or none; no embedded JPEG preview size, no lossy DNG output |
 | LR-EXP-ORIGINAL | Original + XMP | P1 | ✅ | `cmd:app.export` (`format: original`), `crates/engine/src/tests_export.rs` | file copied byte for byte, sidecar named after the output and subject to the conflict policy |
 | LR-EXP-PHOTOS | Export to the system photo library | P2 | ⬜ | | |
-| LR-EXP-PSD | Round trip to an external editor | P2 | ✅ | `cmd:photo.editExternal`, `cmd:photo.editInExternal`, `crates/engine/src/cmd/convert.rs` | a 16-bit TIFF `-Edit` copy with the edits (Adobe RGB / ProPhoto / P3 / sRGB) next to the original, added stacked on top of it and opened in the editor set in Settings ▸ General (or the system default) |
+| LR-EXP-PSD | Round trip to an external editor | P2 | ✅ | `cmd:photo.editExternal`, `cmd:photo.editInPhotoCraft`, `cmd:photo.editInExternal`, `crates/engine/src/cmd/convert.rs`, `apps/lightcraft/src/editors.rs` | an `-Edit` copy with the edits (PSD or TIFF, 16- or 8-bit, Adobe RGB / ProPhoto / P3 / sRGB, chosen per editor in Settings ▸ General ▸ External Editing) next to the original, added stacked on top of it and opened in PhotoCraft (found where its installers put it; a PSD by default, which PhotoCraft saves back to in place) or the other editor set there (or the system default); also on the photo's right-click menu (Edit In). Re-read when LightCraft is focused again. No "Edit a copy / Edit original" choice for non-raw files yet |
 
 ## T. Share (SHARE)
 
@@ -501,7 +501,7 @@ visible menu bar yet: the menu model is only exposed through the control channel
 | MENU-FILE-EXPORTPREV | Export with Previous | P0 | ✅ | `cmd:app.exportPrevious` | ⌥⇧⌘E |
 | MENU-FILE-EXPORTPRESETS | Export preset submenu | P0 | ✅ | `cmd:app.export` (`preset`), `crates/ui-egui/src/menubar.rs` (Export with Preset) | built-ins, then user presets, then Custom… (the dialog); exports to the last folder |
 | MENU-FILE-SHARE | Share / get link / invite | OOS | 🚫 | | |
-| MENU-FILE-PHOTOSHOP | Edit in external editor | P2 | ✅ | `cmd:photo.editInExternal` | Photo ▸ Edit in External Editor |
+| MENU-FILE-PHOTOSHOP | Edit in external editor | P2 | ✅ | `cmd:photo.editInPhotoCraft`, `cmd:photo.editInExternal` | Photo ▸ Edit In ▸ Edit in PhotoCraft / Edit in Other Editor, and Edit In on a photo's right-click menu |
 | MENU-FILE-SHOWFINDER | Show in Finder | P0 | ✅ | `cmd:app.showInFinder` | ⌘R; Explorer on Windows, the folder on Linux; disabled for demo scenes and on the web |
 | MENU-FILE-OFFLINE | Store album locally | P2 | 🚫 | | not applicable: local-first |
 | MENU-FILE-CLOSE | Close Window | P1 | ✅ | `apps/lightcraft/src/native_menu.rs` | the system's Close Window item at the end of File (⌘W) |
@@ -597,7 +597,7 @@ From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained 
 | KEY-UNDOREDO | Undo / redo — ⌘Z / ⇧⌘Z | P0 | ✅ | `cmd:edit.undo`, `cmd:edit.redo` | |
 | KEY-MINIMIZE | Minimize — ⌘M | P1 | ✅ | `apps/lightcraft/src/native_menu.rs` | native Window ▸ Minimize |
 | KEY-AUTO | Auto — ⇧A | P0 | ✅ | `cmd:develop.auto` | |
-| KEY-PHOTOSHOP | External editor — ⇧⌘E | P2 | ✅ | `cmd:photo.editInExternal` | ⇧⌘E as observed; the export dialog is ⇧E |
+| KEY-PHOTOSHOP | External editor — ⇧⌘E | P2 | ✅ | `cmd:photo.editInPhotoCraft`, `cmd:photo.editInExternal` | ⇧⌘E as observed (Edit in PhotoCraft, LightCraft's Photoshop); ⌥⌘E the other editor; the export dialog is ⇧E |
 | KEY-ROTATE | Rotate — ⌘[ / ⌘] | P0 | ✅ | `cmd:photo.rotateLeft`, `cmd:photo.rotateRight` | |
 | KEY-ZOOM | Zoom in / out — ⌘= / ⌘− | P0 | ✅ | `cmd:view.zoomIn`, `cmd:view.zoomOut`, `crates/ui-egui/src/tests_zoom_keys.rs` | the keys zoom the photo only: egui's own interface zoom on ⌘= / ⌘− / ⌘0 (Ctrl on Windows and Linux, where no native menu bar took the keys first) is off (issue #566) |
 | KEY-SELECTALL | Select all — ⌘A | P0 | ✅ | `cmd:library.selectAll` | |

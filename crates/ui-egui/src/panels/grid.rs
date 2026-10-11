@@ -907,6 +907,18 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if ui.button(crate::i18n::tr("Open in Detail")).clicked() {
         let _ = app.run("view.detail", json!({}));
     }
+    // Photo ▸ Edit In: a copy with this photo's edits, opened in PhotoCraft or another editor
+    // (desktop only: the web can't start programs)
+    ui.add_enabled_ui(crate::menus::ui_enabled(app, "photo.editInPhotoCraft"), |ui| {
+        ui.menu_button(crate::i18n::tr("Edit In"), |ui| {
+            if ui.button(crate::i18n::tr("Edit in PhotoCraft")).clicked() {
+                let _ = app.run("photo.editInPhotoCraft", json!({}));
+            }
+            if ui.button(crate::i18n::tr("Edit in Other Editor")).clicked() {
+                let _ = app.run("photo.editInExternal", json!({}));
+            }
+        });
+    });
     if ui.button(crate::i18n::tr("Find Similar Photos")).clicked() {
         match app.run("library.findSimilar", json!({"id": id.0})) {
             Ok(r) => {

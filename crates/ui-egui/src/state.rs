@@ -181,8 +181,15 @@ pub struct AppSettings {
     /// drawn at, up to the photo's own pixels and [`LOUPE_EDGE_CEILING`]). Not the old
     /// `previewEdge` key: its 2560 px default was the soft-image bug (issue #323).
     pub preview_limit: u32,
-    /// Edit in External Editor: the application ("" = the system's default for TIFF files).
+    /// Edit in Other Editor: the application ("" = the system's default for the file type).
     pub external_editor: String,
+    /// The file Edit in Other Editor hands over.
+    pub external_file: EditFile,
+    /// Edit in PhotoCraft: where PhotoCraft is ("" = found where its installer put it; a portable
+    /// copy needs its path).
+    pub photocraft_path: String,
+    /// The file Edit in PhotoCraft hands over.
+    pub photocraft_file: EditFile,
     /// Memory the caches may hold together, in MB (0 = automatic; `app.memoryBudget`).
     pub memory_mb: u32,
     /// Filmstrip: file names above the thumbnails.
@@ -208,6 +215,9 @@ impl Default for AppSettings {
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),
+            external_file: EditFile::default(),
+            photocraft_path: String::new(),
+            photocraft_file: EditFile { format: EditFormat::Psd, ..EditFile::default() },
             memory_mb: 0,
             film_names: true,
             film_badges: true,
@@ -215,6 +225,64 @@ impl Default for AppSettings {
             keymap: Default::default(),
             display_profile: String::new(),
         }
+    }
+}
+
+/// The editor name that means PhotoCraft (Photo ▸ Edit In ▸ Edit in PhotoCraft): the host finds
+/// where it is installed.
+pub const PHOTOCRAFT: &str = "PhotoCraft";
+
+/// The file format Edit In renders the copy as.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditFormat {
+    #[default]
+    Tiff,
+    /// A flat PSD: PhotoCraft saves back to it in place (a TIFF it saves only through Save As).
+    Psd,
+}
+
+/// The colour space of the Edit In copy.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum EditSpace {
+    #[default]
+    AdobeRgb,
+    ProPhoto,
+    DisplayP3,
+    Srgb,
+}
+
+/// The file Photo ▸ Edit In renders for an editor (Settings ▸ External Editing).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EditFile {
+    pub format: EditFormat,
+    pub color_space: EditSpace,
+    /// 16 or 8.
+    pub bit_depth: u8,
+}
+
+impl Default for EditFile {
+    fn default() -> Self {
+        EditFile { format: EditFormat::Tiff, color_space: EditSpace::AdobeRgb, bit_depth: 16 }
+    }
+}
+
+impl EditFile {
+    /// The `photo.editExternal` params for this file.
+    pub fn params(&self) -> serde_json::Value {
+        let format = match self.format {
+            EditFormat::Tiff => "tiff",
+            EditFormat::Psd => "psd",
+        };
+        let space = match self.color_space {
+            EditSpace::AdobeRgb => "adobeRgb",
+            EditSpace::ProPhoto => "proPhoto",
+            EditSpace::DisplayP3 => "displayP3",
+            EditSpace::Srgb => "srgb",
+        };
+        serde_json::json!({"format": format, "colorSpace": space, "bitDepth": if self.bit_depth == 8 { 8 } else { 16 }})
     }
 }
 

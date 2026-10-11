@@ -18,6 +18,8 @@ pub enum ExportFormat {
     Jpeg,
     Png,
     Tiff,
+    /// A flat PSD (8/16-bit, no layers): what an image editor such as PhotoCraft saves back to.
+    Psd,
     Webp,
     Avif,
     /// The original file, unchanged, with an XMP sidecar holding the edits.
@@ -32,6 +34,7 @@ impl ExportFormat {
             "jpeg" | "jpg" => Self::Jpeg,
             "png" => Self::Png,
             "tiff" | "tif" => Self::Tiff,
+            "psd" => Self::Psd,
             "webp" => Self::Webp,
             "avif" => Self::Avif,
             "original" => Self::Original,
@@ -44,6 +47,7 @@ impl ExportFormat {
             Self::Jpeg => "jpg",
             Self::Png => "png",
             Self::Tiff => "tif",
+            Self::Psd => "psd",
             Self::Webp => "webp",
             Self::Avif => "avif",
             // the original keeps its own extension (see `ExportOptions::file_name_for`)
@@ -1079,6 +1083,8 @@ impl ExportOptions {
             (ExportFormat::Tiff, Some(32)) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Tiff, Some(32)) => OutputDepth::F32Linear,
             (ExportFormat::Tiff, _) => OutputDepth::U16,
+            (ExportFormat::Psd, Some(8)) => OutputDepth::U8,
+            (ExportFormat::Psd, _) => OutputDepth::U16,
             (ExportFormat::Avif, _) if self.hdr => OutputDepth::F32Hdr,
             (ExportFormat::Avif, Some(10 | 16 | 32)) => OutputDepth::U16,
             (ExportFormat::Avif, _) => OutputDepth::U8,
@@ -1091,6 +1097,7 @@ impl ExportOptions {
             ExportFormat::Jpeg | ExportFormat::Webp | ExportFormat::Original | ExportFormat::Dng => &[(8, "8-bit")],
             ExportFormat::Png => &[(8, "8-bit"), (16, "16-bit")],
             ExportFormat::Tiff => &[(16, "16-bit"), (8, "8-bit"), (32, "32-bit float")],
+            ExportFormat::Psd => &[(16, "16-bit"), (8, "8-bit")],
             ExportFormat::Avif => &[(8, "8-bit"), (10, "10-bit")],
         }
     }
@@ -1259,6 +1266,7 @@ pub fn encode_with_metadata(img: &Rgba8, o: &ExportOptions, meta: Option<&Metada
         }
         ExportFormat::Png => encode::encode_png(&e, &meta),
         ExportFormat::Tiff => encode::encode_tiff(&e, o.tiff_compression, &meta),
+        ExportFormat::Psd => encode::encode_psd(&e, &meta),
         ExportFormat::Webp => encode::encode_webp_lossless(&e, &meta),
         ExportFormat::Avif => encode::encode_avif(&e, o.quality, 8, &meta),
         f @ (ExportFormat::Original | ExportFormat::Dng) => return Err(format!("{f:?} export does not encode pixels")),
@@ -1369,6 +1377,7 @@ pub fn encode_deep(img: &DeepImage, o: &ExportOptions, meta: Option<&Metadata>) 
         (ExportFormat::Png, DeepSamples::F32(v)) if img.space == OutputSpace::Rec2020 => lightcraft_codecs::encode_png_pq(w, h, v, &meta),
         (ExportFormat::Png, _) => encode::encode_png(&e, &meta),
         (ExportFormat::Tiff, _) => encode::encode_tiff(&e, o.tiff_compression, &meta),
+        (ExportFormat::Psd, _) => encode::encode_psd(&e, &meta),
         (ExportFormat::Avif, DeepSamples::F32(v)) if img.space == OutputSpace::Rec2020 => {
             lightcraft_codecs::encode_avif_pq(w, h, v, o.quality, 8, &meta)
         }
