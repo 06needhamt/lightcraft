@@ -2078,5 +2078,12 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "Fill Location from GPS": "Заповнити місце за GPS",
+  "Download Place Names (GeoNames)": "Завантажити назви місць (GeoNames)",
+  "Place Names Status": "Стан назв місць",
+  "Fill Location": "Заповнити місце",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Заповнити порожні поля «Місто», «Регіон» і «Країна» за GPS (назви місць GeoNames, офлайн)",
+  "Looking up places": "Пошук місць",
+  "Downloading place names": "Завантаження назв місць"
 }

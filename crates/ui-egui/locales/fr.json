@@ -1884,5 +1884,12 @@
   "Panels": "Panels",
   "Reset Panel Layout": "Reset Panel Layout",
   "Resize panel window": "Resize panel window",
-  "Resize panels": "Resize panels"
+  "Resize panels": "Resize panels",
+  "Fill Location from GPS": "Remplir le lieu depuis le GPS",
+  "Download Place Names (GeoNames)": "Télécharger les noms de lieux (GeoNames)",
+  "Place Names Status": "État des noms de lieux",
+  "Fill Location": "Remplir le lieu",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Remplir Ville, État et Pays vides depuis le GPS (noms de lieux GeoNames, hors ligne)",
+  "Looking up places": "Recherche des lieux",
+  "Downloading place names": "Téléchargement des noms de lieux"
 }

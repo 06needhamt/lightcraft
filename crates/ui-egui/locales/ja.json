@@ -1886,5 +1886,12 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "Fill Location from GPS": "GPS から場所を入力",
+  "Download Place Names (GeoNames)": "地名データをダウンロード (GeoNames)",
+  "Place Names Status": "地名データの状態",
+  "Fill Location": "場所を入力",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "空の市区町村・都道府県・国を GPS から入力 (GeoNames の地名、オフライン)",
+  "Looking up places": "場所を検索中",
+  "Downloading place names": "地名データをダウンロード中"
 }

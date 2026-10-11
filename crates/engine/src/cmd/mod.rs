@@ -19,6 +19,7 @@ pub(crate) mod face_detect;
 mod face_models;
 mod face_recognize;
 pub mod filters;
+mod geocode;
 pub mod keywords;
 pub mod library;
 pub mod lut_profiles;
@@ -150,6 +151,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(missing::specs());
         v.extend(sync::specs());
         v.extend(metadata::specs());
+        v.extend(geocode::specs());
         v.extend(filters::specs());
         v.extend(denoise::specs());
         v.extend(face_models::specs());

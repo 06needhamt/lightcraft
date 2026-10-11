@@ -1884,5 +1884,12 @@
   "Downloading model": "正在下载模型",
   "Finding faces": "正在查找人脸",
   "Synchronizing folder": "正在同步文件夹",
-  "Looking for changes": "正在查找更改"
+  "Looking for changes": "正在查找更改",
+  "Fill Location from GPS": "根据 GPS 填写位置",
+  "Download Place Names (GeoNames)": "下载地名数据 (GeoNames)",
+  "Place Names Status": "地名数据状态",
+  "Fill Location": "填写位置",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "根据 GPS 填写空白的城市、省/州和国家（GeoNames 地名，离线）",
+  "Looking up places": "正在查找地点",
+  "Downloading place names": "正在下载地名数据"
 }

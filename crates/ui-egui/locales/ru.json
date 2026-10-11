@@ -1598,5 +1598,12 @@
   "Finding faces": "Поиск лиц",
   "Quit Anyway": "Всё равно выйти",
   "Synchronizing folder": "Синхронизация папки",
-  "Looking for changes": "Поиск изменений"
+  "Looking for changes": "Поиск изменений",
+  "Fill Location from GPS": "Заполнить место по GPS",
+  "Download Place Names (GeoNames)": "Загрузить названия мест (GeoNames)",
+  "Place Names Status": "Состояние названий мест",
+  "Fill Location": "Заполнить место",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Заполнить пустые поля «Город», «Регион» и «Страна» по GPS (названия мест GeoNames, офлайн)",
+  "Looking up places": "Поиск мест",
+  "Downloading place names": "Загрузка названий мест"
 }

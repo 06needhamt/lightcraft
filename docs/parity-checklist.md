@@ -52,10 +52,10 @@ cited here still exists. Formerly docs/parity.md.
 | X. Cross-cutting behaviours (BEHAV) | 18 | 6 | 1 | 1 | 8/8 (100%) | 6/9 (67%) |
 | Y. Menus | 82 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 75 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 33 | 15 | 35 | 9 | — | 23/25 (92%) |
-| **Total** | 397 | 49 | 73 | 36 | 192/200 (96%) | 143/155 (92%) |
+| Lightroom Classic extras | 33 | 16 | 35 | 8 | — | 23/25 (92%) |
+| **Total** | 397 | 50 | 73 | 35 | 192/200 (96%) | 143/155 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.2%** of 519 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 47.2% of 163.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.2%** of 520 in-scope rows — P0 98.0% of 200 · P1 95.2% of 155 · P2 47.3% of 164.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -164,7 +164,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 |---|---|---|---|---|---|
 | LR-META-INFO | Info panel | P0 | ✅ | `cmd:panel.info`, `cmd:photo.setMeta`, `crates/ui-egui/src/panels/right.rs` (`info`, `camera_card`) | camera card (camera, lens, size, format, focal length / shutter / aperture / ISO); title, caption, alt text, extended description, copyright, copyright status, rights usage terms, copyright info URL, creator; file name (rename), file path (reveal), capture time (edit); location, city, state, country; GPS. No flash, map snippet or people |
 | LR-META-COPYRIGHT-DEFAULT | Default copyright on import | P1 | ✅ | `cmd:library.preferences` (`import.copyright`, `import.creator`), `crates/ui-egui/src/panels/settings.rs` | Settings → Import → Metadata; fills only photos without their own |
-| LR-META-LOCATION | Location editing | P2 | 🟡 | `cmd:photo.setMeta` (`location`, `city`, `state`, `country`, `gps`) | place fields and GPS (decimal or degrees / minutes / seconds) edited in Info, read/written as IPTC Core / Photoshop / EXIF XMP; Show on Map opens OpenStreetMap; no embedded map, no geocoding |
+| LR-META-LOCATION | Location editing | P2 | 🟡 | `cmd:photo.setMeta` (`location`, `city`, `state`, `country`, `gps`), `cmd:metadata.reverseGeocode` | place fields and GPS (decimal or degrees / minutes / seconds) edited in Info, read/written as IPTC Core / Photoshop / EXIF XMP; Show on Map opens OpenStreetMap; Fill Location fills empty City / State / Country from GPS offline (GeoNames, downloaded on request: `cmd:metadata.downloadPlaceNames`); no embedded map |
 | LR-META-COPYPASTE | Copy / paste metadata | P2 | ✅ | `cmd:photo.copyMetadata`, `cmd:photo.pasteMetadata` | title, caption, alt text, extended description, copyright (notice, status, usage terms, info URL), creator, place fields, keywords; `fields` picks a subset |
 | LR-META-XMP | XMP read/write | P0 | ✅ | `cmd:photo.saveMetadataToFile`, `cmd:photo.readMetadataFromFile`, `cmd:library.xmpPreferences`, `crates/engine/src/sidecar.rs`, `docs/xmp-interop.md` | sidecar wins for metadata; a sidecar capture time (`exif:DateTimeOriginal` / `photoshop:DateCreated` / `xmp:CreateDate`) fills in only when the file has none; saving merges into an existing sidecar (`crates/meta/src/xmp_merge.rs`): another app's `crs:`, `xmpMM:History` and unknown namespaces are kept byte for byte, an unreadable sidecar is backed up first; with stem naming, files sharing a stem (raw + JPEG) get separate sidecars (`<file>.xmp` for all but the raw); a `crs:` custom white balance on a relative-WB raw is shifted from `crs:AsShotTemperature` rather than read as Kelvin, or kept As Shot and reported when the packet has no as-shot white (issue #510) |
 | LR-META-EXIF-FULL | Full EXIF/IPTC [Classic] | P1 | ✅ | `cmd:photo.allMetadata`, `cmd:dialog.allMetadata`, `crates/meta/src/tags.rs`, `crates/meta/src/exif.rs`, `crates/meta/src/iptc.rs` | read and written on export; Info ▸ All Metadata…: every TIFF / EXIF / GPS / interop tag (named, common values spelled out) and the XMP fields, searchable; metadata presets |
@@ -716,7 +716,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-MAP-LOCATIONS | Saved locations | P2 | ⬜ | | |
 | LRC-MAP-TRACKLOG | GPS track logs | P2 | ✅ | `cmd:photo.autoTagTracklog`, `cmd:photo.tagFromTracklog`, `crates/meta/src/gpx.rs` | Photo ▸ Auto-Tag from Tracklog…: a GPX 1.0 / 1.1 track log sets the GPS of the selected photos by capture time — interpolated between the points of a track segment, else the nearest point within `maxGap` (10 min); never across segment breaks. The camera's time zone comes from the photo (Exif offset) or is asked for; photos that already have a location keep it unless `replace`; `dryRun` previews; one undo step. No track drawn on a map (no Map module) |
 | LRC-MAP-FILTER | Location filter bar | P2 | ⬜ | | |
-| LRC-MAP-REVGEO | Reverse geocoding | OOS | 🚫 | | |
+| LRC-MAP-REVGEO | Reverse geocoding | P2 | 🟡 | `cmd:metadata.reverseGeocode` | offline from GeoNames (City / State / Country, no sublocation); no online provider |
 | LRC-BOOK-SETTINGS | Book settings | P2 | ⬜ | | |
 | LRC-BOOK-AUTOLAYOUT | Book auto layout | P2 | ⬜ | | |
 | LRC-BOOK-PAGE | Book pages & templates | P2 | ⬜ | | |

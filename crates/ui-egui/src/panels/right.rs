@@ -668,6 +668,13 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                         app.toast(ui.ctx(), e);
                     }
                 }
+                if text_button(ui, "fillLocation", crate::i18n::tr("Fill Location"), false)
+                    .on_hover_text(crate::i18n::tr("Fill empty City, State and Country from GPS (offline GeoNames place names)"))
+                    .clicked()
+                    && let Err(e) = app.run("metadata.reverseGeocode", json!({}))
+                {
+                    app.toast(ui.ctx(), e);
+                }
             });
         }
         if let Some(a) = p.analysis {

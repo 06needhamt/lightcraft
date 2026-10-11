@@ -3210,6 +3210,7 @@ dependencies = [
  "lightcraft-develop",
  "lightcraft-faces",
  "lightcraft-fetch",
+ "lightcraft-geocode",
  "lightcraft-geom",
  "lightcraft-gpu",
  "lightcraft-heif",
@@ -3255,6 +3256,14 @@ dependencies = [
  "rustls-rustcrypto",
  "sha2",
  "webpki-roots",
+]
+
+[[package]]
+name = "lightcraft-geocode"
+version = "0.6.0"
+dependencies = [
+ "miniz_oxide 0.8.9",
+ "serde",
 ]
 
 [[package]]

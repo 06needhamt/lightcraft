@@ -2039,5 +2039,12 @@
   "Downloading model": "Modell wird heruntergeladen",
   "Finding faces": "Gesichter werden gesucht",
   "Synchronizing folder": "Ordner wird synchronisiert",
-  "Looking for changes": "Änderungen werden gesucht"
+  "Looking for changes": "Änderungen werden gesucht",
+  "Fill Location from GPS": "Ort aus GPS ausfüllen",
+  "Download Place Names (GeoNames)": "Ortsnamen herunterladen (GeoNames)",
+  "Place Names Status": "Status der Ortsnamen",
+  "Fill Location": "Ort ausfüllen",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Leere Felder Stadt, Bundesland und Land aus GPS ausfüllen (GeoNames-Ortsnamen, offline)",
+  "Looking up places": "Orte werden nachgeschlagen",
+  "Downloading place names": "Ortsnamen werden heruntergeladen"
 }

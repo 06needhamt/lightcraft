@@ -1884,5 +1884,12 @@
   "Downloading model": "Descargando modelo",
   "Finding faces": "Buscando caras",
   "Synchronizing folder": "Sincronizando carpeta",
-  "Looking for changes": "Buscando cambios"
+  "Looking for changes": "Buscando cambios",
+  "Fill Location from GPS": "Rellenar ubicación desde GPS",
+  "Download Place Names (GeoNames)": "Descargar nombres de lugares (GeoNames)",
+  "Place Names Status": "Estado de los nombres de lugares",
+  "Fill Location": "Rellenar ubicación",
+  "Fill empty City, State and Country from GPS (offline GeoNames place names)": "Rellenar Ciudad, Estado y País vacíos desde el GPS (nombres de lugares de GeoNames, sin conexión)",
+  "Looking up places": "Buscando lugares",
+  "Downloading place names": "Descargando nombres de lugares"
 }
