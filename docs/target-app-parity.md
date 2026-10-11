@@ -1,6 +1,6 @@
 # Target-app parity: LightCraft vs Adobe Lightroom
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (EOS R5 Mark II CR3 verified: RAW decoding 76% → 77%; headline numbers unchanged) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
 
 The authoritative assessment of how close LightCraft is to Lightroom. The row-by-row checklist is
 [parity-checklist.md](parity-checklist.md); the ranked work list is [gaps.md](gaps.md); deep areas
@@ -51,7 +51,7 @@ phase #85, duplicate Local entries #22, black GPU exports on an Intel iGPU #78).
 | UI/UX fidelity | ~85% | ~70% | 40–70 h | [ui-parity.md](ui-parity.md) |
 | File formats (non-raw: images, sidecars, presets, catalogs) | ~85% | ~70% | 30–55 h | [file-format-parity.md](file-format-parity.md) |
 | Hardware | ~50% | ~40% | 40–80 h (+ tethering and printing, counted under Classic modules) | [hardware-parity.md](hardware-parity.md) |
-| Localization (12 key languages) | 7 of 12 present | ~52% (mean of the 12, measured) | 130–210 h for the target's set; +145–255 h for Hindi, Arabic, Indonesian, Vietnamese, Korean | [localization-parity.md](localization-parity.md) |
+| Localization (12 key languages) | 7 of 12 present | ~55% (mean of the 12, measured) | 130–210 h for the target's set; +145–255 h for Hindi, Arabic, Indonesian, Vietnamese, Korean | [localization-parity.md](localization-parity.md) |
 | Performance | ~80% | ~70% | 30–50 h | 24 MP GPU slider 3.9 ms, export 0.3 s (measured, [gpu-pipeline.md](gpu-pipeline.md)); 85k library opens in 1.7–4.7 s; 100k test pending |
 | Stability | — | ~60% | 30–60 h | never-crash lints and guards workspace-wide, crash-tested journal, 2,561 tests; but CI runs tests only on FreeBSD, user reports keep finding bugs in ✅ areas |
 | Platforms | macOS, Windows (x64 / x86 / ARM64), Linux (AppImage, deb, rpm, Flatpak, Nix), FreeBSD, web | ~60% | 25–45 h | macOS is where it is tested; Windows installer UI unverified on Windows (#79); web experimental (CPU only) |
@@ -134,7 +134,7 @@ valued from the model-by-model measurement in [raw-parity.md](raw-parity.md):
 | UI/UX fidelity | 8% | 70% |
 | File formats (non-raw) | 6% | 70% |
 | Hardware | 3% | 40% |
-| Localization | 3% | 52% |
+| Localization | 3% | 55% |
 | Performance | 6% | 70% |
 | Stability | 8% | 60% |
 | Platforms | 4% | 60% |
@@ -297,6 +297,7 @@ P2 items 12–25 h; look tuning, performance, packaging, hardening 25–45 h.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified (raw-parity.md): use-weighted share whose camera decodes 84% → 85%, RAW decoding 76% → 77%; full 60.6% → 60.7%, mainstream depth 71.8% → 72.1%, essentials depth 77.4% → 77.5%; the rounded numbers (~61%, ~49%, ~64%) are unchanged |
 | 2026-10-10 | minor | RAW measured model by model (raw-parity.md): RAW decoding (76%) and colour (35%) are explicit rows of the full sum (59% → 61%); mainstream uses the use-weighted 84% plus a ×0.85 colour discount (51% → 49%); essentials uses 84% × colour 0.75 (63% → 64%); beta ~14 points |
 | 2026-10-10 | minor | Full number restored to an additive weighted sum over the dimensions (~59%; method aligned with the standard, no new evidence); hours to ~95% for each of the three audiences; beta distance ~16 points |

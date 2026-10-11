@@ -163,7 +163,7 @@
   "{n} photo{} now · updates automatically as photos change": "{n} photo{} actuellement · mise à jour automatique lorsque les photos changent",
   "{pid} (missing)": "{pid} (manquant)",
   "{sel_n} selected · {counted}": "{sel_n} sélectionné(s) · {counted}",
-  "{stage}… {:.0}%": "{stage}… {:.0}%",
+  "{stage}… {:.0}%": "{stage}… {:.0} %",
   "{verb} {n} Photo{}": "{verb} {n} photo{}",
   "{weekday}, {day}": "{weekday} {day}",
   "{weekday}, {day} {month} {year}": "{weekday} {day} {month} {year}",

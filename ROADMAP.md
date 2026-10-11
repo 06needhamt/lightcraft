@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (EOS R5 Mark II CR3 verified; RAW decoding 77%) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -49,7 +49,7 @@ Hours are calibrated on this repo's PR history; see
 | UI/UX fidelity | ~70% | ~85% | 40–70 h | [ui-parity](docs/ui-parity.md) |
 | File formats (non-raw) | ~70% | ~85% | 30–55 h | [file-format-parity](docs/file-format-parity.md) |
 | Hardware | ~40% | ~50% | 40–80 h | [hardware-parity](docs/hardware-parity.md) |
-| Localization | ~52% of the 12 key languages | 7 of 12 present | 130–210 h (+145–255 h new scripts) | [localization-parity](docs/localization-parity.md) |
+| Localization | ~55% of the 12 key languages | 7 of 12 present | 130–210 h (+145–255 h new scripts) | [localization-parity](docs/localization-parity.md) |
 | Performance | ~70% | ~80% | 30–50 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
 | Stability | ~60% | — | 30–60 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
 | Platforms | ~60% | macOS, Windows, Linux, FreeBSD, web | 25–45 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
@@ -161,6 +161,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |
 | 2026-10-10 | minor | Full ready restored to the additive weighted sum (~59%; method aligned with the standard, no new evidence); hours per audience; beta ~16 points away |
