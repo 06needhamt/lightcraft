@@ -223,6 +223,9 @@ pub struct AppSettings {
     pub dark_theme: DarkTheme,
     /// The theme of the light appearance.
     pub light_theme: LightTheme,
+    /// Theme shortcuts in the appearance context menu.
+    #[serde(deserialize_with = "deserialize_favorite_themes")]
+    pub favorite_themes: Vec<String>,
     /// The monitor's ICC profile previews are shown through (`app.displayProfile`; "" = none:
     /// the display is treated as sRGB).
     pub display_profile: String,
@@ -245,6 +248,7 @@ impl Default for AppSettings {
             appearance_mode: AppearanceMode::Dark,
             dark_theme: DarkTheme::Charcoal,
             light_theme: LightTheme::Silver,
+            favorite_themes: Vec::new(),
             display_profile: String::new(),
         }
     }
@@ -1032,4 +1036,15 @@ impl UiState {
         }
         self
     }
+}
+
+fn deserialize_favorite_themes<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let values = Vec::<String>::deserialize(d)?;
+    let mut seen = std::collections::BTreeSet::new();
+    for id in &values {
+        if !crate::theme::ThemeKind::ALL.iter().any(|k| k.id() == id) || !seen.insert(id) {
+            return Err(serde::de::Error::custom("unknown or duplicate favorite theme"));
+        }
+    }
+    Ok(values)
 }

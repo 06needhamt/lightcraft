@@ -3135,9 +3135,10 @@ mod tests {
         assert_eq!(h.app.ui.settings.startup_view, crate::state::StartupView::Detail);
         // Interface: filmstrip names off, grid badges always
         h.request("ui.clickWidget", json!({"id": "button:settingsTab-interface"}), t);
-        // Appearance cards sit above these controls; scroll the compact settings viewport.
+        // Appearance cards (one row per theme, with its favorite star) sit above these controls;
+        // scroll the compact settings viewport past them.
         h.request("ui.hoverWidget", json!({"id": "radio:theme-charcoal"}), t);
-        h.request("ui.scroll", json!({"dy": -350.0}), t);
+        h.request("ui.scroll", json!({"dy": -700.0}), t);
         for _ in 0..4 {
             h.step();
         }
@@ -3145,7 +3146,7 @@ mod tests {
         assert!(!h.app.ui.settings.film_names);
         h.request("ui.clickWidget", json!({"id": "button:settingsGridBadges-1"}), t);
         assert_eq!(h.app.ui.settings.grid_badges, crate::state::GridBadges::Always);
-        h.request("ui.scroll", json!({"dy": 350.0}), t);
+        h.request("ui.scroll", json!({"dy": 700.0}), t);
         for _ in 0..4 {
             h.step();
         }

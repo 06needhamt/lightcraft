@@ -1603,5 +1603,8 @@
   "Finding faces": "Поиск лиц",
   "Quit Anyway": "Всё равно выйти",
   "Synchronizing folder": "Синхронизация папки",
-  "Looking for changes": "Поиск изменений"
+  "Looking for changes": "Поиск изменений",
+  "Appearance Settings…": "Настройки оформления…",
+  "Add to favorites": "Добавить в избранное",
+  "Remove from favorites": "Удалить из избранного"
 }

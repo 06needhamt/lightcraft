@@ -1891,5 +1891,8 @@
   "Downloading model": "モデルをダウンロード中",
   "Finding faces": "顔を検索中",
   "Synchronizing folder": "フォルダを同期中",
-  "Looking for changes": "変更を確認中"
+  "Looking for changes": "変更を確認中",
+  "Appearance Settings…": "外観設定…",
+  "Add to favorites": "お気に入りに追加",
+  "Remove from favorites": "お気に入りから削除"
 }

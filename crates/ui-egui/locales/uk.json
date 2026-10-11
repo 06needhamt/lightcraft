@@ -2070,5 +2070,8 @@
   "Downloading model": "Завантаження моделі",
   "Finding faces": "Пошук облич",
   "Synchronizing folder": "Синхронізація папки",
-  "Looking for changes": "Пошук змін"
+  "Looking for changes": "Пошук змін",
+  "Appearance Settings…": "Налаштування вигляду…",
+  "Add to favorites": "Додати до вибраного",
+  "Remove from favorites": "Видалити з вибраного"
 }

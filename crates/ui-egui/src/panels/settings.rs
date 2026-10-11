@@ -637,9 +637,9 @@ fn appearance(ui: &mut egui::Ui, t: &Tokens, s: &mut crate::state::AppSettings, 
     let mut cards = |ui: &mut egui::Ui, width: f32| {
         ui.spacing_mut().item_spacing.x = 12.0;
         let light: Vec<_> = LightTheme::ALL.iter().map(|l| (*l, l.kind())).collect();
-        theme_card(ui, t, "Light Theme", light_active, &light, &mut s.light_theme, width);
+        theme_card(ui, t, "Light Theme", light_active, &light, &mut s.light_theme, &mut s.favorite_themes, width);
         let dark: Vec<_> = DarkTheme::ALL.iter().map(|d| (*d, d.kind())).collect();
-        theme_card(ui, t, "Dark Theme", !light_active, &dark, &mut s.dark_theme, width);
+        theme_card(ui, t, "Dark Theme", !light_active, &dark, &mut s.dark_theme, &mut s.favorite_themes, width);
     };
     if available < 440.0 {
         ui.vertical(|ui| cards(ui, available));
@@ -658,6 +658,7 @@ fn theme_card<V: PartialEq + Copy>(
     active: bool,
     options: &[(V, crate::theme::ThemeKind)],
     value: &mut V,
+    favorites: &mut Vec<String>,
     width: f32,
 ) {
     egui::Frame::new()
@@ -677,12 +678,47 @@ fn theme_card<V: PartialEq + Copy>(
                 });
                 let shown = options.iter().find(|(v, _)| v == value).or(options.first()).map(|(_, k)| *k).unwrap_or_default();
                 theme_preview(ui, shown, inner);
-                ui.horizontal(|ui| {
-                    for (v, kind) in options {
+                for (v, kind) in options {
+                    let row = egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), 24.0));
+                    let hovered = ui.ctx().pointer_hover_pos().is_some_and(|p| row.contains(p));
+                    ui.horizontal(|ui| {
                         let r = ui.radio_value(value, *v, crate::i18n::tr(kind.label()));
                         register(ui.ctx(), format!("radio:theme-{}", kind.id()), r.rect);
-                    }
-                });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let favorite = favorites.iter().any(|id| id == kind.id());
+                            let r = ui
+                                .add_visible(favorite || hovered, egui::Button::new("").min_size(egui::vec2(24.0, 24.0)).frame(false))
+                                .on_hover_text(crate::i18n::tr(if favorite { "Remove from favorites" } else { "Add to favorites" }));
+                            r.widget_info(|| {
+                                egui::WidgetInfo::labeled(
+                                    egui::WidgetType::Button,
+                                    true,
+                                    format!(
+                                        "{}: {}",
+                                        crate::i18n::tr(if favorite { "Remove from favorites" } else { "Add to favorites" }),
+                                        crate::i18n::tr(kind.label())
+                                    ),
+                                )
+                            });
+                            register(ui.ctx(), format!("button:themeFavorite-{}", kind.id()), r.rect);
+                            if favorite || hovered {
+                                crate::icons::paint(
+                                    ui.painter(),
+                                    r.rect.shrink(4.0),
+                                    if favorite { crate::icons::Icon::StarFilled } else { crate::icons::Icon::Star },
+                                    if favorite { t.accent } else { t.text_dim },
+                                );
+                            }
+                            if r.clicked() {
+                                if favorite {
+                                    favorites.retain(|id| id != kind.id());
+                                } else {
+                                    favorites.push(kind.id().into());
+                                }
+                            }
+                        });
+                    });
+                }
             });
         });
 }

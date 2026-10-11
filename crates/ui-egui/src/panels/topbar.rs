@@ -198,6 +198,30 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             if resp.clicked() {
                 let _ = app.run("view.appearance", json!({}));
             }
+            resp.context_menu(|ui| {
+                let settings = ui.button(crate::i18n::tr("Appearance Settings…"));
+                register(ui.ctx(), "menu:appearanceSettings", settings.rect);
+                if settings.clicked() {
+                    let _ = app.run("app.settings", json!({"tab": "interface"}));
+                    ui.close();
+                }
+                let favorites = app.ui.settings.favorite_themes.clone();
+                for dark in [false, true] {
+                    let group: Vec<_> =
+                        crate::theme::ThemeKind::ALL.iter().filter(|k| k.is_dark() == dark && favorites.iter().any(|id| id == k.id())).collect();
+                    if !group.is_empty() {
+                        ui.separator();
+                    }
+                    for kind in group {
+                        let r = ui.selectable_label(app.ui.settings.theme(app.system_theme(ui.ctx())) == *kind, crate::i18n::tr(kind.label()));
+                        register(ui.ctx(), format!("menu:themeFavorite-{}", kind.id()), r.rect);
+                        if r.clicked() {
+                            let _ = app.run("view.theme", json!({"theme": kind.id()}));
+                            ui.close();
+                        }
+                    }
+                }
+            });
             let _ = Align2::CENTER_CENTER;
         });
 }

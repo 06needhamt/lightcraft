@@ -195,3 +195,53 @@ fn interface_settings_fit_small_windows_and_stack_theme_choices() {
         assert!(silver.right() <= window.right(), "theme choices stay inside the modal");
     }
 }
+
+#[test]
+fn favorites_validate_roundtrip_and_stars_toggle_without_selecting() {
+    for bad in [json!(["paper", "paper"]), json!(["unknown"]), json!([3]), json!("paper")] {
+        assert!(serde_json::from_value::<AppSettings>(json!({"favoriteThemes": bad})).is_err());
+    }
+    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    h.app.ui.dialog = Some(crate::state::Dialog::Settings { tab: "interface".into() });
+    for _ in 0..4 {
+        h.step();
+    }
+    assert_eq!(h.request("ui.hoverWidget", json!({"id": "radio:theme-paper"}), T)["ok"], true);
+    h.step();
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:themeFavorite-paper"}), T)["ok"], true);
+    h.step();
+    assert_eq!(h.app.ui.settings.favorite_themes, vec!["paper"]);
+    if let Some(path) = std::env::var_os("FAVORITES_SCREENSHOT_DIR") {
+        h.request("ui.scroll", json!({"dy": -90.0}), T);
+        for _ in 0..4 {
+            h.step();
+        }
+        let pixels = h.paint();
+        let image =
+            lightcraft_raster::Rgba8 { width: pixels.size[0], height: pixels.size[1], data: pixels.pixels.iter().map(|c| c.to_array()).collect() };
+        let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&image), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+        std::fs::create_dir_all(&path).unwrap();
+        std::fs::write(std::path::Path::new(&path).join("lightcraft-favorites.png"), png).unwrap();
+    }
+    assert_eq!(h.app.ui.settings.light_theme, LightTheme::Silver, "starring does not select");
+    let saved = serde_json::to_value(&h.app.ui.settings).unwrap();
+    assert_eq!(serde_json::from_value::<AppSettings>(saved).unwrap(), h.app.ui.settings);
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:themeFavorite-paper"}), T)["ok"], true);
+    h.step();
+    assert!(h.app.ui.settings.favorite_themes.is_empty());
+    h.app.ui.dialog = None;
+    h.app.ui.settings.favorite_themes = vec!["midnight".into(), "paper".into()];
+    h.step();
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "icon:appearance", "button": "right"}), T)["ok"], true);
+    h.step();
+    h.step();
+    let light = h.app.widgets.iter().find(|(id, _)| id == "menu:themeFavorite-paper").unwrap().1;
+    let dark = h.app.widgets.iter().find(|(id, _)| id == "menu:themeFavorite-midnight").unwrap().1;
+    assert!(light.top() < dark.top(), "light favorites precede dark favorites");
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "menu:themeFavorite-paper"}), T)["ok"], true);
+    h.step();
+    h.step();
+    assert_eq!(h.app.ui.settings.appearance_mode, AppearanceMode::Light);
+    assert_eq!(h.app.ui.settings.light_theme, LightTheme::Paper);
+    assert_eq!(h.app.ui.settings.dark_theme, DarkTheme::Charcoal);
+}

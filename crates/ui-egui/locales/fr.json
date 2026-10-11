@@ -1876,5 +1876,8 @@
   "Downloading model": "Téléchargement du modèle",
   "Finding faces": "Recherche des visages",
   "Synchronizing folder": "Synchronisation du dossier",
-  "Looking for changes": "Recherche des modifications"
+  "Looking for changes": "Recherche des modifications",
+  "Appearance Settings…": "Réglages d’apparence…",
+  "Add to favorites": "Ajouter aux favoris",
+  "Remove from favorites": "Retirer des favoris"
 }
