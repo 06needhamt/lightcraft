@@ -52,7 +52,7 @@ USAGE:
         --library DIR     headless: open (or create) a persistent LightCraft library; edits are saved
         --compact         list only the helper tools (every command stays reachable via run_command)
   lightcraft-cli render <IN> -o <OUT> [OPTIONS]
-      Develop one file and export it (.jpg, .png, .tif, .webp, .avif, .jxl or .dng by extension) with the
+      Develop one file and export it (.jpg, .png, .tif, .webp, .avif, .jxl, .psd or .dng by extension) with the
       same encoder as the app's Export dialog. Options:
         --set CONTROL=VALUE  set a develop slider, repeatable (e.g. --set light.exposure=0.5)
         --settings FILE      merge a partial develop-settings JSON file
