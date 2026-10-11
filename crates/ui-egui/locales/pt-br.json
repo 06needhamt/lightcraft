@@ -1922,5 +1922,21 @@
   "Add text overlay": "Adicionar sobreposição de texto",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. O restante do texto aparece como digitado.",
   "Use export watermark": "Usar a marca d'água de exportação",
-  "The export watermark, drawn on the photo and sized relative to it.": "A marca d'água de exportação, desenhada sobre a foto e dimensionada em relação a ela."
+  "The export watermark, drawn on the photo and sized relative to it.": "A marca d'água de exportação, desenhada sobre a foto e dimensionada em relação a ela.",
+  "Titles": "Títulos",
+  "Intro screen": "Tela de abertura",
+  "Ending screen": "Tela de encerramento",
+  "Shows": "Mostra",
+  "Colour only": "Somente cor",
+  "Override colour": "Substituir cor",
+  "Own duration (off: the slide duration)": "Duração própria (desativada: a duração do slide)",
+  "Duration": "Duração",
+  "Title text": "Texto do título",
+  "Intro": "Abertura",
+  "Ending": "Encerramento",
+  "End": "Fim",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "A abertura é exibida uma vez antes da primeira foto; o encerramento, após a última foto quando Repetir está desativado. A placa de identidade é a definida em Sobreposições. Os títulos fazem transição como os slides e a ordem aleatória nunca os move.",
+  "This screen is off: turn it on under Titles to play it.": "Esta tela está desativada: ative-a em Títulos para exibi-la.",
+  "The intro screen, before the first photo.": "A tela de abertura, antes da primeira foto.",
+  "The ending screen, after the last photo.": "A tela de encerramento, após a última foto."
 }

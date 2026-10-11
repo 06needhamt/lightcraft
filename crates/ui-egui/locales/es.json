@@ -1922,5 +1922,21 @@
   "Add text overlay": "Añadir superposición de texto",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. El resto del texto se muestra tal cual.",
   "Use export watermark": "Usar la marca de agua de exportación",
-  "The export watermark, drawn on the photo and sized relative to it.": "La marca de agua de exportación, dibujada sobre la foto y escalada respecto a ella."
+  "The export watermark, drawn on the photo and sized relative to it.": "La marca de agua de exportación, dibujada sobre la foto y escalada respecto a ella.",
+  "Titles": "Títulos",
+  "Intro screen": "Pantalla de introducción",
+  "Ending screen": "Pantalla final",
+  "Shows": "Muestra",
+  "Colour only": "Solo color",
+  "Override colour": "Reemplazar color",
+  "Own duration (off: the slide duration)": "Duración propia (desactivada: la de la diapositiva)",
+  "Duration": "Duración",
+  "Title text": "Texto del título",
+  "Intro": "Introducción",
+  "Ending": "Final",
+  "End": "Fin",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "La introducción se reproduce una vez antes de la primera foto; el final, después de la última foto cuando Repetir está desactivado. La placa de identidad es la definida en Superposiciones. Los títulos se funden como las diapositivas y el orden aleatorio nunca los mueve.",
+  "This screen is off: turn it on under Titles to play it.": "Esta pantalla está desactivada: actívela en Títulos para reproducirla.",
+  "The intro screen, before the first photo.": "La pantalla de introducción, antes de la primera foto.",
+  "The ending screen, after the last photo.": "La pantalla final, después de la última foto."
 }

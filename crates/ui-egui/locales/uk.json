@@ -2116,5 +2116,21 @@
   "Add text overlay": "Додати текстове накладання",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Токени: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Решта тексту виводиться як написано.",
   "Use export watermark": "Використати водяний знак експорту",
-  "The export watermark, drawn on the photo and sized relative to it.": "Водяний знак експорту, малюється на фото й масштабується відносно нього."
+  "The export watermark, drawn on the photo and sized relative to it.": "Водяний знак експорту, малюється на фото й масштабується відносно нього.",
+  "Titles": "Титри",
+  "Intro screen": "Вступний екран",
+  "Ending screen": "Завершальний екран",
+  "Shows": "Показує",
+  "Colour only": "Лише колір",
+  "Override colour": "Замінити колір",
+  "Own duration (off: the slide duration)": "Власна тривалість (вимк.: тривалість слайда)",
+  "Duration": "Тривалість",
+  "Title text": "Текст титру",
+  "Intro": "Вступ",
+  "Ending": "Фінал",
+  "End": "Кінець",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "Вступ показується один раз перед першим фото, фінал — після останнього фото, якщо повтор вимкнено. Фірмова табличка — та, що задана в розділі «Накладання». Титри з'являються й зникають як слайди, а випадковий порядок їх не переміщує.",
+  "This screen is off: turn it on under Titles to play it.": "Цей екран вимкнено: увімкніть його в розділі «Титри», щоб показувати.",
+  "The intro screen, before the first photo.": "Вступний екран, перед першим фото.",
+  "The ending screen, after the last photo.": "Завершальний екран, після останнього фото."
 }

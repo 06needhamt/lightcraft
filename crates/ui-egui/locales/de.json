@@ -2077,5 +2077,21 @@
   "Add text overlay": "Textüberlagerung hinzufügen",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Token: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Anderer Text erscheint wie eingegeben.",
   "Use export watermark": "Export-Wasserzeichen verwenden",
-  "The export watermark, drawn on the photo and sized relative to it.": "Das Export-Wasserzeichen, auf das Foto gezeichnet und relativ zu ihm skaliert."
+  "The export watermark, drawn on the photo and sized relative to it.": "Das Export-Wasserzeichen, auf das Foto gezeichnet und relativ zu ihm skaliert.",
+  "Titles": "Titel",
+  "Intro screen": "Intro-Bildschirm",
+  "Ending screen": "Abschlussbildschirm",
+  "Shows": "Zeigt",
+  "Colour only": "Nur Farbe",
+  "Override colour": "Farbe überschreiben",
+  "Own duration (off: the slide duration)": "Eigene Dauer (aus: die Dia-Dauer)",
+  "Duration": "Dauer",
+  "Title text": "Titeltext",
+  "Intro": "Intro",
+  "Ending": "Abschluss",
+  "End": "Ende",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "Das Intro läuft einmal vor dem ersten Foto, der Abschluss nach dem letzten Foto, wenn Wiederholen aus ist. Die Erkennungstafel ist die unter Überlagerungen eingestellte. Titel werden wie Dias überblendet, und die zufällige Reihenfolge verschiebt sie nie.",
+  "This screen is off: turn it on under Titles to play it.": "Dieser Bildschirm ist aus: Schalten Sie ihn unter Titel ein, um ihn abzuspielen.",
+  "The intro screen, before the first photo.": "Der Intro-Bildschirm, vor dem ersten Foto.",
+  "The ending screen, after the last photo.": "Der Abschlussbildschirm, nach dem letzten Foto."
 }

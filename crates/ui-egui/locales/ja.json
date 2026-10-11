@@ -1924,5 +1924,21 @@
   "Add text overlay": "テキストオーバーレイを追加",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "トークン: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}。その他の文字は入力どおりに表示されます。",
   "Use export watermark": "書き出しの透かしを使用",
-  "The export watermark, drawn on the photo and sized relative to it.": "書き出しの透かし。写真の上に、写真に対する比率で描かれます。"
+  "The export watermark, drawn on the photo and sized relative to it.": "書き出しの透かし。写真の上に、写真に対する比率で描かれます。",
+  "Titles": "タイトル",
+  "Intro screen": "イントロ画面",
+  "Ending screen": "エンディング画面",
+  "Shows": "表示内容",
+  "Colour only": "カラーのみ",
+  "Override colour": "カラーを上書き",
+  "Own duration (off: the slide duration)": "個別の再生時間（オフ：スライドの再生時間）",
+  "Duration": "再生時間",
+  "Title text": "タイトルテキスト",
+  "Intro": "イントロ",
+  "Ending": "エンディング",
+  "End": "終了",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "イントロは最初の写真の前に 1 回再生され、エンディングは繰り返しがオフのとき最後の写真の後に再生されます。ID プレートはオーバーレイで設定したものです。タイトルはスライドと同様にフェードし、ランダム順でも位置は変わりません。",
+  "This screen is off: turn it on under Titles to play it.": "この画面はオフです。再生するにはタイトルでオンにしてください。",
+  "The intro screen, before the first photo.": "イントロ画面（最初の写真の前）。",
+  "The ending screen, after the last photo.": "エンディング画面（最後の写真の後）。"
 }

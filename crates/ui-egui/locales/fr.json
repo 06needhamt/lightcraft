@@ -1922,5 +1922,21 @@
   "Add text overlay": "Ajouter une incrustation de texte",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "Jetons : {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Le reste du texte s'affiche tel quel.",
   "Use export watermark": "Utiliser le filigrane d'exportation",
-  "The export watermark, drawn on the photo and sized relative to it.": "Le filigrane d'exportation, dessiné sur la photo et dimensionné par rapport à elle."
+  "The export watermark, drawn on the photo and sized relative to it.": "Le filigrane d'exportation, dessiné sur la photo et dimensionné par rapport à elle.",
+  "Titles": "Titres",
+  "Intro screen": "Écran d'introduction",
+  "Ending screen": "Écran de fin",
+  "Shows": "Affiche",
+  "Colour only": "Couleur seule",
+  "Override colour": "Remplacer la couleur",
+  "Own duration (off: the slide duration)": "Durée propre (désactivée : celle des diapositives)",
+  "Duration": "Durée",
+  "Title text": "Texte du titre",
+  "Intro": "Intro",
+  "Ending": "Fin",
+  "End": "Fin",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "L'introduction est lue une fois avant la première photo ; l'écran de fin après la dernière photo lorsque Répéter est désactivé. La plaque d'identification est celle définie sous Incrustations. Les titres apparaissent en fondu comme les diapositives et l'ordre aléatoire ne les déplace jamais.",
+  "This screen is off: turn it on under Titles to play it.": "Cet écran est désactivé : activez-le sous Titres pour le lire.",
+  "The intro screen, before the first photo.": "L'écran d'introduction, avant la première photo.",
+  "The ending screen, after the last photo.": "L'écran de fin, après la dernière photo."
 }

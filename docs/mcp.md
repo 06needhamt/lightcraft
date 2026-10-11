@@ -203,7 +203,9 @@ written as a PNG to `path`, or returned as base64 PNG in `png` — so an agent c
 before playing it. `cmd_slideshow_playback` sets the timing and fades. `cmd_slideshow_overlays` sets the
 overlays drawn on every slide (identity plate text or image, rating stars, text overlays with tokens such as
 `{caption}` or `{exposure}`, the export watermark); its reply lists `warnings` (an unreadable plate image, tags that
-aren't tokens), and `cmd_slideshow_preview` returns each overlay's box.
+aren't tokens), and `cmd_slideshow_preview` returns each overlay's box. `cmd_slideshow_titles` sets the intro and ending
+screens (colour, the identity plate or a line of text, scale, duration), and `cmd_slideshow_preview {title: "intro"}`
+renders one.
 
 ## Resources
 

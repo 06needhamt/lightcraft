@@ -4,7 +4,9 @@
 //! colour, colour wash, background image). Both are library preferences, saved in the library's
 //! `prefs.json`; the app's slideshow (View ▸ Slideshow) plays with them. `slideshow.overlays`:
 //! the identity plate, rating stars, text overlays with tokens and the watermark drawn on every
-//! slide (also a library preference). `slideshow.preview` composes one slide as a PNG.
+//! slide (also a library preference). `slideshow.titles`: the intro and ending screens (colour,
+//! identity plate or text, scale, duration; a library preference). `slideshow.preview` composes
+//! one slide, or a title screen, as a PNG.
 
 use lightcraft_catalog::PhotoId;
 use serde_json::{Value, json};
@@ -53,6 +55,20 @@ fn overlays(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(out)
 }
 
+fn titles(s: &mut Session, p: &Value) -> Result<Value> {
+    let changes = p.as_object().is_some_and(|o| !o.is_empty());
+    if changes {
+        let next = s.slide_titles.merged(p).map_err(|e| bad("slideshow.titles", e))?;
+        if next != s.slide_titles {
+            s.slide_titles = next;
+            s.save_prefs()?;
+        }
+    }
+    let mut out = s.slide_titles.to_json();
+    out["warnings"] = json!(s.slide_titles.warnings(&s.slide_overlays));
+    Ok(out)
+}
+
 /// A slide size from the request: both sides given, one (the other from the aspect preview), or
 /// neither (1280 wide). Each side 16–[`PREVIEW_MAX`].
 fn preview_size(s: &Session, p: &Value) -> Result<(usize, usize)> {
@@ -76,8 +92,58 @@ fn preview_size(s: &Session, p: &Value) -> Result<(usize, usize)> {
     })
 }
 
+/// Write `png` to `path`, or put it in the reply as base64.
+fn deliver(png: &[u8], path: Option<&str>, out: &mut Value) -> Result<()> {
+    match path {
+        Some(path) => {
+            crate::export::write_file(path, png).map_err(crate::EngineError::Other)?;
+            out["path"] = json!(path);
+        }
+        None => out["png"] = json!(base64(png)),
+    }
+    Ok(())
+}
+
+fn encode_png(img: &lightcraft_raster::Rgba8) -> Result<Vec<u8>> {
+    lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(img), &lightcraft_codecs::EncodeMeta::default())
+        .map_err(|e| crate::EngineError::Other(format!("PNG: {e}")))
+}
+
+/// `slideshow.preview {title}`: a title screen (whether or not it is switched on).
+fn preview_title(s: &mut Session, p: &Value, title: &Value) -> Result<Value> {
+    const C: &str = "slideshow.preview";
+    let t = title
+        .as_str()
+        .and_then(crate::slideshow::Title::parse)
+        .ok_or_else(|| bad(C, format!("`title` must be \"intro\" or \"ending\", not {title}")))?;
+    if p.get("id").is_some_and(|v| !v.is_null()) {
+        return Err(bad(C, "pass `id` or `title`, not both"));
+    }
+    let (w, h) = preview_size(s, p)?;
+    let path = str_param(p, "path").map(str::trim).filter(|x| !x.is_empty());
+    if let Some(path) = path {
+        s.check_write_target(path).map_err(|e| bad(C, e))?;
+    }
+    let c = s.title_compose(t, w, h);
+    let img = c.compose();
+    let png = encode_png(&img)?;
+    let rect = |r: lightcraft_slideshow::Rect| json!([r.x0, r.y0, r.x1, r.y1]);
+    let mut out = json!({
+        "title": t.id(),
+        "enabled": s.slide_titles.screen(t).enabled,
+        "width": img.width,
+        "height": img.height,
+        "plate": c.plate_box().map(rect),
+    });
+    deliver(&png, path, &mut out)?;
+    Ok(out)
+}
+
 fn preview(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "slideshow.preview";
+    if let Some(t) = p.get("title").filter(|v| !v.is_null()) {
+        return preview_title(s, p, t);
+    }
     let id = match p.get("id") {
         None | Some(Value::Null) => s.active().ok_or_else(|| bad(C, "no photo selected (select one or pass `id`)"))?,
         Some(v) => PhotoId(v.as_u64().ok_or_else(|| bad(C, format!("`id` must be a photo id, not {v}")))?),
@@ -92,8 +158,7 @@ fn preview(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let settings = s.slide_layout.clone();
     let img = s.slide_now(&settings, id, w, h).map_err(crate::EngineError::Other)?;
-    let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default())
-        .map_err(|e| crate::EngineError::Other(format!("PNG: {e}")))?;
+    let png = encode_png(&img)?;
     let aspect = s.slide_photo_aspect(id).unwrap_or(1.5);
     let l = lightcraft_slideshow::layout(&settings, aspect, img.width, img.height);
     let rect = |r: lightcraft_slideshow::Rect| json!([r.x0, r.y0, r.x1, r.y1]);
@@ -107,13 +172,7 @@ fn preview(s: &mut Session, p: &Value) -> Result<Value> {
     let photo = s.catalog.photo(id).cloned();
     let o = crate::slide_overlay::SlideOverlays::resolve(&s.slide_overlays, photo.as_deref());
     out["overlays"] = o.boxes(&l).into_iter().map(|(k, r)| json!({"kind": k.id(), "box": rect(r)})).collect();
-    match path {
-        Some(path) => {
-            crate::export::write_file(path, &png).map_err(crate::EngineError::Other)?;
-            out["path"] = json!(path);
-        }
-        None => out["png"] = json!(base64(&png)),
-    }
+    deliver(&png, path, &mut out)?;
     Ok(out)
 }
 
@@ -163,11 +222,20 @@ pub fn specs() -> Vec<CommandSpec> {
             overlays
         ),
         cmd!(
+            "slideshow.titles",
+            "Slideshow Title Settings",
+            [],
+            None,
+            "{intro?: screen, ending?: screen} where a screen is {enabled?: bool, color?: background \"#rrggbb\"|[r,g,b], content?: \"none\"|\"identityPlate\" (the Overlays identity plate, its text or image)|\"text\", text?: the text shown with content \"text\", overrideColor?: bool (draw the plate or text in textColor instead of the identity plate's colour; an image plate keeps its colours), textColor?: colour, scale?: height of the plate or text line as a fraction of the slide's shorter side (0.005–0.5; text wider than the slide shrinks to fit), duration?: seconds (0.5–120) | null (the slide duration)} — the intro plays once before the first slide, the ending after the last one when repeat is off; both fade with the playback fade; random order never moves them. Omitted keys keep their value, {} reads them; out-of-range numbers are clamped, wrong types refused; saved with the library → the settings and warnings (an unreadable identity plate image, a screen with nothing to show)",
+            always,
+            titles
+        ),
+        cmd!(
             query "slideshow.preview",
             "Slideshow Slide Preview",
             [],
             None,
-            "{id?: photo (default: the active one), width?, height?: pixels (16–4096; one given: the other from the aspect preview; neither: 1280 wide), path?: write the PNG here} — the photo's slide composed with the slideshow layout and overlays → {id, width, height, cell: [x0,y0,x1,y1], photo: [x0,y0,x1,y1] (the visible photo, slide pixels), overlays: [{kind: identityPlate|ratingStars|textN|watermark, box: [x0,y0,x1,y1]}], path | png (base64 PNG)}",
+            "{id?: photo (default: the active one) | title?: \"intro\"|\"ending\", width?, height?: pixels (16–4096; one given: the other from the aspect preview; neither: 1280 wide), path?: write the PNG here} — the photo's slide composed with the slideshow layout and overlays → {id, width, height, cell: [x0,y0,x1,y1], photo: [x0,y0,x1,y1] (the visible photo, slide pixels), overlays: [{kind: identityPlate|ratingStars|textN|watermark, box: [x0,y0,x1,y1]}], path | png (base64 PNG)}; with `title`, that title screen (`slideshow.titles`; drawn even while it is off) → {title, enabled, width, height, plate: [x0,y0,x1,y1] | null (the plate or text), path | png}",
             always,
             preview
         ),

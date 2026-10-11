@@ -1922,5 +1922,21 @@
   "Add text overlay": "新增文字疊加",
   "Tokens: {file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}. Other text shows as typed.": "標記：{file}, {name}, {title}, {caption}, {date}, {exposure}, {iso}, {focal}, {camera}, {lens}, {rating}, {creator}, {copyright}。其他文字按原樣顯示。",
   "Use export watermark": "使用匯出浮水印",
-  "The export watermark, drawn on the photo and sized relative to it.": "匯出浮水印，繪製在照片上，大小相對於照片。"
+  "The export watermark, drawn on the photo and sized relative to it.": "匯出浮水印，繪製在照片上，大小相對於照片。",
+  "Titles": "標題",
+  "Intro screen": "片頭畫面",
+  "Ending screen": "片尾畫面",
+  "Shows": "顯示",
+  "Colour only": "僅顏色",
+  "Override colour": "覆寫顏色",
+  "Own duration (off: the slide duration)": "個別時長（關閉：使用幻燈片時長）",
+  "Duration": "時長",
+  "Title text": "標題文字",
+  "Intro": "片頭",
+  "Ending": "片尾",
+  "End": "結束",
+  "The intro plays once before the first photo; the ending after the last photo when Repeat is off. The identity plate is the one set under Overlays. Titles fade like slides and random order never moves them.": "片頭在第一張照片之前播放一次；關閉「重複」時，片尾在最後一張照片之後播放。身分標識即「疊加」中設定的那個。標題與幻燈片一樣淡入淡出，隨機順序不會移動它們。",
+  "This screen is off: turn it on under Titles to play it.": "此畫面已關閉：在「標題」中開啟即可播放。",
+  "The intro screen, before the first photo.": "片頭畫面，在第一張照片之前。",
+  "The ending screen, after the last photo.": "片尾畫面，在最後一張照片之後。"
 }
