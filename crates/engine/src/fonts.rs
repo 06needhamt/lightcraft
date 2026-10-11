@@ -137,7 +137,7 @@ mod tests {
     fn other_scripts_follow_the_cjk_faces() {
         static FACES: &[CraftFont] = &[
             CraftFont { family: "Noto Sans Thai", style: "Regular", scripts: &["Thai", "Latn"], bytes: &[] },
-            CraftFont { family: "Source Sans 3", style: "Regular", scripts: &["Latn"], bytes: &[] },
+            CraftFont { family: "Latin Only Sans", style: "Regular", scripts: &["Latn"], bytes: &[] },
             CraftFont { family: "Noto Sans CJK SC", style: "Regular", scripts: &["Hans", "Latn"], bytes: &[] },
             CraftFont { family: "Noto Sans Arabic", style: "Bold", scripts: &["Arab"], bytes: &[] },
             CraftFont { family: "Noto Sans Arabic", style: "Regular", scripts: &["Arab"], bytes: &[] },
