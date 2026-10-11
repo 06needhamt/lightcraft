@@ -874,8 +874,12 @@ impl Session {
                 && !al.is_smart()
                 && self.filter == Filter::default()
             {
-                let order = al.photos.clone();
-                visible.sort_by_key(|id| order.iter().position(|x| x == id).unwrap_or(usize::MAX));
+                // each photo's place looked up, not searched for (a big album sorted in O(n log n))
+                let mut place: std::collections::HashMap<PhotoId, usize> = std::collections::HashMap::with_capacity(al.photos.len());
+                for (i, id) in al.photos.iter().enumerate() {
+                    place.entry(*id).or_insert(i);
+                }
+                visible.sort_by_key(|id| place.get(id).copied().unwrap_or(usize::MAX));
                 if !self.sort.ascending {
                     visible.reverse();
                 }
