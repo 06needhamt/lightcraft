@@ -71,3 +71,17 @@ jobs:
           EOF
       - name: FreeBSD tarball layout (stub binaries)
         run: bash packaging/freebsd/package.sh --dry-run
+
+  windows-install-folder:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Install-folder fallback and precedence (real MSI AppSearch)
+        shell: pwsh
+        run: |
+          ./packaging/windows/test-install-folder.ps1 -Arch x64
+          ./packaging/windows/test-install-folder.ps1 -Arch x86
