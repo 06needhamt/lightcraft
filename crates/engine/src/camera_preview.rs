@@ -833,6 +833,10 @@ fn to_prophoto() -> Mat3 {
     PROPHOTO.from_xyz().mul(&bradford(D65, D50)).mul(&REC2020.to_xyz())
 }
 
+/// [`HueSat::apply`] restores the luminance only if the table kept at least this share of it; a colour the
+/// table darkens more (only near-black noise, whose channels go negative) keeps its colour.
+const MIN_LUMINANCE_KEPT: f32 = 0.25;
+
 /// A fitted [`CameraLook::hue_sat`] table, ready to apply to linear Rec.2020 pixels. It changes
 /// hue and saturation only: luminance is restored, the camera tone curve owns it.
 pub(crate) struct HueSat<'a> {
@@ -852,7 +856,9 @@ impl<'a> HueSat<'a> {
         let mul = |m: &[[f32; 3]; 3], v: [f32; 3]| -> [f32; 3] { std::array::from_fn(|i| m[i][0] * v[0] + m[i][1] * v[1] + m[i][2] * v[2]) };
         let out = mul(&self.from, self.table.apply(mul(&self.to, rgb)));
         let (before, after) = (luminance_2020(rgb), luminance_2020(out));
-        if before > 0.0 && after > 0.0 && out.iter().all(|v| v.is_finite()) { out.map(|v| v * before / after) } else { rgb }
+        // restoring the luminance divides by the table's: near black, where noise makes some channels
+        // negative, the table can bring it close to 0, and the gain would turn the pixel white (#820)
+        if before > 0.0 && after > MIN_LUMINANCE_KEPT * before && out.iter().all(|v| v.is_finite()) { out.map(|v| v * before / after) } else { rgb }
     }
 }
 
@@ -1437,6 +1443,31 @@ mod tests {
         let nan = hue_sat.apply([f32::NAN, 0.2, 0.1]);
         assert!(nan[0].is_nan() && nan[1] == 0.2 && nan[2] == 0.1);
         assert!(fit_hue_sat(&[], &Mat3::IDENTITY).is_none(), "too few samples");
+    }
+
+    #[test]
+    fn hue_sat_never_turns_near_black_noise_white() {
+        // a saturating table, as fitted to high-ISO Sony files; near-black noise with mixed-sign channels
+        let table = HsvTable { hue_divisions: 4, sat_divisions: 2, val_divisions: 1, data: vec![[10.0, 1.5, 1.0]; 8], srgb_value: false };
+        let hue_sat = HueSat::new(&table).unwrap();
+        let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f32 / (1u64 << 53) as f32 * 2.0 - 1.0
+        };
+        let mut worst = 0.0f32;
+        for _ in 0..200_000 {
+            let rgb = [0.002 + 0.004 * next(), 0.002 + 0.004 * next(), 0.002 + 0.004 * next()];
+            if luminance_2020(rgb) <= 0.0 {
+                continue;
+            }
+            let out = hue_sat.apply(rgb);
+            let scale = rgb.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            worst = worst.max(out.iter().fold(0.0f32, |m, v| m.max(v.abs())) / scale);
+        }
+        assert!(worst < 20.0, "a near-black pixel came out {worst}× its largest channel");
     }
 
     fn raw_of(format: RawFormat, make: &str, model: &str, color: lightcraft_raw::ColorData) -> RawImage {
