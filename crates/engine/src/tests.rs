@@ -1106,3 +1106,24 @@ fn undo_and_redo_show_the_photo_they_change() {
     s.execute("edit.undo", &json!({})).unwrap();
     assert_eq!(s.selection, before, "a step over several photos keeps the selection");
 }
+
+/// Rotate turns the crop with the image: a crop of the left half becomes the top half, and turning back restores it.
+#[test]
+fn rotate_carries_the_crop_with_the_image() {
+    use lightcraft_geom::Rect;
+    let mut s = demo();
+    let id = s.active().unwrap();
+    let mut d = active_dev(&s);
+    let left_half = Rect { x0: 0.0, y0: 0.0, x1: 0.5, y1: 1.0 };
+    d.crop.geometry.rect = left_half;
+    d.crop.aspect = Some((2, 3));
+    s.set_develop(id, d, "Crop").unwrap();
+    s.execute("photo.rotateRight", &json!({})).unwrap();
+    let c = active_dev(&s).crop;
+    assert_eq!(c.geometry.rect, Rect { x0: 0.0, y0: 0.0, x1: 1.0, y1: 0.5 });
+    assert_eq!(c.aspect, Some((3, 2)), "a locked aspect turns too");
+    s.execute("photo.rotateLeft", &json!({})).unwrap();
+    let c = active_dev(&s).crop;
+    assert_eq!(c.geometry.rect, left_half);
+    assert_eq!(c.aspect, Some((2, 3)));
+}

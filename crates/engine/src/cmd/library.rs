@@ -208,6 +208,10 @@ fn rotate(s: &mut Session, p: &Value, cw: bool) -> Result<Value> {
         if let Some(d) = s.develop_of(id) {
             let mut d = (*d).clone();
             d.orientation = d.orientation.rotated(cw);
+            // the crop lives in the oriented frame, so it turns with the image (else it keeps the old width and height and cuts the photo)
+            let turn = lightcraft_geom::Orientation::Normal.rotated(cw);
+            d.crop.geometry.rect = turn.map_norm_rect(d.crop.geometry.rect);
+            d.crop.aspect = d.crop.aspect.map(|(w, h)| (h, w));
             ops.extend(s.develop_op(id, d, "Rotate"));
         }
     }
