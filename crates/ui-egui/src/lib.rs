@@ -59,6 +59,8 @@ mod tests_date_picker;
 #[cfg(test)]
 mod tests_dialogs;
 #[cfg(test)]
+mod tests_dialog_fit;
+#[cfg(test)]
 mod tests_filmstrip;
 #[cfg(test)]
 mod tests_grid;
