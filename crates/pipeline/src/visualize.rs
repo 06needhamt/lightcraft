@@ -185,11 +185,17 @@ impl Overlay {
         match id {
             "light.exposure" | "light.highlights" | "light.whites" => Some(Overlay::ClipHighlights),
             "light.shadows" | "light.blacks" => Some(Overlay::ClipShadows),
-            "detail.sharpenAmount" => Some(Overlay::Grayscale),
+            "detail.sharpenAmount" | "detail.nrLuminance" | "detail.nrDetail" | "detail.nrContrast" => Some(Overlay::Grayscale),
             "detail.sharpenRadius" | "detail.sharpenDetail" => Some(Overlay::SharpenDetail),
             "detail.sharpenMasking" => Some(Overlay::SharpenMask),
             _ => None,
         }
+    }
+
+    /// The clipping previews, which test the sRGB values the histogram counts (a render for a
+    /// display profile draws them in sRGB, then converts).
+    pub fn is_clipping(self) -> bool {
+        matches!(self, Overlay::ClipShadows | Overlay::ClipHighlights)
     }
 
     /// Whether the overlay draws from the render's detail planes ([`sharpen_plane`]).
@@ -601,7 +607,30 @@ mod tests {
         assert_eq!(Overlay::for_control("detail.sharpenAmount"), Some(Overlay::Grayscale));
         assert_eq!(Overlay::for_control("detail.sharpenDetail"), Some(Overlay::SharpenDetail));
         assert_eq!(Overlay::for_control("detail.sharpenMasking"), Some(Overlay::SharpenMask));
+        for c in ["detail.nrLuminance", "detail.nrDetail", "detail.nrContrast"] {
+            assert_eq!(Overlay::for_control(c), Some(Overlay::Grayscale), "{c}");
+        }
+        assert_eq!(Overlay::for_control("detail.nrColor"), None);
         assert_eq!(Overlay::for_control("light.contrast"), None);
+        // every mapped id is a real control (a rename would silently drop its preview)
+        for c in [
+            "light.exposure",
+            "light.highlights",
+            "light.whites",
+            "light.shadows",
+            "light.blacks",
+            "detail.sharpenAmount",
+            "detail.sharpenRadius",
+            "detail.sharpenDetail",
+            "detail.sharpenMasking",
+            "detail.nrLuminance",
+            "detail.nrDetail",
+            "detail.nrContrast",
+        ] {
+            assert!(lightcraft_develop::controls::find(c).is_some(), "{c}");
+            assert!(Overlay::for_control(c).is_some(), "{c}");
+        }
+        assert!(Overlay::ClipShadows.is_clipping() && Overlay::ClipHighlights.is_clipping() && !Overlay::Grayscale.is_clipping());
         let all = [Overlay::ClipShadows, Overlay::ClipHighlights, Overlay::Grayscale, Overlay::SharpenDetail, Overlay::SharpenMask];
         for o in all {
             let (k, v) = o.to_parts();

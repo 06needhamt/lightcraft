@@ -70,9 +70,10 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 **Alt/Option-drag previews (issue #937):** hold Alt (Option on macOS) while dragging an Edit slider, before or during
 the drag. Exposure, Highlights and Whites show highlight clipping (black, clipped channels in their colour, white where
 all three clip); Shadows and Blacks show shadow clipping (white, black where all three clip). Sharpening Amount shows
-greyscale, Radius and Detail the detail band sharpening amplifies, Masking the mask (white = sharpened). Releasing the
-key or the slider brings the photo back; the edit and its history are unchanged. Not yet: Noise Reduction, mask range
-sliders and the Masking panel's local sliders. On Linux desktops that move windows with Alt+drag (KDE Plasma's
+greyscale, Radius and Detail the detail band sharpening amplifies, Masking the mask (white = sharpened); luminance Noise
+Reduction (Luminance, Detail, Contrast) shows greyscale. Releasing the key or the slider brings the photo back; the
+edit, its history and the histogram are unchanged (on a profiled display too). Not yet: mask range sliders and the
+Masking panel's local sliders. On Linux desktops that move windows with Alt+drag (KDE Plasma's
 default, also some GNOME / Xfce setups) the window manager takes the drag first: set its window-move modifier to Meta.
 
 **Still missing / broken:**
