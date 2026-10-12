@@ -690,14 +690,18 @@ pub fn render(
     });
     // every visible mask's alpha, for `Overlay::AllMasks` (one tint over all masks at once)
     let all_overlay_alphas: Option<Vec<Plane>> = if matches!(req.overlay, lightcraft_pipeline::Overlay::AllMasks { .. }) {
-        let list: Vec<_> = s.masks.iter().filter(|m| m.visible && !m.components.is_empty()).collect();
         masks.as_ref().map(|all| {
-            list.iter().enumerate().map(|(mi, _)| {
+            let list: Vec<_> = s.masks.iter().filter(|m| m.visible && !m.components.is_empty()).collect();
+            let mut alphas = Vec::with_capacity(list.len());
+            for (mi, _) in list.iter().enumerate() {
                 let b = cx.slice(all, mi * n, n);
-                cx.read_plane(&b, w, h)
-            }).collect()
+                alphas.push(cx.read_plane(&b, w, h));
+            }
+            alphas
         })
-    } else { None };
+    } else {
+        None
+    };
     let data: Vec<[u8; 4]> = cx.read(&out, n);
     let image = Rgba8 { width: w, height: h, data };
     lap("finish + readback", &mut t, &mut cx);

@@ -1321,6 +1321,8 @@
   "Show Luminance Map": "显示明亮度图",
   "Show Mask": "显示蒙版",
   "Show Mask Overlay": "显示蒙版叠加",
+  "Show All Mask Overlays": "显示所有蒙版叠加",
+  "Show all overlays": "显示所有叠加",
   "Show Mask Pins": "显示蒙版图钉",
   "Show Original": "显示原图",
   "Show Photo Counts": "显示照片数量",

@@ -1065,7 +1065,7 @@ pub(crate) fn view_overlay(app: &LightcraftApp, d: &DevelopSettings) -> lightcra
     if app.ui.fullscreen {
         return Overlay::None;
     }
-    // Show every visible mask's region at once (Ctrl+O / Cmd+O), ahead of the selected-mask overlay
+    // Show every visible mask's region at once (Ctrl+Shift+O / Cmd+Shift+O), ahead of the selected-mask overlay
     // so the shortcut is not shadowed by the always-on single-mask overlay.
     if app.ui.right == RightPanel::Masking
         && app.ui.mask_overlay_all

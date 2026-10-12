@@ -1259,6 +1259,8 @@
   "Show Luminance Map": "輝度マップを表示",
   "Show Mask": "マスクを表示",
   "Show Mask Overlay": "マスクの重ね表示",
+  "Show All Mask Overlays": "すべてのマスクオーバーレイを表示",
+  "Show all overlays": "すべてのオーバーレイを表示",
   "Show Mask Pins": "マスクのピンを表示",
   "Show Original": "元の写真を表示",
   "Show Photo Counts": "写真の枚数を表示",
