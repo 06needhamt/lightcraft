@@ -95,6 +95,11 @@ of it. Full standard: `../craftrules/standards/never-crash.md`
   Never weaken this check to make a commit pass — fix the attribution or remove the asset.
 - When in doubt about an asset's licence: don't use it.
 
+## User docs
+User docs live in `docs/user/` and are published at https://getartcraft.com/docs/lightcraft. If a change alters
+something a user sees or does (menu or panel labels, import, export, install, errors), update the matching page in
+`docs/user/` in the same commit, or add one. Rules: `docs/user/AGENTS.md`; the checker runs in `docs-check.yml`.
+
 ## Running and looking at the app
 - `cargo run --release -p lightcraft -- --control 7980` opens the desktop app with the JSON-lines control server (see `docs/control-protocol.md`).
 - **Never send OS-level synthetic input** (osascript/System Events keystrokes or clicks, `cliclick`, accessibility
