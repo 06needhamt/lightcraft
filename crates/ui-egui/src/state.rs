@@ -542,7 +542,7 @@ pub struct UiState {
     pub mask_overlay_color: [u8; 3],
     pub mask_overlay_opacity: f32,
     pub mask_pins: bool,
-    /// Masking: show every visible mask's region as one overlay at once (Ctrl+O / Cmd+O),
+    /// Masking: show every visible mask's region as one overlay at once (Ctrl+Shift+O / Cmd+Shift+O),
     /// instead of just the selected mask's ([`mask_overlay`]).
     pub mask_overlay_all: bool,
     /// The overlay (on, mode) to go back to when Show Luminance Map is turned off.
