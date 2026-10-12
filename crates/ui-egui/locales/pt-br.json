@@ -1951,5 +1951,6 @@
   "Adding to Apple Photos…": "Adicionando ao Fotos da Apple…",
   "not added to Apple Photos (cancelled)": "não adicionadas ao Fotos da Apple (cancelado)",
   "The first time, macOS asks whether LightCraft may control Photos.": "Na primeira vez, o macOS pergunta se o LightCraft pode controlar o Fotos.",
-  "Adding to Apple Photos": "Adicionando ao Fotos da Apple"
+  "Adding to Apple Photos": "Adicionando ao Fotos da Apple",
+  "Files with the same content as another file in this import: only the first is imported.": "Arquivos com o mesmo conteúdo de outro arquivo desta importação: apenas o primeiro é importado."
 }
