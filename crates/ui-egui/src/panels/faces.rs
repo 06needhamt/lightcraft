@@ -368,9 +368,9 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                         Some("done") => {}
                         _ => {
                             if let Some(url) = m["source"].as_str() {
-                                let r = ui
-                                    .button("Open page")
-                                    .on_hover_text("Opens the model's own page in your browser, to read about it or get the file yourself.");
+                                let r = ui.button("Open page").on_hover_text(crate::i18n::tr(
+                                    "Opens the model's own page in your browser, to read about it or get the file yourself.",
+                                ));
                                 register(ui.ctx(), format!("faces:get:{id}"), r.rect);
                                 if r.clicked() {
                                     open_page(app, url);

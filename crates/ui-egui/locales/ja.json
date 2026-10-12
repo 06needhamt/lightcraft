@@ -1953,5 +1953,17 @@
   "Adding to Apple Photos…": "Appleの写真に追加中…",
   "not added to Apple Photos (cancelled)": "Appleの写真には追加されませんでした（キャンセル）",
   "The first time, macOS asks whether LightCraft may control Photos.": "初回は、LightCraftに写真の操作を許可するかmacOSが確認します。",
-  "Adding to Apple Photos": "Appleの写真に追加中"
+  "Adding to Apple Photos": "Appleの写真に追加中",
+  "Contact Sheet PDF": "コンタクトシート PDF",
+  "Letter": "レター",
+  "Filename captions": "ファイル名のキャプション",
+  "150 dpi · sRGB · current edits · fit without cropping": "150 dpi · sRGB · 現在の編集 · トリミングせずに収める",
+  "Choose a PDF destination after confirming. Print the PDF from your viewer.": "確定後に PDF の保存先を選びます。PDF はビューアから印刷してください。",
+  "HDR output": "HDR 出力",
+  "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float": "HDR で編集した写真：JPEG は HDR ゲインマップ付き（どこでも正しく表示され、HDR ディスプレイではハイライトがより明るい）、AVIF は 10 ビット、PNG と JPEG XL は 16 ビット Rec. 2020 PQ。TIFF には 32 ビット浮動小数点が必要です",
+  "HDR TIFF needs 32-bit float.": "HDR TIFF には 32 ビット浮動小数点が必要です。",
+  "Color space: Rec. 2020 PQ (HDR AVIF)": "カラースペース：Rec. 2020 PQ（HDR AVIF）",
+  "Color space: Rec. 2020 PQ, 16-bit (HDR PNG)": "カラースペース：Rec. 2020 PQ、16 ビット（HDR PNG）",
+  "Color space: Rec. 2020 PQ (HDR JPEG XL)": "カラースペース：Rec. 2020 PQ（HDR JPEG XL）",
+  "Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).": "PNG の cICP チャンクを読まないビューアは PQ の値を sRGB として表示するため、平坦で色あせて見えます。どこでも正しく見せるには JPEG（ゲインマップ）を使ってください。"
 }

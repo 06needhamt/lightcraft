@@ -1951,5 +1951,17 @@
   "Adding to Apple Photos…": "Ajout à Apple Photos…",
   "not added to Apple Photos (cancelled)": "non ajouté à Apple Photos (annulé)",
   "The first time, macOS asks whether LightCraft may control Photos.": "La première fois, macOS demande si LightCraft peut contrôler Photos.",
-  "Adding to Apple Photos": "Ajout à Apple Photos"
+  "Adding to Apple Photos": "Ajout à Apple Photos",
+  "Contact Sheet PDF": "Planche contact PDF",
+  "Letter": "Lettre US",
+  "Filename captions": "Légendes avec le nom de fichier",
+  "150 dpi · sRGB · current edits · fit without cropping": "150 ppp · sRVB · retouches actuelles · ajusté sans recadrage",
+  "Choose a PDF destination after confirming. Print the PDF from your viewer.": "Choisissez l’emplacement du PDF après confirmation. Imprimez le PDF depuis votre visionneuse.",
+  "HDR output": "Sortie HDR",
+  "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float": "Photos retouchées en HDR : JPEG avec carte de gain HDR (correct partout, hautes lumières plus vives sur les écrans HDR), AVIF en 10 bits, PNG et JPEG XL en 16 bits Rec. 2020 PQ ; le TIFF exige du 32 bits flottant",
+  "HDR TIFF needs 32-bit float.": "Le TIFF HDR exige du 32 bits flottant.",
+  "Color space: Rec. 2020 PQ (HDR AVIF)": "Espace colorimétrique : Rec. 2020 PQ (AVIF HDR)",
+  "Color space: Rec. 2020 PQ, 16-bit (HDR PNG)": "Espace colorimétrique : Rec. 2020 PQ, 16 bits (PNG HDR)",
+  "Color space: Rec. 2020 PQ (HDR JPEG XL)": "Espace colorimétrique : Rec. 2020 PQ (JPEG XL HDR)",
+  "Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).": "Les visionneuses qui ne lisent pas le bloc cICP du PNG affichent les valeurs PQ comme du sRVB : plates et délavées. Pour une image correcte partout, utilisez le JPEG (carte de gain)."
 }

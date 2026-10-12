@@ -405,7 +405,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         {
             let now = ctx.input(|i| i.time);
             app.ui.slideshow = Some((interval, now + interval, !paused));
-            app.toast(ctx, if paused { "Slideshow resumed" } else { "Slideshow paused" });
+            app.toast(ctx, crate::i18n::tr(if paused { "Slideshow resumed" } else { "Slideshow paused" }));
             continue;
         }
         // flag/rate aliases (Shift+X…) go through the culling path: active photo in Compare/Survey,

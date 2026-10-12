@@ -1951,5 +1951,17 @@
   "Adding to Apple Photos…": "正在加入 Apple 照片…",
   "not added to Apple Photos (cancelled)": "未加入 Apple 照片（已取消）",
   "The first time, macOS asks whether LightCraft may control Photos.": "第一次使用時，macOS 會詢問是否允許 LightCraft 控制「照片」。",
-  "Adding to Apple Photos": "正在加入 Apple 照片"
+  "Adding to Apple Photos": "正在加入 Apple 照片",
+  "Contact Sheet PDF": "縮圖目錄 PDF",
+  "Letter": "Letter",
+  "Filename captions": "檔名說明",
+  "150 dpi · sRGB · current edits · fit without cropping": "150 dpi · sRGB · 目前的編輯 · 完整符合，不裁切",
+  "Choose a PDF destination after confirming. Print the PDF from your viewer.": "確認後選擇 PDF 的儲存位置。請在檢視器中列印 PDF。",
+  "HDR output": "HDR 輸出",
+  "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float": "以 HDR 編輯的照片：JPEG 附 HDR 增益圖（在任何地方都顯示正確，在 HDR 顯示器上亮部更亮），AVIF 為 10 位元，PNG 與 JPEG XL 為 16 位元 Rec. 2020 PQ；TIFF 需要 32 位元浮點",
+  "HDR TIFF needs 32-bit float.": "HDR TIFF 需要 32 位元浮點。",
+  "Color space: Rec. 2020 PQ (HDR AVIF)": "色彩空間：Rec. 2020 PQ（HDR AVIF）",
+  "Color space: Rec. 2020 PQ, 16-bit (HDR PNG)": "色彩空間：Rec. 2020 PQ，16 位元（HDR PNG）",
+  "Color space: Rec. 2020 PQ (HDR JPEG XL)": "色彩空間：Rec. 2020 PQ（HDR JPEG XL）",
+  "Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).": "不讀取 PNG cICP 區塊的檢視器會把 PQ 值當作 sRGB 顯示：平淡且泛白。要在任何地方都顯示正確，請使用 JPEG（增益圖）。"
 }

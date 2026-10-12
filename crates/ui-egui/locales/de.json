@@ -2109,5 +2109,17 @@
   "Adding to Apple Photos…": "Wird zu Apple Fotos hinzugefügt…",
   "not added to Apple Photos (cancelled)": "nicht zu Apple Fotos hinzugefügt (abgebrochen)",
   "The first time, macOS asks whether LightCraft may control Photos.": "Beim ersten Mal fragt macOS, ob LightCraft Fotos steuern darf.",
-  "Adding to Apple Photos": "Wird zu Apple Fotos hinzugefügt"
+  "Adding to Apple Photos": "Wird zu Apple Fotos hinzugefügt",
+  "Contact Sheet PDF": "Kontaktabzug-PDF",
+  "Letter": "Letter",
+  "Filename captions": "Dateinamen als Bildunterschrift",
+  "150 dpi · sRGB · current edits · fit without cropping": "150 dpi · sRGB · aktuelle Bearbeitungen · eingepasst ohne Beschnitt",
+  "Choose a PDF destination after confirming. Print the PDF from your viewer.": "Nach dem Bestätigen den Speicherort des PDFs wählen. Das PDF aus dem Anzeigeprogramm drucken.",
+  "HDR output": "HDR-Ausgabe",
+  "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float": "In HDR bearbeitete Fotos: JPEG mit HDR-Gain-Map (sieht überall richtig aus, hellere Lichter auf HDR-Bildschirmen), AVIF mit 10 Bit, PNG und JPEG XL mit 16 Bit Rec. 2020 PQ; TIFF braucht 32-Bit-Gleitkomma",
+  "HDR TIFF needs 32-bit float.": "HDR-TIFF braucht 32-Bit-Gleitkomma.",
+  "Color space: Rec. 2020 PQ (HDR AVIF)": "Farbraum: Rec. 2020 PQ (HDR-AVIF)",
+  "Color space: Rec. 2020 PQ, 16-bit (HDR PNG)": "Farbraum: Rec. 2020 PQ, 16 Bit (HDR-PNG)",
+  "Color space: Rec. 2020 PQ (HDR JPEG XL)": "Farbraum: Rec. 2020 PQ (HDR-JPEG XL)",
+  "Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).": "Programme, die den cICP-Block des PNGs nicht lesen, zeigen PQ-Werte als sRGB: flau und blass. Für ein Bild, das überall richtig aussieht, JPEG (Gain-Map) verwenden."
 }

@@ -2145,5 +2145,17 @@
   "Adding to Apple Photos…": "Додавання до Apple Фото…",
   "not added to Apple Photos (cancelled)": "не додано до Apple Фото (скасовано)",
   "The first time, macOS asks whether LightCraft may control Photos.": "Першого разу macOS запитає, чи може LightCraft керувати програмою «Фото».",
-  "Adding to Apple Photos": "Додавання до Apple Фото"
+  "Adding to Apple Photos": "Додавання до Apple Фото",
+  "Contact Sheet PDF": "PDF контактного аркуша",
+  "Letter": "Letter",
+  "Filename captions": "Підписи з назвою файлу",
+  "150 dpi · sRGB · current edits · fit without cropping": "150 dpi · sRGB · поточні правки · вписано без обрізання",
+  "Choose a PDF destination after confirming. Print the PDF from your viewer.": "Після підтвердження виберіть, куди зберегти PDF. Друкуйте PDF із програми перегляду.",
+  "HDR output": "Вивід HDR",
+  "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float": "Фото, оброблені в HDR: JPEG із картою підсилення HDR (виглядає правильно всюди, на HDR-екранах світлі ділянки яскравіші), AVIF — 10 біт, PNG і JPEG XL — 16 біт Rec. 2020 PQ; для TIFF потрібен 32-бітний формат із рухомою комою",
+  "HDR TIFF needs 32-bit float.": "Для HDR TIFF потрібен 32-бітний формат із рухомою комою.",
+  "Color space: Rec. 2020 PQ (HDR AVIF)": "Колірний простір: Rec. 2020 PQ (HDR AVIF)",
+  "Color space: Rec. 2020 PQ, 16-bit (HDR PNG)": "Колірний простір: Rec. 2020 PQ, 16 біт (HDR PNG)",
+  "Color space: Rec. 2020 PQ (HDR JPEG XL)": "Колірний простір: Rec. 2020 PQ (HDR JPEG XL)",
+  "Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).": "Програми, які не читають блок cICP у PNG, показують значення PQ як sRGB: пласко й вицвіло. Щоб зображення всюди виглядало правильно, використовуйте JPEG (карта підсилення)."
 }

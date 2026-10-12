@@ -679,7 +679,7 @@ impl LightcraftApp {
             }
             (None, true) => {
                 self.ui.unsaved_seen = false;
-                self.toast(ctx, "Library saved");
+                self.toast(ctx, crate::i18n::tr("Library saved"));
             }
             (Some(_), true) => ctx.request_repaint_after(std::time::Duration::from_secs(2)), // retry
             (None, false) => {}
@@ -1014,7 +1014,7 @@ impl LightcraftApp {
             if let Ok(r) = self.session.execute("photo.reload", &serde_json::json!({"ids": ids}))
                 && r["reloaded"].as_array().is_some_and(|a| !a.is_empty())
             {
-                self.toast(ctx, "Updated the edits saved in the external editor");
+                self.toast(ctx, crate::i18n::tr("Updated the edits saved in the external editor"));
             }
         }
         self.ui.was_focused = focused;
