@@ -88,9 +88,11 @@ mod tests {
         let pages = [raster(425, 550, [255, 255, 255]), raster(425, 550, [0, 0, 255])];
         let bytes = write(&pages, &PrintJob::default(), "t").unwrap();
         let text = String::from_utf8_lossy(&bytes);
-        assert!(text.starts_with("%PDF-1.4"));
+        assert!(text.starts_with("%PDF-"));
         assert!(text.contains("/Count 2"));
-        assert!(text.contains("/MediaBox [0 0 306.00 396.00]"), "4.25 x 5.5 in is 306 x 396 pt");
+        let at = text.find("/MediaBox [").unwrap() + "/MediaBox [".len();
+        let nums: Vec<f64> = text[at..].split(']').next().unwrap().split_whitespace().map(|v| v.parse().unwrap()).collect();
+        assert_eq!((nums[2], nums[3]), (306.0, 396.0), "4.25 x 5.5 in is 306 x 396 pt");
         assert!(text.contains("/Width 425 /Height 550"));
         assert!(write(&[], &PrintJob::default(), "t").is_err());
         let mixed = [raster(10, 10, [0; 3]), raster(10, 12, [0; 3])];

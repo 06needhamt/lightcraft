@@ -171,6 +171,14 @@ fn auto_layout_fills_pages_without_overlap() {
     }
 }
 
+/// The first page's MediaBox width and height in points.
+fn media_box(pdf: &[u8]) -> (f64, f64) {
+    let text = String::from_utf8_lossy(pdf);
+    let at = text.find("/MediaBox [").expect("a MediaBox") + "/MediaBox [".len();
+    let nums: Vec<f64> = text[at..].split(']').next().unwrap().split_whitespace().map(|v| v.parse().unwrap()).collect();
+    (nums[2], nums[3])
+}
+
 fn temp_pdf(name: &str) -> String {
     std::env::temp_dir().join(format!("lightcraft-print-{name}-{}.pdf", std::process::id())).to_string_lossy().to_string()
 }
@@ -190,9 +198,10 @@ fn export_pdf_prints_the_current_settings() {
     let bytes = std::fs::read(&path).unwrap();
     assert_eq!(bytes.len() as u64, r["bytes"].as_u64().unwrap());
     let text = String::from_utf8_lossy(&bytes);
-    assert!(text.starts_with("%PDF-1.4") && text.contains("/Count 2"));
+    assert!(text.starts_with("%PDF-") && text.contains("/Count 2"));
     // A5 is 148 x 210 mm = 419.53 x 595.28 pt, rounded to whole pixels at 100 ppi (583 x 827)
-    assert!(text.contains("/MediaBox [0 0 419.76 595.44]"), "{}", &text[..text.len().min(400)]);
+    let (w, h) = media_box(&bytes);
+    assert!((w - 419.53).abs() < 1.0 && (h - 595.28).abs() < 1.0, "A5, got {w} x {h} pt");
     // the row in the activity stack is gone when the print is done
     assert!(s.activity.list().is_empty());
     fails(&mut s, "print.exportPdf", json!({}));

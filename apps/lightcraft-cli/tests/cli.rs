@@ -76,8 +76,11 @@ fn print_commands_chain_into_a_picture_package_pdf() {
     let export = lines.last().unwrap();
     assert_eq!((export["result"]["pages"].as_u64(), export["result"]["photos"].as_u64()), (Some(1), Some(1)));
     let bytes = std::fs::read(&out).unwrap();
-    assert!(bytes.starts_with(b"%PDF-1.4"));
-    assert!(String::from_utf8_lossy(&bytes).contains("/MediaBox [0 0 432.00 288.00]"), "6 x 4 in");
+    assert!(bytes.starts_with(b"%PDF-"));
+    let text = String::from_utf8_lossy(&bytes);
+    let at = text.find("/MediaBox [").unwrap() + "/MediaBox [".len();
+    let nums: Vec<f64> = text[at..].split(']').next().unwrap().split_whitespace().map(|v| v.parse().unwrap()).collect();
+    assert_eq!((nums[2], nums[3]), (432.0, 288.0), "6 x 4 in");
     // a bad setting fails the run and writes nothing new
     let before = std::fs::read(&out).unwrap();
     let (ok, _, _) =

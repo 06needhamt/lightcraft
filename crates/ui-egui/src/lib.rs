@@ -26,6 +26,7 @@ pub mod merge;
 mod model_setup;
 pub mod panels;
 pub mod pick;
+pub mod print_view;
 pub mod region;
 pub mod render;
 pub mod shortcuts;
@@ -103,6 +104,8 @@ mod tests_panels;
 mod tests_preset_import;
 #[cfg(test)]
 mod tests_preview_limit;
+#[cfg(test)]
+mod tests_print;
 #[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]
