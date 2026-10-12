@@ -13,6 +13,9 @@
 - A zoomed view keeps the GPU copy of the original while it is on screen: pausing for a few seconds between pans no
   longer frees it, which cost a re-upload of about a second on the next pan (800 MB for a 64 MP raw). It is freed
   once you zoom out or move on.
+- The kept original no longer pushes everything else out of the cache: on a 64 MP raw it filled the cache share
+  alone, so the photo's preview and thumbnail sources and its neighbours' were decoded from the raw again on every
+  edit at 1:1, every zoom out and every step to the next photo.
 
 ## 2026-10-11
 
