@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-12
+
+### Older raw cameras
+- Canon PowerShot G9 raws open with the camera's white balance (White Balance ▸ As Shot); it used to start from a
+  neutral default.
+
 ## 2026-10-11
 
 ### JPEG XL export
