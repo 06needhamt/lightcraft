@@ -58,6 +58,7 @@ pub mod preset_import;
 pub mod preset_luminar;
 pub mod presets;
 pub mod print;
+pub mod print_color;
 pub mod proof;
 pub mod rename;
 pub mod segment;
