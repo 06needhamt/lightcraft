@@ -8,6 +8,11 @@
   previews for up to a second.
 - A thumbnail of the photo open in Detail is made from its already decoded preview instead of decoding the file
   again.
+### Thumbnails of raw files appear sooner
+- Grid thumbnails and the first picture in the loupe of an unedited raw now come from the smallest JPEG the camera
+  stored that is big enough, not always from the largest one. On a Sony A7R VI file a 512 px thumbnail decodes
+  0.3 MB of JPEG instead of 5.6 MB and is ready several times sooner; Nikon and Panasonic raws with a mid-sized
+  JPEG get faster too.
 ## 2026-10-12
 
 ### Canon CR2 highlights
