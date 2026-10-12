@@ -14,15 +14,13 @@ ranked in [gaps.md](gaps.md). Details per format: [cr3.md](cr3.md),
 | Measure | Value | Kind |
 |---|---:|---|
 | Adobe-listed camera models | **1,446** | measured: [raw/adobe-cameras.tsv](raw/adobe-cameras.tsv) |
-| Decoded from sensor data and **verified** on a real file | **236** (16%) | measured: [raw/evidence.tsv](raw/evidence.tsv) |
-| Decoder path should handle it, **unverified** | **941** (65%) | measured from the format rules (631 of them DNG, mostly phones) |
-| **Preview-only** (embedded JPEG) | **233** (16%) | measured |
-| Decoder path should handle it, **unverified** | **942** (65%) | measured from the format rules (632 of them DNG, mostly phones) |
-| **Preview-only** (embedded JPEG) | **232** (16%) | measured |
+| Decoded from sensor data and **verified** on a real file | **267** (18%) | measured: [raw/evidence.tsv](raw/evidence.tsv) |
+| Decoder path should handle it, **unverified** | **917** (63%) | measured from the format rules (611 of them DNG, mostly phones) |
+| **Preview-only** (embedded JPEG) | **226** (16%) | measured |
 | **Unsupported** (not imported, refused or decodes wrongly) | **36** (2%) | measured |
-| Models added since 2017 (Camera Raw 10+): verified / unverified / preview / unsupported | 83 / 639 / 24 / 8 of 754 | measured |
+| Models added since 2017 (Camera Raw 10+): verified / unverified / preview / unsupported | 106 / 618 / 22 / 8 of 754 | measured |
 | **Share of photographers whose camera fully works** (decodes from sensor data), use-weighted | **~85%** | estimated: measured classes × written usage weights × per-format confidence |
-| …of which on a body we have verified | **~42%** | estimated, same weights |
+| …of which on a body we have verified | **~43%** | estimated, same weights |
 | Camera colour: Adobe profiles vs ours | 1,500 Adobe Standard profiles, 481 models with Camera Matching profiles vs **4 bundled profiles** + per-file fits + 52 spectral matrices | measured (bundle listing, Adobe list, `assets/camera-profiles`) |
 | Lens profiles: Adobe vs ours | **3,635 vs 0** (in-file corrections only) | measured |
 | **RAW readiness** (decoding 60%, colour 25%, lens 15%) | **~56%** (range 50–60%) | estimated, see [Scores](#scores) |
@@ -43,7 +41,7 @@ committed table is stale.
   `lightcraft_engine::import::EXTENSIONS`, and `KNOWN_UNSUPPORTED` in `crates/raw/tests/corpus.rs`. Doc
   claims were not used.
 - **Verified** means a real file from that body decoded from sensor data in: the corpus test over the
-  `RAW_SAMPLES` manifest (`xtask/src/main.rs`, 101 CC0 files; bodies whose sample is in
+  `RAW_SAMPLES` manifest (`xtask/src/main.rs`, 151 CC0 files; bodies whose sample is in
   `KNOWN_UNSUPPORTED` excluded), `crates/raw/tests/cr3_corpus.rs` (3 bodies exact against an external decoder;
   the EOS R5 Mark II pinned, with a QP-map check of 33,665 private files), the RAF reference
   check ([raf-compression.md](raf-compression.md)), and the raw.pixls.us bulk checks recorded in issue
@@ -53,6 +51,17 @@ committed table is stale.
   at 400 px; the files are not committed). Bulk-check body lists were matched to Adobe names through the
   raw.pixls.us folder names. Checks without a body list (≈ 60 NEFs, 35 CR2 bodies for the CFA layout)
   are not counted as verified.
+- **2026-10-12 public sweep:** 30 further models on 40 CC0 files, independently downloaded and
+  decoded on main `25ef65c8`; [raw/coverage-sweep.tsv](raw/coverage-sweep.tsv) records the URLs,
+  SHA-256, dimensions, FNV-1a sensor hashes and render/reference luminance correlations (0.6801
+  to 0.9998). The hashes pin LightCraft's own output. The regression test is
+  `crates/raw/tests/coverage_sweep_corpus.rs`; downloads are in `RAW_SAMPLES`. Ten references are
+  embedded TIFF images; the rest are JPEGs. FFF TIFF previews are not display-ready and check
+  image structure only. Eleven candidate models were excluded for identity, provenance or
+  missing/mismatched reference images. D6 / Z 6 / Z 7 verification covers compressed NEF only;
+  uncompressed remains preview-only (#671), as do Z 8 HE / HE* files. Own-matrix phone, drone
+  and other DNGs can decode correctly while rendering darker than their camera JPEG (#1277).
+  Verified means sensor data decoded, not colour parity.
 - **Usage weights** ([raw/usage-weights.tsv](raw/usage-weights.tsv)): maker buckets from 2025 market
   data (Nikkei production: Canon ~36%, Sony ~29%, Nikon ~14%, Fujifilm ~12% of mirrorless; BCN retail:
   Sony 29.9%, Canon 27.4%, Nikon 15.1%), adjusted for the DSLR installed base and for the makers named
@@ -69,23 +78,23 @@ committed table is stale.
 |---|---:|---:|---:|---:|---:|---|
 | Sony | 149 | 86 | 51 | 9 | 3 | DSLR-A200…A390 and A850 12-bit compressed ARW (preview, #535); A100 and DSC-F828 refused (regression #702); SRF not imported |
 | Canon | 134 | 12 | 99 | 21 | 2 | CRW (2000–2004 bodies) preview; EOS-1D / 1Ds TIFF raws not imported |
-| Samsung | 128 | 1 | 118 | 9 | 0 | compressed SRW (NX1, NX30, NX300, NX500, NX2000, NX3000, NX3300, NX mini, Galaxy NX) |
-| Apple | 113 | 1 | 112 | 0 | 0 | — (DNG / ProRAW) |
+| Samsung | 128 | 7 | 112 | 9 | 0 | compressed SRW (NX1, NX30, NX300, NX500, NX2000, NX3000, NX3300, NX mini, Galaxy NX) |
+| Apple | 113 | 4 | 109 | 0 | 0 | DNG / ProRAW |
 | Panasonic | 104 | 93 | 11 | 0 | 0 | — |
-| Nikon | 99 | 5 | 94 | 0 | 0 | — (HE / HE★ is a per-shot setting, preview-only) |
+| Nikon | 99 | 9 | 90 | 0 | 0 | HE / HE* and some uncompressed NEFs remain preview-only |
 | Fujifilm | 97 | 16 | 55 | 26 | 0 | pre-X FinePix RAF without a raw IFD (estimated split) |
-| Google | 88 | 1 | 87 | 0 | 0 | — |
+| Google | 88 | 5 | 83 | 0 | 0 | DNG |
 | Olympus | 71 | 3 | 9 | 59 | 0 | **compressed ORF** |
 | Leica | 61 | 14 | 47 | 0 | 0 | — |
 | Xiaomi, Oppo, LG, Huawei, OnePlus, Motorola, Nokia | 139 | 0 | 139 | 0 | 0 | — (DNG) |
 | Pentax / Ricoh | 60 | 4 | 56 | 0 | 0 | — |
-| Hasselblad | 34 | 1 | 2 | 31 | 0 | Hasselblad-compressed 3FR / FFF |
+| Hasselblad | 34 | 7 | 2 | 25 | 0 | Hasselblad-compressed 3FR / FFF |
 | Phase One / Leaf / Mamiya | 59 | 0 | 0 | 43 | 16 | IIQ, MOS preview; TIFF raws and MEF not imported |
 | Casio | 26 | 0 | 26 | 0 | 0 | — (DNG) |
-| DJI | 21 | 0 | 21 | 0 | 0 | — (DNG) |
+| DJI | 21 | 4 | 17 | 0 | 0 | DNG |
 | OM Digital Solutions | 7 | 0 | 0 | 7 | 0 | **compressed ORF** |
-| Kodak, Konica Minolta, Epson, Sigma, GoPro, Contax, others | 56 | 0 | 14 | 27 | 15 | DCR, GPR not imported; KDC, MRW, ERF, X3F preview |
-| **All** | **1,446** | **236 (16%)** | **941 (65%)** | **233 (16%)** | **36 (2%)** | |
+| Kodak, Konica Minolta, Epson, Sigma, GoPro, Contax, others | 56 | 3 | 11 | 27 | 15 | DCR, GPR not imported; KDC, MRW, ERF, X3F preview |
+| **All** | **1,446** | **267 (18%)** | **917 (63%)** | **226 (16%)** | **36 (2%)** | |
 
 ## By use (estimated)
 
@@ -93,16 +102,16 @@ committed table is stale.
 |---|---:|---:|---:|---|
 | Canon | 33% | 73% | 19% | 18 of the 22 popular bodies write CR3; 4 of them verified (M50, R8, R100, R5 Mark II), the rest at 0.6 |
 | Sony | 27% | 98% | 91% | bulk-checked |
-| Nikon | 16% | 91% | 12% | decoders cover every NEF coding but HE; few bodies verified |
+| Nikon | 16% | 92% | 19% | HE and some uncompressed NEFs remain preview-only; nine bodies verified |
 | Fujifilm | 10% | 91% | 45% | |
 | Panasonic | 4% | 100% | 98% | bulk-checked |
 | OM / Olympus | 3% | 3% | 1% | compressed ORF |
-| Phones | 3% | 93% | 1% | DNG |
+| Phones | 3% | 93% | 3% | DNG |
 | Pentax / Ricoh | 1.5% | 94% | 14% | |
 | Leica | 1% | 96% | 21% | the Q3 verified |
-| DJI | 1% | 95% | 0% | |
-| Medium format and others | 0.5% | 23% | 1% | IIQ, 3FR, X3F |
-| **Weighted** | 100% | **85%** | **42%** | |
+| DJI | 1% | 96% | 19% | |
+| Medium format and others | 0.5% | 27% | 6% | IIQ, 3FR, X3F |
+| **Weighted** | 100% | **85%** | **43%** | |
 
 About 5 in 6 raw photographers' cameras decode, but only about 2 in 5 use a body we have actually
 checked, and Canon, the largest bucket, is the weakest of the big four.
@@ -144,9 +153,9 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | DNG | uncompressed, LJ92, lossy JPEG / Smart Preview, Deflate incl. float, LinearRaw, tiles / strips, row / column interleave | ✅ | 6 corpus DNGs; 4 ILCE-6400 JXL DNGs; 38 Leica Q3 DNGs (lossless JPEG, 14-bit, private check) |
 | DNG | JPEG XL (DNG 1.7, lossless and lossy) | ✅ | synthetic bit-exact; real lossless and lossy files |
 | DNG | Apple ProRAW (incl. semantic mattes) | ✅ | iPhone 12 Pro corpus; ProfileGainTableMap read but off (ΔE00 19 against Lightroom with it on) |
-| DNG | phone DNGs (Pixel, Galaxy, Xiaomi…) | 🟡 | Pixel 2 XL only; white-level pile-up fix #548 |
+| DNG | phone DNGs (Pixel, Galaxy, Xiaomi…) | 🟡 | Pixel 2 XL corpus; 13 further Apple, Google and Samsung models in the pinned sweep; white-level pile-up fix #548 |
 | DNG | GoPro GPR (VC-5) | ⬜ | refused |
-| 3FR / FFF | DNG-like layouts | 🟡 | decoded when uncompressed or LJ92 |
+| 3FR / FFF | DNG-like layouts | 🟡 | six Hasselblad models verified on nine files; FFF neutral-matrix colour remains unverified |
 | 3FR / FFF | Hasselblad compression | ⬜ | preview |
 | IIQ, MOS, MRW, ERF, KDC, X3F | all | ⬜ | preview; an uncompressed MOS, whose IFD0 is the mosaic itself with no Make tag, is recognised by Leaf's data block `0x8606` (#1275) |
 | DCR, MEF, MFW, DXO, GPR, TIFF raws | all | ⬜ | not imported |
@@ -272,6 +281,7 @@ Beyond decoding:
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Camera-coverage sweep: 30 models verified on 40 CC0 files; 267 verified, 917 unverified, 226 preview-only; 43% of photographers on a verified body. Sensor verification does not establish colour parity (#1277) |
 | 2026-10-11 | minor | Leica Q3 verified by a recorded check of 38 private DNGs (no decode failure; mean ΔE to the camera JPEG 6.3–13.9): 236 verified, 941 unverified, Leica bucket on a verified body 5% → 21%, weighted shares unchanged |
 | 2026-10-12 | patch | CR2 white level from the active area, not the saturated masked rows above it (#1272: EOS 50D, 60D, 450D (Rebel XSi), 500D (Rebel T1i), 550D (Rebel T2i), 1200D (Rebel T5) and 100D (Rebel SL1)); scores unchanged |
 | 2026-10-12 | minor | Canon PowerShot G9: as-shot white balance from WBInfo (`0x0029`, the row of the preset in ShotInfo), issue #1273; render unchanged (the camera-look fit already absorbed it), As Shot now the camera's; counts unchanged |

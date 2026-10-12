@@ -1,6 +1,6 @@
 # Target-app parity: LightCraft vs Adobe Lightroom
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (UI/UX remaining 40–70 h → 34–58 h after the accessibility audit) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (UI/UX remaining 40–70 h → 34–58 h after the accessibility audit; 30 models verified on 40 CC0 files; 267 verified models, 18%) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
 
 The authoritative assessment of how close LightCraft is to Lightroom. The row-by-row checklist is
 [parity-checklist.md](parity-checklist.md); the ranked work list is [gaps.md](gaps.md); deep areas
@@ -12,7 +12,7 @@ have their own documents: [raw-parity.md](raw-parity.md), [file-format-parity.md
 
 | Number | Value | Kind |
 |---|---:|---|
-| **Feature breadth**, checklist | **81.1%** of 517 in-scope rows (P0 98.0%, P1 95.1%, P2 46.9%) | **measured**: recount of [parity-checklist.md](parity-checklist.md) rows (✅ 1, 🟡 ½, 🚫 left out), the same rule `cargo xtask parity` uses |
+| **Feature breadth**, checklist | **81.6%** of 532 in-scope rows (P0 98.0%, P1 95.2%, P2 50.0%) | **measured**: recount of [parity-checklist.md](parity-checklist.md) rows (✅ 1, 🟡 ½, 🚫 left out), the same rule `cargo xtask parity` uses |
 | **Feature breadth**, weighted by use | **~77%** | estimated: feature-area table below |
 | **Ready for real work** (full target) | **~61%** (range 56–66%) | estimated: weighted sum over the dimensions with written weights, see [below](#ready-for-real-work-mainstream-practitioner-and-essentials-user) |
 | **Mainstream practitioner** | **~49%** (range 44–54%) | estimated: weekly areas of a working photographer, depth 71.8% × 0.804 × colour 0.85 |
@@ -46,8 +46,8 @@ phase #85, duplicate Local entries #22, black GPU exports on an Intel iGPU #78).
 
 | Dimension | Breadth | Ready for real work | Remaining | Doc |
 |---|---:|---:|---:|---|
-| Features (weighted areas below) | ~77% (checklist 81.1%, measured) | ~61% | 600–1,100 h | [Features](#features) |
-| ↳ RAW cameras, colour and lens profiles (part of features) | 81% of Adobe's 1,446 models decode (16% verified), measured | ~56% | 255–480 h | [raw-parity.md](raw-parity.md) |
+| Features (weighted areas below) | ~77% (checklist 81.6%, measured) | ~61% | 600–1,100 h | [Features](#features) |
+| ↳ RAW cameras, colour and lens profiles (part of features) | 82% of Adobe's 1,446 models decode (18% verified), measured | ~56% | 255–480 h | [raw-parity.md](raw-parity.md) |
 | UI/UX fidelity | ~85% | ~70% | 34–58 h | [ui-parity.md](ui-parity.md) |
 | File formats (non-raw: images, sidecars, presets, catalogs) | ~85% | ~70% | 30–55 h | [file-format-parity.md](file-format-parity.md) |
 | Hardware | ~50% | ~40% | 40–80 h (+ tethering and printing, counted under Classic modules) | [hardware-parity.md](hardware-parity.md) |
@@ -67,7 +67,7 @@ from the checklist sections and the deep-dive documents.
 | Area | Weight | Breadth | Ready | Remaining | Notes |
 |---|---:|---:|---:|---:|---|
 | Import and library (import, folders, albums, smart albums, keywords, metadata, search, faces) | 15% | 90% | 80% | 25–45 h | checklist A–E 83–92%; robust journal; 85k-photo libraries |
-| RAW decoding and camera coverage | 15% | 81% | 77% | 120–220 h | [raw-parity.md](raw-parity.md), measured model by model: 85% of photographers' cameras decode (use-weighted), × 0.9 for per-body bugs; CR3 variants, compressed ORF, HE NEF |
+| RAW decoding and camera coverage | 15% | 82% | 77% | 120–220 h | [raw-parity.md](raw-parity.md), measured model by model: 85% of photographers' cameras decode (use-weighted), × 0.9 for per-body bugs; CR3 variants, compressed ORF, HE NEF |
 | Colour, camera profiles, render fidelity | 10% | 65% | 35% | 80–150 h | 4 bundled profiles vs Adobe's 1,500; per-file fits median ΔE ~5 vs the camera JPEG, ~10% far off; no fidelity suite ([raw-parity.md](raw-parity.md#colour)) |
 | Global develop adjustments (light, colour, curves, grading, effects, detail) | 15% | 93% | 70% | 30–60 h | checklist F 91.7%; character tuned by eye |
 | Optics, lens profiles, crop and geometry | 6% | 80% | 50% | 40–80 h | no lens database; crop / Upright complete |
@@ -257,7 +257,7 @@ verification. Calibrated on this repository's history (git log and GitHub PR ope
   (#279), NEF lossy after split 4.7 h (#633), ORF 12.8 bpp 1.7 h (#651), HEIC 7 h (#609).
 - **Large features:** AI RAW denoise 8.3 h (#384, 12.8k lines), SAM 3 masks 14.9 h (#162),
   HDR editing and export 2.3 h (#646, on existing groundwork), contact-sheet PDF (#563), German UI
-  13.8 h (#265).
+  13.8 h (#267).
 - PR open time includes queueing and review, so these are upper bounds per feature; the ranges add
   a long-tail factor of 1.3–1.5× for verification against real files.
 
@@ -298,6 +298,7 @@ P2 items 12–25 h; look tuning, performance, packaging, hardening 25–45 h.
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed, ui-parity.md); percentages unchanged |
+| 2026-10-12 | minor | Camera-coverage sweep: 30 models verified on 40 CC0 files; 267 verified, 917 unverified, 226 preview-only; 43% of photographers on a verified body. Sensor verification does not establish colour parity (#1277). Refreshed the stale checklist summary: 81.6% across 532 rows |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified (raw-parity.md): use-weighted share whose camera decodes 84% → 85%, RAW decoding 76% → 77%; full 60.6% → 60.7%, mainstream depth 71.8% → 72.1%, essentials depth 77.4% → 77.5%; the rounded numbers (~61%, ~49%, ~64%) are unchanged |
 | 2026-10-10 | minor | RAW measured model by model (raw-parity.md): RAW decoding (76%) and colour (35%) are explicit rows of the full sum (59% → 61%); mainstream uses the use-weighted 84% plus a ×0.85 colour discount (51% → 49%); essentials uses 84% × colour 0.75 (63% → 64%); beta ~14 points |
 | 2026-10-10 | minor | Full number restored to an additive weighted sum over the dimensions (~59%; method aligned with the standard, no new evidence); hours to ~95% for each of the three audiences; beta distance ~16 points |

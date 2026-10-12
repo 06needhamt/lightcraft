@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (Leica Q3 verified, 236 models; EOS R5 Mark II CR3 verified; RAW decoding 77%) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (Leica Q3 verified; EOS R5 Mark II CR3 verified; RAW decoding 77%; 30 models verified on 40 CC0 files; 267 verified models, 18%) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -12,7 +12,7 @@ from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are 
 
 | | Value | Kind |
 |---|---:|---|
-| **Feature breadth** (checklist) | **81.1%** of 517 rows (P0 98.0%, P1 95.1%, P2 46.9%) | measured: [parity-checklist.md](docs/parity-checklist.md) recount |
+| **Feature breadth** (checklist) | **81.6%** of 532 rows (P0 98.0%, P1 95.2%, P2 50.0%) | measured: [parity-checklist.md](docs/parity-checklist.md) recount |
 | **Feature breadth** (weighted by use) | **~77%** | estimated |
 | **Ready for real work** (full target) | **~61%** (56–66%) | estimated: weighted sum over the dimensions |
 | **Mainstream practitioner** | **~49%** (44–54%) | estimated |
@@ -44,8 +44,8 @@ Hours are calibrated on this repo's PR history; see
 
 | Dimension | Ready | Breadth | Remaining | Doc |
 |---|---:|---:|---:|---|
-| Features | ~61% | ~77% (checklist 81.1%) | 600–1,100 h | [target-app-parity](docs/target-app-parity.md#features) |
-| ↳ RAW cameras, colour, lens profiles | ~56% | 81% of 1,446 Adobe models decode, 16% verified | 255–480 h | [raw-parity](docs/raw-parity.md) |
+| Features | ~61% | ~77% (checklist 81.6%) | 600–1,100 h | [target-app-parity](docs/target-app-parity.md#features) |
+| ↳ RAW cameras, colour, lens profiles | ~56% | 82% of 1,446 Adobe models decode, 18% verified | 255–480 h | [raw-parity](docs/raw-parity.md) |
 | UI/UX fidelity | ~70% | ~85% | 34–58 h | [ui-parity](docs/ui-parity.md) |
 | File formats (non-raw) | ~70% | ~85% | 30–55 h | [file-format-parity](docs/file-format-parity.md) |
 | Hardware | ~40% | ~50% | 40–80 h | [hardware-parity](docs/hardware-parity.md) |
@@ -61,7 +61,7 @@ Hours are calibrated on this repo's PR history; see
 | Area | Ready | Breadth | Remaining |
 |---|---:|---:|---:|
 | Import and library | 80% | 90% | 25–45 h |
-| RAW decoding and camera coverage | 77% | 81% | 120–220 h |
+| RAW decoding and camera coverage | 77% | 82% | 120–220 h |
 | Colour, camera profiles, render fidelity | 35% | 65% | 80–150 h |
 | Global develop adjustments | 70% | 93% | 30–60 h |
 | Optics, lens profiles, crop and geometry | 50% | 80% | 40–80 h |
@@ -114,6 +114,10 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 ## Progress log
 
+- 2026-10-12: Camera-coverage sweep verifies 30 more models on 40 CC0 files, with file and sensor
+  hashes pinned. Total: 267 verified models (18%); 43% of photographers on a verified body.
+  Eleven candidates excluded after rechecking identity, provenance and camera-image agreement.
+  Phone and drone DNG tone differences remain tracked in #1277.
 - 2026-10-11: Leica Q3 verified by a recorded check of 38 private DNGs (all decode and develop at full
   size; mean ΔE to the camera JPEG 6.3–13.9). 236 models verified; headline numbers unchanged.
 - 2026-10-11: Canon EOS R5 Mark II C-RAW decodes from sensor data (57% of its files opened as a
@@ -164,6 +168,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
+| 2026-10-12 | minor | Camera-coverage sweep: 30 models verified on 40 CC0 files; 267 verified, 917 unverified, 226 preview-only; 43% of photographers on a verified body. Sensor verification does not establish colour parity (#1277). Refreshed the stale checklist summary: 81.6% across 532 rows |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |
 | 2026-10-10 | minor | Full ready restored to the additive weighted sum (~59%; method aligned with the standard, no new evidence); hours per audience; beta ~16 points away |

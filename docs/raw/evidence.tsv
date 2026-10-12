@@ -2,6 +2,9 @@
 # "verified" means a real file from this body decoded from sensor data in a corpus test or a recorded bulk check (source column).
 maker	camera	status	source
 Apple	iPhone 12 Pro Rear Wide Camera	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Apple	iPhone 6s Plus	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Apple	iPhone 7 Plus	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Apple	iPhone XS	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
 Canon	EOS 40D	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS 550D (EOS Digital Rebel T2i, EOS Kiss X4 Digital)	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS 5D Mark II	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
@@ -14,6 +17,10 @@ Canon	EOS R100	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor has
 Canon	EOS R5 Mark II	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hashes, docs/cr3.md); bulk: QP maps of 33,665 C-RAW files
 Canon	EOS R8	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor hashes, docs/cr3.md)
 Canon	EOS-5D Mark III	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+DJI	DJI Mavic 2 Pro (Hasselblad L1D-20c)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mavic 3 (Hasselblad L2D-20c)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mavic 4 Pro (DJI FC9287)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mini 2	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
 Fujifilm	GFX 100	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	GFX 100RF (Final Support)	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	GFX 100S	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
@@ -31,7 +38,17 @@ Fujifilm	X-T4**	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	X-T5	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	X-T50	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Google	Pixel 2 XL	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Google	Pixel 4 XL	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 4a Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 6 Pro Rear Main Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 8 Pro Wide Camera*	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Hasselblad	CFV-50c	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	H5D-40	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	H5D-50c	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
 Hasselblad	Lunar	verified	issue #1275: raw.pixls.us 4051 (a Sony NEX-7 ARW under Make HASSELBLAD) decodes from sensor data; black 512 and SR2SubIFD WB as on a NEX-7
+Hasselblad	X1D	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	X1D II 50C	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	X2D 100C	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
 Leica	C (Typ 112)	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
 Leica	D-Lux (Typ 109)	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
 Leica	D-Lux 3	verified	PR #215: raw.pixls.us bulk check of every RW2 / RWL / RAW body
@@ -48,8 +65,12 @@ Leica	V-LUX 4	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leic
 Leica	V-LUX 5	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
 Nikon	COOLPIX B700	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Nikon	D5100	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Nikon	D6	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
 Nikon	D7000	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Nikon	D7500	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Nikon	Z 6	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
+Nikon	Z 7	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
+Nikon	Z 8	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); HE / HE* remain preview-only
 Nikon	Z f	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Olympus	E-1	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Olympus	EVOLT E-400	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
@@ -147,11 +168,20 @@ Panasonic	LUMIX DMC-ZS40 (DMC-TZ60, DMC-TZ61)	verified	PR #215: 178 raw.pixls.us
 Panasonic	LUMIX DMC-ZS50 (DMC-TZ70, DMC-TZ71)	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
 Panasonic	LUMIX DMC-ZS60 (DMC-TZ80, DMC-TZ81, DMC-TZ85)	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
 Panasonic	LUMIX ZS200 (DC-TX2, DC-TZ200, DC-TZ202, DC-TZ220, DC-ZS220)	verified	PR #215: 178 raw.pixls.us files from 118 Panasonic / Leica bodies, every RW2 format
+Parrot	Anafi	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
 Pentax	K-3	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Pentax	K-5 IIs	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Pentax	K10D	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Ricoh	GR III	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Samsung	Galaxy S21 Ultra Rear Main Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S22 Ultra Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S23 Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S7 Edge	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S8	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S8+	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
 Samsung	TL500 (EX1)	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Sigma	fp	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Sigma	fp L	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
 Sony	A100 (DSLR-A100)	unsupported	issue #702: regression, refused as not a readable photo
 Sony	A200 (DSLR-A200)	preview	issue #535: preview-only on the raw.pixls.us sample
 Sony	A230 (DSLR-A230)	preview	issue #535: preview-only on the raw.pixls.us sample

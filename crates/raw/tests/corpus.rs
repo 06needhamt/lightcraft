@@ -1,7 +1,8 @@
 //! Corpus test over `corpus/raw/**` (git-ignored CC0 samples from raw.pixls.us, fetched with
 //! `cargo xtask corpus --download`; `LIGHTCRAFT_CORPUS` overrides the corpus root). Skips cleanly when absent.
 //!
-//! Every file must be recognised, carry an embedded JPEG preview (optional for DNG, older Panasonic RAW and HEVC-preview CR3), and either decode to a valid image or report
+//! Every file must be recognised, carry an embedded JPEG preview (optional for DNG, generic CFA TIFF,
+//! older Panasonic RAW and HEVC-preview CR3), and either decode to a valid image or report
 //! `Unsupported` for one of the variants we know we don't decode yet. Prints decode times
 //! (`cargo test -p lightcraft-raw --release --test corpus -- --nocapture`).
 
@@ -41,7 +42,7 @@ fn corpus_raw_decodes() {
         let t0 = Instant::now();
         let preview = embedded_preview(&bytes);
         let tp = t0.elapsed().as_secs_f64() * 1e3;
-        // DNG previews are optional (and some carry only an uncompressed RGB thumbnail); vendor raws embed a JPEG,
+        // DNG and generic CFA TIFF previews can be absent or uncompressed RGB; other vendor raws embed a JPEG,
         // except the Panasonic `.RAW` files of 2005–2007 and Canon's explicit HEVC preview tracks.
         if let Some(p) = &preview {
             let jpeg = p.starts_with(&[0xff, 0xd8]) && p.ends_with(&[0xff, 0xd9]);
@@ -51,7 +52,10 @@ fn corpus_raw_decodes() {
             let hevc_preview = fmt == RawFormat::Cr3
                 && lightcraft_meta::cr3::parse_cr3(&bytes)
                     .is_some_and(|c| c.tracks.iter().any(|t| t.kind == lightcraft_meta::cr3::Cr3TrackKind::Other(*b"HEVC") && t.data.is_some()));
-            assert!(fmt == RawFormat::Dng || name.starts_with("raw-panasonic-") || hevc_preview, "{name}: no embedded preview");
+            assert!(
+                matches!(fmt, RawFormat::Dng | RawFormat::CfaTiff) || name.starts_with("raw-panasonic-") || hevc_preview,
+                "{name}: no embedded preview"
+            );
         }
         let preview_kb = preview.as_ref().map_or(0, |p| p.len() / 1024);
         let t1 = Instant::now();
