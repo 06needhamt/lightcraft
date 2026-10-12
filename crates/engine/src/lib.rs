@@ -53,6 +53,7 @@ pub mod memory;
 pub mod merge;
 mod model_download;
 pub mod originals;
+pub mod pdf;
 pub mod preset_import;
 pub mod preset_luminar;
 pub mod presets;
