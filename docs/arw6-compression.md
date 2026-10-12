@@ -181,3 +181,12 @@ The 1.0 s budget for the full-frame file is met. Parallelised: rayon over the ti
 | ILCE-7RM6 FF, Compressed | 0.54 s | 0.38 s |
 | ILCE-7RM6 APS-C, Compressed (HQ) | 0.34 s | 0.23 s |
 | ILCE-7RM6 APS-C, Compressed | 0.35 s | 0.24 s |
+
+2026-10-13 (output unchanged, bit for bit): the two halves of each stream, which are independent bit streams, decode in parallel; the vertical wavelet pass runs its rows in parallel; the horizontal pass lifts each row in place (scratch space reused per thread), rows in parallel, instead of allocating two vectors per row. Same method, best of 3, the previous and the new decoder run alternately, on another machine (Ryzen 7 9800X3D, a 4-CPU cgroup quota shared with other builds); CPU is the process CPU time of the decode (all threads):
+
+| File | Before | After | CPU before | CPU after |
+|---|---|---|---|---|
+| ILCE-7RM6 FF, Compressed (HQ) | 0.60 s | 0.48 s | 1.14 s | 0.87 s |
+| ILCE-7RM6 FF, Compressed | 0.62 s | 0.48 s | 1.14 s | 0.89 s |
+| ILCE-7RM6 APS-C, Compressed (HQ) | 0.34 s | 0.23 s | 0.50 s | 0.40 s |
+| ILCE-7RM6 APS-C, Compressed | 0.31 s | 0.24 s | 0.51 s | 0.42 s |

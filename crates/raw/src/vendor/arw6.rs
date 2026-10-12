@@ -329,9 +329,10 @@ type HalfLines = (Half, Vec<Vec<i32>>);
 fn decode_stream(tile: &[u8], st: &StreamRef, ntu: usize, w2: usize, layouts: &[HalfRows]) -> Result<Vec<HalfLines>> {
     let halves = stream_halves(tile, st, ntu)?;
     let width = line_width(st.group, w2);
+    // halves are independent bit streams: decode them in parallel
     halves
-        .into_iter()
-        .zip(layouts)
+        .into_par_iter()
+        .zip(layouts.par_iter())
         .map(|(half, rows)| {
             let end = half.start.checked_add(half.len).ok_or_else(|| corrupt("half position"))?;
             let bytes = tile.get(half.start..end).ok_or_else(|| corrupt("half outside the tile"))?;

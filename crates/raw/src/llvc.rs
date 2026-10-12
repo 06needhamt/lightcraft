@@ -200,9 +200,10 @@ fn band_sample<'a>(v: &'a [i32], w: usize, n: usize, i: isize, zeros: &'a [i32])
 }
 
 /// Inverse 5/3 lifting, RDD 34 §6.5, with X[-1] := X[1], X[n] := X[n-2] (see `band_rows` for the sizes), of a
-/// signal whose samples are `w` values wide: `w = 1` for one line, a band's width for all its columns at once (row
-/// by row, as each column alone would give).
+/// signal whose samples are `w` values wide: a band's width for all its columns at once (row by row, as each column
+/// alone would give; rows in parallel). One line (`w = 1`) goes through [`lift_row`].
 fn inverse_lift(l: &[i32], h: &[i32], w: usize, phase: u8) -> Result<Vec<i32>> {
+    use rayon::prelude::*;
     let w = w.max(1);
     let (nl, nh) = (l.len() / w, h.len() / w);
     let (n, p) = (nl + nh, isize::from(phase));
@@ -211,24 +212,47 @@ fn inverse_lift(l: &[i32], h: &[i32], w: usize, phase: u8) -> Result<Vec<i32>> {
     }
     let zeros = vec![0; w];
     let mut even = vec![0; nl * w];
-    for (j, (e, lv)) in even.chunks_exact_mut(w).zip(l.chunks_exact(w)).enumerate() {
+    even.par_chunks_exact_mut(w).zip(l.par_chunks_exact(w)).enumerate().for_each(|(j, (e, lv))| {
         let (a, b) = (band_sample(h, w, nh, j as isize - 1 + p, &zeros), band_sample(h, w, nh, j as isize + p, &zeros));
         for (((e, &lv), &a), &b) in e.iter_mut().zip(lv).zip(a).zip(b) {
             *e = sat(i64::from(lv) - ((i64::from(a) + i64::from(b) + 2) >> 2));
         }
-    }
+    });
     let mut out = vec![0; n * w];
-    let (lo, hi) = (usize::from(phase), 1 - usize::from(phase));
-    for (o, e) in out.chunks_exact_mut(w).skip(lo).step_by(2).zip(even.chunks_exact(w)) {
-        o.copy_from_slice(e);
-    }
-    for (k, (o, hv)) in out.chunks_exact_mut(w).skip(hi).step_by(2).zip(h.chunks_exact(w)).enumerate() {
+    let lo = usize::from(phase);
+    out.par_chunks_exact_mut(w).enumerate().for_each(|(t, o)| {
+        if t % 2 == lo {
+            if let Some(e) = even.get((t - lo) / 2 * w..((t - lo) / 2 + 1) * w) {
+                o.copy_from_slice(e);
+            }
+            return;
+        }
+        let k = (t - (1 - lo)) / 2;
+        let Some(hv) = h.get(k * w..(k + 1) * w) else { return };
         let (a, b) = (band_sample(&even, w, nl, k as isize - p, &zeros), band_sample(&even, w, nl, k as isize + 1 - p, &zeros));
         for (((o, &hv), &a), &b) in o.iter_mut().zip(hv).zip(a).zip(b) {
             *o = sat(i64::from(hv) + ((i64::from(a) + i64::from(b)) >> 1));
         }
-    }
+    });
     Ok(out)
+}
+
+/// [`inverse_lift`] of one line (`w = 1`) into `out` (`l.len() + h.len()` values), without allocating: `even` is
+/// scratch space. The caller has checked the band sizes.
+fn lift_row(l: &[i32], h: &[i32], phase: u8, even: &mut Vec<i32>, out: &mut [i32]) {
+    let (nl, nh, p) = (l.len(), h.len(), isize::from(phase));
+    let hs = |i: isize| if nh == 0 { 0 } else { h.get(i.clamp(0, nh as isize - 1) as usize).map_or(0, |&v| i64::from(v)) };
+    even.clear();
+    even.extend(l.iter().enumerate().map(|(j, &lv)| sat(i64::from(lv) - ((hs(j as isize - 1 + p) + hs(j as isize + p) + 2) >> 2))));
+    let even = &*even;
+    let es = |i: isize| if nl == 0 { 0 } else { even.get(i.clamp(0, nl as isize - 1) as usize).map_or(0, |&v| i64::from(v)) };
+    let (lo, hi) = (usize::from(phase), 1 - usize::from(phase));
+    for (o, &e) in out.iter_mut().skip(lo).step_by(2).zip(even.iter()) {
+        *o = e;
+    }
+    for (k, (o, &hv)) in out.iter_mut().skip(hi).step_by(2).zip(h).enumerate() {
+        *o = sat(i64::from(hv) + ((es(k as isize - p) + es(k as isize + 1 - p)) >> 1));
+    }
 }
 
 /// Inverse transform of the `low`/`high` pair along one axis: down the columns when `vertical` (all at once, row by
@@ -250,13 +274,16 @@ fn lines(low: &Plane, high: &Plane, phase: u8, vertical: bool) -> Result<Plane> 
     if vertical {
         return Ok(Plane { width: w, height: h, data: inverse_lift(&low.data, &high.data, w, phase)? });
     }
-    let mut out = Plane::zeros(w, h);
-    for i in 0..across_l {
-        let x = inverse_lift(low.row(i).unwrap_or_default(), high.row(i).unwrap_or_default(), 1, phase)?;
-        if let Some(r) = out.data.get_mut(i * w..(i + 1) * w) {
-            r.copy_from_slice(&x);
-        }
+    if band_rows(n, phase) != (nl, nh) || phase > 1 {
+        return Err(RawError::Corrupt("ARW6 wavelet: band sizes do not match".into()));
     }
+    use rayon::prelude::*;
+    let mut out = Plane::zeros(w, h);
+    out.data.par_chunks_exact_mut(w.max(1)).enumerate().for_each_init(Vec::new, |even, (i, r)| {
+        if let (Some(l), Some(hi)) = (low.row(i), high.row(i)) {
+            lift_row(l, hi, phase, even, r);
+        }
+    });
     Ok(out)
 }
 
@@ -461,6 +488,29 @@ mod tests {
         assert_eq!(inverse_53_1d_rows(&col(&[10, 20]), &col(&[3, -4]), 1).unwrap().data, vec![13, 10, 12, 22]);
         assert_eq!(inverse_53_1d_rows(&col(&[10, 20, 30]), &col(&[3, -4]), 0).unwrap().data, vec![8, 17, 20, 22, 32]);
         assert_eq!(inverse_53_1d_rows(&col(&[3, -4]), &col(&[10, 20, 30]), 1).unwrap().data, vec![5, -5, 9, -17, 13]);
+    }
+    #[test]
+    fn horizontal_pass_gives_the_vertical_passs_samples() {
+        // two implementations of one lifting: `lift_row` along rows, `inverse_lift` down columns
+        let mut s = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            (s % 8191) as i32 - 4095
+        };
+        for n in 1..12usize {
+            for phase in 0..2u8 {
+                let ((nl, nh), rows) = (band_rows(n, phase), 3);
+                let low = Plane { width: nl, height: rows, data: (0..nl * rows).map(|_| next()).collect() };
+                let high = Plane { width: nh, height: rows, data: (0..nh * rows).map(|_| next()).collect() };
+                let across = inverse_53_1d_cols(&low, &high, phase).unwrap();
+                for r in 0..rows {
+                    let down = inverse_53_1d_rows(&col(low.row(r).unwrap()), &col(high.row(r).unwrap()), phase).unwrap();
+                    assert_eq!(across.row(r).unwrap(), &down.data[..], "n {n}, phase {phase}, row {r}");
+                }
+            }
+        }
     }
     #[test]
     fn inverse_53_rejects_mismatched_bands() {
