@@ -72,6 +72,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Gap 15: print pages compose in the engine (fit / Zoom to Fill, Rotate to Fit, border, stroke, background) with an interim PDF writer; commands and UI still to land |
 | 2026-10-12 | minor | Gap 15: the Print layout model (paper sizes, margins, grid, package cells, Auto Layout packer, snapping) is in the engine; commands, composition and UI still to land |
 | 2026-10-11 | minor | Reviewed against main after 0.6.0: CR3 entry names the CRX variants `crx.rs` still refuses and the R7 / R6 Mark II C-RAW state (decoding, not verified, so the measured numbers don't move); CI and Windows / Linux entries note the riscv64 release build (#844); R7 fix added to Closed recently. Panel docking (UI.9, #869) closes no listed gap |
 | 2026-10-11 | minor | Camera colour entry: raws with a black-and-white camera JPEG take its tone curve (#577); gap not closed |
