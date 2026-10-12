@@ -649,6 +649,37 @@ impl Renderer {
         };
         #[cfg(not(target_arch = "wasm32"))]
         let inline_ms = 0.0;
+        let changed = self.collect(ctx, session, inline_ms);
+        self.evict_variants();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.trim_when_idle(ctx);
+        if !self.pending.is_empty() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
+        changed
+    }
+
+    /// In a slider drag, give the loupe's draft (just requested) until `budget` to finish, so that it
+    /// is drawn in this frame rather than picked up at the start of the next one. Only when the last
+    /// loupe render took well under the budget (a GPU draft takes a few milliseconds; a CPU render
+    /// that would only make the frame late is not waited for).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn wait_for_draft(&mut self, ctx: &egui::Context, session: &mut Session, budget: std::time::Duration) {
+        if self.offload.is_some() || self.last_main_ms * 1.5 >= budget.as_secs_f64() * 1e3 {
+            return;
+        }
+        let Some(deadline) = std::time::Instant::now().checked_add(budget) else { return };
+        while self.is_pending(Slot::Main) {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() || !self.pool.wait(left) {
+                break;
+            }
+            self.collect(ctx, session, 0.0);
+        }
+    }
+
+    /// Turn finished jobs into textures. Returns true if anything changed.
+    fn collect(&mut self, ctx: &egui::Context, session: &mut Session, inline_ms: f64) -> bool {
         let mut finished = Vec::new();
         while let Some(done) = self.pool.try_recv() {
             finished.push((done.slot, done.result, if done.ms > 0.0 { done.ms } else { inline_ms }));
@@ -756,12 +787,6 @@ impl Renderer {
                 self.last_main_ms = ms;
             }
             changed = true;
-        }
-        self.evict_variants();
-        #[cfg(not(target_arch = "wasm32"))]
-        self.trim_when_idle(ctx);
-        if !self.pending.is_empty() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         changed
     }
@@ -951,6 +976,28 @@ mod thumbnail_tests {
         assert!(r.thumb_current(&p, 384, 10));
         r.catalog_rev = 1;
         assert!(!r.thumb_current(&p, 384, 10));
+    }
+
+    #[test]
+    fn a_fast_draft_is_drawn_in_the_frame_that_asked_for_it() {
+        let mut s = Session::new();
+        s.media.file_loader = Some(Arc::new(|_, _| Ok((lightcraft_raster::Rgb32f::new(8, 8), Default::default()))));
+        s.catalog.apply(Op::AddPhoto { photo: Box::new((*photo()).clone()) }).unwrap();
+        let mut r = Renderer::with_worker_threads(1);
+        let ctx = egui::Context::default();
+        let budget = std::time::Duration::from_secs(10);
+        // the last loupe render took longer than the budget (a CPU render): not waited for
+        r.last_main_ms = 1e6;
+        r.request(Slot::Main, s.render_job(PhotoId(1), 64, 64, false, true).unwrap(), 100);
+        r.wait_for_draft(&ctx, &mut s, budget);
+        assert!(r.is_pending(Slot::Main) && !r.textures.contains_key(&Slot::Main));
+        // a fast one (GPU drafts): the texture is the new render when the wait returns
+        r.last_main_ms = 1.0;
+        r.request(Slot::Main, s.render_job(PhotoId(1), 32, 32, false, true).unwrap(), 100);
+        let want = r.wanted(Slot::Main);
+        r.wait_for_draft(&ctx, &mut s, budget);
+        assert!(!r.is_pending(Slot::Main));
+        assert_eq!(r.textures.get(&Slot::Main).map(|t| t.key), want);
     }
 
     #[derive(Default)]

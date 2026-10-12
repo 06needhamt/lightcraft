@@ -56,6 +56,8 @@ pub struct JobPool<S, R> {
     shared: Arc<Shared<S, R>>,
     tx: Sender<Done<S, R>>,
     rx: Receiver<Done<S, R>>,
+    /// A finished job [`Self::wait`] took off the channel, handed out first by [`Self::try_recv`].
+    early: Option<Done<S, R>>,
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     threads: usize,
     started: bool,
@@ -82,6 +84,7 @@ impl<S: Copy + Eq + Hash + Send + 'static, R: Send + 'static> JobPool<S, R> {
             }),
             tx,
             rx,
+            early: None,
             threads,
             started: false,
             seq: 0,
@@ -210,8 +213,16 @@ impl<S: Copy + Eq + Hash + Send + 'static, R: Send + 'static> JobPool<S, R> {
     }
 
     /// A finished job, if any.
-    pub fn try_recv(&self) -> Option<Done<S, R>> {
-        self.rx.try_recv().ok()
+    pub fn try_recv(&mut self) -> Option<Done<S, R>> {
+        self.early.take().or_else(|| self.rx.try_recv().ok())
+    }
+
+    /// Wait up to `timeout` for a job to finish; whether one has (it is the next [`Self::try_recv`]).
+    pub fn wait(&mut self, timeout: Duration) -> bool {
+        if self.early.is_none() {
+            self.early = self.rx.recv_timeout(timeout).ok();
+        }
+        self.early.is_some()
     }
 
     /// Run up to `n` jobs on the calling thread (wasm, tests). Returns how many ran.

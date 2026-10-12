@@ -473,6 +473,15 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let job = job.with_overlay(overlay).with_proof(app.ui.soft_proof.then_some(app.ui.proof));
         let job = job.with_hidden_grading(app.ui.grading_hidden_for(id));
         app.renderer.request(Slot::Main, job, 100);
+        // a drag's draft that renders in a few ms (GPU) is drawn in this frame, not the next (zoomed
+        // in, what changes on screen is the window's draft)
+        #[cfg(not(target_arch = "wasm32"))]
+        if interacting && plan.window_edge.is_none() {
+            let frame = ui.input(|i| i.predicted_dt).clamp(1.0 / 240.0, 1.0 / 30.0);
+            // (a frame time that is not a number waits for nothing)
+            let budget = std::time::Duration::try_from_secs_f32(frame * 0.4).unwrap_or_default();
+            app.renderer.wait_for_draft(ui.ctx(), &mut app.session, budget);
+        }
     }
     // hovering a preset or profile: the photo with that look, shown instead of the loupe render
     // once it is ready (nothing is committed)

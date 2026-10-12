@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-13
+
+### Slider drags follow the pointer more closely
+- With a GPU, a slider drag's preview is drawn in the same frame as the slider moves instead of one frame later,
+  when the preview renders in a few milliseconds (it waits at most 40 % of a frame for it; slower renders, such as
+  on the CPU, are not waited for).
+
 ## 2026-10-11
 
 ### JPEG XL export
