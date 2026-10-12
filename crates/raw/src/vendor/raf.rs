@@ -214,6 +214,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         linearized: false,
         opcodes: OpcodeLists { list3: super::raf_lens::corrections(&camera_name(bytes), &ifd, active), ..Default::default() },
         metadata,
+        lens_metadata: Default::default(),
     };
     img.validate_for(mode)?;
     Ok(img)

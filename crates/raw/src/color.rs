@@ -289,6 +289,7 @@ mod tests {
             linearized: false,
             opcodes: Default::default(),
             metadata: Default::default(),
+            lens_metadata: Default::default(),
         }
     }
 

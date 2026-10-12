@@ -18,6 +18,10 @@ later the TIFF/DNG exporters.
 - `image::ImageInfo` — width/height, bits, samples, compression, photometric, planar config, predictor,
   sample format and the strip or tile chunk list (`chunks()`, `chunk_bytes()`); missing byte counts are
   inferred.
+- `directory_entries`, `entry_span`, `ParseOptions::budget_for` and `decode_value` are the reader's own rules
+  (directory layout and entry limit, which entries it reads, its value budget, value decoding), for callers that
+  must select entries exactly as `parse_ifd_at` would without decoding the whole directory (`lightcraft-raw`'s
+  Sony `SR2Private` lookup).
 - `TiffWriter` writes IFD chains with strips or tiles, `SubIFDs` and pointer IFDs, in either byte order,
   classic or BigTIFF; `writer::rational` / `srational` approximate floats as rationals.
 

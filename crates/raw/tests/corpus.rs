@@ -1053,6 +1053,229 @@ fn nikon_in_file_distortion_is_limited_to_validated_bodies() {
     eprintln!("Nikon distortion boundary: {checked} corpus files checked");
 }
 
+/// The Sony samples of the corpus manifest (`RAW_SAMPLES` in `xtask/src/main.rs`) with their pinned SHA-256.
+const SONY_SAMPLES: &[(&str, &str)] = &[
+    ("arw-sony-a7rm4a-compressed.arw", "690c774f1d7bc1db3fa8c2489762743d8e7586e50b6f65d0b6a61cb467972c67"),
+    ("arw-sony-a9m2-compressed.arw", "161c2a9da2b5f1e50be6117a0b4da0ce249660b5d7de13568d301c4034716b97"),
+    ("arw-sony-a7m3-compressed.arw", "250784580ea527442c09004417bb0eead484f2bf3ee8f9121a776ac65bb50d0f"),
+    ("arw-sony-a7m3-uncompressed.arw", "ece80551abf64949dbe826985a80f1d9b265401ee4ea6b989e1829549616fdcd"),
+    ("arw-sony-a7m4-14bit.arw", "639a6d4db881f1359e3ea7e1137b314e59417d24e6d4d862b7202111a2c823b2"),
+    ("arw-sony-a7m4-lossless-l.arw", "851b43c2116c4139104a5036f83ac3b6a148789b2142214dd7192c13972b25b6"),
+    ("arw-sony-a7m4-lossless-m.arw", "d453005714327addd75bcb99c1c6223173dc92f2a59542d82e6761ef0e0e7571"),
+    ("arw-sony-a7m4-lossless-s.arw", "cbbd0930c7d8706dff84c68a2004454266e6fd0d8354f5f76a106b5d776e0223"),
+    ("arw-sony-a7cr-lossless-l.arw", "3e1642f3a1ae7c9f93228c5f09f27e362608e6a4ca1b3e5d8dd9eb8fae576997"),
+    ("arw-sony-a7cr-lossless-m.arw", "5bcba4acc52a5b902074581b4a2f5fb3c79ec56bd0fdc1746b9e2c0f9d3e9c88"),
+    ("arw-sony-a7cr-compressed.arw", "f5096e8fbccf0842c8a57763cabd2836608f019eb7fd54f7b22260c2f5bc4da5"),
+    ("arw-sony-a7cm2-lossless-l.arw", "342d893bd71fd050c273df181e3039d3f12d88947b0662de5de5325c84cc449b"),
+    ("arw-sony-a7cm2-compressed-m.arw", "002c86d38a16b08a2438780728b4fda8efcc745fa6c26231dad6af67b383b11e"),
+    ("arw-sony-a7rm4-14bit-compressed.arw", "e6dafe42643f69ab9d1fd00414b7a1f5104df354bb589201600ac934b29b5e4a"),
+    ("arw-sony-rx100m3.arw", "cb81392e3a8810231ce341fb45de3e4d1b9e2f87bc47f3c314d084041ccfd138"),
+    ("arw-sony-rx100.arw", "579a485b5126a25cbd55cbd5dadfa7d09cf021c99cc7d4869f9e56e3f759390b"),
+    ("arw-sony-a7rm2-12bit-uncompressed.arw", "71e0888396ef52c7e6a990b4e72ebb4d8413a1fc1c35bada449870539cef6e39"),
+    ("arw-sony-a500.arw", "1407fb596a391df67c15b90026a1a76702a2e7386dbdff2f0815b903ea49cead"),
+    ("arw-sony-a700.arw", "3159e28892bf0771d01525cd4b6190f9c15bbb19fa2fab6d2515ced0594e8f40"),
+    ("arw-sony-a33.arw", "1a59856394f10d4fadb40f5ab9c6d1c89f473f4dbcdefd216fbbbbf1ad8d21f9"),
+    ("arw-sony-a3500-5600k.arw", "04c4fe04425c3e6fff7c8af0f811923c35e750300373357bd54342150c5505d8"),
+    ("arw-sony-a7s-shade.arw", "7cc338a0abc8fdad32d61006f1f8f412297b93e040c7efba572eb2bd8f8e8be2"),
+    ("arw-sony-a7sm2-16x9.arw", "46044fb6a9c805f2b4915cd4970316b4d04b0566bcf5287afaad3ef648d7a3db"),
+    ("arw-sony-a580-16x9.arw", "5b0924d39151239dce19e92e08318f4f62a5a8ac276bd7180ec8463d2cfee709"),
+    ("arw-sony-a900-packed12.arw", "ac7c1532df77c321e8010aa1be60c1b9f245b1ac0db6f38fe617a73aae81af50"),
+];
+
+/// SHA-256 of [`SONY_SAMPLES`] as `name  sha256` lines sorted by name: anchors the pins independently of the
+/// manifest, so editing both together (as a drift or a mistake) still fails `sony_pins_match_the_corpus_manifest`.
+/// All 25 pins were checked against the downloaded files when it was set.
+const SONY_PINS_SHA256: &str = "4cfc349194278146356b463c59ede500331c6ca5fc50aec4e92d7cd847b17b68";
+
+/// A Sony corpus file's bytes, checked against its pinned SHA-256 before anything decodes them; `None` (with a
+/// note) when the file is absent, unless `LIGHTCRAFT_CORPUS_REQUIRED=1` asks for every pinned file. A file that
+/// differs from its pin fails the test.
+fn pinned_sony(root: &Path, name: &str) -> Option<Vec<u8>> {
+    use sha2::{Digest, Sha256};
+    let expected = SONY_SAMPLES.iter().find(|(n, _)| *n == name).unwrap_or_else(|| panic!("{name}: no pinned SHA-256")).1;
+    let bytes = match std::fs::read(root.join(name)) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            assert!(std::env::var_os("LIGHTCRAFT_CORPUS_REQUIRED").is_none_or(|v| v != "1"), "{name}: absent, and LIGHTCRAFT_CORPUS_REQUIRED=1");
+            eprintln!("skip: {name} absent");
+            return None;
+        }
+        Err(e) => panic!("{name}: {e}"),
+    };
+    let actual: String = Sha256::digest(&bytes).iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(actual, expected, "{name}: corpus file differs from its pinned SHA-256");
+    Some(bytes)
+}
+
+#[test]
+fn sony_pins_match_the_corpus_manifest() {
+    use sha2::{Digest, Sha256};
+    let mut lines: Vec<String> = SONY_SAMPLES.iter().map(|(name, sha)| format!("{name}  {sha}\n")).collect();
+    lines.sort();
+    let digest: String = Sha256::digest(lines.concat()).iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(digest, SONY_PINS_SHA256, "the pinned Sony SHA-256 table changed: check every changed pin against its file, then update the anchor");
+    let manifest = include_str!("../../../xtask/src/main.rs");
+    for (name, sha) in SONY_SAMPLES {
+        let entry = manifest.find(&format!("\"{name}\"")).unwrap_or_else(|| panic!("{name} is not in the manifest"));
+        assert!(manifest[entry..].split_once("),").is_some_and(|(e, _)| e.contains(sha)), "{name}: pinned SHA-256 differs from the manifest");
+    }
+}
+
+#[test]
+#[should_panic(expected = "differs from its pinned SHA-256")]
+fn a_sony_fixture_that_differs_from_its_pin_fails() {
+    struct Gone(PathBuf);
+    impl Drop for Gone {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let dir = Gone(std::env::temp_dir().join(format!("lightcraft-sony-pin-{}", std::process::id())));
+    std::fs::create_dir_all(&dir.0).unwrap();
+    std::fs::write(dir.0.join("arw-sony-a7cr-compressed.arw"), b"not the pinned file").unwrap();
+    pinned_sony(&dir.0, "arw-sony-a7cr-compressed.arw");
+}
+
+/// Sony's lens-correction records (`lightcraft_raw::lens_metadata`, `crates/raw/src/vendor/arw_lens.rs`) on the public
+/// samples: shading, CA and distortion decoded from the raw IFD with their settings, equal to their `SR2SubIFD` copies,
+/// the same from header and full decode, and nothing applied beyond the validated ILCE-7RM4A distortion. Expected
+/// tables and settings: what ExifTool, run as a black-box tool, prints for these files. Every file is checked against
+/// its pinned SHA-256 before it is decoded; absent files are skipped.
+#[test]
+fn sony_lens_records_of_the_public_samples() {
+    use lightcraft_raw::Rect;
+    use lightcraft_raw::lens_metadata::{SonyCopy, SonyLensStatus, SonySettingMeaning as M, SonySource};
+    let root = corpus_root().join("raw");
+    // ILCE-7CR (Sigma 24-70mm F2.8 DG DN Art at 49.5 mm): one scene in three codings, identical tables
+    let a7cr_shading = [0, 64, 128, 224, 320, 480, 672, 896, 1184, 1472, 1824, 2240, 2816, 3552, 4512, 7328];
+    let a7cr_ca = [
+        [-256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -256, -128],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -128, -128, -256, -256],
+    ];
+    let a7cr_distortion = [4, 1, 1, 3, 7, 13, 22, 35, 51, 72, 98, 132, 173, 223, 279, 348];
+    // ILCE-7RM4A (FE 24-105mm F4 G OSS at 24 mm)
+    let a7rm4a_shading = [0, 32, 112, 256, 448, 688, 976, 1296, 1712, 2336, 3120, 4080, 5104, 6112, 7024, 7904];
+    let a7rm4a_ca = [
+        [1408, 1280, 1152, 1024, 1024, 1024, 1024, 1024, 896, 896, 896, 768, 768, 640, 512, 384],
+        [512, 512, 384, 384, 384, 384, 384, 512, 512, 512, 512, 640, 640, 640, 768, 640],
+    ];
+    let a7rm4a_distortion = [14, 0, -29, -65, -113, -171, -239, -311, -392, -471, -555, -634, -713, -782, -843, -891];
+    let a7cr_crop = Rect::new(32, 20, 9504, 6336);
+    // (file, settings, tables, distortion status, storage, compression, linear YCbCr, Sony crop, default crop)
+    let cases = [
+        (
+            "arw-sony-a7cr-compressed.arw",
+            [272, 1, 0],
+            (a7cr_shading, a7cr_ca, a7cr_distortion),
+            SonyLensStatus::NotValidatedModel,
+            (9600, 6376),
+            32767,
+            false,
+            a7cr_crop,
+            a7cr_crop,
+        ),
+        (
+            "arw-sony-a7cr-lossless-l.arw",
+            [272, 1, 0],
+            (a7cr_shading, a7cr_ca, a7cr_distortion),
+            SonyLensStatus::NotValidatedModel,
+            (9728, 6656),
+            7,
+            false,
+            a7cr_crop,
+            a7cr_crop,
+        ),
+        (
+            "arw-sony-a7cr-lossless-m.arw",
+            [272, 1, 0],
+            (a7cr_shading, a7cr_ca, a7cr_distortion),
+            SonyLensStatus::NotValidatedModel,
+            (6656, 4608),
+            7,
+            true,
+            Rect::new(20, 12, 6240, 4160),
+            Rect::new(20, 12, 6240, 4160),
+        ),
+        (
+            "arw-sony-a7rm4a-compressed.arw",
+            [257, 1, 17],
+            (a7rm4a_shading, a7rm4a_ca, a7rm4a_distortion),
+            SonyLensStatus::Applied,
+            (9600, 6376),
+            32767,
+            false,
+            Rect::new(0, 20, 9504, 6336),
+            Rect::new(32, 20, 9504, 6336),
+        ),
+    ];
+    let mut checked = 0;
+    for (name, settings, (shading, ca, distortion), status, (w, h), compression, linear, sony_crop, default_crop) in cases {
+        let Some(bytes) = pinned_sony(&root, name) else { continue };
+        let full = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(probe_info(&bytes).unwrap(), full.info(), "{name}");
+        let s = full.lens_metadata.sony.as_ref().unwrap_or_else(|| panic!("{name}: no Sony lens record"));
+        assert!(s.sr2_read, "{name}");
+        let got = [s.shading.setting.value, s.chromatic_aberration.setting.value, s.distortion.setting.value].map(|v| v.map(|v| v.value));
+        assert_eq!(got, settings.map(Some), "{name}: settings");
+        let meanings = [s.shading.setting.value, s.chromatic_aberration.setting.value, s.distortion.setting.value].map(|v| v.map(|v| v.meaning));
+        let forced = if settings[2] == 17 { M::ForcedAuto } else { M::Off };
+        assert_eq!(meanings, [Some(M::Auto), Some(M::Auto), Some(forced)], "{name}: setting meanings");
+        assert_eq!(
+            (s.shading.table.value, s.chromatic_aberration.table.value, s.distortion.table.value),
+            (Some(shading), Some(ca), Some(distortion)),
+            "{name}"
+        );
+        for (source, raw, sr2, agree) in [
+            (s.shading.table.source, s.shading.table.raw_ifd, s.shading.table.sr2, s.shading.table.copies_agree),
+            (
+                s.chromatic_aberration.table.source,
+                s.chromatic_aberration.table.raw_ifd,
+                s.chromatic_aberration.table.sr2,
+                s.chromatic_aberration.table.copies_agree,
+            ),
+            (s.distortion.table.source, s.distortion.table.raw_ifd, s.distortion.table.sr2, s.distortion.table.copies_agree),
+            (s.shading.setting.source, s.shading.setting.raw_ifd, s.shading.setting.sr2, s.shading.setting.copies_agree),
+            (
+                s.chromatic_aberration.setting.source,
+                s.chromatic_aberration.setting.raw_ifd,
+                s.chromatic_aberration.setting.sr2,
+                s.chromatic_aberration.setting.copies_agree,
+            ),
+            (s.distortion.setting.source, s.distortion.setting.raw_ifd, s.distortion.setting.sr2, s.distortion.setting.copies_agree),
+        ] {
+            assert_eq!((source, raw, sr2, agree), (Some(SonySource::RawIfd), SonyCopy::Valid, SonyCopy::Valid, Some(true)), "{name}: provenance");
+        }
+        assert_eq!(
+            (s.shading.status, s.chromatic_aberration.status, s.distortion.status),
+            (SonyLensStatus::NotValidatedComponent, SonyLensStatus::NotValidatedComponent, status),
+            "{name}"
+        );
+        assert_eq!(full.opcodes.list3.len(), usize::from(status == SonyLensStatus::Applied), "{name}: only applied components are opcodes");
+        let g = &s.geometry;
+        assert_eq!((g.storage_width, g.storage_height, g.compression, g.linear_ycbcr), (w, h, compression, linear), "{name}");
+        assert_eq!(
+            (g.sony_crop, g.default_crop, g.image_crop, g.reference),
+            (Some(sony_crop), Some(default_crop), sony_crop, default_crop),
+            "{name}"
+        );
+        assert!(g.native_3_2, "{name}");
+        eprintln!("{name}: shading, CA and distortion decoded; distortion {status:?}");
+        checked += 1;
+    }
+    // every Sony corpus file: only the ILCE-7RM4A's distortion is ever applied, and an applied status is an opcode
+    for (name, _) in SONY_SAMPLES {
+        let Some(bytes) = pinned_sony(&root, name) else { continue };
+        let info = probe_info(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let Some(s) = &info.lens_metadata.sony else { continue };
+        let applied = s.distortion.status == SonyLensStatus::Applied;
+        assert_eq!(applied, info.metadata.model.as_deref() == Some("ILCE-7RM4A"), "{name}");
+        assert_eq!(info.opcodes.list3.len(), usize::from(applied), "{name}");
+        assert!(![s.shading.status, s.chromatic_aberration.status].contains(&SonyLensStatus::Applied), "{name}");
+        checked += 1;
+    }
+    eprintln!("Sony lens records: {checked} checks on corpus files");
+}
+
 /// Kodak DCS520C (`crates/raw/src/vendor/kodak.rs`): the two-component lossless JPEG strip decodes through the
 /// file's response curve to a 1736 x 1160 GRBG mosaic with 12-bit white, per-position black levels and the
 /// white balance of the vendor IFD. Looks for the corpus copy, then the raw.pixls.us folder; skips without either.

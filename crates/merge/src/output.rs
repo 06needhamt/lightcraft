@@ -113,6 +113,7 @@ pub fn write_linear_dng(
         linearized: false,
         opcodes: OpcodeLists { list3: lens.to_vec(), ..Default::default() },
         metadata: meta,
+        lens_metadata: Default::default(),
     };
     let compression = DngCompression::Deflate { tile: 256, half: samples == DngSamples::Half };
     lightcraft_raw::write_dng(&raw, &DngWriteOptions { compression, ..Default::default() }).map_err(|e| MergeError::Output(e.to_string()))

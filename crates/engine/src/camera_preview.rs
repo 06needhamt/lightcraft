@@ -1659,6 +1659,7 @@ mod tests {
             linearized: true,
             opcodes: OpcodeLists::default(),
             metadata: lightcraft_meta::Metadata::default(),
+            lens_metadata: Default::default(),
         };
         let proxy = sensor_proxy(&raw, 2, 384).unwrap();
         assert_eq!((proxy.width, proxy.height), (32, 32));
@@ -2002,6 +2003,7 @@ mod tests {
             linearized: false,
             opcodes: Default::default(),
             metadata: lightcraft_raw::Metadata { make: Some(make.to_owned()), model: Some(model.to_owned()), ..Default::default() },
+            lens_metadata: Default::default(),
         }
     }
 
@@ -3128,6 +3130,7 @@ mod tests {
             linearized: true,
             opcodes: OpcodeLists::default(),
             metadata: lightcraft_meta::Metadata { make: Some("SONY".into()), model: Some("ILCE-7M4".into()), ..Default::default() },
+            lens_metadata: Default::default(),
         };
         assert!(crate::camera_profiles::get("ILCE-7M4").is_some());
         // the camera's rendering: a bright curve on the scene's luminance, as a grey (or tinted) 8-bit sRGB JPEG

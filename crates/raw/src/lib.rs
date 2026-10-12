@@ -35,6 +35,7 @@ pub mod highlight;
 #[cfg(feature = "jxl")]
 mod jxl;
 pub mod kelvin_presets;
+pub mod lens_metadata;
 pub mod ljpeg;
 pub(crate) mod llvc;
 pub mod opcodes;
@@ -50,6 +51,7 @@ mod vendor;
 
 pub use demosaic::{Method, demosaic};
 pub use dngwrite::{DngCompression, DngWriteOptions, write_dng, write_rendered_dng};
+pub use lens_metadata::LensMetadata;
 pub use lightcraft_color::Mat3;
 pub use lightcraft_geom::Orientation;
 pub use lightcraft_meta::Metadata;
@@ -415,6 +417,9 @@ pub struct RawInfo {
     pub wb_multipliers: Option<[f32; 3]>,
     pub opcodes: OpcodeLists,
     pub metadata: Metadata,
+    /// Lens-correction tables the file records, decoded but not necessarily applied (see [`crate::lens_metadata`]).
+    #[serde(default)]
+    pub lens_metadata: LensMetadata,
 }
 
 impl RawInfo {
@@ -648,6 +653,10 @@ pub struct RawImage {
     pub linearized: bool,
     pub opcodes: OpcodeLists,
     pub metadata: Metadata,
+    /// Lens-correction tables the file records, decoded but not necessarily applied (see [`crate::lens_metadata`]); only
+    /// validated components are in `opcodes`.
+    #[serde(default)]
+    pub lens_metadata: LensMetadata,
 }
 
 /// Black-subtracted, white-normalised data covering the active area.
@@ -679,6 +688,7 @@ impl RawImage {
             wb_multipliers: self.wb_multipliers,
             opcodes: self.opcodes.clone(),
             metadata: self.metadata.clone(),
+            lens_metadata: self.lens_metadata.clone(),
         }
     }
 
@@ -698,6 +708,7 @@ impl RawImage {
             wb_multipliers: self.wb_multipliers,
             opcodes: self.opcodes,
             metadata: self.metadata,
+            lens_metadata: self.lens_metadata,
         }
     }
 
@@ -862,6 +873,7 @@ mod tests {
             linearized: false,
             opcodes: OpcodeLists::default(),
             metadata: Metadata::default(),
+            lens_metadata: Default::default(),
         };
         let direct = raw.develop(Method::Bilinear).unwrap();
         let by_hand = raw.finish_demosaiced(demosaic(&raw.normalized().unwrap(), Method::Bilinear));
