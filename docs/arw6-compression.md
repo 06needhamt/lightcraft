@@ -171,4 +171,13 @@ Raw decode only, 4 CPUs, release build, best of 3 wall-clock (2026-10-10). Metho
 | ILCE-7RM6 APS-C, Compressed (HQ) | 29.7 MB | 6592x4372 | 0.35 s |
 | ILCE-7RM6 APS-C, Compressed | 30.9 MB | 6592x4372 | 0.34 s |
 
-The 1.0 s budget for the full-frame file is met. Parallelised: rayon over the tiles, over the 13 streams of each tile and over its 3 components.
+The 1.0 s budget for the full-frame file is met. Parallelised: rayon over the tiles, over the 13 streams of each tile and over its 3 components, and the colour reconstruction over rows.
+
+2026-10-12 performance pass (output unchanged, bit for bit): the vertical wavelet pass lifts whole rows instead of gathering each column, `0^n 1` codes are counted with one `leading_zeros`, and the colour reconstruction reads rows as slices, in parallel. Same method, best of 5, the previous and the new decoder run alternately on the same machine (4 CPUs, which was busier than on 2026-10-10), best of two rounds:
+
+| File | Before | After |
+|---|---|---|
+| ILCE-7RM6 FF, Compressed (HQ) | 0.56 s | 0.46 s |
+| ILCE-7RM6 FF, Compressed | 0.54 s | 0.38 s |
+| ILCE-7RM6 APS-C, Compressed (HQ) | 0.34 s | 0.23 s |
+| ILCE-7RM6 APS-C, Compressed | 0.35 s | 0.24 s |

@@ -14,6 +14,7 @@ fn corrupt(why: &str) -> RawError {
 }
 
 /// One bit, failing when the reader has run past the `source_bits` of its half.
+#[inline(always)]
 fn bit(bits: &mut Bits<'_>, source_bits: usize) -> Result<u32> {
     let b = bits.get(1);
     if bits.consumed_bits() > source_bits {
@@ -24,12 +25,14 @@ fn bit(bits: &mut Bits<'_>, source_bits: usize) -> Result<u32> {
 
 /// Count zero bits up to and including the terminating 1 (the `0^n 1` codes), bounded by `MAX_DPT`.
 fn zeros_then_one(bits: &mut Bits<'_>, source_bits: usize) -> Result<u32> {
-    let mut n = 0;
-    while bit(bits, source_bits)? == 0 {
-        n += 1;
-        if n > MAX_DPT {
-            return Err(corrupt("DPT code exceeds MAX_DPT"));
-        }
+    // the next MAX_DPT + 1 bits at once (more zeros than that is corrupt either way)
+    let n = bits.peek(MAX_DPT + 1).leading_zeros() - (32 - (MAX_DPT + 1));
+    bits.skip((n + 1).min(MAX_DPT + 1));
+    if bits.consumed_bits() > source_bits {
+        return Err(corrupt("past the end of its half"));
+    }
+    if n > MAX_DPT {
+        return Err(corrupt("DPT code exceeds MAX_DPT"));
     }
     Ok(n)
 }
@@ -42,7 +45,7 @@ pub(crate) fn vld_decode_line(bits: &mut Bits<'_>, source_bits: usize, width: us
     let sets = width.div_ceil(4);
     let (mut abs, mut dpt, mut cnt, mut dpts) = ([0u32; 4], 0u32, sets, 0u8);
     let (mut abs_v, mut abs_e, mut dpt_v, mut dpt_e, mut zr) = (false, false, true, false, 0u64);
-    let mut out: Vec<i32> = Vec::new();
+    let mut out: Vec<i32> = Vec::with_capacity(sets * 4);
     loop {
         // DPT value decoding (Figure 6.6).
         if cnt == 0 {
@@ -180,43 +183,56 @@ pub(crate) fn band_rows(n: usize, phase: u8) -> (usize, usize) {
     (low, n - low)
 }
 
-/// `v[i]` with `i` clamped into range (the whole-sample symmetric extension of the band); 0 for an empty band.
-fn at(v: &[i32], i: isize) -> i32 {
-    let last = v.len() as isize - 1;
-    if last < 0 {
-        return 0;
-    }
-    v.get(i.clamp(0, last) as usize).copied().unwrap_or(0)
-}
-
 /// Saturating narrowing: hostile coefficients clamp instead of overflowing.
 fn sat(v: i64) -> i32 {
     v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
-/// 1-D inverse 5/3 lifting, RDD 34 §6.5, with X[-1] := X[1], X[n] := X[n-2] (see `band_rows` for the sizes).
-fn inverse_1d(l: &[i32], h: &[i32], phase: u8) -> Result<Vec<i32>> {
-    let (n, p) = (l.len() + h.len(), isize::from(phase));
-    if band_rows(n, phase) != (l.len(), h.len()) || phase > 1 {
-        return Err(RawError::Corrupt("ARW6 wavelet: band sizes do not match".into()));
+/// Sample `i` (`w` values wide) of a band of `n` samples, clamped into range (the whole-sample symmetric extension);
+/// `zeros` for an empty band.
+#[inline]
+fn band_sample<'a>(v: &'a [i32], w: usize, n: usize, i: isize, zeros: &'a [i32]) -> &'a [i32] {
+    if n == 0 {
+        return zeros;
     }
-    let even: Vec<i32> = l
-        .iter()
-        .enumerate()
-        .map(|(j, &lv)| sat(i64::from(lv) - ((i64::from(at(h, j as isize - 1 + p)) + i64::from(at(h, j as isize + p)) + 2) >> 2)))
-        .collect();
-    let mut x = vec![0; n];
-    let (lo, hi) = (usize::from(phase), 1 - usize::from(phase));
-    for (xv, &e) in x.iter_mut().skip(lo).step_by(2).zip(&even) {
-        *xv = e;
-    }
-    for (k, (xv, &hv)) in x.iter_mut().skip(hi).step_by(2).zip(h).enumerate() {
-        *xv = sat(i64::from(hv) + ((i64::from(at(&even, k as isize - p)) + i64::from(at(&even, k as isize + 1 - p))) >> 1));
-    }
-    Ok(x)
+    let i = i.clamp(0, n as isize - 1) as usize;
+    v.get(i * w..(i + 1) * w).unwrap_or(zeros)
 }
 
-/// Gathers the lines of the `low`/`high` pair along one axis (columns when `vertical`), transforms them, and scatters back.
+/// Inverse 5/3 lifting, RDD 34 §6.5, with X[-1] := X[1], X[n] := X[n-2] (see `band_rows` for the sizes), of a
+/// signal whose samples are `w` values wide: `w = 1` for one line, a band's width for all its columns at once (row
+/// by row, as each column alone would give).
+fn inverse_lift(l: &[i32], h: &[i32], w: usize, phase: u8) -> Result<Vec<i32>> {
+    let w = w.max(1);
+    let (nl, nh) = (l.len() / w, h.len() / w);
+    let (n, p) = (nl + nh, isize::from(phase));
+    if band_rows(n, phase) != (nl, nh) || phase > 1 {
+        return Err(RawError::Corrupt("ARW6 wavelet: band sizes do not match".into()));
+    }
+    let zeros = vec![0; w];
+    let mut even = vec![0; nl * w];
+    for (j, (e, lv)) in even.chunks_exact_mut(w).zip(l.chunks_exact(w)).enumerate() {
+        let (a, b) = (band_sample(h, w, nh, j as isize - 1 + p, &zeros), band_sample(h, w, nh, j as isize + p, &zeros));
+        for (((e, &lv), &a), &b) in e.iter_mut().zip(lv).zip(a).zip(b) {
+            *e = sat(i64::from(lv) - ((i64::from(a) + i64::from(b) + 2) >> 2));
+        }
+    }
+    let mut out = vec![0; n * w];
+    let (lo, hi) = (usize::from(phase), 1 - usize::from(phase));
+    for (o, e) in out.chunks_exact_mut(w).skip(lo).step_by(2).zip(even.chunks_exact(w)) {
+        o.copy_from_slice(e);
+    }
+    for (k, (o, hv)) in out.chunks_exact_mut(w).skip(hi).step_by(2).zip(h.chunks_exact(w)).enumerate() {
+        let (a, b) = (band_sample(&even, w, nl, k as isize - p, &zeros), band_sample(&even, w, nl, k as isize + 1 - p, &zeros));
+        for (((o, &hv), &a), &b) in o.iter_mut().zip(hv).zip(a).zip(b) {
+            *o = sat(i64::from(hv) + ((i64::from(a) + i64::from(b)) >> 1));
+        }
+    }
+    Ok(out)
+}
+
+/// Inverse transform of the `low`/`high` pair along one axis: down the columns when `vertical` (all at once, row by
+/// row), else along each row.
 fn lines(low: &Plane, high: &Plane, phase: u8, vertical: bool) -> Result<Plane> {
     if !low.ok() || !high.ok() {
         return Err(RawError::Corrupt("ARW6 wavelet: plane size mismatch".into()));
@@ -228,17 +244,16 @@ fn lines(low: &Plane, high: &Plane, phase: u8, vertical: bool) -> Result<Plane> 
     let (nl, nh) = if vertical { (low.height, high.height) } else { (low.width, high.width) };
     let n = nl + nh;
     let (w, h) = if vertical { (across_l, n) } else { (n, across_l) };
+    if across_l == 0 {
+        return Ok(Plane::zeros(w, h));
+    }
+    if vertical {
+        return Ok(Plane { width: w, height: h, data: inverse_lift(&low.data, &high.data, w, phase)? });
+    }
     let mut out = Plane::zeros(w, h);
-    let get = |p: &Plane, i: usize| -> Vec<i32> {
-        if vertical { p.data.iter().skip(i).step_by(p.width.max(1)).copied().collect() } else { p.row(i).map(<[i32]>::to_vec).unwrap_or_default() }
-    };
     for i in 0..across_l {
-        let x = inverse_1d(&get(low, i), &get(high, i), phase)?;
-        if vertical {
-            for (o, v) in out.data.iter_mut().skip(i).step_by(w.max(1)).zip(x) {
-                *o = v;
-            }
-        } else if let Some(r) = out.data.get_mut(i * w..(i + 1) * w) {
+        let x = inverse_lift(low.row(i).unwrap_or_default(), high.row(i).unwrap_or_default(), 1, phase)?;
+        if let Some(r) = out.data.get_mut(i * w..(i + 1) * w) {
             r.copy_from_slice(&x);
         }
     }
