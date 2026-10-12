@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-12
+
+### Pentax raws without black borders
+- Raws from the Pentax KP, KF, K-3 Mark III (and Monochrome), K-70, K-1, K-1 Mark II, K-S1, K-S2 and 645Z no longer
+  show a black (or, on the 645Z, white) band along one or more edges (issue #1271). The sensor's masked border is
+  left out, so these photos come out a little smaller, closer to the camera's own JPEG. Crops and masks on photos
+  edited earlier may shift by a few pixels.
+
 ## 2026-10-11
 
 ### JPEG XL export
