@@ -6,11 +6,13 @@ use egui::{Align2, Color32, Pos2, Rect, RichText, Sense, Stroke, pos2, vec2};
 use lightcraft_catalog::PhotoId;
 use lightcraft_develop::{ControlSpec, DevelopSettings, Section, Track, WbMode, controls};
 use lightcraft_geom::Point;
+use lightcraft_raster::Histogram;
 use serde_json::{Value, json};
 
 use crate::LightcraftApp;
 use crate::icons::{Icon, paint};
 use crate::render::Slot;
+use crate::state::RightPanel;
 use crate::theme::Tokens;
 use crate::widgets::{BAND_COLORS, SliderOut, divider, flyout_row, hex, register, section_header, slider, text_button};
 
@@ -521,17 +523,44 @@ fn section(
 
 // ------------------------------------------------------------------------------ histogram
 
+/// An HDR edit's histogram stays an HDR histogram: some renders carry only their 8-bit image's
+/// (a drag's drafts, a cached thumbnail or stand-in), and showing those would swap the panel to
+/// the SDR layout and back while a slider moves. Every render with HDR bins replaces the one kept for the photo, so
+/// the histogram still follows the edit live; an SDR edit shows what it gets.
+fn steady_hdr_histogram(ctx: &egui::Context, id: PhotoId, hdr_edit: bool, hist: Option<Histogram>) -> Option<Histogram> {
+    let key = egui::Id::new(("hdrHistogram", id));
+    match hist {
+        Some(h) if h.hdr.is_some() => {
+            ctx.data_mut(|d| d.insert_temp(key, h.clone()));
+            Some(h)
+        }
+        h if hdr_edit => ctx.data(|d| d.get_temp::<Histogram>(key)).or(h),
+        h => h,
+    }
+}
+
 fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     let t = Tokens::get(ui.ctx());
     let w = ui.available_width();
-    // the loupe render of this photo, else its thumbnail (grid view before the loupe has rendered it)
-    let hist = app
-        .renderer
-        .textures
-        .get(&Slot::Main)
-        .filter(|t| t.photo == id)
-        .and_then(|t| t.histogram.clone())
+    let hdr_edit = app.session.develop_of(id).is_some_and(|d| d.hdr.enabled);
+    // a drag of an HDR edit: its drafts have no HDR histogram, so a small render beside them
+    // gives one (at its own pace: the drafts don't wait for it)
+    let interacting = app.session.interaction.is_some();
+    if interacting && hdr_edit {
+        let edge = lightcraft_pipeline::HDR_HISTOGRAM_DRAG_EDGE;
+        if let Some(job) = app.session.render_job(id, edge, edge, false, app.ui.right != RightPanel::Crop)
+            && app.renderer.live_hdr_histogram.as_ref().is_none_or(|l| l.1 != job.key)
+        {
+            app.renderer.request(Slot::HdrHistogram, job, 95);
+        }
+    }
+    let live = app.renderer.live_hdr_histogram.as_ref().filter(|l| interacting && l.0 == id).map(|l| l.2.clone());
+    // else the loupe render of this photo, else its thumbnail (grid view before the loupe has
+    // rendered it)
+    let hist = live
+        .or_else(|| app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id).and_then(|t| t.histogram.clone()))
         .or_else(|| app.renderer.textures.get(&Slot::Thumb(id)).and_then(|t| t.histogram.clone()));
+    let hist = steady_hdr_histogram(ui.ctx(), id, hdr_edit, hist);
     // an HDR edit's histogram (`pipeline::hdr_histogram`) gets a colour bar and an SDR / HDR label
     // row under the plot
     let hdr = hist.as_ref().and_then(|h| h.hdr);
@@ -1434,4 +1463,30 @@ fn quick_develop(app: &mut LightcraftApp, ui: &mut egui::Ui, n: usize) {
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_hdr_edit_keeps_its_hdr_histogram_through_8_bit_renders() {
+        let ctx = egui::Context::default();
+        let id = PhotoId(7);
+        let sdr = Histogram::of_hdr(&[], 5.0);
+        let sdr = Histogram { hdr: None, ..sdr };
+        let hdr = |v: f32| Histogram::of_hdr(&[[v, v, v]], 5.0);
+        // nothing kept yet: what arrives
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, Some(sdr.clone())), Some(sdr.clone()));
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, Some(hdr(2.0))), Some(hdr(2.0)));
+        // a cached thumbnail's 8-bit histogram (or none) doesn't swap the panel to SDR
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, Some(sdr.clone())), Some(hdr(2.0)));
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, None), Some(hdr(2.0)));
+        // the next HDR render replaces it: the histogram follows the slider
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, Some(hdr(4.0))), Some(hdr(4.0)));
+        assert_eq!(steady_hdr_histogram(&ctx, id, true, Some(sdr.clone())), Some(hdr(4.0)));
+        // HDR turned off: the SDR histogram at once; other photos keep their own
+        assert_eq!(steady_hdr_histogram(&ctx, id, false, Some(sdr.clone())), Some(sdr.clone()));
+        assert_eq!(steady_hdr_histogram(&ctx, PhotoId(8), true, Some(sdr.clone())), Some(sdr));
+    }
 }

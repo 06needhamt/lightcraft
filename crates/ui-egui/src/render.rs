@@ -55,6 +55,9 @@ pub enum Slot {
     Import(u32),
     /// The second window's view of the active photo.
     Second,
+    /// A slider drag's live HDR histogram: a small full-quality render of an HDR edit, beside the
+    /// drafts (which have no HDR histogram), with no texture ([`Renderer::live_hdr_histogram`]).
+    HdrHistogram,
 }
 
 pub struct Tex {
@@ -187,6 +190,8 @@ pub struct Renderer {
     /// Slot → (key, priority) of the request in flight (queued or running).
     pending: HashMap<Slot, (u64, u32)>,
     pub textures: HashMap<Slot, Tex>,
+    /// The last [`Slot::HdrHistogram`] result: (photo, job key, histogram).
+    pub live_hdr_histogram: Option<(PhotoId, u64, Histogram)>,
     pub last_main_ms: f64,
     /// Jobs finished since start (for inspect/perf).
     pub completed: u64,
@@ -231,7 +236,7 @@ impl Slot {
     /// An interactive view of the open photo: slider drags redo only the stages they feed, and a
     /// draft that finishes late still replaces older pixels.
     pub fn is_view(self) -> bool {
-        matches!(self, Slot::Main | Slot::Region | Slot::RegionBefore | Slot::Before | Slot::Hover)
+        matches!(self, Slot::Main | Slot::Region | Slot::RegionBefore | Slot::Before | Slot::Hover | Slot::HdrHistogram)
     }
 }
 
@@ -262,6 +267,7 @@ impl Renderer {
             seq: 0,
             pending: HashMap::new(),
             textures: HashMap::new(),
+            live_hdr_histogram: None,
             last_main_ms: 0.0,
             completed: 0,
             keep_pixels: false,
@@ -706,6 +712,13 @@ impl Renderer {
                 }
             };
             if matches!(slot, Slot::Prefetch(_)) {
+                continue;
+            }
+            if slot == Slot::HdrHistogram {
+                if rendered.histogram.hdr.is_some() {
+                    self.live_hdr_histogram = Some((r.photo, r.key, rendered.histogram));
+                    changed = true;
+                }
                 continue;
             }
             if let Slot::ThumbQuick(id) = slot {
@@ -1159,6 +1172,33 @@ mod thumbnail_tests {
         finish(&mut app, &work, &ctx, Slot::Main, second.run());
         assert_eq!(app.renderer.textures.get(&Slot::Main).map(|t| t.key), Some(keys[2]));
         assert!(!app.renderer.is_pending(Slot::Main));
+    }
+
+    #[test]
+    fn a_drag_gets_its_live_hdr_histogram_beside_the_drafts() {
+        let (mut app, work, ctx) = fixture();
+        let mut jobs = Vec::new();
+        for exposure in [1.0, 2.0] {
+            let mut edit = lightcraft_develop::DevelopSettings::default();
+            edit.hdr.enabled = true;
+            edit.light.exposure = exposure;
+            app.session.catalog.apply(Op::SetDevelop { id: PhotoId(1), settings: Arc::new(edit), label: "drag".into(), edited: None }).unwrap();
+            let job = app.session.render_job(PhotoId(1), 32, 32, false, true).unwrap();
+            app.renderer.request(Slot::HdrHistogram, job, 95);
+            jobs.push(take_job(&work).1);
+        }
+        let keys: Vec<u64> = jobs.iter().map(|j| j.key).collect();
+        let mut jobs = jobs.into_iter();
+        let (first, last) = (jobs.next().unwrap(), jobs.next().unwrap());
+        // superseded while the drag goes on, it still lands: the histogram keeps moving
+        finish(&mut app, &work, &ctx, Slot::HdrHistogram, first.run());
+        let live = app.renderer.live_hdr_histogram.clone().expect("a live HDR histogram");
+        assert_eq!((live.0, live.1), (PhotoId(1), keys[0]));
+        assert!(live.2.hdr.is_some(), "HDR bins");
+        finish(&mut app, &work, &ctx, Slot::HdrHistogram, last.run());
+        assert_eq!(app.renderer.live_hdr_histogram.as_ref().map(|l| l.1), Some(keys[1]));
+        // only the histogram is kept: no texture
+        assert!(!app.renderer.textures.contains_key(&Slot::HdrHistogram));
     }
 
     #[test]
