@@ -1513,6 +1513,9 @@ pub struct Caches {
     keyword_names: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
     /// The Keywording box's chips, by library revision and selection.
     keyword_chips: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
+    /// The Keywording box's chips grouped by the keyword they are inside, by library revision and
+    /// selection.
+    keyword_groups: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Group>>)>,
     /// The Keyword List's tick boxes, by library revision and selection.
     keyword_ticks: Option<(u64, u64, std::sync::Arc<panels::keyword_list::Ticks>)>,
     folder_tree: Option<(u64, std::sync::Arc<Vec<lightcraft_catalog::FolderNode>>)>,
@@ -1650,6 +1653,23 @@ impl Caches {
                 let c = std::sync::Arc::new(panels::keywording::chips(cat, selection));
                 self.keyword_chips = Some((cat.revision, key, c.clone()));
                 c
+            }
+        }
+    }
+    /// The selection's keywords grouped by the keyword they are inside (the grouped Keywording box).
+    pub(crate) fn keyword_groups(
+        &mut self,
+        cat: &lightcraft_catalog::Catalog,
+        selection: &[lightcraft_catalog::PhotoId],
+    ) -> std::sync::Arc<Vec<panels::keywording::Group>> {
+        let key = key_of(selection);
+        match &self.keyword_groups {
+            Some((r, k, g)) if *r == cat.revision && *k == key => g.clone(),
+            _ => {
+                let chips = self.keyword_chips(cat, selection);
+                let g = std::sync::Arc::new(panels::keywording::grouped(&chips));
+                self.keyword_groups = Some((cat.revision, key, g.clone()));
+                g
             }
         }
     }

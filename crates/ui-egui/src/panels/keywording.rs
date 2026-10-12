@@ -40,7 +40,7 @@ pub fn names_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let prefix = if export { "keywordExport" } else { "keywordContaining" };
     ui.horizontal_wrapped(|ui| {
         for n in names.iter() {
-            let (body, _) = chip(ui, &n.path, !n.on_all(), false);
+            let (body, _) = chip(ui, &n.path, &n.path, !n.on_all(), false, ui.max_rect().width());
             register(ui.ctx(), format!("{prefix}:{}", n.path), body.rect);
             if n.on_all() {
                 body.on_hover_text(&n.path);
@@ -52,21 +52,33 @@ pub fn names_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     });
 }
 
-/// One chip, measured before it is placed so that a wrapping row moves it whole to the next line:
-/// the name (cut short to fit the row) and, with `cross`, a × at its end. A `partial` one (only
-/// some of the selected photos) is dimmed and marked with an asterisk. Returns the name's response
-/// and the ×'s.
-fn chip(ui: &mut egui::Ui, path: &str, partial: bool, cross: bool) -> (egui::Response, Option<egui::Response>) {
+/// Chips on a line of the grouped box are this far apart.
+const GAP: f32 = 6.0;
+/// The room a chip's × takes at its end.
+const CROSS_W: f32 = 18.0;
+
+/// What a chip shows of `name` in a row `row_w` wide (cut short to fit it), and the chip's width.
+fn chip_size(ui: &egui::Ui, name: &str, partial: bool, cross: bool, row_w: f32) -> (String, f32) {
+    let font = Tokens::get(ui.ctx()).font(13.0);
+    let cross_w = if cross { CROSS_W } else { 0.0 };
+    let room = (row_w - 16.0 - cross_w).max(24.0);
+    let measure = |s: &str| ui.painter().layout_no_wrap(s.to_string(), font.clone(), egui::Color32::WHITE).size().x;
+    let shown = chip_label(name, partial, room, measure);
+    let w = measure(&shown) + 16.0 + cross_w;
+    (shown, w)
+}
+
+/// One chip of the keyword `path`, measured before it is placed so that a wrapping row moves it
+/// whole to the next line: `name` (the path, or what the grouped box shows of it; cut short to fit
+/// a row `row_w` wide) and, with `cross`, a × at its end. A `partial` one (only some of the
+/// selected photos) is dimmed and marked with an asterisk. Returns the name's response and the ×'s.
+fn chip(ui: &mut egui::Ui, path: &str, name: &str, partial: bool, cross: bool, row_w: f32) -> (egui::Response, Option<egui::Response>) {
     use egui::{Align2, Rect, Sense, pos2, vec2};
     let t = Tokens::get(ui.ctx());
     let font = t.font(13.0);
     let color = if partial { t.text_dim } else { t.text_label };
-    let cross_w = if cross { 18.0 } else { 0.0 };
-    // at most the row's width
-    let room = (ui.max_rect().width() - 16.0 - cross_w).max(24.0);
-    let measure = |s: &str| ui.painter().layout_no_wrap(s.to_string(), font.clone(), color).size().x;
-    let shown = chip_label(path, partial, room, measure);
-    let w = measure(&shown) + 16.0 + cross_w;
+    let cross_w = if cross { CROSS_W } else { 0.0 };
+    let (shown, w) = chip_size(ui, name, partial, cross, row_w);
     // the row places it; its name and × answer under ids of their own keyword, so an open menu
     // stays with its keyword when the chips change
     let (rect, _) = ui.allocate_exact_size(vec2(w, 22.0), Sense::hover());
@@ -118,33 +130,139 @@ fn menu(app: &mut LightcraftApp, ui: &mut egui::Ui, chip: &Chip) {
 }
 
 /// The selection's keywords as chips: the name (right-click for its menu), and × to take it off
-/// every selected photo. One only some of them have is marked with an asterisk.
+/// every selected photo. One only some of them have is marked with an asterisk. Whole names, or
+/// grouped by the keyword they are inside (Settings ▸ Interface).
 pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let selection = app.session.targets(&serde_json::Value::Null);
     let chips = app.caches.keyword_chips(&app.session.catalog, &selection);
+    if chips.is_empty() {
+        let t = Tokens::get(ui.ctx());
+        let r = ui.label(egui::RichText::new(crate::i18n::tr("No keywords yet")).color(t.text_dim));
+        register(ui.ctx(), "keywordChipsEmpty", r.rect);
+        return;
+    }
+    if app.ui.settings.keyword_chips == crate::state::KeywordChips::Grouped {
+        let groups = app.caches.keyword_groups(&app.session.catalog, &selection);
+        chip_groups(app, ui, &groups);
+        return;
+    }
     ui.horizontal_wrapped(|ui| {
         for c in chips.iter() {
-            let (body, x) = chip(ui, &c.path, !c.on_all(), true);
-            register(ui.ctx(), format!("keywordChip:{}", c.path), body.rect);
-            if let Some(x) = x {
-                register(ui.ctx(), format!("keywordChipRemove:{}", c.path), x.rect);
-                if x.on_hover_text(crate::i18n::tr("Remove from Selected Photos")).clicked() {
-                    let _ = app.run("photo.setMeta", json!({"removeKeywords": [c.path]}));
-                }
-            }
-            // one tooltip: the whole name (it may be cut short), and how many have it
-            let full = c.path.replace('|', " › ");
-            let body = if c.on_all() {
-                body.on_hover_text(full)
-            } else {
-                register(ui.ctx(), format!("keywordChipPartial:{}", c.path), body.rect);
-                let n = crate::i18n::tr_format!("On {have} of {of} selected photos", have = c.have, of = c.of);
-                body.on_hover_text(format!("{full}\n{n}"))
-            };
-            let c = c.clone();
-            body.context_menu(|ui| menu(app, ui, &c));
+            let (body, x) = chip(ui, &c.path, &c.path, !c.on_all(), true, ui.max_rect().width());
+            chip_acts(app, ui, c, body, x);
         }
     });
+}
+
+/// A drawn chip does its work: its × takes the keyword off the selected photos, its name has the
+/// tooltip and the menu.
+fn chip_acts(app: &mut LightcraftApp, ui: &egui::Ui, c: &Chip, body: egui::Response, x: Option<egui::Response>) {
+    register(ui.ctx(), format!("keywordChip:{}", c.path), body.rect);
+    if let Some(x) = x {
+        register(ui.ctx(), format!("keywordChipRemove:{}", c.path), x.rect);
+        if x.on_hover_text(crate::i18n::tr("Remove from Selected Photos")).clicked() {
+            let _ = app.run("photo.setMeta", json!({"removeKeywords": [c.path]}));
+        }
+    }
+    // one tooltip: the whole name (it may be cut short), and how many have it
+    let full = c.path.replace('|', " › ");
+    let body = if c.on_all() {
+        body.on_hover_text(full)
+    } else {
+        register(ui.ctx(), format!("keywordChipPartial:{}", c.path), body.rect);
+        let n = crate::i18n::tr_format!("On {have} of {of} selected photos", have = c.have, of = c.of);
+        body.on_hover_text(format!("{full}\n{n}"))
+    };
+    let c = c.clone();
+    body.context_menu(|ui| menu(app, ui, &c));
+}
+
+/// When a list is shortened, only this many chips are measured for it: more than fit the lines
+/// shown, however narrow they are.
+const MEASURED: usize = 128;
+
+/// The grouped box: each group's parent on a line of its own, its chips under it side by side,
+/// and "+N more" where a long list stops.
+fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
+    use egui::{Align2, Sense, vec2};
+    let t = Tokens::get(ui.ctx());
+    let avail = ui.available_width();
+    let all = app.ui.keyword_chips_all;
+    // the widths the lines are planned with (past what a shortened list can show: a line each)
+    let mut measured = 0_usize;
+    let sizes: Vec<(bool, Vec<f32>)> = groups
+        .iter()
+        .map(|g| {
+            let widths = g
+                .chips
+                .iter()
+                .map(|(name, c)| {
+                    measured = measured.saturating_add(1);
+                    if all || measured <= MEASURED { chip_size(ui, name, !c.on_all(), true, avail).1 } else { avail }
+                })
+                .collect();
+            (!g.parent.is_empty(), widths)
+        })
+        .collect();
+    let small = t.font(11.5);
+    for (i, line) in lines(&sizes, avail, GAP, all).into_iter().enumerate() {
+        match line {
+            Line::Heading(g) => {
+                let Some(group) = groups.get(g) else { continue };
+                ui.add_space(if i == 0 { 0.0 } else { 8.0 });
+                let (r, resp) = ui.allocate_exact_size(vec2(avail, 18.0), Sense::hover());
+                let measure = |s: &str| ui.painter().layout_no_wrap(s.to_string(), small.clone(), t.text_label).size().x;
+                let shown = chip_label(&group.parent, false, avail, measure);
+                let full = group.parent.replace('|', " › ");
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &full));
+                ui.painter().text(r.left_center(), Align2::LEFT_CENTER, shown, small.clone(), t.text_label);
+                register(ui.ctx(), format!("keywordGroup:{}", group.parent), r);
+            }
+            Line::Chips(g, row) => {
+                let Some(group) = groups.get(g) else { continue };
+                ui.add_space(if i == 0 { 0.0 } else { 4.0 });
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = GAP;
+                    for (name, c) in group.chips.get(row).into_iter().flatten() {
+                        let (body, x) = chip(ui, &c.path, name, !c.on_all(), true, avail);
+                        chip_acts(app, ui, c, body, x);
+                    }
+                });
+            }
+            Line::More(n) => {
+                ui.add_space(6.0);
+                let label = crate::i18n::tr_format!("+{n} more", n = n);
+                let r = ui.add(egui::Button::new(egui::RichText::new(label).color(t.text_label)).corner_radius(10.0));
+                register(ui.ctx(), "keywordChipsMore", r.rect);
+                if r.on_hover_text(crate::i18n::tr("Show every keyword of the selected photos")).clicked() {
+                    app.ui.keyword_chips_all = true;
+                }
+            }
+            Line::Fewer => {
+                ui.add_space(6.0);
+                let r = ui.add(egui::Button::new(egui::RichText::new(crate::i18n::tr("Show fewer")).color(t.text_label)).corner_radius(10.0));
+                register(ui.ctx(), "keywordChipsFewer", r.rect);
+                if r.clicked() {
+                    app.ui.keyword_chips_all = false;
+                }
+            }
+        }
+    }
+}
+
+/// What the grouped box's suggestions say of the keywords `paths`: each one's own name, or its
+/// whole path (" › " between its levels) when another of them has the same name.
+pub(crate) fn suggestion_names(paths: &[String]) -> Vec<String> {
+    use lightcraft_catalog::keywords::SEP;
+    let leaf = |p: &str| p.rsplit(SEP).next().unwrap_or(p).to_lowercase();
+    let mut named: std::collections::HashMap<String, usize> = Default::default();
+    for p in paths {
+        *named.entry(leaf(p)).or_default() += 1;
+    }
+    paths
+        .iter()
+        .map(|p| if named.get(&leaf(p)).is_some_and(|n| *n > 1) { p.replace(SEP, " › ") } else { p.rsplit(SEP).next().unwrap_or(p).to_string() })
+        .collect()
 }
 
 /// A chip's label within `room` (as `measure` measures text): the keyword's path with " › "
@@ -169,6 +287,115 @@ pub(crate) fn chip_label(path: &str, partial: bool, room: f32, measure: impl Fn(
         best = candidate;
     }
     best
+}
+
+/// Keywords of the selection that are inside the same keyword, as the grouped box shows them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Group {
+    /// The keyword they are inside, spelled as the first of them spells it; empty for the keywords
+    /// that share none with another.
+    pub parent: String,
+    /// Each keyword's name below `parent`, and its chip.
+    pub chips: Vec<(String, Chip)>,
+}
+
+/// The chips grouped by the keyword they are inside: the deepest one a chip shares with another
+/// chip ("Places|Italy" for "Places|Italy|Rome" next to "Places|Italy|Venice"; "Transport" for
+/// "Transport|Rail|Night Train" next to "Transport|Ferry"). Those that share none come first, in a group
+/// without a parent; then the groups by name, each in the chips' order.
+pub(crate) fn grouped(chips: &[Chip]) -> Vec<Group> {
+    use lightcraft_catalog::keywords::SEP;
+    let sep = SEP.to_string();
+    // a path's first `depth` levels, and the rest
+    let head = |levels: &[&str], depth: usize| levels.get(..depth).unwrap_or_default().join(&sep);
+    let tail = |levels: &[&str], depth: usize| levels.get(depth..).unwrap_or_default().join(&sep);
+    // how many chips are inside each keyword (by its lower-case path)
+    let mut inside: std::collections::HashMap<String, usize> = Default::default();
+    for c in chips {
+        let levels: Vec<&str> = c.path.split(SEP).collect();
+        for depth in 1..levels.len() {
+            *inside.entry(head(&levels, depth).to_lowercase()).or_default() += 1;
+        }
+    }
+    let mut groups: std::collections::BTreeMap<String, Group> = Default::default();
+    for c in chips {
+        let levels: Vec<&str> = c.path.split(SEP).collect();
+        let shared = |depth: &usize| inside.get(&head(&levels, *depth).to_lowercase()).is_some_and(|n| *n > 1);
+        let depth = (1..levels.len()).rev().find(shared).unwrap_or(0);
+        let parent = head(&levels, depth);
+        groups.entry(parent.to_lowercase()).or_insert_with(|| Group { parent, chips: Vec::new() }).chips.push((tail(&levels, depth), c.clone()));
+    }
+    groups.into_values().collect()
+}
+
+/// Items `widths` wide laid out left to right in rows `avail` wide, `gap` apart: the items of each
+/// row. An item wider than a row has a row to itself.
+pub(crate) fn rows_of(widths: &[f32], avail: f32, gap: f32) -> Vec<std::ops::Range<usize>> {
+    let mut rows = Vec::new();
+    let (mut start, mut used) = (0, 0.0_f32);
+    for (i, w) in widths.iter().enumerate() {
+        let w = if w.is_finite() { w.max(0.0) } else { 0.0 };
+        if i > start && used + gap + w > avail {
+            rows.push(start..i);
+            (start, used) = (i, w);
+        } else {
+            used = if i == start { w } else { used + gap + w };
+        }
+    }
+    if start < widths.len() {
+        rows.push(start..widths.len());
+    }
+    rows
+}
+
+/// A line of the grouped box.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Line {
+    /// The name of a group's parent.
+    Heading(usize),
+    /// Chips of a group (by their place in it).
+    Chips(usize, std::ops::Range<usize>),
+    /// "+N more": this many chips are not shown.
+    More(usize),
+    /// "Show fewer", under a list shown whole that would otherwise be shortened.
+    Fewer,
+}
+
+/// The grouped box shows this many lines of a long list (then "+N more")…
+pub(crate) const LINES: usize = 8;
+/// …but a list only this many lines longer is shown whole: "+1 more" saves nothing.
+pub(crate) const SLACK: usize = 2;
+
+/// The lines of the grouped box: for each group whether it has a heading and how wide its chips
+/// are, in rows `avail` wide with chips `gap` apart. A list longer than [`LINES`] + [`SLACK`]
+/// lines stops after [`LINES`] and says how many chips are left, unless `all` of it is asked for.
+pub(crate) fn lines(groups: &[(bool, Vec<f32>)], avail: f32, gap: f32, all: bool) -> Vec<Line> {
+    let mut out = Vec::new();
+    for (g, (heading, widths)) in groups.iter().enumerate() {
+        if widths.is_empty() {
+            continue;
+        }
+        if *heading {
+            out.push(Line::Heading(g));
+        }
+        out.extend(rows_of(widths, avail, gap).into_iter().map(|row| Line::Chips(g, row)));
+    }
+    if out.len() <= LINES + SLACK {
+        return out;
+    }
+    if all {
+        out.push(Line::Fewer);
+        return out;
+    }
+    out.truncate(LINES);
+    if matches!(out.last(), Some(Line::Heading(_))) {
+        out.pop();
+    }
+    let count = |lines: &[Line]| lines.iter().map(|l| if let Line::Chips(_, row) = l { row.len() } else { 0 }).sum::<usize>();
+    let total: usize = groups.iter().map(|(_, widths)| widths.len()).sum();
+    let left = total.saturating_sub(count(&out));
+    out.push(Line::More(left));
+    out
 }
 
 /// A keyword of the selection, as a chip shows it.
@@ -358,7 +585,8 @@ mod tests {
         for _ in 0..3 {
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 ui.set_max_width(120.0);
-                let _ = chip(ui, "Places|Portugal|Lisbon|Belém tower", true, true);
+                let path = "Places|Portugal|Lisbon|Belém tower";
+                let _ = chip(ui, path, "Belém tower", true, true, 120.0);
             });
             out.textures_delta.clear();
             if let Some(update) = out.platform_output.accesskit_update.take() {
@@ -368,6 +596,106 @@ mod tests {
         let has = |role: &str, label: &str| found.iter().any(|(r, l)| r == role && l == label);
         assert!(has("Button", "Places › Portugal › Lisbon › Belém tower"), "{found:?}");
         assert!(has("Button", "Remove “Places › Portugal › Lisbon › Belém tower”"), "{found:?}");
+    }
+
+    fn chip_of(path: &str) -> Chip {
+        Chip { path: path.into(), have: 1, of: 1 }
+    }
+
+    fn groups_of(paths: &[&str]) -> Vec<(String, Vec<String>)> {
+        let chips: Vec<Chip> = paths.iter().map(|p| chip_of(p)).collect();
+        grouped(&chips).into_iter().map(|g| (g.parent, g.chips.into_iter().map(|(name, _)| name).collect())).collect()
+    }
+
+    /// Given keywords inside the same keyword, when the box groups them, then they share a line
+    /// naming that keyword and each says only what is below it; a keyword alone below its parent
+    /// joins the nearest keyword it shares with another, and one that shares none comes first
+    /// under no name.
+    #[test]
+    fn keywords_group_under_the_keyword_they_share() {
+        let got = groups_of(&[
+            "beach",
+            "Places|Italy|Florence",
+            "Places|Italy|Rome",
+            "Places|Portugal|Lisbon",
+            "Places|Portugal|Porto",
+            "Transport|Ferry",
+            "Transport|Rail|Night Train",
+        ]);
+        let want: Vec<(String, Vec<String>)> = [
+            ("", vec!["beach"]),
+            ("Places|Italy", vec!["Florence", "Rome"]),
+            ("Places|Portugal", vec!["Lisbon", "Porto"]),
+            ("Transport", vec!["Ferry", "Rail|Night Train"]),
+        ]
+        .into_iter()
+        .map(|(p, c)| (p.to_string(), c.into_iter().map(str::to_string).collect()))
+        .collect();
+        assert_eq!(got, want);
+    }
+
+    /// A keyword and one inside it are both inside their shared parent; a hierarchy with one
+    /// keyword stays whole, under no name; spelling differences of the parent don't split a group.
+    #[test]
+    fn grouping_holds_at_the_edges() {
+        assert_eq!(groups_of(&["A|B", "A|B|C"]), [("A".to_string(), vec!["B".to_string(), "B|C".to_string()])]);
+        assert_eq!(groups_of(&["Places|Portugal|Lisbon"]), [(String::new(), vec!["Places|Portugal|Lisbon".to_string()])]);
+        assert_eq!(groups_of(&["Places|Rome", "places|Athens"]), [("Places".to_string(), vec!["Rome".to_string(), "Athens".to_string()])]);
+        assert_eq!(groups_of(&["İstanbul|Köprü", "i̇stanbul|Kule"]).len(), 1, "a parent whose lower case is longer");
+        assert!(groups_of(&[]).is_empty());
+        // every chip is in exactly one group
+        let paths = ["a", "a|b", "a|b|c", "a|d", "e|f", "g"];
+        let n: usize = groups_of(&paths).iter().map(|(_, c)| c.len()).sum();
+        assert_eq!(n, paths.len());
+    }
+
+    /// Chips fill a row until the next would not fit; one wider than the row has a row to itself,
+    /// and widths that are not numbers don't break the layout.
+    #[test]
+    fn chips_fill_rows() {
+        assert_eq!(rows_of(&[40.0, 40.0, 40.0], 100.0, 6.0), [0..2, 2..3]);
+        assert_eq!(rows_of(&[40.0, 54.0], 100.0, 6.0).len(), 1, "exactly fits");
+        assert_eq!(rows_of(&[300.0, 20.0], 100.0, 6.0), [0..1, 1..2]);
+        assert_eq!(rows_of(&[20.0, 300.0, 20.0], 100.0, 6.0), [0..1, 1..2, 2..3]);
+        assert!(rows_of(&[], 100.0, 6.0).is_empty());
+        assert_eq!(rows_of(&[f32::NAN, f32::INFINITY, 10.0], 100.0, 6.0).iter().map(|r| r.len()).sum::<usize>(), 3);
+        assert_eq!(rows_of(&[10.0, 10.0], 0.0, 6.0), [0..1, 1..2], "no room at all");
+    }
+
+    /// Given a list of more than LINES + SLACK lines, when it isn't asked for whole, then LINES
+    /// lines show and the rest is counted; a heading is never the last line shown. Asked for
+    /// whole, it ends in "Show fewer". A shorter list is shown as it is.
+    #[test]
+    fn a_long_list_is_shortened_and_says_how_much_is_left() {
+        // a heading and 3 chips, a heading and 9 (one chip a row): 14 lines
+        let groups = vec![(true, vec![90.0; 3]), (true, vec![90.0; 9])];
+        let short = lines(&groups, 100.0, 6.0, false);
+        assert_eq!(short.len(), LINES + 1, "{short:?}");
+        assert_eq!(short.last(), Some(&Line::More(6)), "3 + 3 chips shown: {short:?}");
+        let whole = lines(&groups, 100.0, 6.0, true);
+        assert_eq!(whole.len(), 15);
+        assert_eq!(whole.last(), Some(&Line::Fewer));
+        // the eighth line would be the second group's heading: it goes too
+        let cut = lines(&[(false, vec![90.0; 7]), (true, vec![90.0; 6])], 100.0, 6.0, false);
+        assert_eq!(cut.len(), LINES, "{cut:?}");
+        assert_eq!(cut.last(), Some(&Line::More(6)));
+        assert!(cut.iter().all(|l| !matches!(l, Line::Heading(_))), "{cut:?}");
+        // within the slack: whole, with neither button
+        let fits = lines(&[(true, vec![90.0; 9])], 100.0, 6.0, false);
+        assert_eq!(fits.len(), 10);
+        assert!(fits.iter().all(|l| matches!(l, Line::Heading(_) | Line::Chips(..))));
+        assert_eq!(lines(&[(true, vec![90.0; 9])], 100.0, 6.0, true), fits, "nothing to show fewer of");
+        assert!(lines(&[], 100.0, 6.0, false).is_empty());
+        assert!(lines(&[(true, vec![])], 100.0, 6.0, false).is_empty(), "a group without chips has no heading");
+    }
+
+    /// The grouped box's suggestions say a keyword's own name; two with the same name say their
+    /// whole paths, so they can be told apart.
+    #[test]
+    fn suggestions_are_named_apart() {
+        let paths: Vec<String> = ["Italy|Rome|Market", "Spain|Madrid|market", "Places|Lisbon", "sea"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(suggestion_names(&paths), ["Italy › Rome › Market", "Spain › Madrid › market", "Lisbon", "sea"]);
+        assert!(suggestion_names(&[]).is_empty());
     }
 
     /// "Keywords & Containing Keywords": every level of the selection's keywords, flat, each

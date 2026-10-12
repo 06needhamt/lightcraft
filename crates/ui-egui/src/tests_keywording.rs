@@ -227,3 +227,149 @@ fn containing_keywords_view_lists_parents_too() {
     }
     assert!(!has(&h, "keywordChip:beach"), "the chips give way");
 }
+
+fn rect(h: &Headless, id: &str) -> egui::Rect {
+    h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r).unwrap_or_else(|| panic!("no widget {id}"))
+}
+
+fn count(h: &Headless, prefix: &str) -> usize {
+    h.app.widgets.iter().filter(|(w, _)| w.starts_with(prefix)).count()
+}
+
+/// Give both selected photos `keywords`, replacing what they had.
+fn give(h: &mut Headless, ids: &[u64], keywords: &[String]) {
+    ask(h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": ids, "keywords": keywords}}));
+}
+
+/// Sixteen keywords inside "Subjects", each long enough to take a line of the panel.
+fn sixteen() -> Vec<String> {
+    (1..=16).map(|i| format!("Subjects|a keyword with quite a long name {i:02}")).collect()
+}
+
+// Given keywords inside the same keyword and the box set to group them,
+// when the panel is drawn,
+// then they share a line naming that keyword and their chips say only what is below it, side by
+// side where they fit; each chip still acts on its whole keyword.
+#[test]
+fn grouped_keywords_share_a_line_naming_their_parent() {
+    let (mut h, ids) = two_selected();
+    let keywords: Vec<String> = ["Places|Italy|Rome", "Places|Italy|Venice", "Transport|Ferry", "sea"].iter().map(|s| s.to_string()).collect();
+    give(&mut h, &ids, &keywords);
+    assert_eq!(
+        count(&h, "keywordGroup:"),
+        0,
+        "whole names unless asked: {:?}",
+        h.app.widgets.iter().filter(|(w, _)| w.starts_with("keywordGroup")).collect::<Vec<_>>()
+    );
+    let whole = rect(&h, "keywordChip:Places|Italy|Rome").width();
+
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    h.settle(SETTLE);
+    let heading = rect(&h, "keywordGroup:Places|Italy");
+    let (rome, venice) = (rect(&h, "keywordChip:Places|Italy|Rome"), rect(&h, "keywordChip:Places|Italy|Venice"));
+    assert!(rome.top() >= heading.bottom(), "under its heading: {rome:?} {heading:?}");
+    assert_eq!(rome.top(), venice.top(), "side by side");
+    assert!(rome.width() < whole, "the chip says only “Rome”: {} < {whole}", rome.width());
+    // a keyword that shares nothing has no heading and comes first
+    assert!(!has(&h, "keywordGroup:Transport") && !has(&h, "keywordGroup:"), "one keyword is no group");
+    assert!(rect(&h, "keywordChip:sea").top() < heading.top());
+    // the × still takes the whole keyword off both
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipRemove:Places|Italy|Rome"}));
+    assert!(ids.iter().all(|id| !keywords_of(&h, *id).iter().any(|k| k == "Places|Italy|Rome")));
+    assert!(ids.iter().all(|id| keywords_of(&h, *id).iter().any(|k| k == "Places|Italy|Venice")));
+}
+
+// Given sixteen keywords and the grouped box,
+// when the panel is drawn,
+// then eight lines show with "+N more" for the rest, which shows them all; "Show fewer" brings the
+// short list back. The Keyword List is nearer the top for it.
+#[test]
+fn a_long_grouped_list_is_shortened_until_asked_for() {
+    let (mut h, ids) = two_selected();
+    give(&mut h, &ids, &sixteen());
+    assert_eq!(count(&h, "keywordChip:"), 16, "whole names: every keyword, as before");
+    assert!(!has(&h, "keywordChipsMore"));
+    let list_before = rect(&h, "field:keywordFilter").top();
+
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    h.settle(SETTLE);
+    assert_eq!(count(&h, "keywordChip:"), 7, "a heading and seven chips");
+    assert!(has(&h, "keywordChipsMore") && !has(&h, "keywordChipsFewer"));
+    assert!(rect(&h, "field:keywordFilter").top() < list_before - 80.0, "{} from {list_before}", rect(&h, "field:keywordFilter").top());
+
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipsMore"}));
+    assert_eq!(count(&h, "keywordChip:"), 16);
+    assert!(has(&h, "keywordChipsFewer") && !has(&h, "keywordChipsMore"));
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipsFewer"}));
+    assert_eq!(count(&h, "keywordChip:"), 7);
+}
+
+// Given the grouped box, chips stay inside the panel and never overlap, whatever their length.
+#[test]
+fn grouped_chips_stay_inside_the_panel() {
+    let (mut h, ids) = two_selected();
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    let long = "Places|Portugal|Lisbon|Belém tower and the old town square on the river by the bridge";
+    let keywords: Vec<String> =
+        ["Events|Weddings", "Events|Birthdays", "sunset", "Places|Portugal|Porto", long].iter().map(|s| s.to_string()).collect();
+    give(&mut h, &ids, &keywords);
+    let panel = rect(&h, "panel:right_panel");
+    let chips: Vec<(String, egui::Rect)> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("keywordChip:")).cloned().collect();
+    assert_eq!(chips.len(), 5, "{chips:?}");
+    for (i, (id, r)) in chips.iter().enumerate() {
+        assert!(r.left() >= panel.left() && r.right() <= panel.right(), "{id} inside the panel: {r:?} in {panel:?}");
+        for (other, o) in chips.iter().skip(i + 1) {
+            assert!(!r.intersects(o.shrink(0.5)), "{id} overlaps {other}");
+        }
+    }
+}
+
+// Given a selection without keywords, the box says so (as its other two views do).
+#[test]
+fn a_selection_without_keywords_says_so() {
+    let (mut h, ids) = two_selected();
+    give(&mut h, &ids, &[]);
+    assert!(has(&h, "keywordChipsEmpty"));
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    h.settle(SETTLE);
+    assert!(has(&h, "keywordChipsEmpty"));
+}
+
+// Given the Keywords panel,
+// when the title of Keywording or of the Keyword List is clicked,
+// then that section folds shut and the other stays; a second click opens it, and what is folded is
+// kept with the interface's settings.
+#[test]
+fn the_sections_fold_by_their_titles() {
+    let (mut h, _) = two_selected();
+    assert!(has(&h, "field:keyword") && has(&h, "field:keywordFilter"));
+    let list_before = rect(&h, "field:keywordFilter").top();
+    ask(&mut h, "ui.clickWidget", json!({"id": "section:keywording"}));
+    assert!(!has(&h, "field:keyword") && !has(&h, "keywordChip:beach") && !has(&h, "kwSet:1"), "Keywording is shut");
+    assert!(has(&h, "field:keywordFilter"), "the Keyword List stays");
+    assert!(rect(&h, "field:keywordFilter").top() < list_before - 100.0);
+    let saved = serde_json::to_string(&h.app.ui).unwrap();
+    let back = serde_json::from_str::<crate::UiState>(&saved).unwrap().sanitized();
+    assert!(back.section_folded("keywording") && !back.section_folded("keywordList"));
+    assert!(!serde_json::from_str::<crate::UiState>("{}").unwrap().section_folded("keywording"), "settings from before: open");
+
+    ask(&mut h, "ui.clickWidget", json!({"id": "section:keywordList"}));
+    assert!(!has(&h, "field:keywordFilter") && !has(&h, "keywordCheck:beach"), "the Keyword List is shut");
+    ask(&mut h, "ui.clickWidget", json!({"id": "section:keywording"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "section:keywordList"}));
+    assert!(has(&h, "field:keyword") && has(&h, "field:keywordFilter") && has(&h, "keywordChip:beach"));
+}
+
+// Given the grouped box, the suggestions say only the keyword's own name (its whole path when two
+// of them have the same name) and still give the whole keyword.
+#[test]
+fn grouped_suggestions_name_the_keyword_alone() {
+    let (mut h, ids) = two_selected();
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [ids[0]], "addKeywords": ["Places|Portugal|Lisbon"]}}));
+    let whole = rect(&h, "kwSuggest:Places|Portugal|Lisbon").width();
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    h.settle(SETTLE);
+    assert!(rect(&h, "kwSuggest:Places|Portugal|Lisbon").width() < whole);
+    ask(&mut h, "ui.clickWidget", json!({"id": "kwSuggest:Places|Portugal|Lisbon"}));
+    assert!(ids.iter().all(|id| keywords_of(&h, *id).iter().any(|k| k == "Places|Portugal|Lisbon")));
+}

@@ -20,10 +20,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             if app.ui.right == RightPanel::Keywords {
                 egui::ScrollArea::vertical().id_salt("right-scroll").auto_shrink([false, false]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
-                    header(ui, "Keywords");
-                    padded(ui, |ui| {
-                        ui.label(egui::RichText::new(crate::i18n::tr("Select photos to give them keywords.")).color(t.text_dim));
-                    });
+                    if fold_header(app, ui, "keywording", "Keywords") {
+                        padded(ui, |ui| {
+                            ui.label(egui::RichText::new(crate::i18n::tr("Select photos to give them keywords.")).color(t.text_dim));
+                        });
+                    }
                     super::keyword_list::show(app, ui);
                 });
                 return;
@@ -55,6 +56,36 @@ pub fn header(ui: &mut egui::Ui, title: &str) {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::hover());
     ui.painter().text(pos2(r.left() + 24.0, r.center().y + 2.0), Align2::LEFT_CENTER, crate::i18n::tr(title), t.semibold(15.0), t.text);
+}
+
+/// A panel title that folds its section shut and open again (`section:{id}`; kept in
+/// [`crate::state::UiState::folded_sections`]). Says whether the section is open.
+pub fn fold_header(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, title: &str) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
+    let title = crate::i18n::tr(title);
+    fold_title(app, ui, id, r, &resp, title)
+}
+
+/// [`fold_header`] for a title whose room is already taken (`r`, answering as `resp`).
+pub fn fold_title(app: &mut LightcraftApp, ui: &egui::Ui, id: &str, r: Rect, resp: &egui::Response, title: &str) -> bool {
+    let t = Tokens::get(ui.ctx());
+    let open = !app.ui.section_folded(id);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::CollapsingHeader, true, open, title));
+    register(ui.ctx(), format!("section:{id}"), r);
+    let p = ui.painter();
+    if resp.hovered() {
+        p.rect_filled(r, 0.0, t.chrome.gamma_multiply(1.06));
+    }
+    if resp.has_focus() {
+        p.rect_stroke(r.shrink(2.0), 4.0, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
+    p.text(pos2(r.left() + 24.0, r.center().y + 2.0), Align2::LEFT_CENTER, title, t.semibold(15.0), t.text);
+    let chevron = Rect::from_center_size(pos2(r.right() - 30.0, r.center().y + 2.0), vec2(14.0, 14.0));
+    paint(p, chevron, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.icon);
+    if resp.clicked() {
+        app.ui.toggle_folded(id);
+    }
+    open
 }
 
 pub fn label_row(ui: &mut egui::Ui, label: &str, value: &str) {
@@ -818,7 +849,15 @@ fn keywords(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if app.session.catalog.photo(id).is_none() {
         return;
     }
-    header(ui, "Keywords");
+    if fold_header(app, ui, "keywording", "Keywords") {
+        keywording(app, ui);
+    }
+    super::keyword_list::show(app, ui);
+}
+
+/// The Keywording box: the field that adds keywords, the selection's keywords, the keyword set,
+/// the painter and the suggestions.
+fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     padded(ui, |ui| {
         let kid = egui::Id::new("kw-input");
@@ -882,10 +921,18 @@ fn keywords(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let suggestions = (*app.caches.suggestions(&app.session.catalog, &have, &last, 12)).clone();
         if !suggestions.is_empty() {
             ui.label(egui::RichText::new(crate::i18n::tr("Suggestions")).color(t.text_dim));
+            // grouped: the keyword's own name, its whole path in the tooltip
+            let grouped = app.ui.settings.keyword_chips == crate::state::KeywordChips::Grouped;
+            let names = if grouped { super::keywording::suggestion_names(&suggestions) } else { Vec::new() };
             ui.horizontal_wrapped(|ui| {
-                for k in suggestions {
-                    let r = ui
-                        .add(egui::Button::new(egui::RichText::new(format!("+ {}", k.replace('|', " › "))).color(t.text_label)).corner_radius(10.0));
+                if grouped {
+                    ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+                }
+                for (i, k) in suggestions.into_iter().enumerate() {
+                    let whole = k.replace('|', " › ");
+                    let name = names.get(i).unwrap_or(&whole);
+                    let r = ui.add(egui::Button::new(egui::RichText::new(format!("+ {name}")).color(t.text_label)).corner_radius(10.0));
+                    let r = if grouped { r.on_hover_text(&whole) } else { r };
                     register(ui.ctx(), format!("kwSuggest:{k}"), r.rect);
                     if r.clicked() {
                         let _ = app.run("photo.setMeta", json!({"addKeywords": [k]}));
@@ -897,7 +944,6 @@ fn keywords(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             });
         }
     });
-    super::keyword_list::show(app, ui);
 }
 
 /// The keyword set: pick a set, then nine buttons (⌥1–⌥9) that toggle its keywords on the

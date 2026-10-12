@@ -283,6 +283,8 @@ pub struct AppSettings {
     /// The monitor's ICC profile previews are shown through (`app.displayProfile`; "" = none:
     /// the display is treated as sRGB).
     pub display_profile: String,
+    /// The Keywording box: whole keyword paths, or grouped by the keyword they are inside.
+    pub keyword_chips: KeywordChips,
 }
 
 impl Default for AppSettings {
@@ -308,6 +310,7 @@ impl Default for AppSettings {
             light_theme: LightTheme::Silver,
             favorite_themes: Vec::new(),
             display_profile: String::new(),
+            keyword_chips: KeywordChips::default(),
         }
     }
 }
@@ -488,6 +491,18 @@ pub enum KeywordingView {
     Keywords,
     Containing,
     WillExport,
+}
+
+/// How the Keywording box lays out the selection's keywords.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum KeywordChips {
+    /// One chip per keyword, each with its whole path ("Places › Portugal › Lisbon").
+    #[default]
+    Paths,
+    /// Keywords inside the same keyword share a line naming it, and their chips say only what is
+    /// below it; long lists and the suggestions are shortened.
+    Grouped,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -711,6 +726,13 @@ pub struct UiState {
     pub keyword_painter: Option<String>,
     /// What the Keywording box shows (Lightroom Classic's Keyword Tags views).
     pub keywording_view: KeywordingView,
+    /// The Keywording box, grouped: every keyword is shown, however many lines that takes ("+N
+    /// more" was clicked).
+    #[serde(skip)]
+    pub keyword_chips_all: bool,
+    /// Sections of the right panel folded shut by a click on their title (`keywording`,
+    /// `keywordList`); the others are open.
+    pub folded_sections: Vec<String>,
     /// The Keyword List's open levels (lower-case paths).
     pub keyword_list_open: Vec<String>,
     /// The keyword picked in the Keyword List (− deletes it, Edit edits it).
@@ -1141,6 +1163,8 @@ impl Default for UiState {
             second_window: false,
             keyword_painter: None,
             keywording_view: KeywordingView::default(),
+            keyword_chips_all: false,
+            folded_sections: Vec::new(),
             keyword_list_open: Vec::new(),
             keyword_list_selected: None,
             dragging_keyword: None,
@@ -1180,6 +1204,18 @@ impl UiState {
             *slot = hidden;
         }
         self.grading_hidden = h.iter().any(|x| *x).then_some((photo, h));
+    }
+
+    /// A right-panel section that folds by its title is folded shut.
+    pub fn section_folded(&self, id: &str) -> bool {
+        self.folded_sections.iter().any(|s| s == id)
+    }
+    pub fn toggle_folded(&mut self, id: &str) {
+        if self.section_folded(id) {
+            self.folded_sections.retain(|s| s != id);
+        } else {
+            self.folded_sections.push(id.to_string());
+        }
     }
 
     pub fn section_open(&self, id: &str) -> bool {
