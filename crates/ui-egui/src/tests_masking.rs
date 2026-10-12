@@ -1024,6 +1024,89 @@ fn edit_in_photocraft_opens_a_psd_copy() {
     h.settle(SETTLE);
 }
 
+/// Open Original in Other Editor: each selected photo's own file (a raw stays a raw) goes to the
+/// configured editor, untouched and without a copy; demo photos and missing files say why.
+#[test]
+fn open_original_in_external_editor_hands_over_the_raw_itself() {
+    use lightcraft_catalog::{Op, Photo, Source};
+    let dir = std::env::temp_dir().join(format!("lc-ui-orig-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let opened: std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>> = Default::default();
+    let o = opened.clone();
+    let services = Services {
+        png: None,
+        open_with: Some(Box::new(move |path: &str, app: &str| {
+            o.lock().unwrap().push((path.to_string(), app.to_string()));
+            Ok(())
+        })),
+        check_editor: Some(Box::new(|_: &str| Ok(()))),
+        ..Default::default()
+    };
+    let mut session = lightcraft_engine::Session::with_demo().with_fs();
+    let demo = session.catalog.photos().map(|p| p.id).next().unwrap();
+    let mut file = |name: &str, exists: bool| {
+        let path = dir.join(name);
+        if exists {
+            std::fs::write(&path, b"raw sensor data").unwrap();
+        }
+        let id = session.catalog.alloc_photo_id();
+        let p = Photo::new(id, Source::File { path: path.to_string_lossy().into_owned() }, name, "NEF", 60, 40, "2026-01-01T10:00:00");
+        session.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+        (id, path.to_string_lossy().into_owned())
+    };
+    let (a, a_path) = file("DSC_0001.NEF", true);
+    let (b, b_path) = file("DSC_0002.NEF", true);
+    let (gone, _) = file("DSC_0003.NEF", false);
+    let app = LightcraftApp::new(session, services);
+    let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    h.app.ui.settings.external_editor = "DxO PhotoLab".into();
+    let n = h.app.session.catalog.len();
+
+    exec(&mut h, "library.select", json!({"ids": [a.0, b.0, demo.0]}));
+    let r = exec(&mut h, "photo.openOriginalInExternal", json!({}));
+    let calls = opened.lock().unwrap().clone();
+    assert_eq!(calls, vec![(a_path.clone(), "DxO PhotoLab".to_string()), (b_path.clone(), "DxO PhotoLab".to_string())]);
+    assert_eq!(r["skipped"][0]["id"], demo.0, "{r}");
+    assert_eq!(h.app.session.catalog.len(), n, "no copy is added to the library");
+    assert_eq!(std::fs::read(&a_path).unwrap(), b"raw sensor data", "the original is left as it is");
+    assert!(std::fs::read_dir(&dir).unwrap().count() == 2, "nothing is written next to the originals");
+
+    // the editor can be named per call; the active photo must have a file for the menu
+    let r = exec(&mut h, "photo.openOriginalInExternal", json!({"ids": [a.0], "app": "/opt/dxo"}));
+    assert_eq!(r["opened"][0]["path"], a_path.as_str());
+    assert_eq!(opened.lock().unwrap().last().unwrap().1, "/opt/dxo");
+    exec(&mut h, "library.select", json!({"ids": [a.0]}));
+    assert!(crate::menus::ui_enabled(&h.app, "photo.openOriginalInExternal"));
+    exec(&mut h, "library.select", json!({"ids": [demo.0]}));
+    assert!(!crate::menus::ui_enabled(&h.app, "photo.openOriginalInExternal"));
+
+    // a host that can start the editor once with every file does (DxO PhotoLab keeps one window
+    // and drops the files that arrive while it starts)
+    let batches: std::sync::Arc<std::sync::Mutex<Vec<(Vec<String>, String)>>> = Default::default();
+    let bt = batches.clone();
+    h.app.services.open_all_with = Some(Box::new(move |paths: &[String], app: &str| {
+        bt.lock().unwrap().push((paths.to_vec(), app.to_string()));
+        Ok(())
+    }));
+    let singles = opened.lock().unwrap().len();
+    let r = exec(&mut h, "photo.openOriginalInExternal", json!({"ids": [a.0, b.0, demo.0]}));
+    assert_eq!(r["opened"].as_array().map(Vec::len), Some(2), "{r}");
+    assert_eq!(*batches.lock().unwrap(), vec![(vec![a_path.clone(), b_path.clone()], "DxO PhotoLab".to_string())]);
+    assert_eq!(opened.lock().unwrap().len(), singles, "one start for all, not one per file");
+
+    // a demo photo or a missing file: a clear error, nothing opened
+    let calls = opened.lock().unwrap().len();
+    for (ids, why) in [(json!([demo.0]), "demo"), (json!([gone.0]), "missing")] {
+        let r = h.request("engine.execute", json!({"command": "photo.openOriginalInExternal", "params": {"ids": ids}}), T);
+        assert_eq!(r["ok"], false, "{r}");
+        assert!(r.to_string().contains(why), "{r}");
+    }
+    assert_eq!(opened.lock().unwrap().len(), calls);
+    let _ = std::fs::remove_dir_all(&dir);
+    h.settle(SETTLE);
+}
+
 #[test]
 fn second_window_shows_the_active_photo() {
     let mut h = detail("panel.edit");
