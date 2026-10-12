@@ -7,6 +7,9 @@
   high-resolution cameras such as the Sony A7R VI (64 MP). Their decoded original (~800 MB) is bigger than the
   default cache share (768 MB), so it was evicted as soon as it was stored. The original of the photo shown in Detail
   now stays, like its preview, until another photo or view is shown.
+- Zooming in with Before/After side by side decodes the original once: the Before side used to decode its own copy
+  beside the After's, and a window asked for again while the first was still decoding (a pan, the layout settling)
+  started yet another decode.
 
 ## 2026-10-11
 

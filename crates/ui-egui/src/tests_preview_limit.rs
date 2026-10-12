@@ -452,6 +452,28 @@ mod in_the_loupe {
         assert_eq!(main.size, before_main.size, "and the same whole-frame size under them");
     }
 
+    // Given Before/After side by side, when I zoom to 1:1, then one window job decodes the original
+    // and the other side waits for it (the Before, asked for first, used to start a second decode
+    // beside the After's); both windows still arrive
+    #[test]
+    fn side_by_side_at_one_to_one_decodes_the_original_once() {
+        let (mut h, _) = detail();
+        let id = h.app.session.active().expect("a photo is open");
+        h.app.ui.before_after = crate::state::BeforeAfter::SideBySide;
+        h.app.ui.zoom = crate::state::Zoom::Percent(100.0);
+        let pending = |h: &Headless| [Slot::Region, Slot::RegionBefore].into_iter().filter(|s| h.app.renderer.is_pending(*s)).count();
+        for _ in 0..100 {
+            h.step();
+            if pending(&h) > 0 {
+                break;
+            }
+        }
+        assert!(!h.app.session.media.has_source(id, lightcraft_engine::SourceLevel::Full), "the original is still decoding");
+        assert_eq!(pending(&h), 1, "one window job decodes it");
+        h.settle(SETTLE);
+        assert!(tile(&h, Slot::Region).is_some() && tile(&h, Slot::RegionBefore).is_some(), "both windows arrived");
+    }
+
     // Given the Before view alone (\), only the Before gets a window
     #[test]
     fn the_original_view_windows_only_the_before() {
