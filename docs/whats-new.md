@@ -8,6 +8,10 @@
   previews for up to a second.
 - A thumbnail of the photo open in Detail is made from its already decoded preview instead of decoding the file
   again.
+### Dehaze while zoomed in
+- With Dehaze on, panning a photo zoomed to 1:1 or moving a slider while zoomed no longer samples the whole
+  original again to find the haze colour. On a 64 MP raw (Sony A7R VI) that took ~0.2 s of CPU per pan and per
+  slider step; a slider step now takes ~5 ms on the GPU.
 ## 2026-10-12
 
 ### Canon CR2 highlights
