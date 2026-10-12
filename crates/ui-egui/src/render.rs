@@ -80,6 +80,14 @@ pub trait RenderOffload {
     fn finished(&mut self) -> Vec<(Slot, RenderResult, f64)>;
 }
 
+/// A job's result as the pool hands it back: the render and its texture pixels, converted on the
+/// worker (`None` for prefetches and failures). A 10 MP zoom window's conversion took a few ms of
+/// the UI thread on every slider step.
+struct Finished {
+    result: RenderResult,
+    color: Option<Arc<egui::ColorImage>>,
+}
+
 struct Queued {
     slot: Slot,
     priority: u32,
@@ -179,7 +187,7 @@ pub struct Renderer {
     thumb_inputs: HashMap<PhotoId, (std::sync::Weak<lightcraft_catalog::Photo>, usize, u64, bool)>,
     /// Photos whose grid thumbnail is the camera's embedded preview itself (no render behind it).
     embedded_thumbs: HashMap<PhotoId, (std::sync::Weak<lightcraft_catalog::Photo>, usize, u64)>,
-    pool: JobPool<Slot, RenderResult>,
+    pool: JobPool<Slot, Finished>,
     /// Jobs run elsewhere (see [`RenderOffload`]); `queue` holds the ones not started yet.
     offload: Option<Box<dyn RenderOffload>>,
     queue: Vec<Queued>,
@@ -237,7 +245,7 @@ impl Slot {
 
 impl Default for Renderer {
     fn default() -> Self {
-        let threads = if cfg!(target_arch = "wasm32") { 0 } else { JobPool::<Slot, RenderResult>::default_threads().min(6) };
+        let threads = if cfg!(target_arch = "wasm32") { 0 } else { JobPool::<Slot, Finished>::default_threads().min(6) };
         Self::with_worker_threads(threads)
     }
 }
@@ -372,12 +380,13 @@ impl Renderer {
     }
 
     /// Run `job` and make its image ready for `display` (on the worker thread).
-    fn run_for(job: impl FnOnce() -> RenderResult, display: &Option<Arc<lightcraft_engine::display::Display>>) -> RenderResult {
+    fn run_for(job: impl FnOnce() -> RenderResult, display: &Option<Arc<lightcraft_engine::display::Display>>) -> Finished {
         let mut r = job();
         if let Some(d) = display {
             lightcraft_engine::display::present(&mut r, d);
         }
-        r
+        let color = r.rendered.as_ref().ok().map(|x| Arc::new(color_image(&x.image)));
+        Finished { result: r, color }
     }
 
     fn request_needed(&self, slot: Slot, key: u64, priority: u32) -> bool {
@@ -472,7 +481,12 @@ impl Renderer {
         job.request_id = lightcraft_preview::next_tick();
         self.request_ids.insert(slot, job.request_id);
         let key = job.key;
-        self.pool.submit(slot, key, priority, Box::new(move || lightcraft_engine::memory::in_background(|| job.run())));
+        self.pool.submit(
+            slot,
+            key,
+            priority,
+            Box::new(move || Finished { result: lightcraft_engine::memory::in_background(|| job.run()), color: None }),
+        );
     }
 
     /// Is a request for `slot` queued or running?
@@ -651,14 +665,14 @@ impl Renderer {
         let inline_ms = 0.0;
         let mut finished = Vec::new();
         while let Some(done) = self.pool.try_recv() {
-            finished.push((done.slot, done.result, if done.ms > 0.0 { done.ms } else { inline_ms }));
+            finished.push((done.slot, done.result.result, done.result.color, if done.ms > 0.0 { done.ms } else { inline_ms }));
         }
         if let Some(off) = self.offload.as_mut() {
-            finished.extend(off.finished());
+            finished.extend(off.finished().into_iter().map(|(slot, r, ms)| (slot, r, None, ms)));
         }
         self.dispatch();
         let mut changed = false;
-        for (mut slot, mut r, ms) in finished {
+        for (mut slot, mut r, mut color, ms) in finished {
             self.completed += 1;
             // made for another display profile than the one in use: obsolete
             if r.display.is_some_and(|id| Some(id) != self.display_id()) {
@@ -687,7 +701,11 @@ impl Renderer {
             }
             // (results from an offload, which doesn't know the display profile: converted here)
             if let Some(d) = &self.display {
+                let before = r.display;
                 lightcraft_engine::display::present(&mut r, d);
+                if r.display != before {
+                    color = None; // converted after the worker made its texture pixels
+                }
             }
             if self.pending.get(&slot).is_some_and(|p| p.0 == r.key) {
                 self.pending.remove(&slot);
@@ -721,7 +739,7 @@ impl Renderer {
                 self.textures.remove(&Slot::ThumbQuick(id));
             }
             let img = &rendered.image;
-            let color = std::sync::Arc::new(color_image(img));
+            let color = color.unwrap_or_else(|| Arc::new(color_image(img)));
             let pixels = self.keep_pixels.then(|| color.clone());
             let name = format!("{slot:?}");
             match self.textures.get_mut(&slot) {
@@ -1393,6 +1411,30 @@ mod color_image_tests {
         let got = color_image(&img);
         assert_eq!(got.size, want.size);
         assert_eq!(got.pixels, want.pixels);
+    }
+
+    // Given a finished render, the worker hands back its texture pixels with it (the UI thread no
+    // longer converts a 10 MP window on every slider step); a failed render has none
+    #[test]
+    fn the_worker_converts_the_texture_pixels() {
+        let image = lightcraft_raster::Rgba8::from_fn(5, 3, |x, y| [(x * 40) as u8, (y * 80) as u8, 7, 255]);
+        let result = |rendered| RenderResult {
+            request_id: 1,
+            source_key: None,
+            photo: PhotoId(1),
+            level: lightcraft_engine::SourceLevel::Preview,
+            key: 1,
+            rendered,
+            gpu_fallback: None,
+            loaded: None,
+            quick: None,
+            display: None,
+        };
+        let histogram = Histogram::of_srgb8(&image);
+        let ok = Renderer::run_for(|| result(Ok(lightcraft_pipeline::Rendered { image: image.clone(), histogram, deep: None })), &None);
+        assert_eq!(ok.color.map(|c| c.pixels.clone()), Some(color_image(&image).pixels));
+        let failed = Renderer::run_for(|| result(Err("unreadable".into())), &None);
+        assert!(failed.color.is_none());
     }
 
     #[test]
