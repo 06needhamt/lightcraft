@@ -298,3 +298,26 @@ fn the_print_dialog_fits_the_window_with_its_buttons_on_screen() {
         }
     }
 }
+
+#[test]
+fn the_print_preview_does_not_rebuild_thumbnails_every_frame() {
+    let mut h = demo(Services { png: None, ..Default::default() });
+    let before = h.app.renderer.thumb_jobs_built;
+    cmd(&mut h, "dialog.print", json!({}));
+    for style in ["contactSheet", "picturePackage", "singleImage"] {
+        cmd(&mut h, "print.set", json!({"layout": {"style": style}}));
+        if style == "picturePackage" {
+            // the same photo in cells of different sizes
+            cmd(&mut h, "print.cell.add", json!({"width": 2.0, "height": 2.5}));
+            cmd(&mut h, "print.cell.add", json!({"width": 5.0, "height": 7.0}));
+        }
+        assert!(h.settle(Duration::from_secs(5)), "{style}: the dialog settles");
+        let built = h.app.renderer.thumb_jobs_built;
+        for _ in 0..60 {
+            h.step();
+        }
+        assert_eq!(h.app.renderer.thumb_jobs_built, built, "{style}: no thumbnail is rebuilt while nothing changes");
+        assert_eq!(h.app.renderer.in_flight(), 0, "{style}");
+    }
+    assert!(h.app.renderer.thumb_jobs_built - before < 50, "{} jobs", h.app.renderer.thumb_jobs_built - before);
+}
