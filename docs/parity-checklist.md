@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (LR-VER-HISTORY, LRC-DEV-HISTORY: History cursor — going to a step adds no step, later steps stay until a new edit; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -329,7 +329,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-VER-CREATE | Create version | P1 | ✅ | `cmd:version.create` | |
 | LR-VER-PANEL | Versions panel | P1 | ✅ | `cmd:panel.versions`, `cmd:version.create`, `cmd:version.restore`, `cmd:version.delete`, `cmd:version.rename`, `cmd:version.update`, `crates/ui-egui/src/panels/right.rs` (`versions`) | Named / Auto tabs, a thumbnail of each version's look, name and date, current marker; resting on a version previews it in the loupe; click restores, double-click renames; row menu (update, rename, set as before, delete). No automatic versions are created yet (LR-VER-AUTO) |
 | LR-VER-AUTO | Automatic versions | P2 | ✅ | `crates/engine/src/lib.rs` (`auto_version`) | leaving an edited photo keeps its settings as an Auto version (when they differ from the latest version; 20 kept; not an undo step); Versions panel ▸ Auto |
-| LR-VER-HISTORY | Edit history | P1 | ✅ | `cmd:panel.activity`, `cmd:history.list`, `cmd:history.restore` | |
+| LR-VER-HISTORY | Edit history | P1 | ✅ | `cmd:panel.activity`, `cmd:history.list`, `cmd:history.restore`, `cmd:history.previous`, `cmd:history.next` | going to a step moves a per-photo cursor without adding a step; later steps stay listed (greyed) until a new edit drops them; `history.list` returns `cursor` |
 | LR-VER-UNDO | Undo / redo | P0 | ✅ | `cmd:edit.undo`, `cmd:edit.redo` | |
 
 ## N. Copy / paste / sync (SYNC)
@@ -712,7 +712,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-LIB-PREVIEWS | Build / discard previews | P1 | ✅ | `cmd:library.buildPreviews`, `cmd:library.previewProgress`, `cmd:library.cancelPreviews`, `cmd:library.clearPreviews`, `crates/engine/src/cmd/previews.rs`, `crates/preview/src/lib.rs` | File ▸ Previews: build standard-sized (Settings → Performance size) or 1:1 previews of the selected / visible photos in the background (a row in the activity stack, ✕ to stop), discard the cache; disk thumbnail + view cache; no smart previews (offline proxies) |
 | LRC-LIB-SLIDESHOW-IMPROMPTU | Impromptu slideshow | P2 | ✅ | `cmd:view.slideshow` | see LR-VIEW-SLIDESHOW |
 | LRC-DEV-SNAPSHOTS | Named snapshots | P1 | ✅ | `cmd:version.create`, `cmd:version.restore` | = versions |
-| LRC-DEV-HISTORY | Full history panel | P1 | ✅ | `cmd:history.list`, `cmd:history.restore`, `cmd:history.clear` | row menu: copy step to before, create version from step, clear history |
+| LRC-DEV-HISTORY | Full history panel | P1 | ✅ | `cmd:history.list`, `cmd:history.restore`, `cmd:history.previous`, `cmd:history.next`, `cmd:history.clear` | row menu: copy step to before, create version from step, clear history; clicking a step loads it without adding one (current step highlighted, later steps greyed and returnable until a new edit truncates them; one undo step; cursor saved in the catalog, old catalogs open at the latest step) |
 | LRC-DEV-SOFTPROOF | Soft proofing | P2 | 🟡 | `cmd:view.softProof`, `crates/pipeline/src/output.rs` (`Proof`), `crates/ui-egui/src/panels/edit.rs` (`soft_proofing`) | S in the loupe (in grids S stays Expand/Collapse Stack): paper-white surround and "Proof Preview", proof profile (sRGB / Display P3 / Adobe RGB / ProPhoto / Rec. 2020), destination (red) and display (blue) gamut warnings (the display's gamut is the monitor profile's, `cmd:app.displayProfile`, else sRGB), Create Proof Copy (a named virtual copy). printer / paper ICC profiles can be loaded as the proof profile (size-capped, the last few kept), with rendering intent (Perceptual / Relative Colorimetric), Simulate Paper & Ink and a device-gamut warning (`crates/codecs/src/proof.rs`, `crates/engine/src/proof.rs`) |
 | LRC-DEV-AUTOSYNC | Sync / auto sync / paste previous | P1 | ✅ | `cmd:develop.sync`, `cmd:develop.autoSync`, `cmd:develop.pastePrevious` | Edit ▸ Sync Settings / Auto Sync (⌥⇧⌘A): only the changed settings carry over, one undo step, slider drags sync on release, spots / red eye stay per photo; Edit panel banner |
 | LRC-DEV-MATCHEXP | Match total exposures | P2 | ✅ | `cmd:develop.matchExposure` | Photo ▸ Match Total Exposures: the selected photos' Exposure set so shutter × ISO ÷ aperture² plus the slider matches the active photo's |
@@ -787,6 +787,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-13 | minor | LR-VER-HISTORY, LRC-DEV-HISTORY: History cursor (go to a step without adding one; Previous/Next History Step) |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |
