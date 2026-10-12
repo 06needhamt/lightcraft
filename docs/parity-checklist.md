@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (LRC-PRINT-LAYOUT: print layout model; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -749,9 +749,9 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-SS-EXPORT | Slideshow export | P2 | ⬜ | | |
 | LRC-PRINT-LAYOUTSTYLE | Print layout styles | P2 | 🟡 | `cmd:dialog.contactSheet`, `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | paginated contact sheets; single-image/custom package layouts missing |
 | LRC-PRINT-IMAGESETTINGS | Print image settings | P2 | ⬜ | | |
-| LRC-PRINT-LAYOUT | Print layout | P2 | 🟡 | `cmd:export.contactSheet`, `crates/ui-egui/src/panels/dialogs.rs` | A4/Letter, portrait/landscape, 1–8 columns and 1–10 rows; fixed margins and spacing |
+| LRC-PRINT-LAYOUT | Print layout | P2 | 🟡 | `cmd:export.contactSheet`, `crates/ui-egui/src/panels/dialogs.rs`, `crates/engine/src/print/layout.rs` | A4/Letter, portrait/landscape, 1–8 columns and 1–10 rows; fixed margins and spacing. The new layout model (ten paper sizes + custom, orientation, margins, grid with spacing and square cells, package cells with Auto Layout packing) is in the engine but not yet reachable from a command or the UI |
 | LRC-PRINT-GUIDES | Print guides | P2 | ⬜ | | |
-| LRC-PRINT-CELLS | Picture-package cells | P2 | ⬜ | | |
+| LRC-PRINT-CELLS | Picture-package cells | P2 | ⬜ | `crates/engine/src/print/layout.rs` | cell model, deterministic packer, stacking order and snapping exist in the engine; no command or UI yet |
 | LRC-PRINT-PAGE | Print page options | P2 | 🟡 | `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | optional filename captions; no page backgrounds/identity plates |
 | LRC-PRINT-JOB | Print job & colour management | P2 | 🟡 | `cmd:export.contactSheet`, `cmd:app.contactSheet`, `crates/ui-egui/src/export_task.rs` | PDF export at fixed 150 dpi in sRGB, current edits, background progress/cancel and original protection; no native printer integration, ICC soft proof/print profiles or selectable resolution |
 | LRC-PRINT-TEMPLATES | Print templates | P2 | ⬜ | | |
@@ -787,6 +787,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | LRC-PRINT-LAYOUT: the Print layout model (paper, margins, grid, package cells, Auto Layout packer, snapping) lands in `print/layout.rs`; no row changes status until commands and UI follow |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |
