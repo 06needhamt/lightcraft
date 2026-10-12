@@ -238,6 +238,9 @@ pub struct Perf {
     pub update_ms: f64,
     /// The slowest whole update since start.
     pub max_update_ms: f64,
+    /// The previous frame's whole time on this thread, painting (texture uploads) included, as
+    /// the host reports it (eframe's `cpu_usage`); `None` without a host report (headless).
+    pub host_frame_ms: Option<f64>,
     pub fps: f64,
 }
 

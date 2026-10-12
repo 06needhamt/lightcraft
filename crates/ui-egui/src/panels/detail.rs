@@ -446,9 +446,6 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let shown = app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id && t.quick.is_none()).map(|t| (t.key, t.ms));
     let drag = app.session.interaction.as_ref().map(|i| (i.photo, i.label.as_str()));
     let draft = app.drag_scale.scale(drag, gpu, shown.map(|(key, _)| key));
-    if let Some((key, ms)) = shown {
-        app.drag_scale.observe(key, ms);
-    }
     // render at the final size: a click-zoom animation only changes how the result is drawn
     let native_long = native[0].max(native[1]);
     let drawn_long = target_rect.width().max(target_rect.height()) * ppp;
@@ -467,6 +464,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let mut plan = crate::region::plan(&app.ui.settings, sizes);
     if plan.window_edge.is_some_and(|edge| app.window_refused == Some((id, look, edge))) {
         plan = crate::region::plan(&app.ui.settings, crate::region::ViewSizes { windows: false, ..sizes });
+    }
+    // time the full-size drafts where they are what shows: under a window the whole-frame draft
+    // is small anyway, and the frame's time is the window's upload
+    if let Some((key, ms)) = shown.filter(|_| plan.window_edge.is_none()) {
+        app.drag_scale.observe(key, ms, app.perf.host_frame_ms);
     }
     // a pinch changes the zoom every frame: keep the sizes of before it until it is quiet
     let now = ui.input(|i| i.time);
