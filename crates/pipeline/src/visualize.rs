@@ -413,8 +413,18 @@ mod tests {
         let left = MaskShape::Radial { center: Point::new(0.25, 0.5), rx: 0.15, ry: 0.15, angle: 0.0, feather: 10.0, invert: false };
         let right = MaskShape::Radial { center: Point::new(0.75, 0.5), rx: 0.15, ry: 0.15, angle: 0.0, feather: 10.0, invert: false };
         let mut s = DevelopSettings::default();
-        s.masks.push(Mask { id: 1, visible: true, components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape: left }], ..Default::default() });
-        s.masks.push(Mask { id: 2, visible: true, components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape: right }], ..Default::default() });
+        s.masks.push(Mask {
+            id: 1,
+            visible: true,
+            components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape: left }],
+            ..Default::default()
+        });
+        s.masks.push(Mask {
+            id: 2,
+            visible: true,
+            components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape: right }],
+            ..Default::default()
+        });
         let plain = render(&src, &info, &s, &RenderRequest::fit(80, 40)).image;
         let o = Overlay::AllMasks { view: MaskView::WhiteOnBlack, color: [255, 0, 0], opacity: 100 };
         let img = render(&src, &info, &s, &RenderRequest { overlay: o, ..RenderRequest::fit(80, 40) }).image;
