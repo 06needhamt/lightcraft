@@ -531,8 +531,24 @@ fn section(
     if let Some(on) = toggled {
         let _ = app.run("develop.sectionEnabled", json!({"section": id, "enabled": on}));
     } else if resp.clicked() {
-        app.ui.toggle_section(id);
+        // ⌥-click opens just this section, as in Lightroom Classic
+        if ui.input(|i| i.modifiers.alt) {
+            app.ui.solo_section(id);
+        } else {
+            app.ui.toggle_section(id);
+        }
     }
+    resp.context_menu(|ui| {
+        let mut solo = app.ui.single_panel;
+        let item = ui.checkbox(&mut solo, crate::i18n::tr("Solo Mode"));
+        register(ui.ctx(), "sectionMenu:solo", item.rect);
+        if item.clicked() {
+            if let Err(e) = app.run("view.soloSections", json!({"on": solo})) {
+                app.toast(ui.ctx(), e);
+            }
+            ui.close();
+        }
+    });
     if open {
         body(app, ui, d);
     }

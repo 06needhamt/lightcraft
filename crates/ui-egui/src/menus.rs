@@ -129,6 +129,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("section.effects", "Effects", Some("Cmd+3"), "Window>Edit Sections"),
     ("section.detail", "Detail", Some("Cmd+4"), "Window>Edit Sections"),
     ("section.optics", "Optics", Some("Cmd+5"), "Window>Edit Sections"),
+    // {on?}; no params toggles. Opening one Edit section closes the others.
+    ("view.soloSections", "Solo Mode", None, "Window>Edit Sections"),
     ("tool.brush", "Brush", Some("B"), "Window>Tools"),
     ("tool.linear", "Linear Gradient", Some("L"), "Window>Tools"),
     ("tool.radial", "Radial Gradient", Some("R"), "Window>Tools"),
@@ -952,6 +954,11 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 None => app.ui.hidden_locations.clear(),
             }
             Ok(json!({"hidden": app.ui.hidden_locations}))
+        }
+        "view.soloSections" => {
+            let on = p.get("on").and_then(Value::as_bool).unwrap_or(!app.ui.single_panel);
+            app.ui.set_single_panel(on);
+            Ok(json!({"soloSections": app.ui.single_panel}))
         }
         "view.filterBar" => {
             app.ui.filter_bar = !app.ui.filter_bar;

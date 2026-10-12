@@ -523,7 +523,7 @@ pub struct UiState {
     pub open_sections: Vec<String>,
     /// Open flyouts (curve, mixer, grading…).
     pub open_flyouts: Vec<String>,
-    /// Single-panel mode: opening one section closes the others.
+    /// Solo Mode (`view.soloSections`): opening one Edit section closes the others.
     pub single_panel: bool,
     pub show_clipping: bool,
     pub histogram: bool,
@@ -1175,6 +1175,17 @@ impl UiState {
                 self.open_sections.clear();
             }
             self.open_sections.push(id.to_string());
+        }
+    }
+    /// Opens `id` and closes every other Edit section (⌥-click on a section header).
+    pub fn solo_section(&mut self, id: &str) {
+        self.open_sections = vec![id.to_string()];
+    }
+    /// Turns Solo Mode on or off. Turning it on keeps only the section opened last.
+    pub fn set_single_panel(&mut self, on: bool) {
+        self.single_panel = on;
+        if on && let Some(last) = self.open_sections.pop() {
+            self.open_sections = vec![last];
         }
     }
     /// Whether the sidebar section with this id is folded shut (an unknown id: no).

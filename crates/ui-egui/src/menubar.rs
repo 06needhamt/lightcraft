@@ -328,6 +328,7 @@ pub fn checked(app: &LightcraftApp, id: &str) -> Option<bool> {
         "view.beforeAfterSplit" => Some(u.before_after == crate::state::BeforeAfter::Split),
         "view.autoAdvance" => Some(u.auto_advance),
         "view.filterBar" => Some(u.filter_bar),
+        "view.soloSections" => Some(u.single_panel),
         "view.navigator" => Some(u.navigator),
         "view.fullScreenPreview" => Some(u.fullscreen),
         "view.lightsOut" => Some(u.lights_out != crate::state::LightsOut::On),
