@@ -99,6 +99,8 @@ of it. Full standard: `../craftrules/standards/never-crash.md`
 User docs live in `docs/user/` and are published at https://getartcraft.com/docs/lightcraft. If a change alters
 something a user sees or does (menu or panel labels, import, export, install, errors), update the matching page in
 `docs/user/` in the same commit, or add one. Rules: `docs/user/AGENTS.md`; the checker runs in `docs-check.yml`.
+Pages describe the latest release. For a change that is not released yet, write that it was added after <version>
+and is not in a release yet, or update the page when the release ships.
 
 ## Running and looking at the app
 - `cargo run --release -p lightcraft -- --control 7980` opens the desktop app with the JSON-lines control server (see `docs/control-protocol.md`).
