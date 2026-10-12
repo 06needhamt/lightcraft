@@ -417,11 +417,23 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
     let t = Tokens::get(ui.ctx());
     let mut picked = None;
     let width = (below.width() - 10.0).max(60.0);
-    // as tall as its lines: under the box, or over it where that is the only side with room
-    let lines = offers.keywords.len().saturating_add(usize::from(offers.create.is_some()));
-    let height = lines as f32 * 24.0 + if offers.create.is_some() && !offers.keywords.is_empty() { 17.0 } else { 10.0 };
+    // under the box, or over it where the window has more room there; as many lines as fit that
+    // side, so that the offers never cover the box (the highlighted one is always among them)
     let window = ui.ctx().content_rect();
-    let over = below.bottom() + 2.0 + height > window.bottom() && below.top() - window.top() > window.bottom() - below.bottom();
+    let create = usize::from(offers.create.is_some());
+    let fits = |room: f32| {
+        let lines = (room - 2.0 - if create > 0 && !offers.keywords.is_empty() { 17.0 } else { 10.0 }) / 24.0;
+        if lines.is_finite() && lines >= 1.0 { lines as usize } else { 0 }
+    };
+    let wanted = offers.keywords.len().saturating_add(create);
+    let (under, above) = (fits(window.bottom() - below.bottom()), fits(below.top() - window.top()));
+    let over = under < wanted && above > under;
+    let room = (if over { above } else { under }).clamp(1, wanted.max(1));
+    // the keywords shown: those up to the highlighted one when not all fit
+    let count = room.saturating_sub(create).min(offers.keywords.len());
+    let lit = at.and_then(|k| offers.keywords.iter().position(|x| x == k));
+    let first = lit.map_or(0, |a| a.saturating_add(1).saturating_sub(count)).min(offers.keywords.len().saturating_sub(count));
+    let listed = offers.keywords.iter().skip(first).take(count);
     let area = egui::Area::new(egui::Id::new("keyword-offers")).order(egui::Order::Foreground).constrain(true);
     let area = if over {
         area.pivot(Align2::LEFT_BOTTOM).fixed_pos(below.left_top() - vec2(0.0, 2.0))
@@ -453,7 +465,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 }
                 resp
             };
-            for k in &offers.keywords {
+            for k in listed {
                 let (place, name) = k.rsplit_once(SEP).unwrap_or(("", k));
                 let whole = k.replace(SEP, " › ");
                 let lit = at == Some(k.as_str());
@@ -467,7 +479,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 }
             }
             if let Some(new) = &offers.create {
-                if !offers.keywords.is_empty() {
+                if count > 0 {
                     ui.add_space(3.0);
                     let (r, _) = ui.allocate_exact_size(vec2(width, 1.0), Sense::hover());
                     ui.painter().rect_filled(r, 0.0, t.field_border);

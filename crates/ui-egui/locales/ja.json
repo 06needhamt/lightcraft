@@ -1822,7 +1822,7 @@
   "Filter Keywords": "キーワードを絞り込む",
   "No keywords yet": "キーワードはまだありません",
   "Show fewer": "表示を減らす",
-  "Whole names": "完全な名前",
+  "Whole names": "パス全体",
   "Grouped by parent": "親キーワードでグループ化",
   "Keywords of the selection": "選択した写真のキーワード",
   "Grouped: keywords inside the same keyword share a line naming it, and long lists and the suggestions are shortened.": "グループ化：同じキーワードの中にあるキーワードは、その名前を示す行にまとめられ、長いリストと候補は短く表示されます。",

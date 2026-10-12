@@ -720,3 +720,75 @@ fn wrong_values_for_the_new_settings_keep_the_rest() {
     let ui: crate::UiState = serde_json::from_str(r#"{"settings": {"keywordChips": "grouped"}}"#).unwrap();
     assert_eq!(ui.settings.keyword_chips, crate::state::KeywordChips::Grouped);
 }
+
+// Given an offer taken with ↓ and Return,
+// when the panel is switched away at once and comes back much later,
+// then the box does not take the cursor unasked: keys typed then are not the box's.
+#[test]
+fn an_offer_taken_does_not_claim_the_cursor_later() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "lis");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    // (Return and the switch on consecutive frames, as a script does them)
+    let r = h.request("ui.key", json!({"key": "Enter"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    ask(&mut h, "ui.set", json!({"right": "info"}));
+    assert!(all_have(&h, &ids, "Places|Portugal|Lisbon"));
+    ask(&mut h, "ui.set", json!({"right": "keywords"}));
+    ask(&mut h, "ui.text", json!({"text": "zz"}));
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(none_has(&h, &ids, "zz"), "typed with the cursor nowhere: {:?}", keywords_of(&h, ids[0]));
+}
+
+// Given a highlighted offer and the box scrolled out of sight, Return gives nothing: what isn't
+// drawn can't be taken, not even on the frame the box leaves.
+#[test]
+fn an_offer_out_of_sight_is_not_taken() {
+    let (mut h, ids) = with_places();
+    give(&mut h, &ids, &sixteen());
+    typed(&mut h, "lis");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    let panel = rect(&h, "panel:right_panel");
+    ask(&mut h, "ui.move", json!({"x": panel.center().x, "y": panel.center().y}));
+    for _ in 0..8 {
+        // the wheel and Return together, frame after frame
+        let r = h.request("ui.scroll", json!({"dy": -400.0}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        if rect(&h, "field:keyword").bottom() < panel.top() {
+            let r = h.request("ui.key", json!({"key": "Enter"}), T);
+            assert_eq!(r["ok"], true, "{r}");
+        }
+    }
+    h.settle(SETTLE);
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(none_has(&h, &ids, "Places|Portugal|Lisbon"), "{:?}", keywords_of(&h, ids[0]));
+}
+
+// Given a window too short for the offers under the box, they never cover the box being typed
+// in: they go where there is more room and show as many lines as fit there.
+#[test]
+fn offers_never_cover_the_box() {
+    for height in [1000.0, 420.0, 300.0, 230.0, 180.0] {
+        let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+        let mut h = Headless::new(app, [1400.0, height], 1.0);
+        let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(12).map(|p| p.0).collect();
+        ask(&mut h, "ui.set", json!({"view": "photoGrid", "right": "keywords"}));
+        // nine keywords to offer for "pa", on photos that are not selected
+        let many: Vec<String> = (1..=9).map(|i| format!("Parks|park {i}")).collect();
+        ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": &ids[2..], "keywords": many}}));
+        ask(&mut h, "engine.execute", json!({"command": "library.select", "params": {"ids": &ids[..2]}}));
+        typed(&mut h, "pa");
+        let field = rect(&h, "field:keyword");
+        let offers: Vec<egui::Rect> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("kwComplete")).map(|(_, r)| *r).collect();
+        assert!(!offers.is_empty(), "{height}: something is offered");
+        for r in &offers {
+            assert!(!r.intersects(field.shrink(0.5)), "{height}: an offer at {r:?} covers the box at {field:?}");
+            assert!(r.top() >= -0.5 && r.bottom() <= height + 0.5, "{height}: an offer at {r:?} is off the window");
+        }
+        // ↓ still reaches every offer drawn, and the highlighted one is among them
+        for _ in 0..12 {
+            ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+            assert_eq!(lit(&h).len(), 1, "{height}");
+        }
+    }
+}

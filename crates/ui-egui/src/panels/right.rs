@@ -914,8 +914,10 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
         }
         // (after an offer was taken the box starts a new edit, empty: Esc has nothing to bring back)
+        // (asked for on the frame before this one only: a box that wasn't drawn then, its panel
+        // switched away, doesn't claim the cursor whenever it is next drawn)
         let bid = egui::Id::new("kw-begin");
-        let begin = ui.data_mut(|d| d.remove_temp::<bool>(bid)).unwrap_or(false);
+        let begin = ui.data_mut(|d| d.remove_temp::<u64>(bid)).is_some_and(|asked| asked.checked_add(1) == Some(pass));
         let r = crate::text_field::TextField::singleline("field:keyword", &mut text)
             .hint(crate::i18n::tr("Add keyword"))
             .width(f32::INFINITY)
@@ -923,6 +925,10 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             .show(ui);
         let in_sight = ui.clip_rect().contains(r.response.rect.center());
         let mut drawn = Rect::NOTHING;
+        // (what isn't drawn can't be taken: Return on the frame the box scrolls out gives nothing)
+        if !in_sight {
+            picked = None;
+        }
         if offers.is_none() {
             // (not over the offers)
             r.response.clone().on_hover_text(crate::i18n::tr("Separate several keywords with commas. Return gives them to the selected photos."));
@@ -958,7 +964,7 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     text.clear();
                     // an offer taken leaves the cursor in the box, for the next keyword
                     if !returned {
-                        ui.data_mut(|d| d.insert_temp(bid, true));
+                        ui.data_mut(|d| d.insert_temp(bid, pass));
                     }
                 }
                 Err(e) => app.toast_error(ui.ctx(), e),
