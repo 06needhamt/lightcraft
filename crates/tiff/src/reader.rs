@@ -121,6 +121,13 @@ pub fn entry_span(data: &[u8], pos: usize, order: ByteOrder, bigtiff: bool, base
     (end <= data.len() as u64).then_some(EntrySpan { tag, field_type, count, start, len })
 }
 
+/// Whether a directory declaring `declared` entries was read whole (`read` entries), so that its next-IFD pointer
+/// follows them. The counts compare as 64-bit numbers: narrowing the declared count to `usize` instead would, on a
+/// 32-bit target, let a BigTIFF declaring 4,294,967,297 entries but holding one pass for a whole directory.
+fn reads_every_entry(declared: u64, read: usize) -> bool {
+    u64::try_from(read).is_ok_and(|read| read == declared)
+}
+
 /// Parse the header: (byte order, bigtiff, first IFD offset).
 pub(crate) fn header(data: &[u8]) -> Result<(ByteOrder, bool, u64)> {
     header_with(data, true)
@@ -220,9 +227,10 @@ impl<'a> Ctx<'a> {
         }
         entries.sort_by_key(|e| e.tag);
         entries.dedup_by_key(|e| e.tag);
-        // Only a fully read table has a next-IFD offset. Keep hostile BigTIFF counts out of the arithmetic (#1516).
-        let next = if dir.declared == dir.read as u64 {
-            match dir.read.checked_mul(dir.entry_size).and_then(|len| dir.table.checked_add(len)).and_then(|p| self.read_off(p)) {
+        // the next-IFD pointer follows the last entry, read only when every declared entry was (checked: a BigTIFF
+        // count can be anything up to u64::MAX)
+        let next = if reads_every_entry(dir.declared, dir.read) {
+            match dir.read.checked_mul(dir.entry_size).and_then(|n| n.checked_add(dir.table)).and_then(|p| self.read_off(p)) {
                 Some(0) | None => 0,
                 Some(v) => base.checked_add(v).unwrap_or(0),
             }
@@ -307,6 +315,65 @@ pub fn decode(o: ByteOrder, typ: FieldType, b: &[u8]) -> Value {
 mod tests {
     use super::*;
 
+    /// A BigTIFF whose first IFD, at 80, declares `declared` entries but holds one, followed by a next-IFD pointer
+    /// `next`; a valid one-entry IFD sits at 16.
+    fn bigtiff_chain(order: ByteOrder, declared: u64, next: u64) -> Vec<u8> {
+        let ifd = |d: &mut Vec<u8>, count: u64, tag: u16, next: u64| {
+            order.put_u64(d, count);
+            order.put_u16(d, tag);
+            order.put_u16(d, 3);
+            order.put_u64(d, 1);
+            order.put_u16(d, 8);
+            d.extend([0; 6]);
+            order.put_u64(d, next);
+        };
+        let mut d = if order == ByteOrder::Little { b"II".to_vec() } else { b"MM".to_vec() };
+        order.put_u16(&mut d, 43);
+        order.put_u16(&mut d, 8);
+        order.put_u16(&mut d, 0);
+        order.put_u64(&mut d, 80);
+        ifd(&mut d, 1, 0x0101, 0);
+        d.resize(80, 0);
+        ifd(&mut d, declared, 0x0100, next);
+        d
+    }
+
+    #[test]
+    fn only_a_directory_read_whole_has_a_next_pointer() {
+        // the comparison itself, on every target: a declared count past u32::MAX never matches a small read count
+        for (declared, read, whole) in [
+            (0, 0, true),
+            (1, 1, true),
+            (8192, 8192, true),
+            (8193, 8192, false),
+            (1, 0, false),
+            ((1 << 32) + 1, 1, false),
+            ((2 << 32) + 1, 1, false),
+            ((1 << 63) + 1, 1, false),
+            (u64::MAX, 1, false),
+        ] {
+            assert_eq!(reads_every_entry(declared, read), whole, "{declared} declared, {read} read");
+        }
+    }
+
+    #[test]
+    fn a_bigtiff_count_past_u32_max_never_follows_the_next_pointer() {
+        // the whole chain: on 32-bit targets (wasm32) the old cast truncated these counts to 1 and followed the pointer
+        for order in [ByteOrder::Little, ByteOrder::Big] {
+            for declared in [(1u64 << 32) + 1, (2u64 << 32) + 1, (1u64 << 63) + 1] {
+                let d = bigtiff_chain(order, declared, 16);
+                let tiff = Tiff::parse(&d).unwrap();
+                assert_eq!(tiff.ifds.len(), 1, "{order:?} {declared}");
+                assert_eq!(tiff.ifds[0].u64(0x0100), Some(8));
+                assert_eq!(parse_ifd_at(&d, 80, order, 0, true, &ParseOptions::default()).unwrap().1, 0, "{order:?} {declared}");
+            }
+            // control: the same file declaring its one entry follows the pointer to the IFD at 16
+            let whole = Tiff::parse(&bigtiff_chain(order, 1, 16)).unwrap();
+            assert_eq!(whole.ifds.len(), 2, "{order:?}");
+            assert_eq!(whole.ifds[1].u64(0x0101), Some(8));
+        }
+    }
+
     #[test]
     fn directory_positions_never_overflow() {
         // a hand-built layout the reader never produces: the iterator stops instead of overflowing
@@ -321,5 +388,21 @@ mod tests {
         data.extend([0; 24]);
         let dir = directory_entries(&data, 0, ByteOrder::Little, false, 8192).unwrap();
         assert_eq!(dir.positions().collect::<Vec<_>>(), vec![2, 14]);
+    }
+
+    #[test]
+    fn a_bigtiff_directory_declaring_u64_max_entries_parses_without_overflow() {
+        // 44 bytes: BigTIFF header (first IFD at 16), an entry count of u64::MAX, one 20-byte entry
+        let mut data = b"II\x2b\x00\x08\x00\x00\x00".to_vec();
+        data.extend(16u64.to_le_bytes());
+        data.extend(u64::MAX.to_le_bytes());
+        data.extend(0x0100u16.to_le_bytes());
+        data.extend(3u16.to_le_bytes());
+        data.extend(1u64.to_le_bytes());
+        data.extend([8, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(data.len(), 44);
+        let tiff = Tiff::parse(&data).unwrap();
+        assert_eq!(tiff.ifds.len(), 1);
+        assert_eq!(tiff.ifds[0].u64(0x0100), Some(8));
     }
 }

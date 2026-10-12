@@ -162,6 +162,7 @@ fn non_finite_black_levels_and_samples_develop() {
         linearized: false,
         opcodes: OpcodeLists::default(),
         metadata: Default::default(),
+        lens_metadata: Default::default(),
     };
     for img in [raw.clone(), lightcraft_raw::decode(&lightcraft_raw::write_dng(&raw, &DngWriteOptions::default()).unwrap()).unwrap()] {
         let rgb = img.develop(Method::Ahd).unwrap();

@@ -434,6 +434,7 @@ pub fn write_rendered_dng(
         linearized: false,
         opcodes: crate::OpcodeLists::default(),
         metadata: metadata.clone(),
+        lens_metadata: Default::default(),
     };
     let order = ByteOrder::Little;
     write_dng(&raw, &DngWriteOptions { compression: DngCompression::Deflate { tile: 256, half: true }, order, xmp })
