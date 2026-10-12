@@ -47,7 +47,7 @@ pub fn preview_only_variant(reason: &str) -> &str {
 pub fn preview_only_explanation(reason: &str) -> String {
     if reason.starts_with("Nikon High Efficiency NEF (") {
         return crate::i18n::tr(
-            "Nikon High Efficiency NEF uses licensed TicoRAW compression, which LightCraft cannot decode. Only the camera's embedded JPEG preview is available. For editable raw data, shoot Lossless compressed NEF or convert existing HE files to DNG using a licensed converter.",
+            "Nikon High Efficiency NEF (HE / HE★) uses intoPIX TicoRAW compression. LightCraft does not currently have a license for this codec, so only the camera's embedded JPEG preview is available, not the raw sensor data. To edit raw data, shoot Lossless compressed NEF or convert existing HE files to DNG using a licensed converter.",
         )
         .to_string();
     }
@@ -605,6 +605,8 @@ mod tests {
         let reason = "Nikon High Efficiency NEF (HE / HE★, a JPEG XS-based codec with no public specification; shoot RAW Lossless compressed to edit the raw data)";
         let explanation = preview_only_explanation(reason);
         assert!(explanation.contains("TicoRAW"), "{explanation}");
+        assert!(explanation.contains("does not currently have a license"), "{explanation}");
+        assert!(!explanation.contains("cannot decode"), "{explanation}");
         assert!(explanation.contains("Lossless compressed NEF"), "{explanation}");
         assert!(explanation.contains("DNG"), "{explanation}");
         assert!(!explanation.contains("yet"), "{explanation}");
