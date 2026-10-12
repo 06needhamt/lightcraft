@@ -1170,22 +1170,23 @@ impl UiState {
     pub fn toggle_section(&mut self, id: &str) {
         if self.section_open(id) {
             self.open_sections.retain(|s| s != id);
+        } else if self.single_panel {
+            self.solo_section(id);
         } else {
-            if self.single_panel {
-                self.open_sections.clear();
-            }
             self.open_sections.push(id.to_string());
         }
     }
     /// Opens `id` and closes every other Edit section (⌥-click on a section header).
     pub fn solo_section(&mut self, id: &str) {
-        self.open_sections = vec![id.to_string()];
+        self.open_sections.clear();
+        self.open_sections.push(id.to_string());
     }
     /// Turns Solo Mode on or off. Turning it on keeps only the section opened last.
     pub fn set_single_panel(&mut self, on: bool) {
         self.single_panel = on;
-        if on && let Some(last) = self.open_sections.pop() {
-            self.open_sections = vec![last];
+        if on {
+            let keep = self.open_sections.len().saturating_sub(1);
+            self.open_sections.drain(..keep);
         }
     }
     /// Whether the sidebar section with this id is folded shut (an unknown id: no).

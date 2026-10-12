@@ -532,10 +532,9 @@ fn section(
         let _ = app.run("develop.sectionEnabled", json!({"section": id, "enabled": on}));
     } else if resp.clicked() {
         // ⌥-click opens just this section, as in Lightroom Classic
-        if ui.input(|i| i.modifiers.alt) {
-            app.ui.solo_section(id);
-        } else {
-            app.ui.toggle_section(id);
+        let solo = ui.input(|i| i.modifiers.alt);
+        if let Err(e) = app.run(&format!("section.{id}"), json!({"solo": solo})) {
+            app.toast(ui.ctx(), e);
         }
     }
     resp.context_menu(|ui| {

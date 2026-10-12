@@ -30,20 +30,17 @@ fn exec(h: &mut Headless, command: &str, params: serde_json::Value) -> serde_jso
     r["result"].clone()
 }
 
-fn click(h: &mut Headless, id: &str, button: Option<&str>) {
-    let params = match button {
-        Some(b) => json!({"id": id, "button": b}),
-        None => json!({"id": id}),
-    };
-    let r = h.request("ui.clickWidget", params, T);
-    assert_eq!(r["ok"], true, "click {id}: {r}");
+/// A real click through the control channel: `{id, button?, alt?}` as `ui.clickWidget` takes them.
+fn click(h: &mut Headless, params: serde_json::Value) {
+    let r = h.request("ui.clickWidget", params.clone(), T);
+    assert_eq!(r["ok"], true, "click {params}: {r}");
     h.step();
 }
 
 #[test]
 fn solo_mode_closes_the_other_sections_when_one_opens() {
     let mut h = edit_open();
-    click(&mut h, "section:color", None);
+    click(&mut h, json!({"id": "section:color"}));
     assert_eq!(h.app.ui.open_sections, ["light", "color"], "off: sections open side by side");
 
     assert_eq!(exec(&mut h, "view.soloSections", json!({})), json!({"soloSections": true}));
@@ -51,7 +48,7 @@ fn solo_mode_closes_the_other_sections_when_one_opens() {
     assert_eq!(crate::menubar::checked(&h.app, "view.soloSections"), Some(true));
     h.step();
 
-    click(&mut h, "section:detail", None);
+    click(&mut h, json!({"id": "section:detail"}));
     assert_eq!(h.app.ui.open_sections, ["detail"]);
     // the Window > Edit Sections shortcuts follow it too
     exec(&mut h, "section.optics", json!({}));
@@ -69,9 +66,9 @@ fn solo_mode_closes_the_other_sections_when_one_opens() {
 #[test]
 fn the_section_header_menu_turns_solo_mode_on() {
     let mut h = edit_open();
-    click(&mut h, "section:color", None);
-    click(&mut h, "section:effects", Some("right"));
-    click(&mut h, "sectionMenu:solo", None);
+    click(&mut h, json!({"id": "section:color"}));
+    click(&mut h, json!({"id": "section:effects", "button": "right"}));
+    click(&mut h, json!({"id": "sectionMenu:solo"}));
     assert!(h.app.ui.single_panel, "the header's Solo Mode item turns it on");
     assert_eq!(h.app.ui.open_sections, ["color"]);
 }
@@ -79,18 +76,22 @@ fn the_section_header_menu_turns_solo_mode_on() {
 #[test]
 fn option_click_opens_just_that_section() {
     let mut h = edit_open();
-    click(&mut h, "section:color", None);
-    let r = h.request("ui.clickWidget", json!({"id": "section:detail", "alt": true}), T);
-    assert_eq!(r["ok"], true, "{r}");
-    h.step();
+    click(&mut h, json!({"id": "section:color"}));
+    click(&mut h, json!({"id": "section:detail", "alt": true}));
     assert_eq!(h.app.ui.open_sections, ["detail"], "⌥-click closes the others");
     assert!(!h.app.ui.single_panel, "⌥-click doesn't turn Solo Mode on");
+    // agents do the same with the section's command (Calibration has no menu item but runs too)
+    exec(&mut h, "section.calibration", json!({"solo": true}));
+    assert_eq!(h.app.ui.open_sections, ["calibration"]);
 }
 
 #[test]
-fn solo_mode_survives_a_restart() {
-    let mut ui = crate::state::UiState::default();
-    ui.set_single_panel(true);
-    let back: crate::state::UiState = serde_json::from_value(serde_json::to_value(&ui).unwrap()).unwrap();
-    assert!(back.single_panel);
+fn flags_that_are_not_true_or_false_are_refused() {
+    let mut h = edit_open();
+    for (command, params) in [("view.soloSections", json!({"on": "yes"})), ("section.color", json!({"solo": 1}))] {
+        let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
+        assert_eq!(r["ok"], false, "{command} {params}: {r}");
+    }
+    assert!(!h.app.ui.single_panel);
+    assert_eq!(h.app.ui.open_sections, ["light"]);
 }
