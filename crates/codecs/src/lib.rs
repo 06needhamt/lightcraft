@@ -245,11 +245,25 @@ pub fn decode_unguarded(bytes: &[u8], format: Format, opts: &DecodeOptions) -> R
 
 /// Convert a decode result to linear Rec.2020 D65 (Bradford-adapted), the develop working space.
 pub fn to_working(d: &Decoded) -> Rgb32f {
-    if d.space.is_working() {
-        return d.image.clone();
+    let mut image = if d.space.is_working() {
+        d.image.clone()
+    } else {
+        let m = d.space.to_working().to_f32();
+        d.image.map(|p| mat_apply(&m, p))
+    };
+    // Straight alpha onto white. JPEG and contact sheets have no alpha, and a transparent
+    // pixel is usually stored as black (#1212).
+    if let Some(alpha) = &d.alpha {
+        let w = image.width;
+        lightcraft_raster::par_rows(&mut image.data, w, |y, row| {
+            let a = alpha.row(y);
+            for (p, &alpha) in row.iter_mut().zip(a) {
+                let a = alpha.clamp(0.0, 1.0);
+                *p = p.map(|c| c * a + (1.0 - a));
+            }
+        });
     }
-    let m = d.space.to_working().to_f32();
-    d.image.map(|p| mat_apply(&m, p))
+    image
 }
 
 /// Where a thumbnail came from.
@@ -322,4 +336,38 @@ pub fn decode_thumbnail_with(bytes: &[u8], opts: &ThumbnailOptions) -> Result<Th
         source_width: d.source_width,
         source_height: d.source_height,
     })
+}
+
+#[cfg(test)]
+mod alpha_tests {
+    use super::*;
+    use lightcraft_raster::Plane;
+
+    #[test]
+    fn straight_alpha_composites_onto_white_in_the_working_space() {
+        let image = Rgb32f::filled(2, 1, [0.0, 0.0, 0.0]);
+        let alpha = Plane::from_fn(2, 1, |x, _| if x == 0 { 0.0 } else { 0.5 });
+        let d = Decoded {
+            format: Format::Png,
+            image,
+            alpha: Some(alpha),
+            space: SourceSpace::named(NamedSpace::Rec2020, SpaceOrigin::Container),
+            bit_depth: 8,
+            float: false,
+            has_alpha: true,
+            grayscale: false,
+            cmyk: false,
+            orientation: 1,
+            exif: None,
+            xmp: None,
+            icc: None,
+            width: 2,
+            height: 1,
+            source_width: 2,
+            source_height: 1,
+        };
+        let w = to_working(&d);
+        assert!((w.get(0, 0)[0] - 1.0).abs() < 1e-5, "a fully transparent black pixel becomes white");
+        assert!((w.get(1, 0)[0] - 0.5).abs() < 1e-5);
+    }
 }
