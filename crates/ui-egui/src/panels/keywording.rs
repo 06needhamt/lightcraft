@@ -289,6 +289,135 @@ pub(crate) fn chip_label(path: &str, partial: bool, room: f32, measure: impl Fn(
     best
 }
 
+/// The Add keyword box offers at most this many of the library's keywords.
+pub(crate) const OFFERS: usize = 8;
+
+/// What the Add keyword box offers under itself for the text typed in it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Offers {
+    /// The library's keywords matching the text (those starting with it first, then the most
+    /// used), without the ones every selected photo has.
+    pub keywords: Vec<String>,
+    /// The keyword Return would create, when the library has none of that name: where it would go
+    /// (inside the default parent, if there is one).
+    pub create: Option<String>,
+}
+
+/// The text being typed in the Add keyword box: what follows its last comma.
+pub(crate) fn typing(text: &str) -> &str {
+    text.rsplit(',').next().unwrap_or("").trim()
+}
+
+/// The keywords typed before the last comma, each where the library would put it.
+pub(crate) fn typed_before(catalog: &Catalog, text: &str) -> Vec<String> {
+    let Some((before, _)) = text.rsplit_once(',') else { return Vec::new() };
+    before.split(',').map(|s| catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect()
+}
+
+/// What the box offers for `typed`, for photos that all have the `current` keywords.
+pub(crate) fn offers(catalog: &Catalog, current: &[String], typed: &str) -> Offers {
+    let name = lightcraft_catalog::keywords::clean(typed);
+    if name.is_empty() {
+        return Offers::default();
+    }
+    let keywords = catalog.keyword_suggestions(current, typed, OFFERS);
+    let create = (!catalog.has_keyword(&name)).then(|| catalog.typed_keyword(typed));
+    Offers { keywords, create }
+}
+
+/// What was chosen from the offers under the Add keyword box.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Picked {
+    /// One of the library's keywords.
+    Keyword(String),
+    /// The new keyword, as typed.
+    Typed,
+}
+
+/// The offers under the Add keyword box (`below` is the box): the library's keywords matching
+/// what is typed, each by its own name with the keyword it is inside after it, the one at `at`
+/// highlighted (↑ / ↓); then, for a name the library doesn't have, the keyword Return creates.
+/// Returns the offer clicked and where the offers were drawn.
+pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at: Option<usize>) -> (Option<Picked>, egui::Rect) {
+    use egui::{Align2, Sense, pos2, vec2};
+    use lightcraft_catalog::keywords::SEP;
+    let t = Tokens::get(ui.ctx());
+    let mut picked = None;
+    let width = (below.width() - 10.0).max(60.0);
+    let area = egui::Area::new(egui::Id::new("keyword-offers"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(below.left_bottom() + vec2(0.0, 2.0))
+        .constrain(true);
+    let shown = area.show(ui.ctx(), |ui| {
+        egui::Frame::popup(ui.style()).inner_margin(4.0).show(ui, |ui| {
+            ui.set_width(width);
+            ui.spacing_mut().item_spacing.y = 0.0;
+            // a line: the keyword's own name, then (dimmer, cut from the front) where it is
+            let line = |ui: &mut egui::Ui, id: egui::Id, name: &str, place: &str, said: &str, lit: bool| {
+                let (r, resp) = ui.allocate_exact_size(vec2(width, 24.0), Sense::hover());
+                let resp = ui.interact(r, id, Sense::click()).union(resp);
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, lit, said));
+                if lit || resp.hovered() {
+                    ui.painter().rect_filled(r, 4.0, if lit { t.pressed } else { t.hover });
+                }
+                let font = t.font(13.0);
+                let measure = |s: &str, f: &egui::FontId| ui.painter().layout_no_wrap(s.to_string(), f.clone(), t.text).size().x;
+                let name = chip_label(name, false, width - 16.0, |s| measure(s, &font));
+                let end = r.left() + 8.0 + measure(&name, &font);
+                ui.painter().text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, &name, font, t.text);
+                let small = t.font(11.5);
+                let room = r.right() - 8.0 - (end + 10.0);
+                if !place.is_empty() && room >= 30.0 {
+                    let place = chip_label(place, false, room, |s| measure(s, &small));
+                    ui.painter().text(pos2(r.right() - 8.0, r.center().y), Align2::RIGHT_CENTER, place, small, t.text_label);
+                }
+                resp
+            };
+            for (i, k) in offers.keywords.iter().enumerate() {
+                let (place, name) = k.rsplit_once(SEP).unwrap_or(("", k));
+                let whole = k.replace(SEP, " › ");
+                let lit = at == Some(i);
+                let r = line(ui, egui::Id::new(("keyword-offer", k.to_lowercase())), name, place, &whole, lit);
+                register(ui.ctx(), format!("kwComplete:{k}"), r.rect);
+                if lit {
+                    register(ui.ctx(), format!("kwCompleteAt:{k}"), r.rect);
+                }
+                if r.clicked() {
+                    picked = Some(Picked::Keyword(k.clone()));
+                }
+            }
+            if let Some(new) = &offers.create {
+                if !offers.keywords.is_empty() {
+                    ui.add_space(3.0);
+                    let (r, _) = ui.allocate_exact_size(vec2(width, 1.0), Sense::hover());
+                    ui.painter().rect_filled(r, 0.0, t.field_border);
+                    ui.add_space(3.0);
+                }
+                let (place, name) = new.rsplit_once(SEP).unwrap_or(("", new));
+                let whole = new.replace(SEP, " › ");
+                let (place, said) = if place.is_empty() {
+                    (crate::i18n::tr("new keyword").to_string(), crate::i18n::tr_format!("Create the keyword “{name}”", name = whole))
+                } else {
+                    let inside = place.replace(SEP, " › ");
+                    (
+                        crate::i18n::tr_format!("new, inside {parent}", parent = inside),
+                        crate::i18n::tr_format!("Create the keyword “{name}”", name = whole),
+                    )
+                };
+                // (its place is said in words: not a path to cut from the front)
+                let r = line(ui, egui::Id::new("keyword-offer-create"), name, "", &said, false);
+                let small = t.font(11.5);
+                ui.painter().text(pos2(r.rect.right() - 8.0, r.rect.center().y), Align2::RIGHT_CENTER, place, small, t.text_label);
+                register(ui.ctx(), "kwCompleteCreate", r.rect);
+                if r.on_hover_text(crate::i18n::tr("Return creates this keyword and gives it to the selected photos")).clicked() {
+                    picked = Some(Picked::Typed);
+                }
+            }
+        });
+    });
+    (picked, shown.response.rect)
+}
+
 /// Keywords of the selection that are inside the same keyword, as the grouped box shows them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Group {
@@ -687,6 +816,40 @@ mod tests {
         assert_eq!(lines(&[(true, vec![90.0; 9])], 100.0, 6.0, true), fits, "nothing to show fewer of");
         assert!(lines(&[], 100.0, 6.0, false).is_empty());
         assert!(lines(&[(true, vec![])], 100.0, 6.0, false).is_empty(), "a group without chips has no heading");
+    }
+
+    /// Given a library with Places › Lisbon, the box offers it for "lis" (not for photos that all
+    /// have it), says a name the library lacks would be created (inside the default parent when
+    /// there is one), and offers nothing for nothing.
+    #[test]
+    fn the_box_offers_what_matches_and_says_what_is_new() {
+        use lightcraft_catalog::keywords::KeywordInfo;
+        let (mut c, _) = library(&[&["Places|Lisbon", "sea"], &["Places|Porto"]]);
+        let got = offers(&c, &[], "lis");
+        assert_eq!(got.keywords, ["Places|Lisbon"]);
+        assert_eq!(got.create.as_deref(), Some("lis"), "“lis” itself is no keyword");
+        assert!(offers(&c, &["Places|Lisbon".into()], "lis").keywords.is_empty(), "they all have it");
+        assert_eq!(offers(&c, &[], " SEA ").create, None, "the library has sea");
+        assert_eq!(offers(&c, &[], "places").create, None, "and Places, which holds keywords");
+        assert_eq!(offers(&c, &[], "  "), Offers::default());
+        assert_eq!(offers(&c, &[], " | "), Offers::default());
+        c.apply(Op::SetKeyword { path: "Inbox".into(), info: Some(KeywordInfo { new_keywords_inside: true, ..KeywordInfo::default() }) }).unwrap();
+        assert_eq!(offers(&c, &[], "harbour").create.as_deref(), Some("Inbox|harbour"));
+        assert_eq!(offers(&c, &[], "a|b").create.as_deref(), Some("a|b"), "a path typed whole goes where it says");
+        assert!(offers(&c, &[], "p").keywords.len() <= OFFERS);
+    }
+
+    /// What is typed is what follows the last comma; what came before it goes along when an offer
+    /// is taken.
+    #[test]
+    fn typing_is_what_follows_the_last_comma() {
+        let (c, _) = library(&[&["sea"]]);
+        assert_eq!(typing("sea, lis "), "lis");
+        assert_eq!(typing("lis"), "lis");
+        assert_eq!(typing("sea,"), "");
+        assert_eq!(typing(""), "");
+        assert_eq!(typed_before(&c, "sea, , beach ,lis"), ["sea", "beach"]);
+        assert!(typed_before(&c, "lis").is_empty());
     }
 
     /// The grouped box's suggestions say a keyword's own name; two with the same name say their

@@ -209,6 +209,10 @@
   side under it. A long list stops after eight lines with "+N more", and the suggestions say only the keyword's own
   name. Whole names, one chip per keyword, stays the default.
 - A selection without keywords now says "No keywords yet" where its chips would be.
+- Typing in **Add keyword** offers the library's matching keywords right under the box. ↓ and Return (or a click)
+  give the offered keyword and keep the cursor in the box for the next one; Return alone still adds what you typed.
+  A name the library doesn't have is marked as a new keyword before you press Return, so a misspelling no longer
+  becomes a keyword unnoticed. The suggestions further down stay put while you type.
 
 ### HDR and panorama merges of CR2 keep their colour
 - Photo Merge of Canon CR2 (and other raws whose colour LightCraft fits from the camera's own JPEG, such as NEF and

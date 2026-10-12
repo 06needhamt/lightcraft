@@ -862,15 +862,75 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     padded(ui, |ui| {
         let kid = egui::Id::new("kw-input");
         let mut text = ui.data_mut(|d| d.get_temp::<String>(kid).unwrap_or_default());
+        // the keywords every selected photo has: those only some have are still offered and suggested
+        let selection = app.session.targets(&serde_json::Value::Null);
+        let have: Vec<String> =
+            app.caches.keyword_chips(&app.session.catalog, &selection).iter().filter(|c| c.on_all()).map(|c| c.path.clone()).collect();
+        // while the box has the cursor it offers the library's keywords for what is being typed,
+        // right under itself; it stays for a click on one of them, which takes the cursor away
+        let field = crate::text_field::id("field:keyword");
+        let oid = egui::Id::new("kw-offers");
+        let pass = ui.ctx().cumulative_pass_nr();
+        let (typed_then, at_then, drawn, drawn_pass): (String, Option<usize>, Rect, u64) =
+            ui.data(|d| d.get_temp(oid)).unwrap_or((String::new(), None, Rect::NOTHING, 0));
+        let clicking = drawn_pass.checked_add(1) == Some(pass)
+            && ui.input(|i| (i.pointer.any_down() || i.pointer.any_released()) && i.pointer.interact_pos().is_some_and(|p| drawn.contains(p)));
+        let typed = super::keywording::typing(&text).to_string();
+        let offers = (ui.memory(|m| m.has_focus(field)) || clicking)
+            .then(|| app.caches.completions(&app.session.catalog, &have, &typed))
+            .filter(|o| !o.keywords.is_empty() || o.create.is_some());
+        // ↓ / ↑ move through the offers (none is highlighted at first, and ↑ from the first goes
+        // back to none: Return then gives what was typed, as without offers); Return gives the
+        // highlighted one
+        let mut at = at_then.filter(|_| typed_then == typed).filter(|a| offers.as_ref().is_some_and(|o| *a < o.keywords.len()));
+        let mut picked = None;
+        if let Some(o) = offers.as_ref().filter(|o| !o.keywords.is_empty()) {
+            let pressed = |ui: &mut egui::Ui, key| ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key));
+            if pressed(ui, egui::Key::ArrowDown) {
+                at = Some(at.map_or(0, |a| a.saturating_add(1)).min(o.keywords.len().saturating_sub(1)));
+            }
+            if pressed(ui, egui::Key::ArrowUp) {
+                at = at.and_then(|a| a.checked_sub(1));
+            }
+            if let Some(k) = at.and_then(|a| o.keywords.get(a))
+                && pressed(ui, egui::Key::Enter)
+            {
+                picked = Some(super::keywording::Picked::Keyword(k.clone()));
+            }
+        }
         let r =
             crate::text_field::TextField::singleline("field:keyword", &mut text).hint(crate::i18n::tr("Add keyword")).width(f32::INFINITY).show(ui);
+        let mut drawn = Rect::NOTHING;
+        if let Some(o) = &offers {
+            let (clicked, rect) = super::keywording::offers_below(ui, r.response.rect, o, at);
+            drawn = rect;
+            picked = picked.or(clicked);
+        }
+        ui.data_mut(|d| d.insert_temp(oid, (typed.clone(), at, drawn, pass)));
         // Return gives the keywords to the selected photos; Esc gives back what was there before
         // this edit (the shared field does)
-        if r.ending == Some(crate::text_field::Ending::Return) && !text.trim().is_empty() {
+        let returned = r.ending == Some(crate::text_field::Ending::Return) && !text.trim().is_empty();
+        let adding: Option<Vec<String>> = match picked {
+            // an offer: it, and the keywords typed before the last comma
+            Some(super::keywording::Picked::Keyword(k)) => {
+                let mut kws = super::keywording::typed_before(&app.session.catalog, &text);
+                kws.push(k);
+                Some(kws)
+            }
             // a new name goes inside the default parent (Put New Keywords Inside This Keyword)
-            let kws: Vec<String> = text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect();
+            Some(super::keywording::Picked::Typed) => {
+                Some(text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect())
+            }
+            None if returned => Some(text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect()),
+            None => None,
+        };
+        if let Some(kws) = adding {
             let _ = app.run("photo.setMeta", json!({"addKeywords": kws}));
             text.clear();
+            // an offer taken leaves the cursor in the box, for the next keyword
+            if !returned {
+                ui.memory_mut(|m| m.request_focus(field));
+            }
         }
         ui.data_mut(|d| d.insert_temp(kid, text));
         ui.add_space(8.0);
@@ -910,15 +970,9 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
         });
         ui.add_space(10.0);
-        // suggestions: completions of the typed text, else keywords used together with this
-        // photo's keywords, else the most used ones
-        let typed = ui.data(|d| d.get_temp::<String>(kid).unwrap_or_default());
-        let last = typed.rsplit(',').next().unwrap_or("").trim().to_string();
-        // the keywords every selected photo has: those only some have are still suggested
-        let selection = app.session.targets(&serde_json::Value::Null);
-        let have: Vec<String> =
-            app.caches.keyword_chips(&app.session.catalog, &selection).iter().filter(|c| c.on_all()).map(|c| c.path.clone()).collect();
-        let suggestions = (*app.caches.suggestions(&app.session.catalog, &have, &last, 12)).clone();
+        // suggestions: keywords used together with the selection's keywords, else the most used
+        // ones (what matches the text being typed is offered under the box itself)
+        let suggestions = (*app.caches.suggestions(&app.session.catalog, &have, "", 12)).clone();
         if !suggestions.is_empty() {
             ui.label(egui::RichText::new(crate::i18n::tr("Suggestions")).color(t.text_dim));
             // grouped: the keyword's own name, its whole path in the tooltip
@@ -936,9 +990,6 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     register(ui.ctx(), format!("kwSuggest:{k}"), r.rect);
                     if r.clicked() {
                         let _ = app.run("photo.setMeta", json!({"addKeywords": [k]}));
-                        if !last.is_empty() {
-                            ui.data_mut(|d| d.insert_temp(kid, String::new()));
-                        }
                     }
                 }
             });

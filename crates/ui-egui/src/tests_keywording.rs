@@ -373,3 +373,135 @@ fn grouped_suggestions_name_the_keyword_alone() {
     ask(&mut h, "ui.clickWidget", json!({"id": "kwSuggest:Places|Portugal|Lisbon"}));
     assert!(ids.iter().all(|id| keywords_of(&h, *id).iter().any(|k| k == "Places|Portugal|Lisbon")));
 }
+
+/// Two photos selected (beach + Weddings, beach), and a third photo of the library, not selected,
+/// with Places|Portugal|Lisbon and Places|Portugal|Porto.
+fn with_places() -> (Headless, Vec<u64>) {
+    let (mut h, ids) = two_selected();
+    let third = h.app.session.visible_cloned().get(2).map(|p| p.0).expect("a third photo");
+    ask(
+        &mut h,
+        "engine.execute",
+        json!({"command": "photo.setMeta", "params": {"ids": [third], "keywords": ["Places|Portugal|Lisbon", "Places|Portugal|Porto"]}}),
+    );
+    (h, ids)
+}
+
+fn typed(h: &mut Headless, text: &str) {
+    ask(h, "ui.clickWidget", json!({"id": "field:keyword"}));
+    ask(h, "ui.text", json!({"text": text}));
+}
+
+fn all_have(h: &Headless, ids: &[u64], keyword: &str) -> bool {
+    ids.iter().all(|id| keywords_of(h, *id).iter().any(|k| k == keyword))
+}
+
+fn none_has(h: &Headless, ids: &[u64], keyword: &str) -> bool {
+    ids.iter().all(|id| !keywords_of(h, *id).iter().any(|k| k == keyword))
+}
+
+// Given a library with Places › Portugal › Lisbon,
+// when "lis" is typed in the Add keyword box,
+// then the keyword is offered right under the box, and the suggestions further down stay what
+// they were (they used to turn into the completions, a long way from the box).
+#[test]
+fn typing_offers_the_librarys_keywords_under_the_box() {
+    let (mut h, _) = with_places();
+    assert!(has(&h, "kwSuggest:Weddings"));
+    typed(&mut h, "lis");
+    let (field, offer) = (rect(&h, "field:keyword"), rect(&h, "kwComplete:Places|Portugal|Lisbon"));
+    assert!(offer.top() >= field.bottom() && offer.top() - field.bottom() < 12.0, "right under the box: {offer:?} {field:?}");
+    assert!(offer.left() >= field.left() - 1.0 && offer.right() <= field.right() + 1.0, "as wide as the box: {offer:?} {field:?}");
+    assert!(!has(&h, "kwComplete:Places|Portugal|Porto"), "only what matches");
+    assert!(has(&h, "kwSuggest:Weddings") && !has(&h, "kwSuggest:Places|Portugal|Lisbon"), "the suggestions stay");
+    // nothing typed, nothing offered
+    ask(&mut h, "ui.key", json!({"key": "Escape"}));
+    assert_eq!(count(&h, "kwComplete"), 0);
+}
+
+// Given the offers under the box,
+// when ↓ then Return are pressed,
+// then the highlighted keyword goes to every selected photo (not the letters typed), and the box
+// is empty and still has the cursor for the next keyword.
+#[test]
+fn down_and_return_give_the_offered_keyword() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "lis");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    assert!(has(&h, "kwCompleteAt:Places|Portugal|Lisbon"), "highlighted");
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "Places|Portugal|Lisbon"));
+    assert!(none_has(&h, &ids, "lis"), "the letters typed are not a keyword");
+    assert_eq!(count(&h, "kwComplete"), 0, "the box is empty again");
+    // still in the box: the next keyword is typed straight away
+    ask(&mut h, "ui.text", json!({"text": "harbour"}));
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "harbour"));
+}
+
+// Given the offers under the box, Return alone still gives what was typed, as it always did; ↑
+// from the first offer goes back to that.
+#[test]
+fn return_alone_gives_what_was_typed() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "lis");
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "lis") && none_has(&h, &ids, "Places|Portugal|Lisbon"));
+
+    typed(&mut h, "por");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    ask(&mut h, "ui.key", json!({"key": "ArrowUp"}));
+    assert_eq!(count(&h, "kwCompleteAt:"), 0, "none highlighted");
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "por") && none_has(&h, &ids, "Places|Portugal|Porto"));
+}
+
+// Given a name the library doesn't have,
+// when it is typed,
+// then the box says Return will create it (and inside which keyword, with a default parent); a
+// keyword the library has is not announced as new.
+#[test]
+fn a_new_name_is_announced_as_new() {
+    let (mut h, _) = with_places();
+    typed(&mut h, "Lisbn");
+    assert!(has(&h, "kwCompleteCreate"), "a misspelling is a new keyword: say so");
+    ask(&mut h, "ui.key", json!({"key": "Escape"}));
+    typed(&mut h, "weddings");
+    assert!(!has(&h, "kwCompleteCreate"), "the library has Weddings");
+    assert!(has(&h, "kwComplete:Weddings"), "one of the two lacks it");
+    ask(&mut h, "ui.key", json!({"key": "Escape"}));
+    typed(&mut h, "Places|Portugal");
+    assert!(!has(&h, "kwCompleteCreate"), "a keyword with keywords inside it is there too");
+}
+
+// Given the offers under the box, a click on one gives that keyword to the selected photos; a
+// click on the "create" line gives what was typed. Keywords typed before a comma go along.
+#[test]
+fn a_click_on_an_offer_gives_it() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "sea, lis");
+    assert!(has(&h, "kwComplete:Places|Portugal|Lisbon"), "the offers are for what follows the comma");
+    ask(&mut h, "ui.clickWidget", json!({"id": "kwComplete:Places|Portugal|Lisbon"}));
+    assert!(all_have(&h, &ids, "Places|Portugal|Lisbon") && all_have(&h, &ids, "sea") && none_has(&h, &ids, "lis"));
+
+    typed(&mut h, "harbour");
+    ask(&mut h, "ui.clickWidget", json!({"id": "kwCompleteCreate"}));
+    assert!(all_have(&h, &ids, "harbour"));
+}
+
+// Given more offers than there is room for, ↓ stops at the last and never runs off the list.
+#[test]
+fn the_highlight_stays_on_the_list() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "por");
+    for _ in 0..40 {
+        ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    }
+    let lit: Vec<String> = h.app.widgets.iter().filter_map(|(w, _)| w.strip_prefix("kwCompleteAt:").map(str::to_string)).collect();
+    assert_eq!(lit.len(), 1, "{lit:?}");
+    let offered = count(&h, "kwComplete:");
+    assert!(offered >= 2, "Portugal and Porto both match");
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, &lit[0]), "the last offer, {}, was given", lit[0]);
+    assert!(none_has(&h, &ids, "por"));
+}

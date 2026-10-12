@@ -1521,6 +1521,9 @@ pub struct Caches {
     folder_tree: Option<(u64, std::sync::Arc<Vec<lightcraft_catalog::FolderNode>>)>,
     people: Option<(u64, lightcraft_catalog::Filter, std::sync::Arc<Vec<lightcraft_catalog::Person>>)>,
     suggestions: Option<(u64, std::sync::Arc<Vec<String>>)>,
+    /// What the Add keyword box offers for the text typed in it, by library revision, the
+    /// selection's keywords and that text.
+    completions: Option<(u64, std::sync::Arc<panels::keywording::Offers>)>,
     counts: Option<(u64, LibraryCounts)>,
     date_groups: Option<(u64, std::sync::Arc<Vec<lightcraft_catalog::DateGroup>>)>,
     filter_values: Option<(u64, std::sync::Arc<FilterValues>)>,
@@ -1767,6 +1770,25 @@ impl Caches {
                     keywords: cat.keywords().into_iter().map(|(k, _)| k).collect(),
                 });
                 self.filter_values = Some((cat.revision, v.clone()));
+                v
+            }
+        }
+    }
+    /// What the Add keyword box offers for `typed` (see [`panels::keywording::offers`]). Kept apart
+    /// from [`Self::suggestions`]: both are asked for on every frame of typing, and each looks
+    /// through the library's keywords.
+    pub(crate) fn completions(
+        &mut self,
+        cat: &lightcraft_catalog::Catalog,
+        current: &[String],
+        typed: &str,
+    ) -> std::sync::Arc<panels::keywording::Offers> {
+        let k = key_of((cat.revision, current, typed));
+        match &self.completions {
+            Some((h, v)) if *h == k => v.clone(),
+            _ => {
+                let v = std::sync::Arc::new(panels::keywording::offers(cat, current, typed));
+                self.completions = Some((k, v.clone()));
                 v
             }
         }
