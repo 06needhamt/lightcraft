@@ -30,6 +30,7 @@ are in [`localization-zh-hans.md`](localization-zh-hans.md), [`localization-zh-h
        De, "de", "Deutsch", "Latn", include_str!("../locales/de.json");
        Ru, "ru", "Русский", "Cyrl", include_str!("../locales/ru.json");
        Uk, "uk", "Українська", "Cyrl", include_str!("../locales/uk.json");
+       It, "it", "Italiano", "Latn", include_str!("../locales/it.json");
    }
    ```
 

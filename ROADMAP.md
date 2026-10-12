@@ -96,7 +96,7 @@ while lower-layer errors stay English. Detail: [localization-parity.md](docs/loc
 | Korean | ko | 0% | none (no Hangul face) |
 | Vietnamese | vi | 0% | none |
 
-Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%).
+Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%), Italian (92%).
 
 ## Upcoming
 
@@ -161,6 +161,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Italian interface (`it`, #1192): 2,201 of 2,398 messages, locale, menu command and tests; headline numbers unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |
 | 2026-10-10 | minor | Full ready restored to the additive weighted sum (~59%; method aligned with the standard, no new evidence); hours per audience; beta ~16 points away |
