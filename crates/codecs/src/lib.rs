@@ -31,6 +31,7 @@ mod jxl;
 mod jxl_encode;
 mod other;
 mod png_codec;
+pub mod print;
 pub mod proof;
 mod psd;
 mod sniff;
