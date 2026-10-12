@@ -403,7 +403,8 @@ fn load_bytes_now(
         // the camera's measured matrices (`Photo::relative_wb` decides the same from the catalog's camera)
         let scale = WbScaleOf::new(raw.format, &raw.color, raw.wb_multipliers, &raw.metadata);
         // the source's segmentation mattes (DNG semantic masks), read while the starting colour is fitted
-        let ((xy, t, camera_look), mattes) = rayon::join(|| crate::camera_preview::starting_colour(&mut raw, &bytes, lens.as_ref()), || dng_mattes(&bytes, &info));
+        let ((xy, t, camera_look), mattes) =
+            rayon::join(|| crate::camera_preview::starting_colour(&mut raw, &bytes, lens.as_ref()), || dng_mattes(&bytes, &info));
         drop(bytes);
         // Previews and thumbnails bin the mosaic straight to (about) the size they need; only
         // larger levels (exports, 1:1) demosaic the whole sensor.
@@ -472,10 +473,11 @@ fn load_bytes_now(
         // on top of it). A model's measured matrices never do: they only give the Kelvin scale its numbers, and the
         // picture is adapted from the as-shot white as every fitted look is (so settings from before that scale
         // existed render exactly as they did, `lightcraft_pipeline::local::legacy_white`).
-        let camera_color = (scale.own_matrix && !t.matrix_is_fallback && (camera_look.is_none() || raw.format == lightcraft_raw::RawFormat::Dng)).then(|| {
-            let tags = lightcraft_raw::ColorData { profile: Default::default(), ..raw.color.clone() };
-            Arc::new(lightcraft_pipeline::CameraColor { tags, developed_for: xy })
-        });
+        let camera_color = (scale.own_matrix && !t.matrix_is_fallback && (camera_look.is_none() || raw.format == lightcraft_raw::RawFormat::Dng))
+            .then(|| {
+                let tags = lightcraft_raw::ColorData { profile: Default::default(), ..raw.color.clone() };
+                Arc::new(lightcraft_pipeline::CameraColor { tags, developed_for: xy })
+            });
         let camera_tone = camera_look.as_ref().map(|p| p.tone).or_else(|| raw.color.profile.tone_curve.as_ref().and_then(dng_tone_curve));
         let local_tone = local_tone(&raw);
         let (temp, tint) = scale.as_shot(xy);

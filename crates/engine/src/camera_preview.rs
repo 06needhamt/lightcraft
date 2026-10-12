@@ -69,7 +69,11 @@ pub(crate) fn file_local_look(format: RawFormat) -> bool {
 /// white (a monochrome picture style) has no colour to fit, but still gives its tone curve: with the camera profile's
 /// colour in [`fit_preview`], else on top of the spectral matrices or the fallback ([`monochrome_look`]). Returns the
 /// as-shot white, the camera transform at it and the fitted look.
-pub(crate) fn starting_colour(raw: &mut RawImage, bytes: &[u8], lens: Option<&lightcraft_develop::EmbeddedLens>) -> (Xy, CameraTransform, Option<CameraLook>) {
+pub(crate) fn starting_colour(
+    raw: &mut RawImage,
+    bytes: &[u8],
+    lens: Option<&lightcraft_develop::EmbeddedLens>,
+) -> (Xy, CameraTransform, Option<CameraLook>) {
     let (xy, t, look) = starting_colour_with(raw, |raw, t| fit_preview(raw, bytes, t), |raw, t| monochrome_look(raw, bytes, t));
     if look.is_none() && dng_tone_eligible(raw, &t) {
         let look = fit_dng_tone(raw, bytes, &t, lens);
@@ -80,14 +84,22 @@ pub(crate) fn starting_colour(raw: &mut RawImage, bytes: &[u8], lens: Option<&li
 
 /// Whether the profile's tone curve is absent or the identity (within 0.005 over the range).
 fn identity_tone_curve(curve: Option<&lightcraft_raw::profile::ToneCurve>) -> bool {
-    curve.is_none_or(|c| (0..=32).all(|i| { let x = i as f32 / 32.0; (c.eval(x) - x).abs() < 0.005 }))
+    curve.is_none_or(|c| {
+        (0..=32).all(|i| {
+            let x = i as f32 / 32.0;
+            (c.eval(x) - x).abs() < 0.005
+        })
+    })
 }
 
 /// A DNG with its own colour model whose tone is not (yet) defined by the file: a matrix, no
 /// non-identity `ProfileToneCurve`, no `LookTable` (a look table is the file's own rendering).
 pub(crate) fn dng_tone_eligible(raw: &RawImage, t: &CameraTransform) -> bool {
     let p = &raw.color.profile;
-    raw.format == RawFormat::Dng && !t.matrix_is_fallback && identity_tone_curve(p.tone_curve.as_ref()) && p.look_table.is_none()
+    raw.format == RawFormat::Dng
+        && !t.matrix_is_fallback
+        && identity_tone_curve(p.tone_curve.as_ref())
+        && p.look_table.is_none()
         && p.gain_table_map.is_none()
 }
 
@@ -314,7 +326,9 @@ fn fit_dng_tone(raw: &RawImage, bytes: &[u8], transform: &CameraTransform, lens:
     let fit_on = unclipped.as_ref().unwrap_or(&sensor);
     let colour = Some((Mat3::IDENTITY, None));
     let look = TONE_FITS.iter().find_map(|&tone| {
-        [false, true].into_iter().find_map(|away_from_edges| fit_attempt(fit_on, &reference, &colour, Attempt { tone, profile: true, away_from_edges, dark: true }))
+        [false, true]
+            .into_iter()
+            .find_map(|away_from_edges| fit_attempt(fit_on, &reference, &colour, Attempt { tone, profile: true, away_from_edges, dark: true }))
     });
     let Some(look) = look else { return refuse("fit") };
     let plain = match raw.color.profile.tone_curve.as_ref().and_then(crate::files::dng_tone_curve) {
@@ -441,7 +455,8 @@ fn proxies(raw: &RawImage, bytes: &[u8], transform: &CameraTransform, size: usiz
     let decoded = crate::files::decode_raw_preview(bytes, lightcraft_codecs::DecodeOptions { max_size: Some((edge, edge)), max_pixels: 64_000_000 })?;
     let (a, crop) = (raw.active_area, raw.crop.clipped(raw.active_area.width, raw.active_area.height));
     // a preview below `min_fraction` of the crop's long edge (or under 384 px) is refused; 0 = any
-    if min_fraction > 0.0 && (decoded.source_width.max(decoded.source_height) as f64) < (min_fraction * crop.width.max(crop.height) as f64).max(384.0) {
+    if min_fraction > 0.0 && (decoded.source_width.max(decoded.source_height) as f64) < (min_fraction * crop.width.max(crop.height) as f64).max(384.0)
+    {
         return None;
     }
     let mut reference = decoded.to_working();
@@ -3038,7 +3053,8 @@ mod tests {
             }
         }
         let colour = Some((Mat3::IDENTITY, None));
-        let look = fit_attempt(&sensor, &reference, &colour, Attempt { tone: ToneFit::Quantile, profile: true, away_from_edges: false, dark: true }).expect("tone fitted");
+        let look = fit_attempt(&sensor, &reference, &colour, Attempt { tone: ToneFit::Quantile, profile: true, away_from_edges: false, dark: true })
+            .expect("tone fitted");
         assert_eq!(look.matrix, Mat3::IDENTITY);
         assert!(look.hue_sat.is_none());
         let (fitted, default) = (ToneMap::camera(&look.tone, 0.0, 0.0, 0.0), ToneMap::new(0.0, 0.0, 0.0));
@@ -3105,7 +3121,7 @@ mod tests {
     /// identity, no look table; and no other raw format.
     #[test]
     fn dng_tone_gates_follow_the_files_own_tags() {
-        use lightcraft_raw::profile::{ToneCurve, HsvTable};
+        use lightcraft_raw::profile::{HsvTable, ToneCurve};
         let own = Mat3([[0.6, -0.1, -0.05], [-0.4, 1.3, 0.1], [-0.1, 0.2, 0.7]]);
         let color = lightcraft_raw::ColorData { illuminant: [21, 0], color_matrix: [Some(own), None], ..Default::default() };
         let eligible = |format: RawFormat, color: lightcraft_raw::ColorData| {
