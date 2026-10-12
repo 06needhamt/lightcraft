@@ -300,6 +300,63 @@ fn the_print_dialog_fits_the_window_with_its_buttons_on_screen() {
 }
 
 #[test]
+fn print_job_colour_controls_reach_the_job_and_the_pdf() {
+    use lightcraft_engine::print_color::{PrintIntent, PrintMedia, PrintProfile, PrintSharpen};
+    let dir = std::env::temp_dir().join(format!("lightcraft-print-ui-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let icc = dir.join("Baryta Paper.icc");
+    std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::AdobeRgb)).unwrap();
+    let picked = icc.to_string_lossy().into_owned();
+    let services = Services { png: None, pick_display_profile: Some(Box::new(move || vec![picked.clone()])), ..Default::default() };
+    let mut h = demo(services);
+    open_print(&mut h);
+    // the Print Job panel is at the bottom of the settings column: scroll down to it, as a person would
+    let r = h.request("ui.hoverWidget", json!({"id": "combo:printPaper"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        h.request("ui.scroll", json!({"dy": -600.0}), T);
+        h.settle(T);
+    }
+    let job = |h: &Headless| h.app.session.print.job.color.clone();
+    assert_eq!(job(&h).intent, PrintIntent::Perceptual);
+    assert!(!has(&h, "item:printProfile-other"), "the menu is closed");
+
+    click(&mut h, "button:printIntent-1");
+    assert_eq!(job(&h).intent, PrintIntent::Relative);
+    click(&mut h, "check:printBpc");
+    assert!(!job(&h).black_point_compensation);
+    click(&mut h, "button:printSharpen-3");
+    click(&mut h, "button:printMedia-0");
+    assert_eq!((job(&h).sharpen, job(&h).media), (PrintSharpen::High, PrintMedia::Matte));
+    click(&mut h, "check:print16bit");
+    assert!(!job(&h).sixteen_bit);
+    drag(&mut h, "drag:printBrightness", 30.0, 0.0);
+    assert!(job(&h).brightness > 0.0, "{}", job(&h).brightness);
+
+    // a printer profile from the picker
+    click(&mut h, "combo:printProfile");
+    click(&mut h, "item:printProfile-other");
+    assert_eq!(job(&h).profile, PrintProfile::Icc { path: icc.clone() });
+
+    // the PDF uses it: converted pages, the profile named as the output intent, 8 bits
+    cmd(
+        &mut h,
+        "print.set",
+        json!({"layout": {"style": "contactSheet", "grid": {"columns": 1, "rows": 1}, "page": {"paper": "4x6"}}, "job": {"ppi": 72.0}}),
+    );
+    let ids: Vec<u64> = h.app.session.catalog.photos().take(1).map(|p| p.id.0).collect();
+    let out = dir.join("colour.pdf");
+    cmd(&mut h, "print.exportPdf", json!({"path": out, "ids": ids}));
+    let text = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(text.contains("/OutputIntents") && text.contains("/BitsPerComponent 8") && text.contains("/ICCBased"));
+
+    // back to Managed by Printer
+    click(&mut h, "combo:printProfile");
+    click(&mut h, "item:printProfile-adobeRgb");
+    assert_eq!(job(&h).profile, PrintProfile::Managed { space: lightcraft_engine::print_color::ManagedSpace::AdobeRgb });
+}
+
+#[test]
 fn the_print_preview_does_not_rebuild_thumbnails_every_frame() {
     let mut h = demo(Services { png: None, ..Default::default() });
     let before = h.app.renderer.thumb_jobs_built;

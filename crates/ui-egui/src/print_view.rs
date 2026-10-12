@@ -11,6 +11,7 @@ use lightcraft_engine::export::ExportOptions;
 use lightcraft_engine::print::compose::{self, place};
 use lightcraft_engine::print::layout::{self, Snap, Style, Unit};
 use lightcraft_engine::print::template::PrintSettings;
+use lightcraft_engine::print_color::{ManagedSpace, PrintColorSettings, PrintIntent, PrintMedia, PrintProfile, PrintSharpen};
 use serde_json::{Value, json};
 
 use crate::LightcraftApp;
@@ -428,7 +429,90 @@ fn settings(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens, pu: &mut PrintUi, 
             patch(app, &ctx, json!({"job": {"ppi": ppi}}));
         }
     });
-    ui.label(egui::RichText::new(crate::i18n::tr("PDF · sRGB · current edits")).color(t.text_dim));
+    print_job_color(app, ui, t, &st.job.color);
+}
+
+/// Send one colour setting of the print job (the rest stay as they are).
+fn patch_color(app: &mut LightcraftApp, ctx: &egui::Context, key: &str, value: Value) {
+    patch(app, ctx, json!({"job": {"color": {(key): value}}}));
+}
+
+fn to_value<V: serde::Serialize>(v: V) -> Value {
+    serde_json::to_value(v).unwrap_or(Value::Null)
+}
+
+/// The Print Job panel's colour management, print adjustment, print sharpening and depth.
+fn print_job_color(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens, color: &PrintColorSettings) {
+    let ctx = ui.ctx().clone();
+    let managed = |space| PrintProfile::Managed { space };
+    let shown = match &color.profile {
+        PrintProfile::Managed { space: ManagedSpace::Srgb } => crate::i18n::tr("Managed by Printer (sRGB)").to_string(),
+        PrintProfile::Managed { space: ManagedSpace::AdobeRgb } => crate::i18n::tr("Managed by Printer (Adobe RGB)").to_string(),
+        PrintProfile::Icc { path } => path.file_stem().map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned()),
+    };
+    let mut pick = false;
+    row(ui, t, "Profile", |ui| {
+        let c = egui::ComboBox::from_id_salt("print-profile").width(190.0).selected_text(shown.clone()).show_ui(ui, |ui| {
+            for (space, label) in [(ManagedSpace::Srgb, "Managed by Printer (sRGB)"), (ManagedSpace::AdobeRgb, "Managed by Printer (Adobe RGB)")] {
+                let r = ui.selectable_label(color.profile == managed(space), crate::i18n::tr(label));
+                register(ui.ctx(), format!("item:printProfile-{}", to_value(space).as_str().unwrap_or_default()), r.rect);
+                if r.clicked() && color.profile != managed(space) {
+                    patch_color(app, &ctx, "profile", to_value(managed(space)));
+                }
+            }
+            if let PrintProfile::Icc { .. } = &color.profile {
+                let _ = ui.selectable_label(true, shown.as_str());
+            }
+            if app.services.pick_display_profile.is_some() {
+                let r = ui.selectable_label(false, crate::i18n::tr("Other…"));
+                register(ui.ctx(), "item:printProfile-other", r.rect);
+                pick |= r.clicked();
+            }
+        });
+        register(ui.ctx(), "combo:printProfile", c.response.rect);
+    });
+    if pick && let Some(path) = app.services.pick_display_profile.as_mut().and_then(|pick| pick().into_iter().next()) {
+        patch_color(app, &ctx, "profile", json!({"kind": "icc", "path": path}));
+    }
+    row(ui, t, "Intent", |ui| {
+        if let Some(v) = choice(ui, "printIntent", &[(PrintIntent::Perceptual, "Perceptual"), (PrintIntent::Relative, "Relative")], color.intent) {
+            patch_color(app, &ctx, "intent", to_value(v));
+        }
+    });
+    ui.add_enabled_ui(color.intent == PrintIntent::Relative, |ui| {
+        if let Some(v) = check(ui, "printBpc", "Black Point Compensation", color.black_point_compensation) {
+            patch_color(app, &ctx, "blackPointCompensation", json!(v));
+        }
+    });
+    for (key, label, value) in [("brightness", "Brightness", color.brightness), ("contrast", "Contrast", color.contrast)] {
+        row(ui, t, label, |ui| {
+            let mut v = value;
+            let r = ui.add(egui::DragValue::new(&mut v).range(-100.0..=100.0).speed(0.5).max_decimals(0));
+            register(ui.ctx(), format!("drag:print{label}"), r.rect);
+            if r.changed() {
+                patch_color(app, &ctx, key, json!(v));
+            }
+        });
+    }
+    row(ui, t, "Sharpening", |ui| {
+        let options = [(PrintSharpen::Off, "Off"), (PrintSharpen::Low, "Low"), (PrintSharpen::Standard, "Standard"), (PrintSharpen::High, "High")];
+        if let Some(v) = choice(ui, "printSharpen", &options, color.sharpen) {
+            patch_color(app, &ctx, "sharpen", to_value(v));
+        }
+    });
+    ui.add_enabled_ui(color.sharpen != PrintSharpen::Off, |ui| {
+        row(ui, t, "Media", |ui| {
+            if let Some(v) = choice(ui, "printMedia", &[(PrintMedia::Matte, "Matte"), (PrintMedia::Glossy, "Glossy")], color.media) {
+                patch_color(app, &ctx, "media", to_value(v));
+            }
+        });
+    });
+    if let Some(v) = check(ui, "print16bit", "16 bits per channel", color.sixteen_bit) {
+        patch_color(app, &ctx, "sixteenBit", json!(v));
+    }
+    let bits = if color.sixteen_bit { "16-bit" } else { "8-bit" };
+    let summary = format!("PDF · {shown} · {bits} · {}", crate::i18n::tr("current edits"));
+    ui.label(egui::RichText::new(summary).color(t.text_dim));
 }
 
 fn trim(v: f64) -> String {
