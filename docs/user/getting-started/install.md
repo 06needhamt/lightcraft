@@ -14,9 +14,8 @@ Download the file for your system from the [latest release](https://github.com/s
 3. Run the file. The installer asks where to install. The default is `C:\Program Files\LightCraft`, and upgrades stay in the folder you chose.
 4. At the end, choose the option to start LightCraft.
 
-For a Snapdragon or other Arm PC, download `lightcraft-<version>-windows-arm64.msi` instead. The release also has an `x86` installer for 32-bit Windows.
-
-To run it without installing, download `lightcraft-<version>-windows-x64-portable.zip`. Portable builds for `arm64` and `x86` are on the release page too.
+For a Snapdragon or other Arm PC, download `lightcraft-<version>-windows-arm64.msi` instead.
+To run it without installing, download `lightcraft-<version>-windows-x64-portable.zip`. A portable build for `arm64` is on the release page too.
 
 ## macOS
 

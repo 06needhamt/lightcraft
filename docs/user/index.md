@@ -23,4 +23,4 @@ You import photos, sort them with ratings, flags and albums, and edit them witho
 
 ## Get help
 
-Ask in [Discord](https://discord.gg/artcraft) or open an issue in the [issue tracker](https://github.com/storytold/lightcraft/issues). Say which system and camera you use, and your LightCraft version (**Help** > **About LightCraft**).
+Ask in [Discord](https://discord.gg/artcraft) or open an issue in the [issue tracker](https://github.com/storytold/lightcraft/issues). Say which system and camera you use, and your LightCraft version (**Help** > **About LightCraft**; on macOS, **LightCraft** > **About LightCraft**).

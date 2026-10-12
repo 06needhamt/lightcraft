@@ -9,7 +9,7 @@ Open an issue in the [issue tracker](https://github.com/storytold/lightcraft/iss
 
 ## What to include
 
-1. **Your version.** Choose **Help** > **About LightCraft**.
+1. **Your version.** Choose **Help** > **About LightCraft** (on macOS, **LightCraft** > **About LightCraft**).
 2. **Your system.** For example Windows 11, 64-bit. **Help** > **System Info…** shows details about your computer.
 3. **The steps.** What you clicked, in order, and what happened.
 4. **The camera and file type**, if the problem is with a photo.
