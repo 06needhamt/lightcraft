@@ -284,6 +284,7 @@ pub struct AppSettings {
     /// the display is treated as sRGB).
     pub display_profile: String,
     /// The Keywording box: whole keyword paths, or grouped by the keyword they are inside.
+    #[serde(deserialize_with = "lenient")]
     pub keyword_chips: KeywordChips,
 }
 
@@ -726,12 +727,13 @@ pub struct UiState {
     pub keyword_painter: Option<String>,
     /// What the Keywording box shows (Lightroom Classic's Keyword Tags views).
     pub keywording_view: KeywordingView,
-    /// The Keywording box, grouped: every keyword is shown, however many lines that takes ("+N
-    /// more" was clicked).
+    /// The Keywording box, grouped: every keyword of this selection (its hash) is shown, however
+    /// many lines that takes ("+N more" was clicked). Another selection's list is short again.
     #[serde(skip)]
-    pub keyword_chips_all: bool,
+    pub keyword_chips_all: Option<u64>,
     /// Sections of the right panel folded shut by a click on their title (`keywording`,
     /// `keywordList`); the others are open.
+    #[serde(deserialize_with = "lenient_ids")]
     pub folded_sections: Vec<String>,
     /// The Keyword List's open levels (lower-case paths).
     pub keyword_list_open: Vec<String>,
@@ -1163,7 +1165,7 @@ impl Default for UiState {
             second_window: false,
             keyword_painter: None,
             keywording_view: KeywordingView::default(),
-            keyword_chips_all: false,
+            keyword_chips_all: None,
             folded_sections: Vec::new(),
             keyword_list_open: Vec::new(),
             keyword_list_selected: None,
@@ -1264,6 +1266,19 @@ impl UiState {
         }
         self
     }
+}
+
+/// A setting read leniently: a value that isn't one of its own (a hand-edited file, a newer
+/// build's choice) is the default, and the rest of the settings file is still read.
+fn lenient<'de, D: serde::Deserializer<'de>, T: Default + serde::de::DeserializeOwned>(d: D) -> Result<T, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
+/// A list of ids read leniently: what isn't a list is none, and what isn't text in it is left out.
+fn lenient_ids<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(value.as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect())
 }
 
 fn deserialize_favorite_themes<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {

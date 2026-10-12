@@ -169,9 +169,8 @@ fn menu(app: &mut LightcraftApp, ui: &mut egui::Ui, chip: &Chip) {
 
 /// With several photos selected, how many the box's keywords are of (`keywordScope`): what a ×
 /// or a keyword typed here acts on.
-pub fn scope(app: &mut LightcraftApp, ui: &mut egui::Ui) {
-    let selection = app.session.targets(&serde_json::Value::Null);
-    let photos = app.caches.selected_photos(&app.session.catalog, &selection);
+pub fn scope(app: &mut LightcraftApp, ui: &mut egui::Ui, selection: &[PhotoId]) {
+    let photos = app.caches.selected_photos(&app.session.catalog, selection);
     if photos < 2 {
         return;
     }
@@ -185,9 +184,8 @@ pub fn scope(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 /// The selection's keywords as chips: the name (right-click for its menu), and × to take it off
 /// every selected photo. One only some of them have is marked with an asterisk. Whole names, or
 /// grouped by the keyword they are inside (Settings ▸ Interface).
-pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
-    let selection = app.session.targets(&serde_json::Value::Null);
-    let chips = app.caches.keyword_chips(&app.session.catalog, &selection);
+pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui, selection: &[PhotoId]) {
+    let chips = app.caches.keyword_chips(&app.session.catalog, selection);
     if chips.is_empty() {
         let t = Tokens::get(ui.ctx());
         let r = ui.label(egui::RichText::new(crate::i18n::tr("No keywords yet")).color(t.text_dim));
@@ -195,8 +193,8 @@ pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         return;
     }
     if app.ui.settings.keyword_chips == crate::state::KeywordChips::Grouped {
-        let groups = app.caches.keyword_groups(&app.session.catalog, &selection);
-        chip_groups(app, ui, &groups);
+        let groups = app.caches.keyword_groups(&app.session.catalog, selection);
+        chip_groups(app, ui, &groups, crate::key_of(selection));
         return;
     }
     ui.horizontal_wrapped(|ui| {
@@ -230,17 +228,25 @@ fn chip_acts(app: &mut LightcraftApp, ui: &egui::Ui, c: &Chip, body: egui::Respo
     body.context_menu(|ui| menu(app, ui, &c));
 }
 
-/// When a list is shortened, only this many chips are measured for it: more than fit the lines
-/// shown, however narrow they are.
-const MEASURED: usize = 128;
+/// When a list is shortened, only this many chips are measured for it: more than the lines it
+/// can show hold in rows `avail` wide, however short their names are. The others are planned a
+/// line each, past the lines shown.
+pub(crate) fn measured(avail: f32) -> usize {
+    // the narrowest chip: its edges and a letter
+    let narrowest = chip_edges(true) + 4.0;
+    let row = if avail.is_finite() && avail > narrowest { ((avail / narrowest) as usize).min(4096) } else { 1 };
+    row.saturating_add(1).saturating_mul(LINES + SLACK + 1)
+}
 
 /// The grouped box: each group's parent on a line of its own, its chips under it side by side,
 /// and "+N more" where a long list stops.
-fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
+fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group], selection: u64) {
     use egui::{Align2, Sense, vec2};
     let t = Tokens::get(ui.ctx());
     let avail = ui.available_width();
-    let all = app.ui.keyword_chips_all;
+    // the whole list only for the selection it was asked of
+    let all = app.ui.keyword_chips_all == Some(selection);
+    let limit = measured(avail);
     // the widths the lines are planned with (past what a shortened list can show: a line each)
     let mut measured = 0_usize;
     let sizes: Vec<(bool, Vec<f32>)> = groups
@@ -251,7 +257,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
                 .iter()
                 .map(|(name, c)| {
                     measured = measured.saturating_add(1);
-                    if all || measured <= MEASURED { chip_size(ui, name, !c.on_all(), true, avail).1 } else { avail }
+                    if all || measured <= limit { chip_size(ui, name, !c.on_all(), true, avail).1 } else { avail }
                 })
                 .collect();
             (!g.parent.is_empty(), widths)
@@ -268,7 +274,11 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
                 let shown = chip_label(&group.parent, false, avail, measure);
                 let full = group.parent.replace('|', " › ");
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &full));
-                ui.painter().text(r.left_center(), Align2::LEFT_CENTER, shown, small.clone(), t.text_label);
+                ui.painter().text(r.left_center(), Align2::LEFT_CENTER, &shown, small.clone(), t.text_label);
+                // (cut short, it says its whole name on hover, as a chip does)
+                if shown != full {
+                    resp.on_hover_text(&full);
+                }
                 register(ui.ctx(), format!("keywordGroup:{}", group.parent), r);
             }
             Line::Chips(g, row) => {
@@ -288,7 +298,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
                 let r = ui.add(egui::Button::new(egui::RichText::new(label).color(t.text_label)).corner_radius(10.0));
                 register(ui.ctx(), "keywordChipsMore", r.rect);
                 if r.on_hover_text(crate::i18n::tr("Show every keyword of the selected photos")).clicked() {
-                    app.ui.keyword_chips_all = true;
+                    app.ui.keyword_chips_all = Some(selection);
                 }
             }
             Line::Fewer => {
@@ -296,7 +306,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group]) {
                 let r = ui.add(egui::Button::new(egui::RichText::new(crate::i18n::tr("Show fewer")).color(t.text_label)).corner_radius(10.0));
                 register(ui.ctx(), "keywordChipsFewer", r.rect);
                 if r.clicked() {
-                    app.ui.keyword_chips_all = false;
+                    app.ui.keyword_chips_all = None;
                 }
             }
         }
@@ -369,12 +379,21 @@ pub(crate) fn typed_before(catalog: &Catalog, text: &str) -> Vec<String> {
 
 /// What the box offers for `typed`, for photos that all have the `current` keywords.
 pub(crate) fn offers(catalog: &Catalog, current: &[String], typed: &str) -> Offers {
-    let name = lightcraft_catalog::keywords::clean(typed);
+    use lightcraft_catalog::keywords::{SEP, clean};
+    let name = clean(typed);
     if name.is_empty() {
         return Offers::default();
     }
-    let keywords = catalog.keyword_suggestions(current, typed, OFFERS);
-    let create = (!catalog.has_keyword(&name)).then(|| catalog.typed_keyword(typed));
+    // (a keyword two photos spell differently is one offer, the first spelling)
+    let mut seen = std::collections::HashSet::new();
+    let mut keywords = catalog.keyword_suggestions(current, typed, OFFERS);
+    keywords.retain(|k| seen.insert(k.to_lowercase()));
+    // where Return would put a name the library lacks, as `Catalog::typed_keyword` does, without
+    // looking through the library a second time
+    let create = (!catalog.has_keyword(&name)).then(|| match catalog.default_keyword_parent() {
+        Some(parent) if !name.contains(SEP) => format!("{parent}{SEP}{name}"),
+        _ => name,
+    });
     Offers { keywords, create }
 }
 
@@ -390,17 +409,25 @@ pub(crate) enum Picked {
 /// The offers under the Add keyword box (`below` is the box): the library's keywords matching
 /// what is typed, each by its own name with the keyword it is inside after it, the one at `at`
 /// highlighted (↑ / ↓); then, for a name the library doesn't have, the keyword Return creates.
-/// Returns the offer clicked and where the offers were drawn.
-pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at: Option<usize>) -> (Option<Picked>, egui::Rect) {
+/// They go above the box where the window has no room for them under it. Returns the offer
+/// clicked and where the offers were drawn.
+pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at: Option<&str>) -> (Option<Picked>, egui::Rect) {
     use egui::{Align2, Sense, pos2, vec2};
     use lightcraft_catalog::keywords::SEP;
     let t = Tokens::get(ui.ctx());
     let mut picked = None;
     let width = (below.width() - 10.0).max(60.0);
-    let area = egui::Area::new(egui::Id::new("keyword-offers"))
-        .order(egui::Order::Foreground)
-        .fixed_pos(below.left_bottom() + vec2(0.0, 2.0))
-        .constrain(true);
+    // as tall as its lines: under the box, or over it where that is the only side with room
+    let lines = offers.keywords.len().saturating_add(usize::from(offers.create.is_some()));
+    let height = lines as f32 * 24.0 + if offers.create.is_some() && !offers.keywords.is_empty() { 17.0 } else { 10.0 };
+    let window = ui.ctx().content_rect();
+    let over = below.bottom() + 2.0 + height > window.bottom() && below.top() - window.top() > window.bottom() - below.bottom();
+    let area = egui::Area::new(egui::Id::new("keyword-offers")).order(egui::Order::Foreground).constrain(true);
+    let area = if over {
+        area.pivot(Align2::LEFT_BOTTOM).fixed_pos(below.left_top() - vec2(0.0, 2.0))
+    } else {
+        area.fixed_pos(below.left_bottom() + vec2(0.0, 2.0))
+    };
     let shown = area.show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).inner_margin(4.0).show(ui, |ui| {
             ui.set_width(width);
@@ -426,10 +453,10 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 }
                 resp
             };
-            for (i, k) in offers.keywords.iter().enumerate() {
+            for k in &offers.keywords {
                 let (place, name) = k.rsplit_once(SEP).unwrap_or(("", k));
                 let whole = k.replace(SEP, " › ");
-                let lit = at == Some(i);
+                let lit = at == Some(k.as_str());
                 let r = line(ui, egui::Id::new(("keyword-offer", k.to_lowercase())), name, place, &whole, lit);
                 register(ui.ctx(), format!("kwComplete:{k}"), r.rect);
                 if lit {
@@ -462,7 +489,13 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 let small = t.font(11.5);
                 ui.painter().text(pos2(r.rect.right() - 8.0, r.rect.center().y), Align2::RIGHT_CENTER, place, small, t.text_label);
                 register(ui.ctx(), "kwCompleteCreate", r.rect);
-                if r.on_hover_text(crate::i18n::tr("Return creates this keyword and gives it to the selected photos")).clicked() {
+                // (Return gives the highlighted offer instead, while there is one)
+                let r = if at.is_none() {
+                    r.on_hover_text(crate::i18n::tr("Return creates this keyword and gives it to the selected photos"))
+                } else {
+                    r
+                };
+                if r.clicked() {
                     picked = Some(Picked::Typed);
                 }
             }
@@ -505,7 +538,9 @@ pub(crate) fn grouped(chips: &[Chip]) -> Vec<Group> {
         let shared = |depth: &usize| inside.get(&head(&levels, *depth).to_lowercase()).is_some_and(|n| *n > 1);
         let depth = (1..levels.len()).rev().find(shared).unwrap_or(0);
         let parent = head(&levels, depth);
-        groups.entry(parent.to_lowercase()).or_insert_with(|| Group { parent, chips: Vec::new() }).chips.push((tail(&levels, depth), c.clone()));
+        // (ordered level by level: "Port › Docks" follows "Port", before "Portugal")
+        let key = parent.to_lowercase().replace(SEP, "\u{1}");
+        groups.entry(key).or_insert_with(|| Group { parent, chips: Vec::new() }).chips.push((tail(&levels, depth), c.clone()));
     }
     groups.into_values().collect()
 }
@@ -890,6 +925,45 @@ mod tests {
         assert_eq!(offers(&c, &[], "harbour").create.as_deref(), Some("Inbox|harbour"));
         assert_eq!(offers(&c, &[], "a|b").create.as_deref(), Some("a|b"), "a path typed whole goes where it says");
         assert!(offers(&c, &[], "p").keywords.len() <= OFFERS);
+    }
+
+    /// A keyword two photos spell differently is offered once.
+    #[test]
+    fn a_keyword_spelled_two_ways_is_one_offer() {
+        let (c, _) = library(&[&["Lisbon"], &["lisbon"], &["LISBON", "Lisboa"]]);
+        let got = offers(&c, &[], "lis").keywords;
+        assert_eq!(got.len(), 2, "{got:?}");
+        assert!(got.iter().any(|k| k.eq_ignore_ascii_case("lisbon")) && got.contains(&"Lisboa".to_string()));
+    }
+
+    /// Groups follow the tree: a keyword's groups come right after it, before a keyword whose name
+    /// merely starts the same.
+    #[test]
+    fn groups_are_in_the_trees_order() {
+        let parents: Vec<String> =
+            groups_of(&["Portugal|a", "Portugal|b", "Port|Docks|j", "Port|Docks|k", "Port|x", "Port|y"]).into_iter().map(|(p, _)| p).collect();
+        assert_eq!(parents, ["Port", "Port|Docks", "Portugal"]);
+    }
+
+    /// However wide the box, more chips are measured than a shortened list can show: the lines
+    /// shown are planned with their real widths.
+    #[test]
+    fn enough_chips_are_measured_for_the_lines_shown() {
+        for avail in [0.0, 60.0, 224.0, 474.0, 1500.0, 6000.0, f32::NAN, f32::INFINITY, -5.0] {
+            let limit = measured(avail);
+            assert!(limit > LINES + SLACK, "{avail}: {limit}");
+            if avail.is_finite() && avail > 0.0 {
+                // the narrowest chips there can be, a gap apart: those of the lines shown
+                let narrowest = chip_edges(true) + 4.0;
+                let fit = (LINES + SLACK + 1) * ((avail / (narrowest + GAP)) as usize + 1);
+                assert!(limit >= fit, "{avail}: {limit} < {fit}");
+            }
+        }
+        // a wide box: the lines shown are full rows, not one chip each past the 128th
+        let widths = vec![40.0; 300];
+        let limit = measured(1500.0);
+        let planned: Vec<f32> = widths.iter().enumerate().map(|(i, w)| if i < limit { *w } else { 1500.0 }).collect();
+        assert_eq!(lines(&[(false, planned)], 1500.0, GAP, false), lines(&[(false, widths)], 1500.0, GAP, false));
     }
 
     /// What is typed is what follows the last comma; what came before it goes along when an offer

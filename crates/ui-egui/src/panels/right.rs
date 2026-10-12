@@ -871,49 +871,75 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let field = crate::text_field::id("field:keyword");
         let oid = egui::Id::new("kw-offers");
         let pass = ui.ctx().cumulative_pass_nr();
-        let (typed_then, at_then, drawn, drawn_pass): (String, Option<usize>, Rect, u64) =
-            ui.data(|d| d.get_temp(oid)).unwrap_or((String::new(), None, Rect::NOTHING, 0));
-        let clicking = drawn_pass.checked_add(1) == Some(pass)
+        // (remembered from the last frame: the text the highlight was for and the keyword it was
+        // on, where the offers were drawn, and whether the box was in sight)
+        let (typed_then, at_then, drawn, drawn_pass, hidden): (String, Option<String>, Rect, u64, bool) =
+            ui.data(|d| d.get_temp(oid)).unwrap_or((String::new(), None, Rect::NOTHING, 0, false));
+        let last_frame = drawn_pass.checked_add(1) == Some(pass);
+        let clicking = last_frame
             && ui.input(|i| (i.pointer.any_down() || i.pointer.any_released()) && i.pointer.interact_pos().is_some_and(|p| drawn.contains(p)));
         let typed = super::keywording::typing(&text).to_string();
-        let offers = (ui.memory(|m| m.has_focus(field)) || clicking)
+        // (none while the box is scrolled out of the panel: they would float over what is there)
+        let offers = ((ui.memory(|m| m.has_focus(field)) || clicking) && !(last_frame && hidden))
             .then(|| app.caches.completions(&app.session.catalog, &have, &typed))
             .filter(|o| !o.keywords.is_empty() || o.create.is_some());
         // ↓ / ↑ move through the offers (none is highlighted at first, and ↑ from the first goes
         // back to none: Return then gives what was typed, as without offers); Return gives the
-        // highlighted one
-        let mut at = at_then.filter(|_| typed_then == typed).filter(|a| offers.as_ref().is_some_and(|o| *a < o.keywords.len()));
+        // highlighted one. The highlight is on a keyword, not a line: it stays with it when the
+        // library changes under it, and goes when the keyword does. With Shift or Alt the keys
+        // are the text's own.
+        let mut at = at_then.filter(|k| typed_then == typed && offers.as_ref().is_some_and(|o| o.keywords.contains(k)));
         let mut picked = None;
         if let Some(o) = offers.as_ref().filter(|o| !o.keywords.is_empty()) {
-            let pressed = |ui: &mut egui::Ui, key| ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, key));
+            let pressed = |ui: &mut egui::Ui, key: egui::Key| {
+                ui.input_mut(|i| {
+                    let plain =
+                        |e: &egui::Event| matches!(e, egui::Event::Key { key: k, pressed: true, modifiers, .. } if *k == key && modifiers.is_none());
+                    let found = i.events.iter().any(plain);
+                    i.events.retain(|e| !plain(e));
+                    found
+                })
+            };
+            let line = at.as_ref().and_then(|k| o.keywords.iter().position(|x| x == k));
             if pressed(ui, egui::Key::ArrowDown) {
-                at = Some(at.map_or(0, |a| a.saturating_add(1)).min(o.keywords.len().saturating_sub(1)));
+                let next = line.map_or(0, |a| a.saturating_add(1)).min(o.keywords.len().saturating_sub(1));
+                at = o.keywords.get(next).cloned();
+            } else if pressed(ui, egui::Key::ArrowUp) {
+                at = line.and_then(|a| a.checked_sub(1)).and_then(|a| o.keywords.get(a).cloned());
             }
-            if pressed(ui, egui::Key::ArrowUp) {
-                at = at.and_then(|a| a.checked_sub(1));
-            }
-            if let Some(k) = at.and_then(|a| o.keywords.get(a))
+            if let Some(k) = &at
                 && pressed(ui, egui::Key::Enter)
             {
                 picked = Some(super::keywording::Picked::Keyword(k.clone()));
             }
         }
-        let r =
-            crate::text_field::TextField::singleline("field:keyword", &mut text).hint(crate::i18n::tr("Add keyword")).width(f32::INFINITY).show(ui);
+        // (after an offer was taken the box starts a new edit, empty: Esc has nothing to bring back)
+        let bid = egui::Id::new("kw-begin");
+        let begin = ui.data_mut(|d| d.remove_temp::<bool>(bid)).unwrap_or(false);
+        let r = crate::text_field::TextField::singleline("field:keyword", &mut text)
+            .hint(crate::i18n::tr("Add keyword"))
+            .width(f32::INFINITY)
+            .begin_edit(begin)
+            .show(ui);
+        let in_sight = ui.clip_rect().contains(r.response.rect.center());
         let mut drawn = Rect::NOTHING;
         if offers.is_none() {
             // (not over the offers)
             r.response.clone().on_hover_text(crate::i18n::tr("Separate several keywords with commas. Return gives them to the selected photos."));
         }
-        if let Some(o) = &offers {
-            let (clicked, rect) = super::keywording::offers_below(ui, r.response.rect, o, at);
+        if let Some(o) = offers.as_ref().filter(|_| in_sight) {
+            let (clicked, rect) = super::keywording::offers_below(ui, r.response.rect, o, at.as_deref());
             drawn = rect;
             picked = picked.or(clicked);
         }
-        ui.data_mut(|d| d.insert_temp(oid, (typed.clone(), at, drawn, pass)));
+        ui.data_mut(|d| d.insert_temp(oid, (typed.clone(), at, drawn, pass, !in_sight)));
         // Return gives the keywords to the selected photos; Esc gives back what was there before
         // this edit (the shared field does)
         let returned = r.ending == Some(crate::text_field::Ending::Return) && !text.trim().is_empty();
+        // a new name goes inside the default parent (Put New Keywords Inside This Keyword)
+        let as_typed = |app: &LightcraftApp, text: &str| -> Vec<String> {
+            text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect()
+        };
         let adding: Option<Vec<String>> = match picked {
             // an offer: it, and the keywords typed before the last comma
             Some(super::keywording::Picked::Keyword(k)) => {
@@ -921,28 +947,30 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 kws.push(k);
                 Some(kws)
             }
-            // a new name goes inside the default parent (Put New Keywords Inside This Keyword)
-            Some(super::keywording::Picked::Typed) => {
-                Some(text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect())
-            }
-            None if returned => Some(text.split(',').map(|s| app.session.catalog.typed_keyword(s)).filter(|s| !s.is_empty()).collect()),
+            Some(super::keywording::Picked::Typed) => Some(as_typed(app, &text)),
+            None if returned => Some(as_typed(app, &text)),
             None => None,
         };
         if let Some(kws) = adding {
-            let _ = app.run("photo.setMeta", json!({"addKeywords": kws}));
-            text.clear();
-            // an offer taken leaves the cursor in the box, for the next keyword
-            if !returned {
-                ui.memory_mut(|m| m.request_focus(field));
+            // (refused, the text stays to be put right, and the refusal is said)
+            match app.run("photo.setMeta", json!({"addKeywords": kws})) {
+                Ok(_) => {
+                    text.clear();
+                    // an offer taken leaves the cursor in the box, for the next keyword
+                    if !returned {
+                        ui.data_mut(|d| d.insert_temp(bid, true));
+                    }
+                }
+                Err(e) => app.toast_error(ui.ctx(), e),
             }
         }
         ui.data_mut(|d| d.insert_temp(kid, text));
         ui.add_space(8.0);
         super::keywording::view_switch(app, ui);
         ui.add_space(4.0);
-        super::keywording::scope(app, ui);
+        super::keywording::scope(app, ui, &selection);
         if app.ui.keywording_view == crate::state::KeywordingView::Keywords {
-            super::keywording::chip_row(app, ui);
+            super::keywording::chip_row(app, ui, &selection);
         } else {
             super::keywording::names_row(app, ui);
         }

@@ -578,8 +578,145 @@ fn any_name_fits_the_panel() {
             assert!(r.width() > 0.0 && r.height() < 30.0);
         }
     }
-    // and typing them offers them without trouble
+    // and typing them offers them without trouble: the photos here all have them, so another
+    // photo's emoji keyword is what is offered
+    let next = others(&mut h);
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [next[0]], "keywords": ["🙂|العربية|سلام"]}}));
     typed(&mut h, &"x".repeat(300));
+    ask(&mut h, "ui.key", json!({"key": "Escape"}));
     typed(&mut h, "🙂");
-    assert!(count(&h, "kwComplete") >= 1);
+    assert!(has(&h, "kwComplete:🙂|العربية|سلام"), "{:?}", h.app.widgets.iter().filter(|(w, _)| w.starts_with("kwComplete")).collect::<Vec<_>>());
+}
+
+fn lit(h: &Headless) -> Vec<String> {
+    h.app.widgets.iter().filter_map(|(w, _)| w.strip_prefix("kwCompleteAt:").map(str::to_string)).collect()
+}
+
+/// Ids of the library's photos after the two selected ones.
+fn others(h: &mut Headless) -> Vec<u64> {
+    h.app.session.visible_cloned().iter().skip(2).take(4).map(|p| p.0).collect()
+}
+
+// Given a long grouped list shown whole after "+N more",
+// when other photos with a long list are selected,
+// then theirs is short again: asking for more was for the photos it was asked of.
+#[test]
+fn asking_for_more_is_for_the_selection_it_was_asked_of() {
+    let (mut h, ids) = two_selected();
+    h.app.ui.settings.keyword_chips = crate::state::KeywordChips::Grouped;
+    give(&mut h, &ids, &sixteen());
+    let next = others(&mut h);
+    give(&mut h, &next, &sixteen());
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipsMore"}));
+    assert_eq!(count(&h, "keywordChip:"), 16);
+    // taking a keyword off keeps the list whole: it is still theirs
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": ids, "removeKeywords": [sixteen()[15]]}}));
+    assert_eq!(count(&h, "keywordChip:"), 15);
+    ask(&mut h, "engine.execute", json!({"command": "library.select", "params": {"ids": next}}));
+    assert_eq!(count(&h, "keywordChip:"), 7, "short again");
+    assert!(has(&h, "keywordChipsMore") && !has(&h, "keywordChipsFewer"));
+}
+
+// Given a keyword two photos spell differently (Lisbon, lisbon),
+// when it is typed,
+// then it is offered once, and a click gives it.
+#[test]
+fn a_keyword_spelled_two_ways_is_offered_once() {
+    let (mut h, ids) = two_selected();
+    let next = others(&mut h);
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [next[0]], "keywords": ["Lisbon"]}}));
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": [next[1]], "keywords": ["lisbon"]}}));
+    typed(&mut h, "lis");
+    let offered: Vec<String> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("kwComplete:")).map(|(w, _)| w.clone()).collect();
+    assert_eq!(offered.len(), 1, "{offered:?}");
+    ask(&mut h, "ui.clickWidget", json!({"id": offered[0]}));
+    assert!(ids.iter().all(|id| keywords_of(&h, *id).iter().any(|k| k.eq_ignore_ascii_case("lisbon"))));
+}
+
+// Given a highlighted offer,
+// when the library changes under it and the offers come in another order,
+// then the highlight is still on that keyword (it used to stay on the line, and Return gave
+// whatever keyword had moved there).
+#[test]
+fn the_highlight_stays_with_its_keyword() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "por");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    let before = lit(&h);
+    assert_eq!(before.len(), 1);
+    let next = others(&mut h);
+    ask(&mut h, "engine.execute", json!({"command": "photo.setMeta", "params": {"ids": next, "addKeywords": ["Portraits"]}}));
+    assert!(has(&h, "kwComplete:Portraits"), "the offers changed");
+    assert_eq!(lit(&h), before, "the highlight did not move to another keyword");
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, &before[0]) && none_has(&h, &ids, "Portraits"));
+}
+
+// Given an offer taken with ↓ and Return, Esc afterwards does not bring back the keywords that
+// were just added: the box stays empty.
+#[test]
+fn escape_after_an_offer_keeps_the_box_empty() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "sea");
+    ask(&mut h, "ui.key", json!({"key": "Tab"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "field:keyword"}));
+    ask(&mut h, "ui.key", json!({"key": "End"}));
+    ask(&mut h, "ui.text", json!({"text": ", lis"}));
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "sea") && all_have(&h, &ids, "Places|Portugal|Lisbon"));
+    ask(&mut h, "ui.key", json!({"key": "Escape"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "field:keyword"}));
+    ask(&mut h, "ui.key", json!({"key": "End"}));
+    ask(&mut h, "ui.text", json!({"text": "x"}));
+    ask(&mut h, "ui.key", json!({"key": "Enter"}));
+    assert!(all_have(&h, &ids, "x") && none_has(&h, &ids, "seax"), "{:?}", keywords_of(&h, ids[0]));
+}
+
+// ↓ / ↑ / Return with Shift or Alt held are the text box's own (select to the start of the text):
+// they leave the offers alone.
+#[test]
+fn modified_arrows_are_the_text_boxs() {
+    let (mut h, ids) = with_places();
+    typed(&mut h, "por");
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown", "shift": true}));
+    assert!(lit(&h).is_empty(), "Shift+↓ highlights nothing: {:?}", lit(&h));
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    ask(&mut h, "ui.key", json!({"key": "ArrowDown"}));
+    let before = lit(&h);
+    ask(&mut h, "ui.key", json!({"key": "ArrowUp", "shift": true}));
+    assert_eq!(lit(&h), before);
+    let _ = ids;
+}
+
+// Given the box scrolled out of the panel with the cursor still in it, its offers are not drawn
+// (they used to float over the top bar, where Return still took one).
+#[test]
+fn offers_go_when_the_box_scrolls_out_of_sight() {
+    let (mut h, ids) = with_places();
+    give(&mut h, &ids, &sixteen());
+    typed(&mut h, "lis");
+    assert!(has(&h, "kwComplete:Places|Portugal|Lisbon"));
+    let panel = rect(&h, "panel:right_panel");
+    ask(&mut h, "ui.move", json!({"x": panel.center().x, "y": panel.center().y}));
+    for _ in 0..8 {
+        ask(&mut h, "ui.scroll", json!({"dy": -400.0}));
+    }
+    assert!(rect(&h, "field:keyword").bottom() < panel.top(), "scrolled out: {:?}", rect(&h, "field:keyword"));
+    assert_eq!(count(&h, "kwComplete"), 0);
+}
+
+// Settings files with something else under the two new keys keep every other setting (and these
+// two at their defaults): a wrong value used to discard the whole file.
+#[test]
+fn wrong_values_for_the_new_settings_keep_the_rest() {
+    let ui: crate::UiState = serde_json::from_str(r#"{"foldedSections": "oops", "rightWidth": 300.0}"#).unwrap();
+    assert!(!ui.section_folded("keywording") && ui.right_width == 300.0);
+    let ui: crate::UiState =
+        serde_json::from_str(r#"{"foldedSections": [1, "keywordList", null], "settings": {"keywordChips": "bogus", "filmNames": false}}"#).unwrap();
+    assert!(ui.section_folded("keywordList") && !ui.section_folded("keywording"));
+    assert_eq!(ui.settings.keyword_chips, crate::state::KeywordChips::Paths);
+    assert!(!ui.settings.film_names, "the other settings are read");
+    let ui: crate::UiState = serde_json::from_str(r#"{"settings": {"keywordChips": "grouped"}}"#).unwrap();
+    assert_eq!(ui.settings.keyword_chips, crate::state::KeywordChips::Grouped);
 }
