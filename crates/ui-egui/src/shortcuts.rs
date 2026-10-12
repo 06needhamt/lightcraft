@@ -304,7 +304,13 @@ fn grid_bracket_command(keymap: &Keymap, grid: bool, id: &'static str, shortcut:
 /// Dock chrome owns activation, traversal, resizing and cancellation; its other keys reach commands.
 fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
     if !ctx.egui_wants_keyboard_input() {
-        return false;
+        // Escape drops egui focus before shortcuts run; keep the numeric edit's whole input batch.
+        return ctx.input(|input| input.key_pressed(Key::Escape))
+            && app.widgets.iter().any(|(widget, _)| widget.starts_with("sliderField:") && crate::text_field::was_editing(ctx, widget));
+    }
+    // a selected slider keeps its arrow keys; everything else is a shortcut
+    if crate::widgets::slider_has_focus(ctx) {
+        return ctx.input(|input| [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown].iter().any(|key| input.key_pressed(*key)));
     }
     let chrome = app
         .ui
@@ -325,6 +331,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     if !matches!(app.ui.dialog, Some(crate::state::Dialog::Shortcuts)) {
         app.recording_shortcut = None;
     }
+    // Dialogs own their keys (including Esc and text editing); background photo actions wait.
+    if app.ui.dialog.is_some() {
+        return;
+    }
     // don't steal keys from text fields or from the keymap editor recording a shortcut
     if keyboard_owned(app, ctx) || app.recording_shortcut.is_some() || app.ui.name_edit.is_some() {
         return;
@@ -340,6 +350,8 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // an open popup (a menu, a date picker's calendar) closes on Esc itself: Esc's command (Back,
     // which also closes dialogs) waits until nothing is open
     let popup_open = egui::Popup::is_any_open(ctx);
+    // Esc that just took a text field's focus away (it gives back the field's text) does nothing else
+    let popup_open = popup_open || app.text_focus;
     ctx.input(|i| {
         for b in bindable() {
             if let Some(sc) = binding(keymap, b.id, b.default)
