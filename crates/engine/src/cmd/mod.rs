@@ -32,6 +32,7 @@ mod organize;
 mod prefs;
 mod preset_files;
 pub mod previews;
+mod print;
 mod query;
 mod sync;
 mod xmp;
@@ -154,6 +155,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(preset_files::specs());
         v.extend(prefs::specs());
         v.extend(export::specs());
+        v.extend(print::specs());
         v.extend(before::specs());
         v.extend(browse::specs());
         v.extend(missing::specs());

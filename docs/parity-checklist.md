@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (LRC-PRINT-IMAGESETTINGS: print page composition (fit / Zoom to Fill, Rotate to Fit, border, stroke, background); LRC-PRINT-LAYOUT: print layout model; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (LRC-PRINT-LAYOUTSTYLE, LRC-PRINT-CELLS, LRC-PRINT-TEMPLATES and the other print rows: `print.*` commands; LRC-PRINT-IMAGESETTINGS: print page composition (fit / Zoom to Fill, Rotate to Fit, border, stroke, background); LRC-PRINT-LAYOUT: print layout model; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -52,10 +52,10 @@ cited here still exists. Formerly docs/parity.md.
 | X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
-| Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 407 | 50 | 73 | 35 | 192/200 (96%) | 145/157 (92%) |
+| Lightroom Classic extras | 34 | 19 | 32 | 8 | — | 24/26 (92%) |
+| **Total** | 408 | 54 | 69 | 35 | 193/201 (96%) | 145/157 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 530 in-scope rows — P0 98.0% of 200 · P1 95.2% of 157 · P2 49.7% of 172.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.9%** of 531 in-scope rows — P0 98.0% of 201 · P1 95.2% of 157 · P2 50.9% of 172.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -747,14 +747,14 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-SS-MUSIC | Slideshow music | P2 | ⬜ | | |
 | LRC-SS-PLAYBACK | Slideshow playback | P2 | ⬜ | | |
 | LRC-SS-EXPORT | Slideshow export | P2 | ⬜ | | |
-| LRC-PRINT-LAYOUTSTYLE | Print layout styles | P2 | 🟡 | `cmd:dialog.contactSheet`, `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | paginated contact sheets; single-image/custom package layouts missing |
-| LRC-PRINT-IMAGESETTINGS | Print image settings | P2 | ⬜ | `crates/engine/src/print/compose.rs` | Zoom to Fill, Rotate to Fit, Photo Border (package styles), Inner Stroke and page background compose in the engine (16-bit Rec. 2020 pages, tested on pixels); no command or UI yet |
-| LRC-PRINT-LAYOUT | Print layout | P2 | 🟡 | `cmd:export.contactSheet`, `crates/ui-egui/src/panels/dialogs.rs`, `crates/engine/src/print/layout.rs` | A4/Letter, portrait/landscape, 1–8 columns and 1–10 rows; fixed margins and spacing. The new layout model (ten paper sizes + custom, orientation, margins, grid with spacing and square cells, package cells with Auto Layout packing) is in the engine but not yet reachable from a command or the UI |
-| LRC-PRINT-GUIDES | Print guides | P2 | ⬜ | | |
-| LRC-PRINT-CELLS | Picture-package cells | P2 | ⬜ | `crates/engine/src/print/layout.rs` | cell model, deterministic packer, stacking order and snapping exist in the engine; no command or UI yet |
-| LRC-PRINT-PAGE | Print page options | P2 | 🟡 | `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs`, `crates/engine/src/print/compose.rs` | optional filename captions; page background colour composes in the engine (no command or UI yet); no identity plates |
+| LRC-PRINT-LAYOUTSTYLE | Print layout styles | P2 | 🟡 | `cmd:print.set`, `cmd:print.get`, `cmd:print.exportPdf`, `cmd:export.contactSheet`, `crates/engine/src/print/layout.rs` | Single Image, Contact Sheet, Picture Package and Custom Package are print layout styles reachable from commands, the CLI, control channel and MCP; no Print module UI yet (File → Contact Sheet PDF still the only dialog) |
+| LRC-PRINT-IMAGESETTINGS | Print image settings | P2 | 🟡 | `cmd:print.set`, `crates/engine/src/print/compose.rs` | Zoom to Fill, Rotate to Fit, Photo Border (package styles), Inner Stroke (width in points, colour) through `print.set {image}`; pixel-tested; no panel yet |
+| LRC-PRINT-LAYOUT | Print layout | P2 | 🟡 | `cmd:print.set`, `cmd:print.layout.autoLayout`, `cmd:print.layout.newPage`, `cmd:print.layout.clear`, `cmd:export.contactSheet`, `crates/engine/src/print/layout.rs` | A3/A4/A5/Letter/Legal/Tabloid/4x6/5x7/8x10/13x19 and custom paper, portrait/landscape, per-side margins, grid with column/row spacing and square cells, 72–720 ppi; commands only, no panel yet |
+| LRC-PRINT-GUIDES | Print guides | P2 | ⬜ | `cmd:print.set` | guide options (ruler units in/cm/mm/pt, snap off/cells/grid, grid size, show margins/bleed/page grid/cells/dimensions) are stored and used by snapping in `print.cell.move`/`resize`; nothing is drawn until the Print UI lands |
+| LRC-PRINT-CELLS | Picture-package cells | P2 | 🟡 | `cmd:print.cell.add`, `cmd:print.cell.move`, `cmd:print.cell.resize`, `cmd:print.cell.delete`, `cmd:print.cell.stack`, `cmd:print.cell.photo`, `cmd:print.cell.page`, `cmd:print.layout.autoLayout` | add/move/resize/delete cells of any size, stacking order, per-cell photos (Custom Package), deterministic Auto Layout packer, snapping to cells or grid; no UI (drag placement) yet |
+| LRC-PRINT-PAGE | Print page options | P2 | 🟡 | `cmd:print.set`, `cmd:export.contactSheet`, `crates/engine/src/contact_sheet.rs` | page background colour and margins through `print.set`; optional filename captions in the contact-sheet PDF; no identity plates, watermarks, page numbers or crop marks |
 | LRC-PRINT-JOB | Print job & colour management | P2 | 🟡 | `cmd:export.contactSheet`, `cmd:app.contactSheet`, `crates/ui-egui/src/export_task.rs` | PDF export at fixed 150 dpi in sRGB, current edits, background progress/cancel and original protection; no native printer integration, ICC soft proof/print profiles or selectable resolution |
-| LRC-PRINT-TEMPLATES | Print templates | P2 | ⬜ | | |
+| LRC-PRINT-TEMPLATES | Print templates | P2 | 🟡 | `cmd:print.template.save`, `cmd:print.template.apply`, `cmd:print.template.list`, `cmd:print.template.delete` | named templates of layout, image settings, page and job saved with the library (prefs.json); no built-in templates, no UI, no template import/export |
 | LRC-WEB-LAYOUT | Web gallery layouts | OOS | 🚫 | | |
 | LRC-WEB-SITEINFO | Web gallery site info | OOS | 🚫 | | |
 | LRC-WEB-COLOR | Web gallery colours | OOS | 🚫 | | |
@@ -787,6 +787,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | LRC-PRINT-LAYOUTSTYLE, LRC-PRINT-IMAGESETTINGS, LRC-PRINT-LAYOUT, LRC-PRINT-CELLS, LRC-PRINT-PAGE, LRC-PRINT-TEMPLATES: the Print module is reachable as 18 `print.*` commands (settings, cells, Auto Layout, PDF, templates saved in prefs.json) from the CLI, control channel and MCP; 🟡 until the Print UI lands, LRC-PRINT-GUIDES stays ⬜ |
 | 2026-10-12 | minor | LRC-PRINT-IMAGESETTINGS: `print/compose.rs` composes pages (Zoom to Fill, Rotate to Fit, Photo Border, Inner Stroke, background) from the layout model into 16-bit Rec. 2020 `PageRaster`s, with an interim sRGB PDF writer in `print/output.rs`; rows stay until commands and UI reach them |
 | 2026-10-12 | minor | LRC-PRINT-LAYOUT: the Print layout model (paper, margins, grid, package cells, Auto Layout packer, snapping) lands in `print/layout.rs`; no row changes status until commands and UI follow |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |

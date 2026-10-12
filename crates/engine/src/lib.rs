@@ -251,6 +251,11 @@ pub struct Session {
     pub last_export: Option<serde_json::Value>,
     /// The user's export presets (built-ins: [`export::builtin_presets`]), persisted in prefs.json.
     pub export_presets: Vec<export::ExportPreset>,
+    /// The Print module's current layout, image settings, page, guides and job (`print.*`). Lives
+    /// with the session, so the app, CLI, control channel and MCP all see the same print.
+    pub print: print::template::PrintSettings,
+    /// Saved print templates (`print.template.*`), persisted in prefs.json.
+    pub print_templates: Vec<print::template::PrintTemplate>,
     /// Metadata presets (`metadata.*`), persisted in prefs.json.
     pub metadata_presets: Vec<cmd::metadata::MetadataPreset>,
     /// Saved filter-bar settings (`filter.*`), persisted in prefs.json.
@@ -371,6 +376,8 @@ impl Session {
             xmp: sidecar::XmpPrefs::default(),
             last_export: None,
             export_presets: Vec::new(),
+            print: Default::default(),
+            print_templates: Vec::new(),
             metadata_presets: Vec::new(),
             filter_presets: Vec::new(),
             curve_presets: Vec::new(),
@@ -1019,6 +1026,8 @@ mod tests_organize;
 mod tests_persist;
 #[cfg(test)]
 mod tests_prefs;
+#[cfg(test)]
+mod tests_print;
 #[cfg(test)]
 mod tests_process;
 #[cfg(test)]

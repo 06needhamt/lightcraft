@@ -29,7 +29,7 @@ Hours are Opus 5.5 agent wall-clock hours (see [target-app-parity.md](target-app
 | 12 | **Content-aware / generative remove, detect distractions, reflections removal** | REM rows 75%; patch synthesis missing | cleanup work goes back to Photoshop | 25–45 (+ generative model) | [target-app-parity](target-app-parity.md#ai) |
 | 13 | **Lightroom catalog migration is one-way and approximate**: unsupported Adobe profiles / AI settings archived, history kept as data | lightroom-catalog-import.md | switching users lose some looks | 8–12 | [file-format-parity](file-format-parity.md) |
 | 14 | **HDR display** (EDR / Windows HDR); HLG; the headroom limit and SDR rendition from `crs` XMP (the HDR switch, `HDREditMode`, is read) | HDR rows 70%; LR-VIEW-HDR-DISPLAY ⬜ | HDR editing works blind on HDR monitors | 12–25 | [hardware-parity](hardware-parity.md) |
-| 15 | **Print module**: custom packages, printer colour management (contact-sheet PDF only) | LRC-PRINT rows | Classic users who print | 25–40 | [target-app-parity](target-app-parity.md#features) |
+| 15 | **Print module**: no Print view (layouts, cells, image settings and templates exist as `print.*` commands only), printer colour management, identity plate / watermark / page numbers / crop marks / photo info, Custom Package Auto Layout | LRC-PRINT rows | Classic users who print | 25–40 | [target-app-parity](target-app-parity.md#features) |
 | 16 | **Map view, Book, Slideshow module, publish services** | LRC-MAP / BOOK / SS rows ⬜ | Classic users; publish services matter for Flickr / SmugMug workflows | 60–100 | [target-app-parity](target-app-parity.md#features) |
 | 17 | **Tethered capture** | ⬜ | studio photographers | 25–45 + cameras | [hardware-parity](hardware-parity.md) |
 | 18 | **Video**: playback, trim, global edits, export | VID rows 0% | users who mix stills and clips | 25–45 | [target-app-parity](target-app-parity.md#features) |
@@ -72,6 +72,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Gap 15: the Print module's layout styles, cells, image settings, templates and PDF are `print.*` commands (CLI, control, MCP); the Print view, printer colour management and page overlays remain |
 | 2026-10-12 | minor | Gap 15: print pages compose in the engine (fit / Zoom to Fill, Rotate to Fit, border, stroke, background) with an interim PDF writer; commands and UI still to land |
 | 2026-10-12 | minor | Gap 15: the Print layout model (paper sizes, margins, grid, package cells, Auto Layout packer, snapping) is in the engine; commands, composition and UI still to land |
 | 2026-10-11 | minor | Reviewed against main after 0.6.0: CR3 entry names the CRX variants `crx.rs` still refuses and the R7 / R6 Mark II C-RAW state (decoding, not verified, so the measured numbers don't move); CI and Windows / Linux entries note the riscv64 release build (#844); R7 fix added to Closed recently. Panel docking (UI.9, #869) closes no listed gap |

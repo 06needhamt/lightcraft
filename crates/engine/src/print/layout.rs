@@ -819,6 +819,23 @@ impl Layout {
         Ok(())
     }
 
+    /// Pulls every cell back inside the printable area (shrinking one that is bigger than it), for
+    /// after the paper, orientation or margins changed.
+    pub fn fit_cells(&mut self) -> Result<(), String> {
+        let area = self.printable()?;
+        for c in &mut self.cells {
+            let r = &mut c.rect;
+            if !r.is_finite() {
+                continue;
+            }
+            r.w = r.w.min(area.w);
+            r.h = r.h.min(area.h);
+            r.x = r.x.clamp(area.x, (area.right() - r.w).max(area.x));
+            r.y = r.y.clamp(area.y, (area.bottom() - r.h).max(area.y));
+        }
+        Ok(())
+    }
+
     /// Whether two cells on the same page overlap.
     pub fn has_overlaps(&self) -> bool {
         self.cells.iter().enumerate().any(|(i, a)| self.cells.iter().skip(i + 1).any(|b| a.page == b.page && a.rect.overlaps(&b.rect)))
@@ -1269,6 +1286,21 @@ mod tests {
         assert!(l.snap_move(99, Rect::new(0.0, 0.0, 1.0, 1.0), Snap::Cells, 0.25, 0.1).is_err());
         assert!(l.snap_move(b, Rect::new(0.0, 0.0, 1.0, 1.0), Snap::Grid, 0.0, 0.1).is_err());
         assert!(l.snap_move(b, Rect::new(0.0, 0.0, 1.0, 1.0), Snap::Grid, f64::NAN, 0.1).is_err());
+    }
+
+    #[test]
+    fn fit_cells_follows_the_margins() {
+        let mut l = package();
+        let id = l.add_cell(7.0, 10.0).unwrap();
+        l.page.margins = Margins::uniform(1.0);
+        assert!(l.validate().is_err(), "the cell no longer fits");
+        l.fit_cells().unwrap();
+        l.validate().unwrap();
+        let r = l.cell(id).unwrap().rect;
+        assert!(l.printable().unwrap().contains(&r));
+        assert!((r.w - 6.5).abs() < 1e-9 && (r.h - 9.0).abs() < 1e-9);
+        l.page.paper = "poster".into();
+        assert!(l.fit_cells().is_err());
     }
 
     #[test]

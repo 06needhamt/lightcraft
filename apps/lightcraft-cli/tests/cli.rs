@@ -47,6 +47,45 @@ fn contact_sheet_exports_pdf_and_protects_originals() {
     assert_eq!(std::fs::read(&out).unwrap(), prior, "failed export changed prior output");
 }
 
+#[test]
+fn print_commands_chain_into_a_picture_package_pdf() {
+    let input = tmp("print-input.png");
+    gradient_png(&input);
+    let out = tmp("print.pdf");
+    let (ok, lines, err) = run_cli(
+        &[
+            "--import",
+            input.to_str().unwrap(),
+            "print.set",
+            r#"layout={"style":"picturePackage","page":{"paper":"4x6","orientation":"landscape"}}"#,
+            r#"image={"zoomToFill":true,"borderEnabled":true,"borderWidth":0.05}"#,
+            "job={\"ppi\":72}",
+            "print.cell.add",
+            "width=1.5",
+            "height=1",
+            "print.cell.add",
+            "width=1.5",
+            "height=1",
+            "print.layout.autoLayout",
+            "print.exportPdf",
+            &format!("path={}", out.display()),
+        ],
+        None,
+    );
+    assert!(ok, "{err}: {lines:?}");
+    let export = lines.last().unwrap();
+    assert_eq!((export["result"]["pages"].as_u64(), export["result"]["photos"].as_u64()), (Some(1), Some(1)));
+    let bytes = std::fs::read(&out).unwrap();
+    assert!(bytes.starts_with(b"%PDF-1.4"));
+    assert!(String::from_utf8_lossy(&bytes).contains("/MediaBox [0 0 432.00 288.00]"), "6 x 4 in");
+    // a bad setting fails the run and writes nothing new
+    let before = std::fs::read(&out).unwrap();
+    let (ok, _, _) =
+        run_cli(&["--import", input.to_str().unwrap(), "print.set", "job={\"ppi\":5}", "print.exportPdf", &format!("path={}", out.display())], None);
+    assert!(!ok);
+    assert_eq!(std::fs::read(&out).unwrap(), before);
+}
+
 fn tmp(name: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("lightcraft-cli-test-{}", std::process::id()));
     std::fs::create_dir_all(&d).unwrap();
