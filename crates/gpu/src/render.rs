@@ -712,14 +712,21 @@ pub fn render(
             _ => Err(m),
         }
     });
-    // every visible mask's alpha, for `Overlay::AllMasks` (one tint over all masks at once)
+    // every visible mask's alpha, for `Overlay::AllMasks` (one tint over all masks at once).
+    // The masks buffer holds each visible mask's alpha back-to-back in the same `list` order the
+    // single-mask overlay uses, so read the whole buffer back in ONE GPU->CPU transfer and split it
+    // on the CPU, instead of one synchronous readback per mask (which stalls the pipeline N times).
     let all_overlay_alphas: Option<Vec<Plane>> = if matches!(req.overlay, lightcraft_pipeline::Overlay::AllMasks { .. }) {
         masks.as_ref().map(|all| {
             let list: Vec<_> = s.masks.iter().filter(|m| m.visible && !m.components.is_empty()).collect();
+            if list.is_empty() {
+                return Vec::new();
+            }
+            let raw: Vec<f32> = cx.read(all, n * list.len());
             let mut alphas = Vec::with_capacity(list.len());
-            for (mi, _) in list.iter().enumerate() {
-                let b = cx.slice(all, mi * n, n);
-                alphas.push(cx.read_plane(&b, w, h));
+            for mi in 0..list.len() {
+                let s = mi * n;
+                alphas.push(Plane { width: w, height: h, data: raw[s..s + n].to_vec() });
             }
             alphas
         })
