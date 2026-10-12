@@ -110,6 +110,39 @@ impl Default for PrintColorSettings {
     }
 }
 
+impl PrintColorSettings {
+    /// Refuse settings a command or template shouldn't carry (out-of-range adjustments, an empty
+    /// profile path); whether the profile file is usable is checked when the job is built.
+    pub fn validate(&self) -> Result<(), String> {
+        for (name, v) in [("brightness", self.brightness), ("contrast", self.contrast)] {
+            if !(v.is_finite() && (-100.0..=100.0).contains(&v)) {
+                return Err(format!("{name} must be a number from -100 to 100"));
+            }
+        }
+        if let PrintProfile::Icc { path } = &self.profile
+            && path.as_os_str().is_empty()
+        {
+            return Err("the printer profile needs a path".into());
+        }
+        Ok(())
+    }
+
+    /// Sharpen one photo for the paper, at the size it prints (before it goes on the page).
+    pub fn sharpen_photo(&self, photo: &mut DeepImage) {
+        let amount = match self.sharpen {
+            PrintSharpen::Off => return,
+            PrintSharpen::Low => SharpenAmount::Low,
+            PrintSharpen::Standard => SharpenAmount::Standard,
+            PrintSharpen::High => SharpenAmount::High,
+        };
+        let target = match self.media {
+            PrintMedia::Matte => SharpenFor::Matte,
+            PrintMedia::Glossy => SharpenFor::Glossy,
+        };
+        output_sharpen_deep(photo, target, amount);
+    }
+}
+
 /// Read a printer profile, refusing files that can't be one (the parse happens later).
 fn read_profile(path: &Path) -> Result<Vec<u8>, String> {
     let shown = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.display().to_string());
@@ -163,19 +196,9 @@ impl PrintColorJob {
         Ok(PrintColorJob { settings: s, transform, intent })
     }
 
-    /// Sharpen one photo for the paper, at the size it prints (before it goes on the page).
+    /// Sharpen one photo for the paper ([`PrintColorSettings::sharpen_photo`]).
     pub fn sharpen_photo(&self, photo: &mut DeepImage) {
-        let amount = match self.settings.sharpen {
-            PrintSharpen::Off => return,
-            PrintSharpen::Low => SharpenAmount::Low,
-            PrintSharpen::Standard => SharpenAmount::Standard,
-            PrintSharpen::High => SharpenAmount::High,
-        };
-        let target = match self.settings.media {
-            PrintMedia::Matte => SharpenFor::Matte,
-            PrintMedia::Glossy => SharpenFor::Glossy,
-        };
-        output_sharpen_deep(photo, target, amount);
+        self.settings.sharpen_photo(photo);
     }
 
     /// Convert a composed page (16-bit RGB, `Rec2020` output encoding) to the PDF image that covers
@@ -312,7 +335,7 @@ mod tests {
         let bright = PrintColorJob::new(&PrintColorSettings { brightness: 60.0, ..Default::default() }).unwrap().page_image(1, 1, &mid).unwrap();
         let first = |i: &PdfImage| match &i.data {
             ImageData::Raw { samples, .. } => u16::from_be_bytes([samples[0], samples[1]]),
-            ImageData::Jpeg(_) => 0,
+            ImageData::Jpeg(_) | ImageData::Flate { .. } => 0,
         };
         assert!(first(&bright) > first(&plain) + 1500, "{} vs {}", first(&bright), first(&plain));
         assert!(print_adjust(0.5, 60.0, 0.0) > 0.5);
@@ -338,6 +361,16 @@ mod tests {
         };
         let (dark, light) = edge(&sharpened(PrintSharpen::High));
         assert!(dark < 20000 && light > 40000, "the edge gets more contrast: {dark} {light}");
+    }
+
+    #[test]
+    fn validation_refuses_out_of_range_settings() {
+        assert!(PrintColorSettings::default().validate().is_ok());
+        for (b, c) in [(101.0, 0.0), (0.0, -100.5), (f32::NAN, 0.0), (0.0, f32::INFINITY)] {
+            assert!(PrintColorSettings { brightness: b, contrast: c, ..Default::default() }.validate().is_err(), "{b} {c}");
+        }
+        assert!(PrintColorSettings { profile: PrintProfile::Icc { path: PathBuf::new() }, ..Default::default() }.validate().is_err());
+        assert!(PrintColorSettings { brightness: -100.0, contrast: 100.0, ..Default::default() }.validate().is_ok());
     }
 
     #[test]

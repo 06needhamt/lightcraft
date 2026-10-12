@@ -1,6 +1,6 @@
 # Gaps: where LightCraft falls short of Lightroom
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-12 · **Change:** minor (gap 15: print layout model; CR3 entry names the EOS R7 C-RAW fix and the refused CRX variants; CI and Windows / Linux entries note the 0.6.0 riscv64 build; camera colour: tone curve from black-and-white camera JPEGs; Compare and Reference get sharp zoom windows; gap 4 shrinks; gap 14: the HDR switch is read from crs XMP; gaps 2 and 10: EOS R5 Mark II CR3 verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-12 · **Change:** minor (gap 15: printer colour management; gap 15: print layout model; CR3 entry names the EOS R7 C-RAW fix and the refused CRX variants; CI and Windows / Linux entries note the 0.6.0 riscv64 build; camera colour: tone curve from black-and-white camera JPEGs; Compare and Reference get sharp zoom windows; gap 4 shrinks; gap 14: the HDR switch is read from crs XMP; gaps 2 and 10: EOS R5 Mark II CR3 verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 Every known shortfall, one entry each, ranked by user impact (how many Lightroom users hit it, and
 how hard it blocks them), then by effort. **Agents pick work from the top** (the first entry nobody is
@@ -29,7 +29,7 @@ Hours are Opus 5.5 agent wall-clock hours (see [target-app-parity.md](target-app
 | 12 | **Content-aware / generative remove, detect distractions, reflections removal** | REM rows 75%; patch synthesis missing | cleanup work goes back to Photoshop | 25–45 (+ generative model) | [target-app-parity](target-app-parity.md#ai) |
 | 13 | **Lightroom catalog migration is one-way and approximate**: unsupported Adobe profiles / AI settings archived, history kept as data | lightroom-catalog-import.md | switching users lose some looks | 8–12 | [file-format-parity](file-format-parity.md) |
 | 14 | **HDR display** (EDR / Windows HDR); HLG; the headroom limit and SDR rendition from `crs` XMP (the HDR switch, `HDREditMode`, is read) | HDR rows 70%; LR-VIEW-HDR-DISPLAY ⬜ | HDR editing works blind on HDR monitors | 12–25 | [hardware-parity](hardware-parity.md) |
-| 15 | **Print module**: printer colour management (profile, rendering intent, black point compensation, print adjustment and sharpening), identity plate / watermark / page numbers / crop marks / photo info overlays, Custom Package Auto Layout, printer-driver Page Setup and direct printing (the Print dialog writes a PDF) | LRC-PRINT rows | Classic users who print | 25–40 | [target-app-parity](target-app-parity.md#features) |
+| 15 | **Print module**: identity plate / watermark / page numbers / crop marks / photo info overlays, Custom Package Auto Layout, printer-driver Page Setup and direct printing, JPEG file output (the Print dialog writes a colour-managed PDF) | LRC-PRINT rows | Classic users who print | 15–25 | [target-app-parity](target-app-parity.md#features) |
 | 16 | **Map view, Book, Slideshow module, publish services** | LRC-MAP / BOOK / SS rows ⬜ | Classic users; publish services matter for Flickr / SmugMug workflows | 60–100 | [target-app-parity](target-app-parity.md#features) |
 | 17 | **Tethered capture** | ⬜ | studio photographers | 25–45 + cameras | [hardware-parity](hardware-parity.md) |
 | 18 | **Video**: playback, trim, global edits, export | VID rows 0% | users who mix stills and clips | 25–45 | [target-app-parity](target-app-parity.md#features) |
@@ -72,6 +72,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | Gap 15: printer colour management lands (printer / paper ICC profiles or Managed by Printer, intent, black point compensation, print adjustment, print sharpening, 16-bit ICC-tagged PDF with an output intent); page overlays and direct printing remain |
 | 2026-10-12 | minor | Gap 15 shrinks: File → Print… is a Print dialog with the four layout styles, cell editing, image settings, guides, page setup and templates; printer colour management, page overlays and direct printing remain |
 | 2026-10-12 | minor | Gap 15: the Print module's layout styles, cells, image settings, templates and PDF are `print.*` commands (CLI, control, MCP); the Print view, printer colour management and page overlays remain |
 | 2026-10-12 | minor | Gap 15: print pages compose in the engine (fit / Zoom to Fill, Rotate to Fit, border, stroke, background) with an interim PDF writer; commands and UI still to land |

@@ -31,6 +31,8 @@ pub enum ImageData {
     Raw { bits: u8, samples: Vec<u8> },
     /// A baseline JPEG stream, copied into the file as it is.
     Jpeg(Vec<u8>),
+    /// Samples already compressed with zlib (see [`PdfImage::deflated`]), `bits` per component.
+    Flate { bits: u8, data: Vec<u8> },
 }
 
 /// A raster image and the colour space its samples are in.
@@ -50,6 +52,17 @@ impl PdfImage {
     pub fn from_u16(width: u32, height: u32, channels: u8, samples: &[u16], icc: Option<Arc<Vec<u8>>>) -> PdfImage {
         let bytes = samples.iter().flat_map(|v| v.to_be_bytes()).collect();
         PdfImage { width, height, channels, data: ImageData::Raw { bits: 16, samples: bytes }, icc }
+    }
+
+    /// The same image with its samples compressed now (checked first), so a long print doesn't
+    /// hold every page's uncompressed samples until the file is written.
+    pub fn deflated(self) -> Result<PdfImage, String> {
+        self.check()?;
+        let data = match self.data {
+            ImageData::Raw { bits, samples } => ImageData::Flate { bits, data: deflate(&samples) },
+            other => other,
+        };
+        Ok(PdfImage { data, ..self })
     }
 
     fn check(&self) -> Result<(), String> {
@@ -72,6 +85,11 @@ impl PdfImage {
             ImageData::Jpeg(data) => {
                 if !data.starts_with(&[0xFF, 0xD8]) {
                     return Err("the image isn't a JPEG stream".into());
+                }
+            }
+            ImageData::Flate { bits, data } => {
+                if !matches!(bits, 8 | 16) || data.is_empty() {
+                    return Err("a compressed image has 8 or 16 bits per component and some data".into());
                 }
             }
         }
@@ -253,9 +271,10 @@ pub fn write(pages: &[PdfPage], info: &PdfInfo) -> Result<Vec<u8>, String> {
                 },
             };
             let id = w.reserve();
-            let (bits, filter, data) = match &image.data {
-                ImageData::Raw { bits, samples } => (*bits, "/FlateDecode", deflate(samples)),
-                ImageData::Jpeg(jpeg) => (8, "/DCTDecode", jpeg.clone()),
+            let (bits, filter, data): (u8, &str, std::borrow::Cow<[u8]>) = match &image.data {
+                ImageData::Raw { bits, samples } => (*bits, "/FlateDecode", deflate(samples).into()),
+                ImageData::Flate { bits, data } => (*bits, "/FlateDecode", data.as_slice().into()),
+                ImageData::Jpeg(jpeg) => (8, "/DCTDecode", jpeg.as_slice().into()),
             };
             w.object(
                 id,
@@ -442,6 +461,21 @@ mod tests {
         assert!(dicts[1].0.contains("/ColorSpace /DeviceGray"));
         assert!(dicts[2].0.contains("/DCTDecode") && dicts[2].0.contains("/DeviceRGB"));
         assert_eq!(dicts[2].1, jpeg, "JPEG streams are copied as they are");
+    }
+
+    #[test]
+    fn compressing_early_writes_the_same_file() {
+        let samples: Vec<u16> = (0..4 * 3 * 3).map(|i| (i * 977) as u16).collect();
+        let raw = PdfImage::from_u16(4, 3, 3, &samples, Some(srgb()));
+        let early = raw.clone().deflated().unwrap();
+        assert!(matches!(early.data, ImageData::Flate { bits: 16, .. }));
+        let at = full(100.0, 75.0);
+        let a = write(&[page(vec![(raw, at)])], &PdfInfo::default()).unwrap();
+        let b = write(&[page(vec![(early, at)])], &PdfInfo::default()).unwrap();
+        assert_eq!(a, b);
+        let mut short = PdfImage::from_u16(4, 3, 3, &samples, None);
+        short.width = 5;
+        assert!(short.deflated().is_err(), "checked before compressing");
     }
 
     #[test]

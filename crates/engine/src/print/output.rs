@@ -1,10 +1,11 @@
-//! Writes composed pages as a PDF.
-//!
-//! Interim writer: each page is converted from Rec. 2020 to 8-bit sRGB and embedded as a JPEG
-//! covering the paper. Colour-managed output replaces the body of [`write`], not its signature.
+//! Writes composed pages as a print-ready PDF: each page is converted to the job's colour target
+//! (a printer / paper profile, or sRGB / Adobe RGB when the printer manages colour) with its
+//! intent, black point compensation and print adjustment ([`crate::print_color`]), then embedded
+//! covering the paper as an ICC-tagged, losslessly compressed 16-bit (or 8-bit) image. A printer
+//! profile is also named as the document's output intent ([`crate::pdf`]).
 use super::{MAX_JOB_PAGES, PageRaster, PrintJob};
-use crate::contact_sheet::Pdf;
-use crate::export::{ExportFormat, ExportOptions, encode_image};
+use crate::pdf::ImageData;
+use crate::print_color::PrintColorJob;
 use lightcraft_color::transfer::encode_srgb8;
 use lightcraft_color::{REC2020, SRGB};
 use lightcraft_pipeline::OutputSpace;
@@ -34,9 +35,9 @@ pub fn page_to_srgb8(page: &PageRaster) -> Result<Rgba8, String> {
 }
 
 /// The PDF for `pages` (all the same size): one page per raster, its MediaBox the paper size in
-/// points (`pixels / ppi * 72`) with the image covering it.
+/// points (`pixels / ppi * 72`) with the image covering it. Each page is converted and compressed
+/// in turn, so memory holds one page's device samples at a time.
 pub fn write(pages: &[PageRaster], job: &PrintJob, title: &str) -> Result<Vec<u8>, String> {
-    let _ = (job, title);
     let first = pages.first().ok_or("nothing to print")?;
     if pages.len() > MAX_JOB_PAGES {
         return Err(format!("a print is limited to {MAX_JOB_PAGES} pages"));
@@ -46,19 +47,23 @@ pub fn write(pages: &[PageRaster], job: &PrintJob, title: &str) -> Result<Vec<u8
     }
     let points = |px: u32| f64::from(px) / f64::from(first.ppi) * 72.0;
     let size = (points(first.width), points(first.height));
-    let mut pdf = Pdf::new(pages.len(), size);
-    for (i, page) in pages.iter().enumerate() {
+    let color = PrintColorJob::new(&job.color)?;
+    let mut out = Vec::with_capacity(pages.len());
+    let mut bytes = 0usize;
+    for page in pages {
         if (page.width, page.height) != (first.width, first.height) {
             return Err("all pages of a PDF must be the same size".into());
         }
-        let rgba = page_to_srgb8(page)?;
-        let jpg = encode_image(&rgba, &ExportOptions { format: ExportFormat::Jpeg, quality: 92, ..Default::default() })?;
-        if pdf.bytes.len().saturating_add(jpg.len()) > MAX_PDF_BYTES {
-            return Err("the PDF would exceed 256 MiB; lower the print resolution or print fewer pages".into());
+        let image = color.page_image(page.width, page.height, &page.rgb)?.deflated()?;
+        if let ImageData::Flate { data, .. } = &image.data {
+            bytes = bytes.saturating_add(data.len());
         }
-        pdf.page(i, &jpg, page.width as usize, page.height as usize);
+        if bytes > MAX_PDF_BYTES {
+            return Err("the PDF would exceed 256 MiB; lower the print resolution, use 8 bits or print fewer pages".into());
+        }
+        out.push((size, image));
     }
-    Ok(pdf.finish())
+    color.pdf(out, title)
 }
 
 #[cfg(test)]
@@ -94,6 +99,8 @@ mod tests {
         let nums: Vec<f64> = text[at..].split(']').next().unwrap().split_whitespace().map(|v| v.parse().unwrap()).collect();
         assert_eq!((nums[2], nums[3]), (306.0, 396.0), "4.25 x 5.5 in is 306 x 396 pt");
         assert!(text.contains("/Width 425 /Height 550"));
+        // managed by the printer: sRGB, 16 bits, tagged, no output intent
+        assert!(text.contains("/ICCBased") && text.contains("/BitsPerComponent 16") && !text.contains("/OutputIntents"));
         assert!(write(&[], &PrintJob::default(), "t").is_err());
         let mixed = [raster(10, 10, [0; 3]), raster(10, 12, [0; 3])];
         assert!(write(&mixed, &PrintJob::default(), "t").is_err());
@@ -101,5 +108,29 @@ mod tests {
         assert!(write(&[bad], &PrintJob::default(), "t").is_err());
         let zero = PageRaster { ppi: 0.0, ..raster(4, 4, [0; 3]) };
         assert!(write(&[zero], &PrintJob::default(), "t").is_err());
+    }
+
+    #[test]
+    fn a_printer_profile_is_converted_to_and_named_as_the_output_intent() {
+        use crate::print_color::{PrintColorSettings, PrintIntent, PrintProfile};
+        let dir = std::env::temp_dir().join(format!("lc-print-output-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let icc = dir.join("Lustre Paper.icc");
+        std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::AdobeRgb)).unwrap();
+        let color =
+            PrintColorSettings { profile: PrintProfile::Icc { path: icc }, intent: PrintIntent::Relative, sixteen_bit: false, ..Default::default() };
+        let job = PrintJob { color, ..Default::default() };
+        let bytes = write(&[raster(20, 30, [200, 30, 30])], &job, "Lustre").unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("/OutputIntents") && text.contains("/DestOutputProfile"), "{}", &text[..text.len().min(500)]);
+        assert!(text.contains("/BitsPerComponent 8") && text.contains("/Title (Lustre)"));
+        // a profile that isn't one fails the print and says which file
+        std::fs::write(dir.join("Junk.icc"), [7u8; 200]).unwrap();
+        let junk = PrintJob {
+            color: PrintColorSettings { profile: PrintProfile::Icc { path: dir.join("Junk.icc") }, ..Default::default() },
+            ..Default::default()
+        };
+        let err = write(&[raster(2, 2, [0; 3])], &junk, "t").unwrap_err();
+        assert!(err.contains("Junk"), "{err}");
     }
 }

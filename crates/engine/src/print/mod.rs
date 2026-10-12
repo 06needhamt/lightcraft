@@ -31,17 +31,20 @@ pub struct PageRaster {
     pub rgb: Vec<u16>,
 }
 
-/// How a print job is produced (Lightroom's Print Job panel; colour management joins it later).
+/// How a print job is produced (Lightroom's Print Job panel): resolution, and the colour
+/// management, print adjustment, print sharpening and depth of [`crate::print_color`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase", deny_unknown_fields)]
 pub struct PrintJob {
     /// Print resolution in pixels per inch, 72 to 720.
     pub ppi: f32,
+    /// Profile, rendering intent, black point compensation, print adjustment, print sharpening.
+    pub color: crate::print_color::PrintColorSettings,
 }
 
 impl Default for PrintJob {
     fn default() -> Self {
-        Self { ppi: 240.0 }
+        Self { ppi: 240.0, color: crate::print_color::PrintColorSettings::default() }
     }
 }
 
@@ -54,11 +57,10 @@ impl PrintJob {
     /// Rejects a resolution outside the supported range (commands and templates, which should
     /// say so rather than silently clamp).
     pub fn validate(&self) -> Result<(), String> {
-        if self.ppi.is_finite() && (MIN_PPI..=MAX_PPI).contains(&self.ppi) {
-            Ok(())
-        } else {
-            Err(format!("ppi must be a number from {MIN_PPI} to {MAX_PPI}"))
+        if !(self.ppi.is_finite() && (MIN_PPI..=MAX_PPI).contains(&self.ppi)) {
+            return Err(format!("ppi must be a number from {MIN_PPI} to {MAX_PPI}"));
         }
+        self.color.validate()
     }
 }
 
@@ -70,14 +72,20 @@ mod tests {
     fn ppi_is_clamped_and_validated() {
         assert_eq!(PrintJob::default().effective_ppi(), 240.0);
         for (v, e) in [(10.0, 72.0), (5000.0, 720.0), (f32::NAN, 240.0), (f32::INFINITY, 240.0), (300.0, 300.0)] {
-            assert_eq!(PrintJob { ppi: v }.effective_ppi(), e);
+            assert_eq!(PrintJob { ppi: v, ..Default::default() }.effective_ppi(), e);
         }
-        assert!(PrintJob { ppi: 300.0 }.validate().is_ok());
+        assert!(PrintJob { ppi: 300.0, ..Default::default() }.validate().is_ok());
         for bad in [0.0, 71.0, 721.0, f32::NAN, f32::NEG_INFINITY] {
-            assert!(PrintJob { ppi: bad }.validate().is_err());
+            assert!(PrintJob { ppi: bad, ..Default::default() }.validate().is_err());
         }
         let j: PrintJob = serde_json::from_str("{}").unwrap();
         assert_eq!(j, PrintJob::default());
         assert!(serde_json::from_str::<PrintJob>(r#"{"dpi": 1}"#).is_err());
+        // the colour settings ride along, defaults filled in, and are validated with the job
+        let j: PrintJob = serde_json::from_str(r#"{"ppi": 300, "color": {"intent": "relative", "brightness": 20}}"#).unwrap();
+        assert_eq!(j.color.intent, crate::print_color::PrintIntent::Relative);
+        assert!(j.color.black_point_compensation && j.validate().is_ok());
+        let j: PrintJob = serde_json::from_str(r#"{"color": {"contrast": 500}}"#).unwrap();
+        assert!(j.validate().is_err());
     }
 }

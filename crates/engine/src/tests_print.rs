@@ -214,6 +214,33 @@ fn export_pdf_prints_the_current_settings() {
 }
 
 #[test]
+fn export_pdf_with_a_printer_profile() {
+    let mut s = Session::with_demo();
+    let ids: Vec<u64> = s.catalog.photos().take(1).map(|p| p.id.0).collect();
+    let dir = std::env::temp_dir().join(format!("lightcraft-print-icc-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let icc = dir.join("Fine Art Matte.icc");
+    std::fs::write(&icc, lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::AdobeRgb)).unwrap();
+    let color = json!({"profile": {"kind": "icc", "path": icc}, "intent": "relative", "sharpen": "high", "media": "matte", "brightness": 10});
+    run(
+        &mut s,
+        "print.set",
+        json!({"layout": {"style": "contactSheet", "grid": {"columns": 1, "rows": 1}, "page": {"paper": "4x6"}}, "job": {"ppi": 72.0, "color": color}}),
+    );
+    assert_eq!(run(&mut s, "print.get", json!({}))["settings"]["job"]["color"]["media"], "matte");
+    let path = temp_pdf("icc");
+    run(&mut s, "print.exportPdf", json!({"path": path, "ids": ids}));
+    let text = String::from_utf8_lossy(&std::fs::read(&path).unwrap()).into_owned();
+    assert!(text.contains("/OutputIntents") && text.contains("/ICCBased") && text.contains("/BitsPerComponent 16"));
+    // out-of-range adjustments are refused when set; a missing profile fails before rendering
+    fails(&mut s, "print.set", json!({"job": {"color": {"contrast": 150}}}));
+    run(&mut s, "print.set", json!({"job": {"color": {"profile": {"kind": "icc", "path": dir.join("gone.icc")}}}}));
+    let err = fails(&mut s, "print.exportPdf", json!({"path": path, "ids": ids}));
+    assert!(err.contains("gone.icc"), "{err}");
+    assert!(s.activity.list().is_empty(), "nothing started");
+}
+
+#[test]
 fn custom_package_prints_each_cells_photo() {
     let mut s = Session::with_demo();
     let ids: Vec<u64> = s.catalog.photos().take(2).map(|p| p.id.0).collect();

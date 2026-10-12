@@ -402,6 +402,8 @@ pub struct Prepared {
     ppi: f32,
     background: [u16; 3],
     style: CellStyle,
+    /// Print sharpening, applied to each photo once it's rendered at its print size.
+    color: crate::print_color::PrintColorSettings,
 }
 
 impl Prepared {
@@ -437,7 +439,7 @@ impl Prepared {
                 let at = match at {
                     Some(at) => at,
                     None => {
-                        let img = render(item.job).map_err(|e| format!("{}: {e}", item.name))?;
+                        let img = render(item.job, &self.color).map_err(|e| format!("{}: {e}", item.name))?;
                         if cache.len() >= RENDER_CACHE {
                             cache.remove(0);
                         }
@@ -457,9 +459,11 @@ impl Prepared {
     }
 }
 
-fn render(job: RenderJob) -> Result<Image16, String> {
+fn render(job: RenderJob, color: &crate::print_color::PrintColorSettings) -> Result<Image16, String> {
     let rendered = job.run().rendered?;
-    let deep = rendered.deep.ok_or("the render has no 16-bit samples")?;
+    let mut deep = rendered.deep.ok_or("the render has no 16-bit samples")?;
+    // print sharpening for the paper, at the size the photo prints
+    color.sharpen_photo(&mut deep);
     let DeepSamples::U16(rgb) = deep.samples else { return Err("the render is not 16-bit".into()) };
     if deep.space != OutputSpace::Rec2020 || rgb.len() != deep.width.saturating_mul(deep.height).saturating_mul(3) {
         return Err("the render is not Rec. 2020 RGB".into());
@@ -498,7 +502,14 @@ pub fn prepare(session: &mut Session, settings: &PrintSettings, photos: &[PhotoI
             items.push(Item { page, name, cell, key: (id.0, rw, rh), job });
         }
     }
-    Ok(Prepared { pages: vec![(pw, ph); plan.len()], items, ppi: ppi as f32, background: rec2020_from_srgb8(settings.page.background), style })
+    Ok(Prepared {
+        pages: vec![(pw, ph); plan.len()],
+        items,
+        ppi: ppi as f32,
+        background: rec2020_from_srgb8(settings.page.background),
+        style,
+        color: settings.job.color.clone(),
+    })
 }
 
 #[cfg(test)]

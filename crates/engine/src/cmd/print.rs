@@ -247,6 +247,8 @@ fn export_pdf(s: &mut Session, p: &Value) -> Result<Value> {
     s.check_write_target(path).map_err(|e| bad(ID, e))?;
     let ids = s.targets(p);
     let settings = s.print.clone();
+    // a printer profile that can't be used fails the print before anything renders
+    crate::print_color::PrintColorJob::new(&settings.job.color).map_err(|e| bad(ID, e))?;
     let title = std::path::Path::new(path).file_stem().and_then(|n| n.to_str()).unwrap_or("Print").to_string();
     let work = crate::print::compose::prepare(s, &settings, &ids).map_err(|e| bad(ID, e))?;
     let total = work.len() as u64;
@@ -322,7 +324,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{ids?} → {settings: {layout, image, page, guides, job}, papers, pageWidth, pageHeight, printable, pageCount, cellsPerPage, gridCells?, overlaps}; lengths are inches",
             always, get),
         cmd!(query "print.set", "Set Print Settings", [], None,
-            "{layout?: {style: singleImage|contactSheet|picturePackage|customPackage, page: {paper, customWidth, customHeight, orientation: portrait|landscape, margins: {top,right,bottom,left}}, grid: {columns, rows, spacingX, spacingY, keepSquare}, spacing}, image?: {zoomToFill, rotateToFit, borderEnabled, borderWidth, borderColor: [r,g,b], strokeEnabled, strokeWidthPt, strokeColor}, page?: {background: [r,g,b]}, guides?: {showRulers, units: in|cm|mm|pt, snap: off|cells|grid, gridSize, showMargins, showBleed, showPageGrid, showCells, showDimensions}, job?: {ppi: 72..720}} — merges into the current print; cells and pages change with print.cell.* / print.layout.*; → print.get",
+            "{layout?: {style: singleImage|contactSheet|picturePackage|customPackage, page: {paper, customWidth, customHeight, orientation: portrait|landscape, margins: {top,right,bottom,left}}, grid: {columns, rows, spacingX, spacingY, keepSquare}, spacing}, image?: {zoomToFill, rotateToFit, borderEnabled, borderWidth, borderColor: [r,g,b], strokeEnabled, strokeWidthPt, strokeColor}, page?: {background: [r,g,b]}, guides?: {showRulers, units: in|cm|mm|pt, snap: off|cells|grid, gridSize, showMargins, showBleed, showPageGrid, showCells, showDimensions}, job?: {ppi: 72..720, color?: {profile: {kind: managed, space: srgb|adobeRgb} | {kind: icc, path}, intent: perceptual|relative, blackPointCompensation, brightness: -100..100, contrast: -100..100, sharpen: off|low|standard|high, media: matte|glossy, sixteenBit}}} — merges into the current print; cells and pages change with print.cell.* / print.layout.*; → print.get",
             always, set),
         cmd!(query "print.reset", "Reset Print Settings", [], None, "{} → print.get", always, reset),
         cmd!(query "print.cell.add", "Add Print Cell", [], None,
