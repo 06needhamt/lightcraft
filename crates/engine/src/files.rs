@@ -450,7 +450,8 @@ fn load_bytes_now(
             stages.push(("highlights", t0.elapsed()));
             colour.apply(&mut img);
             stages.push(("colour", t0.elapsed()));
-            let img = fit(&img, max_edge, max_edge, Filter::Box);
+            // (`fit` copies an image that already fits: 797 MB and 0.3 s for a full-size 64 MP decode)
+            let img = if img.width.max(img.height) > max_edge { fit(&img, max_edge, max_edge, Filter::Box) } else { img };
             stages.push(("fit", t0.elapsed()));
             let img = img.into_oriented(raw.orientation);
             stages.push(("orient", t0.elapsed()));
