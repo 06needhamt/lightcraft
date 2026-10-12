@@ -10,6 +10,9 @@
 - Zooming in with Before/After side by side decodes the original once: the Before side used to decode its own copy
   beside the After's, and a window asked for again while the first was still decoding (a pan, the layout settling)
   started yet another decode.
+- A zoomed view keeps the GPU copy of the original while it is on screen: pausing for a few seconds between pans no
+  longer frees it, which cost a re-upload of about a second on the next pan (800 MB for a 64 MP raw). It is freed
+  once you zoom out or move on.
 
 ## 2026-10-11
 
