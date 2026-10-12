@@ -644,7 +644,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     field(ui, "Rows", |ui| { ui.add(egui::DragValue::new(&mut options.rows).range(1..=10)); });
                     ui.checkbox(&mut options.captions, "Filename captions");
                     ui.label("150 dpi · sRGB · current edits · fit without cropping");
-                    ui.label("Choose a PDF destination after confirming. Print the PDF from your viewer.");
+                    ui.label(crate::i18n::tr("Choose a PDF destination after confirming. Print the PDF from your viewer."));
                 }
                 Dialog::Export { opts, full_size, resize, preset_name, limit_kb, dir } => {
                     use lightcraft_engine::export::{ExportFormat as F, MetadataPolicy as M, SharpenAmount as A, SharpenFor as S};
@@ -708,17 +708,17 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         let tip = "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float";
                         ui.checkbox(&mut opts.hdr, "HDR output").on_hover_text(tip);
                         if opts.hdr && !opts.hdr_output() {
-                            ui.label(egui::RichText::new("HDR TIFF needs 32-bit float.").color(t.text_dim));
+                            ui.label(egui::RichText::new(crate::i18n::tr("HDR TIFF needs 32-bit float.")).color(t.text_dim));
                         }
                     }
                     if !rendered {
                     } else if opts.format == F::Avif && opts.hdr {
-                        ui.label(egui::RichText::new("Color space: Rec. 2020 PQ (HDR AVIF)").color(t.text_dim));
+                        ui.label(egui::RichText::new(crate::i18n::tr("Color space: Rec. 2020 PQ (HDR AVIF)")).color(t.text_dim));
                     } else if opts.format == F::Png && opts.hdr {
-                        ui.label(egui::RichText::new("Color space: Rec. 2020 PQ, 16-bit (HDR PNG)").color(t.text_dim))
-                            .on_hover_text("Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map).");
+                        ui.label(egui::RichText::new(crate::i18n::tr("Color space: Rec. 2020 PQ, 16-bit (HDR PNG)")).color(t.text_dim))
+                            .on_hover_text(crate::i18n::tr("Viewers that don't read the PNG cICP chunk show PQ values as sRGB: flat and washed out. For a picture that looks right everywhere, use JPEG (gain map)."));
                     } else if opts.format == F::Jxl && opts.hdr {
-                        ui.label(egui::RichText::new("Color space: Rec. 2020 PQ (HDR JPEG XL)").color(t.text_dim));
+                        ui.label(egui::RichText::new(crate::i18n::tr("Color space: Rec. 2020 PQ (HDR JPEG XL)")).color(t.text_dim));
                     } else if opts.format == F::Avif {
                         ui.label(egui::RichText::new(crate::i18n::tr("Color space: sRGB (AVIF)")).color(t.text_dim));
                     } else {
