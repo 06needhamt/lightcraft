@@ -1953,5 +1953,7 @@
   "Adding to Apple Photos…": "Appleの写真に追加中…",
   "not added to Apple Photos (cancelled)": "Appleの写真には追加されませんでした（キャンセル）",
   "The first time, macOS asks whether LightCraft may control Photos.": "初回は、LightCraftに写真の操作を許可するかmacOSが確認します。",
-  "Adding to Apple Photos": "Appleの写真に追加中"
+  "Adding to Apple Photos": "Appleの写真に追加中",
+  "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "グラフィックプロセッサが見つかりません。LightCraftはCPUで描画するため、かなり遅くなります。詳細は「ヘルプ → システム情報」を参照してください。",
+  "On NixOS, start it from `nix develop`.": "NixOSでは `nix develop` から起動してください。"
 }
