@@ -289,7 +289,14 @@ fn at_most(a: &CameraTone, b: &CameraTone) -> bool {
 /// the raw's size, show the same picture ([`structure_agrees`]), and the curve must not clip more highlights than
 /// the plain render ([`clips_more`]).
 fn fit_dng_tone(raw: &RawImage, bytes: &[u8], transform: &CameraTransform, lens: Option<&lightcraft_develop::EmbeddedLens>) -> Option<CameraLook> {
-    let (mut sensor, reference, clipped) = proxies(raw, bytes, transform, PROXY, MIN_PREVIEW_FRACTION)?;
+    // Logged under LIGHTCRAFT_PROFILE so a corpus run can count the outcome per gate.
+    let refuse = |why: &str| {
+        if std::env::var_os("LIGHTCRAFT_PROFILE").is_some() {
+            eprintln!("DNGTONE refused {why}");
+        }
+        None
+    };
+    let Some((mut sensor, reference, clipped)) = proxies(raw, bytes, transform, PROXY, MIN_PREVIEW_FRACTION) else { return refuse("preview") };
     // As the loader renders it: the profile's tables around the baseline exposure.
     let xy = lightcraft_raw::color::as_shot_white_xy(raw);
     if let Some(tables) = lightcraft_raw::profile::ProfileTables::new(&raw.color.profile, lightcraft_raw::color::illuminant_weight(&raw.color, xy)) {
@@ -298,36 +305,42 @@ fn fit_dng_tone(raw: &RawImage, bytes: &[u8], transform: &CameraTransform, lens:
     }
     correct_vignetting(&mut sensor, lens, raw.orientation);
     if (sensor.width, sensor.height) != (reference.width, reference.height) {
-        return None;
+        return refuse("preview");
     }
     if !structure_agrees(&sensor, &reference) {
-        return None;
+        return refuse("structure");
     }
     let unclipped = without_clipped(&sensor, &clipped);
     let fit_on = unclipped.as_ref().unwrap_or(&sensor);
     let colour = Some((Mat3::IDENTITY, None));
     let look = TONE_FITS.iter().find_map(|&tone| {
-        [false, true].into_iter().find_map(|away_from_edges| fit_attempt(fit_on, &reference, &colour, Attempt { tone, profile: true, away_from_edges }))
+        [false, true].into_iter().find_map(|away_from_edges| fit_attempt(fit_on, &reference, &colour, Attempt { tone, profile: true, away_from_edges, dark: true }))
     });
-    let look = look?;
+    let Some(look) = look else { return refuse("fit") };
     let plain = match raw.color.profile.tone_curve.as_ref().and_then(crate::files::dng_tone_curve) {
         Some(curve) => ToneMap::camera(&curve, 0.0, 0.0, 0.0),
         None => ToneMap::new(0.0, 0.0, 0.0),
     };
-    if clips_more(&sensor, &ToneMap::camera(&look.tone, 0.0, 0.0, 0.0), &plain) {
-        return None;
+    let fitted = ToneMap::camera(&look.tone, 0.0, 0.0, 0.0);
+    if clips_more(&sensor, &reference, &fitted, &plain) {
+        return refuse("clip");
+    }
+    if std::env::var_os("LIGHTCRAFT_PROFILE").is_some() {
+        eprintln!("DNGTONE accepted");
     }
     Some(look)
 }
 
-/// Whether the fitted tone map puts more of the photo's proxy pixels at or near white than the plain render does.
-fn clips_more(sensor: &Rgb32f, fitted: &ToneMap, plain: &ToneMap) -> bool {
+/// Whether the fitted tone map puts clearly more of the photo's proxy pixels at or near white than both the plain
+/// render and the camera's own preview do ([`CLIP_TOLERANCE`]): a fit that clips what the camera clips too is the
+/// camera's look, one that clips what neither does loses highlight detail.
+fn clips_more(sensor: &Rgb32f, reference: &Rgb32f, fitted: &ToneMap, plain: &ToneMap) -> bool {
     let near_white = |tone: &ToneMap| {
-        let n = sensor.data.iter().filter(|p| p.iter().all(|v| v.is_finite()) && tone.apply(CLIP_HEADROOM * luminance_2020(p.map(|v| v.max(0.0)))) >= 0.98).count();
+        let n = sensor.data.iter().filter(|p| p.iter().all(|v| v.is_finite()) && tone.apply(luminance_2020(p.map(|v| v.max(0.0)))) >= 0.98).count();
         n as f64 / sensor.data.len().max(1) as f64
     };
-    let (a, b) = (near_white(fitted), near_white(plain));
-    a > b
+    let preview = reference.data.iter().filter(|p| luminance_2020(**p) >= 0.98).count() as f64 / reference.data.len().max(1) as f64;
+    near_white(fitted) > near_white(plain).max(preview) + CLIP_TOLERANCE
 }
 
 /// Multiply the sensor proxy (sensor orientation, default crop) by the embedded vignetting correction, the gain the
@@ -349,10 +362,14 @@ fn correct_vignetting(sensor: &mut Rgb32f, lens: Option<&lightcraft_develop::Emb
 /// small thumbnail is not fitted.
 const MIN_PREVIEW_FRACTION: f64 = 0.9;
 
-/// Luminance headroom of the highlight gate: the 96 px proxy averages small bright spots away, so [`clips_more`]
-/// looks at the proxy at this multiple of its luminance (chosen on the CC0 and user DNGs: 1 passes a fit that clips
-/// the brightest 0.04% of a photo, 2 refuses it while keeping most fits).
-const CLIP_HEADROOM: f32 = 2.0;
+/// Lowest preview luminance and channel value a tone-only fit trains on (the other fits use 0.015 and 0.004): a dark
+/// night scene has most of its pixels below 0.015, and a curve fitted without them overshoots its shadows.
+const DARK_FLOOR: (f32, f32) = (0.004, 0.001);
+
+/// Share of the proxy by which the fitted curve may clip more highlights than the plain render and the camera's
+/// preview (chosen on the CC0 and user DNGs from the clipped share of their 1440 px renders: it refuses the fits
+/// that clip about 1% more than the camera does and passes the ones that clip like the camera).
+const CLIP_TOLERANCE: f64 = 0.001;
 
 /// Log-luminance correlation (5 × 5 box blurred) the unshifted proxies must reach.
 const MIN_STRUCTURE: f64 = 0.85;
@@ -633,7 +650,7 @@ pub(crate) fn profile_pairs(raw: &RawImage, bytes: &[u8]) -> Option<Vec<([f64; 3
     let to_camera = transform.matrix.inverse()?;
     // clipped sensor pixels don't record the scene's colour (see `fit_look`)
     let sensor = without_clipped(&sensor, &clipped).unwrap_or(sensor);
-    let (pairs, _) = collect_pairs(&sensor, &reference, 0.05, None)?;
+    let (pairs, _) = collect_pairs(&sensor, &reference, 0.05, None, false)?;
     Some(pairs.into_iter().map(|(x, y)| (to_camera.apply(x), y)).collect())
 }
 
@@ -705,7 +722,7 @@ fn local_contrast(image: &Rgb32f, i: usize) -> f32 {
 /// are left out: there a small geometric mismatch between the raw and its JPEG pairs unrelated
 /// colours (see [`EDGE_CONTRAST`]).
 type Pairs = Vec<([f64; 3], [f64; 3])>;
-fn collect_pairs(sensor: &Rgb32f, reference: &Rgb32f, min_chroma: f32, edge_limit: Option<f32>) -> Option<(Pairs, Pairs)> {
+fn collect_pairs(sensor: &Rgb32f, reference: &Rgb32f, min_chroma: f32, edge_limit: Option<f32>, dark: bool) -> Option<(Pairs, Pairs)> {
     if (sensor.width, sensor.height) != (reference.width, reference.height) || sensor.data.len() != reference.data.len() {
         return None;
     }
@@ -724,7 +741,8 @@ fn collect_pairs(sensor: &Rgb32f, reference: &Rgb32f, min_chroma: f32, edge_limi
         if (0.015..=1.0).contains(&y) {
             bright.push((input.map(f64::from), output.map(f64::from)));
         }
-        if !output.iter().all(|v| *v > 0.004 && *v < 0.98) || !(0.015..0.85).contains(&y) {
+        let (ylo, clo) = if dark { DARK_FLOOR } else { (0.015, 0.004) };
+        if !output.iter().all(|v| *v > clo && *v < 0.98) || !(ylo..0.85).contains(&y) {
             continue;
         }
         let min = output.iter().copied().fold(f32::INFINITY, f32::min);
@@ -805,6 +823,8 @@ struct Attempt {
     tone: ToneFit,
     profile: bool,
     away_from_edges: bool,
+    /// Train on the dark end of the preview too ([`DARK_FLOOR`]): the tone-only fit of a DNG.
+    dark: bool,
 }
 
 /// The photo's look and the attempt that produced it: its own matrix (with and without a
@@ -821,7 +841,7 @@ fn search_ordered(sensor: &Rgb32f, reference: &Rgb32f, colour: Option<(Mat3, Opt
     order.iter().find_map(|&tone| {
         profiles.iter().find_map(|&profile| {
             [false, true].into_iter().find_map(|away_from_edges| {
-                let attempt = Attempt { tone, profile, away_from_edges };
+                let attempt = Attempt { tone, profile, away_from_edges, dark: false };
                 fit_attempt(sensor, reference, &colour, attempt).map(|look| (look, attempt))
             })
         })
@@ -830,7 +850,7 @@ fn search_ordered(sensor: &Rgb32f, reference: &Rgb32f, colour: Option<(Mat3, Opt
 
 fn fit_attempt(sensor: &Rgb32f, reference: &Rgb32f, colour: &Option<(Mat3, Option<HsvTable>)>, attempt: Attempt) -> Option<CameraLook> {
     let colour = if attempt.profile { colour.clone() } else { None };
-    fit_pairs_on(sensor, reference, colour, attempt.away_from_edges.then_some(EDGE_CONTRAST), attempt.tone)
+    fit_pairs_on(sensor, reference, colour, attempt.away_from_edges.then_some(EDGE_CONTRAST), attempt.tone, attempt.dark)
 }
 
 fn fit_pairs_on(
@@ -839,10 +859,11 @@ fn fit_pairs_on(
     colour: Option<(Mat3, Option<HsvTable>)>,
     edge_limit: Option<f32>,
     tone_fit: ToneFit,
+    dark: bool,
 ) -> Option<CameraLook> {
     // A known colour model needs enough signal for tone fitting, not a scene rich enough to
     // learn a new colour matrix. Still reject monochrome references.
-    let (pairs, bright) = collect_pairs(sensor, reference, if colour.is_some() { 0.005 } else { 0.05 }, edge_limit)?;
+    let (pairs, bright) = collect_pairs(sensor, reference, if colour.is_some() { 0.005 } else { 0.05 }, edge_limit, dark)?;
     let candidates = match colour {
         Some(given) => vec![given],
         None => {
@@ -988,7 +1009,7 @@ fn fit_partial(sensor: &Rgb32f, reference: &Rgb32f) -> Option<CameraLook> {
 
 fn fit_partial_on(sensor: &Rgb32f, reference: &Rgb32f, edge_limit: Option<f32>) -> Option<CameraLook> {
     // as for a known colour model: enough signal for the tone, but no monochrome reference
-    let (pairs, bright) = collect_pairs(sensor, reference, 0.005, edge_limit)?;
+    let (pairs, bright) = collect_pairs(sensor, reference, 0.005, edge_limit, false)?;
     let related = rank_correlation(&pairs);
     if related < PARTIAL_MIN_RANK_CORRELATION {
         if lightcraft_pipeline::profiling() {
@@ -1098,7 +1119,7 @@ fn fit_tone_only(sensor: &Rgb32f, reference: &Rgb32f, colour: Option<(Mat3, Opti
 
 fn fit_tone_only_on(sensor: &Rgb32f, reference: &Rgb32f, colour: &Option<(Mat3, Option<HsvTable>)>, edge_limit: Option<f32>) -> Option<CameraLook> {
     // every pair counts: the JPEG has no colour to require
-    let (pairs, _) = collect_pairs(sensor, reference, f32::NEG_INFINITY, edge_limit)?;
+    let (pairs, _) = collect_pairs(sensor, reference, f32::NEG_INFINITY, edge_limit, false)?;
     let related = rank_correlation_ties(&pairs);
     if related < PARTIAL_MIN_RANK_CORRELATION {
         if lightcraft_pipeline::profiling() {
@@ -1699,7 +1720,7 @@ mod tests {
         let mut pool = Vec::new();
         for seed in 0..4 {
             let (sensor, reference) = photo(seed, 2.0 + seed as f32 * 0.5);
-            pool.extend(collect_pairs(&sensor, &reference, 0.05, None).unwrap().0);
+            pool.extend(collect_pairs(&sensor, &reference, 0.05, None, false).unwrap().0);
         }
         let (matrix, _) = fit_profile(&pool).unwrap();
         // the camera's colours (luminance-normalised: the tone curve sets brightness)
@@ -2645,7 +2666,7 @@ mod tests {
         assert_eq!((none.matrix.0, none.tone), (all.matrix.0, all.tone));
         // without clipped pixels the refit keeps the accepted attempt (here: all pixels, own colour, quantile tone)
         let (_, attempt) = search_ordered(&sensor, &reference, None, TONE_FITS).unwrap();
-        assert_eq!(attempt, Attempt { tone: ToneFit::Quantile, profile: false, away_from_edges: false });
+        assert_eq!(attempt, Attempt { tone: ToneFit::Quantile, profile: false, away_from_edges: false, dark: false });
         assert!(without_clipped(&sensor, &[true; 3]).is_none(), "a mask of another size is ignored");
     }
 
@@ -3017,17 +3038,18 @@ mod tests {
             }
         }
         let colour = Some((Mat3::IDENTITY, None));
-        let look = fit_attempt(&sensor, &reference, &colour, Attempt { tone: ToneFit::Quantile, profile: true, away_from_edges: false }).expect("tone fitted");
+        let look = fit_attempt(&sensor, &reference, &colour, Attempt { tone: ToneFit::Quantile, profile: true, away_from_edges: false, dark: true }).expect("tone fitted");
         assert_eq!(look.matrix, Mat3::IDENTITY);
         assert!(look.hue_sat.is_none());
         let (fitted, default) = (ToneMap::camera(&look.tone, 0.0, 0.0, 0.0), ToneMap::new(0.0, 0.0, 0.0));
         let target = 1.0 - (-2.5f32 * 0.18).exp();
         assert!((fitted.apply(0.18) - target).abs() < 0.03, "{} vs {target}", fitted.apply(0.18));
         assert!(fitted.apply(0.18) > default.apply(0.18) + 0.05, "{} vs default {}", fitted.apply(0.18), default.apply(0.18));
-        assert!(!clips_more(&sensor, &fitted, &fitted), "a tone never clips more than itself");
+        assert!(!clips_more(&sensor, &reference, &fitted, &fitted), "a tone never clips more than itself");
     }
 
-    /// The highlight gate compares the share of near-white pixels of two tone maps, in one direction only.
+    /// The highlight gate compares the share of near-white pixels of the fitted tone with the plain render's and the
+    /// camera preview's, in one direction only: clipping what the camera clips is not refused.
     #[test]
     fn dng_highlight_gate_compares_near_white_shares() {
         let mut sensor = Rgb32f::new(32, 32);
@@ -3035,8 +3057,29 @@ mod tests {
             *p = [0.02 + 1.5 * i as f32 / 1024.0; 3];
         }
         let (bright, dark) = (ToneMap::new(0.0, 1.0, 0.0), ToneMap::new(0.0, -1.0, 0.0));
-        assert!(clips_more(&sensor, &bright, &dark) != clips_more(&sensor, &dark, &bright));
-        assert!(!clips_more(&sensor, &bright, &bright));
+        let mut white = Rgb32f::new(32, 32);
+        white.data.iter_mut().for_each(|p| *p = [1.0; 3]);
+        let mut black = Rgb32f::new(32, 32);
+        black.data.iter_mut().for_each(|p| *p = [0.1; 3]);
+        assert!(clips_more(&sensor, &black, &bright, &dark), "clips more than the plain render and a preview without white");
+        assert!(!clips_more(&sensor, &black, &dark, &bright));
+        assert!(!clips_more(&sensor, &black, &bright, &bright));
+        assert!(!clips_more(&sensor, &white, &bright, &dark), "the camera preview clips as much");
+    }
+
+    /// A dark scene's shadows below the usual training floor still reach the tone-only fit.
+    #[test]
+    fn dng_tone_fit_trains_on_dark_pixels() {
+        let mut sensor = Rgb32f::new(64, 64);
+        let mut reference = Rgb32f::new(64, 64);
+        for (i, (s, r)) in sensor.data.iter_mut().zip(reference.data.iter_mut()).enumerate() {
+            let v = 0.0005 + 0.004 * (i % 64) as f32 / 64.0 + if i % 7 == 0 { 0.2 } else { 0.0 };
+            *s = [v, v * 1.1, v * 0.9];
+            *r = [(v * 3.0).min(0.9), (v * 3.3).min(0.9), (v * 2.7).min(0.9)];
+        }
+        let usual = collect_pairs(&sensor, &reference, 0.0, None, false).map_or(0, |p| p.0.len());
+        let dark = collect_pairs(&sensor, &reference, 0.0, None, true).map_or(0, |p| p.0.len());
+        assert!(dark > usual, "{dark} vs {usual}");
     }
 
     /// The embedded vignetting correction reaches the sensor proxy as the pipeline applies it to the render.
