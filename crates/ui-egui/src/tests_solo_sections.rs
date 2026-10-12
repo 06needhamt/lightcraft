@@ -80,15 +80,17 @@ fn option_click_opens_just_that_section() {
     click(&mut h, json!({"id": "section:detail", "alt": true}));
     assert_eq!(h.app.ui.open_sections, ["detail"], "⌥-click closes the others");
     assert!(!h.app.ui.single_panel, "⌥-click doesn't turn Solo Mode on");
-    // agents do the same with the section's command (Calibration has no menu item but runs too)
+    // agents do the same with the section's command (Calibration has one, though not in the menu)
     exec(&mut h, "section.calibration", json!({"solo": true}));
     assert_eq!(h.app.ui.open_sections, ["calibration"]);
 }
 
 #[test]
-fn flags_that_are_not_true_or_false_are_refused() {
+fn bad_flags_and_unknown_sections_are_refused() {
     let mut h = edit_open();
-    for (command, params) in [("view.soloSections", json!({"on": "yes"})), ("section.color", json!({"solo": 1}))] {
+    for (command, params) in
+        [("view.soloSections", json!({"on": "yes"})), ("section.color", json!({"solo": 1})), ("section.typo", json!({"solo": true}))]
+    {
         let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
         assert_eq!(r["ok"], false, "{command} {params}: {r}");
     }

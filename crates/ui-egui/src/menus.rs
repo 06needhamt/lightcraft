@@ -130,6 +130,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("section.effects", "Effects", Some("Cmd+3"), "Window>Edit Sections"),
     ("section.detail", "Detail", Some("Cmd+4"), "Window>Edit Sections"),
     ("section.optics", "Optics", Some("Cmd+5"), "Window>Edit Sections"),
+    ("section.calibration", "Calibration", None, ""),
     // {on?}; no params toggles. Opening one Edit section closes the others.
     ("view.soloSections", "Solo Mode", None, "Window>Edit Sections"),
     ("tool.brush", "Brush", Some("B"), "Window>Tools"),
@@ -1040,7 +1041,11 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.presets = false;
             Ok(Value::Null)
         }
-        s if s.starts_with("section.") => bool_param(s, p, "solo").map(|solo| {
+        s if s.starts_with("section.") => bool_param(s, p, "solo").and_then(|solo| {
+            // only the Edit sections listed above: an unknown one would close the real ones
+            if !UI_COMMANDS.iter().any(|c| c.0 == s) {
+                return Err(format!("{s}: no such Edit section"));
+            }
             let sec = &s["section.".len()..];
             if app.ui.right != RightPanel::Edit {
                 app.ui.right = RightPanel::Edit;
@@ -1050,7 +1055,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             } else {
                 app.ui.toggle_section(sec);
             }
-            Value::Null
+            Ok(Value::Null)
         }),
         s if s.starts_with("tool.") => {
             let tool = &s["tool.".len()..];
