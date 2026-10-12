@@ -901,6 +901,10 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let r =
             crate::text_field::TextField::singleline("field:keyword", &mut text).hint(crate::i18n::tr("Add keyword")).width(f32::INFINITY).show(ui);
         let mut drawn = Rect::NOTHING;
+        if offers.is_none() {
+            // (not over the offers)
+            r.response.clone().on_hover_text(crate::i18n::tr("Separate several keywords with commas. Return gives them to the selected photos."));
+        }
         if let Some(o) = &offers {
             let (clicked, rect) = super::keywording::offers_below(ui, r.response.rect, o, at);
             drawn = rect;
@@ -936,6 +940,7 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ui.add_space(8.0);
         super::keywording::view_switch(app, ui);
         ui.add_space(4.0);
+        super::keywording::scope(app, ui);
         if app.ui.keywording_view == crate::state::KeywordingView::Keywords {
             super::keywording::chip_row(app, ui);
         } else {

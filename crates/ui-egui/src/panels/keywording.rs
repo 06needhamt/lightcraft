@@ -54,17 +54,22 @@ pub fn names_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 
 /// Chips on a line of the grouped box are this far apart.
 const GAP: f32 = 6.0;
-/// The room a chip's × takes at its end.
-const CROSS_W: f32 = 18.0;
+/// The × at a chip's end is a target this wide, and as tall as the chip.
+const CROSS_W: f32 = 22.0;
+
+/// The room a chip needs besides its name: the space before it and, with a ×, the ×'s target (the
+/// × sits in the middle of it, which leaves the name its space), else the space after it.
+fn chip_edges(cross: bool) -> f32 {
+    8.0 + if cross { CROSS_W } else { 8.0 }
+}
 
 /// What a chip shows of `name` in a row `row_w` wide (cut short to fit it), and the chip's width.
 fn chip_size(ui: &egui::Ui, name: &str, partial: bool, cross: bool, row_w: f32) -> (String, f32) {
     let font = Tokens::get(ui.ctx()).font(13.0);
-    let cross_w = if cross { CROSS_W } else { 0.0 };
-    let room = (row_w - 16.0 - cross_w).max(24.0);
+    let room = (row_w - chip_edges(cross)).max(24.0);
     let measure = |s: &str| ui.painter().layout_no_wrap(s.to_string(), font.clone(), egui::Color32::WHITE).size().x;
     let shown = chip_label(name, partial, room, measure);
-    let w = measure(&shown) + 16.0 + cross_w;
+    let w = measure(&shown) + chip_edges(cross);
     (shown, w)
 }
 
@@ -73,7 +78,7 @@ fn chip_size(ui: &egui::Ui, name: &str, partial: bool, cross: bool, row_w: f32) 
 /// a row `row_w` wide) and, with `cross`, a × at its end. A `partial` one (only some of the
 /// selected photos) is dimmed and marked with an asterisk. Returns the name's response and the ×'s.
 fn chip(ui: &mut egui::Ui, path: &str, name: &str, partial: bool, cross: bool, row_w: f32) -> (egui::Response, Option<egui::Response>) {
-    use egui::{Align2, Rect, Sense, pos2, vec2};
+    use egui::{Align2, CornerRadius, Rect, Sense, Stroke, StrokeKind, pos2, vec2};
     let t = Tokens::get(ui.ctx());
     let font = t.font(13.0);
     let color = if partial { t.text_dim } else { t.text_label };
@@ -87,22 +92,55 @@ fn chip(ui: &mut egui::Ui, path: &str, name: &str, partial: bool, cross: bool, r
     let full = path.replace('|', " › ");
     let resp = ui.interact(body, id, Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &full));
+    // the ×: the whole end of the chip, so that it is hard to miss and easy to tell from the name
     let x = cross.then(|| {
-        let xr = Rect::from_center_size(pos2(rect.right() - 11.0, rect.center().y), vec2(14.0, 14.0));
+        let xr = Rect::from_min_max(pos2(rect.right() - cross_w, rect.top()), rect.max);
         let xresp = ui.interact(xr, id.with("remove"), Sense::click());
         let said = crate::i18n::tr_format!("Remove “{name}”", name = full);
         xresp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &said));
         xresp
     });
-    ui.painter().rect_stroke(rect, 10.0, egui::Stroke::new(1.0, t.field_border), egui::StrokeKind::Inside);
-    if resp.hovered() || x.as_ref().is_some_and(egui::Response::hovered) {
-        ui.painter().rect_filled(rect.shrink(1.0), 10.0, t.hover.gamma_multiply(0.5));
+    let p = ui.painter();
+    p.rect_stroke(rect, 10.0, Stroke::new(1.0, t.field_border), StrokeKind::Inside);
+    if resp.hovered() {
+        p.rect_filled(rect.shrink(1.0), 10.0, t.hover.gamma_multiply(0.5));
     }
-    ui.painter().text(pos2(rect.left() + 8.0, rect.center().y), Align2::LEFT_CENTER, &shown, font.clone(), color);
+    p.text(pos2(rect.left() + 8.0, rect.center().y), Align2::LEFT_CENTER, &shown, font, color);
     if let Some(x) = &x {
-        ui.painter().text(x.rect.center(), Align2::CENTER_CENTER, "×", t.font(13.0), if x.hovered() { t.text } else { t.text_dim });
+        // under the pointer the × lights up on its own: this click removes, the name's doesn't
+        if x.hovered() {
+            p.rect_filled(x.rect.shrink(1.0), CornerRadius { nw: 0, sw: 0, ne: 10, se: 10 }, t.hover);
+        }
+        let (c, arm) = (x.rect.center(), 3.5);
+        let stroke = Stroke::new(1.5, if x.hovered() || x.has_focus() { t.text } else { t.text_dim });
+        p.line_segment([c + vec2(-arm, -arm), c + vec2(arm, arm)], stroke);
+        p.line_segment([c + vec2(-arm, arm), c + vec2(arm, -arm)], stroke);
+        if x.has_focus() {
+            p.rect_stroke(x.rect, CornerRadius { nw: 4, sw: 4, ne: 10, se: 10 }, Stroke::new(1.5, t.accent), StrokeKind::Inside);
+        }
+    }
+    // reached with Tab, a chip shows where the keyboard is
+    if resp.has_focus() {
+        p.rect_stroke(rect, 10.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
     }
     (resp, x)
+}
+
+/// Take the chip's keyword off the selected photos. Several photos losing it at once is said, with
+/// the way back (one photo's chip going is enough); a refusal is said too.
+fn remove(app: &mut LightcraftApp, ctx: &egui::Context, chip: &Chip) {
+    match app.run("photo.setMeta", json!({"removeKeywords": [chip.path]})) {
+        Ok(_) if chip.have > 1 => {
+            let name = chip.path.replace('|', " › ");
+            app.toast_for(
+                ctx,
+                crate::i18n::tr_format!("Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.", name = name, n = chip.have),
+                6.0,
+            );
+        }
+        Ok(_) => {}
+        Err(e) => app.toast_error(ctx, e),
+    }
 }
 
 /// A chip's menu: it acts on the selected photos (deleting a keyword from the whole library is the
@@ -117,7 +155,7 @@ fn menu(app: &mut LightcraftApp, ui: &mut egui::Ui, chip: &Chip) {
         let _ = app.run("photo.setMeta", json!({"addKeywords": [chip.path]}));
     }
     if item(ui, "remove", crate::i18n::tr("Remove from Selected Photos")) {
-        let _ = app.run("photo.setMeta", json!({"removeKeywords": [chip.path]}));
+        remove(app, ui.ctx(), chip);
     }
     if item(ui, "show", crate::i18n::tr("Show Photos with Keyword")) {
         super::left::browse_all_photos(app, true);
@@ -127,6 +165,21 @@ fn menu(app: &mut LightcraftApp, ui: &mut egui::Ui, chip: &Chip) {
     if item(ui, "edit", crate::i18n::tr("Edit Keyword Tag…")) {
         app.ui.dialog = Some(super::keyword_list::edit_dialog(app, &chip.path));
     }
+}
+
+/// With several photos selected, how many the box's keywords are of (`keywordScope`): what a ×
+/// or a keyword typed here acts on.
+pub fn scope(app: &mut LightcraftApp, ui: &mut egui::Ui) {
+    let selection = app.session.targets(&serde_json::Value::Null);
+    let photos = app.caches.selected_photos(&app.session.catalog, &selection);
+    if photos < 2 {
+        return;
+    }
+    let t = Tokens::get(ui.ctx());
+    let said = crate::i18n::tr_format!("Keywords of {n} selected photos", n = photos);
+    let r = ui.label(egui::RichText::new(said).size(11.5).color(t.text_label));
+    register(ui.ctx(), "keywordScope", r.rect);
+    ui.add_space(4.0);
 }
 
 /// The selection's keywords as chips: the name (right-click for its menu), and × to take it off
@@ -161,7 +214,7 @@ fn chip_acts(app: &mut LightcraftApp, ui: &egui::Ui, c: &Chip, body: egui::Respo
     if let Some(x) = x {
         register(ui.ctx(), format!("keywordChipRemove:{}", c.path), x.rect);
         if x.on_hover_text(crate::i18n::tr("Remove from Selected Photos")).clicked() {
-            let _ = app.run("photo.setMeta", json!({"removeKeywords": [c.path]}));
+            remove(app, ui.ctx(), c);
         }
     }
     // one tooltip: the whole name (it may be cut short), and how many have it

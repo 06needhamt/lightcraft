@@ -505,3 +505,81 @@ fn the_highlight_stays_on_the_list() {
     assert!(all_have(&h, &ids, &lit[0]), "the last offer, {}, was given", lit[0]);
     assert!(none_has(&h, &ids, "por"));
 }
+
+fn toast(h: &Headless) -> String {
+    h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default()
+}
+
+// Given several photos selected, the box says how many its keywords are of; with one photo there
+// is nothing to say.
+#[test]
+fn the_box_says_how_many_photos_it_is_for() {
+    let (mut h, ids) = two_selected();
+    assert!(has(&h, "keywordScope"), "two photos are selected");
+    assert!(rect(&h, "keywordScope").bottom() <= rect(&h, "keywordChip:beach").top(), "above the chips it is about");
+    ask(&mut h, "engine.execute", json!({"command": "library.select", "params": {"ids": [ids[0]]}}));
+    assert!(!has(&h, "keywordScope"), "one photo");
+}
+
+// The × is a target as tall as its chip and as wide as that, apart from the name next to it.
+#[test]
+fn the_cross_is_as_tall_as_its_chip() {
+    let (h, _) = two_selected();
+    let (name, cross) = (rect(&h, "keywordChip:beach"), rect(&h, "keywordChipRemove:beach"));
+    assert!(cross.height() >= 22.0 && cross.width() >= 22.0, "{cross:?}");
+    assert_eq!(cross.height(), name.height());
+    assert!(cross.left() >= name.right() - 0.5, "beside the name, not over it: {cross:?} {name:?}");
+}
+
+// Given a keyword on several selected photos,
+// when its × takes it off them,
+// then a message names the keyword and how many photos lost it and says how to get it back, and
+// Undo does. Taking a keyword off one photo says nothing: the chip going is enough.
+#[test]
+fn taking_a_keyword_off_several_photos_says_so_and_undo_puts_it_back() {
+    let (mut h, ids) = two_selected();
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipRemove:Weddings"}));
+    assert_eq!(toast(&h), "", "only one of the two had Weddings");
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipRemove:beach"}));
+    assert!(none_has(&h, &ids, "beach"));
+    let said = toast(&h);
+    assert!(said.contains("beach") && said.contains('2') && said.contains("Undo"), "{said}");
+    ask(&mut h, "engine.execute", json!({"command": "edit.undo", "params": {}}));
+    assert!(all_have(&h, &ids, "beach"), "one undo step puts it back on both");
+
+    // the menu's Remove from Selected Photos says the same
+    h.app.ui.toast = None;
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChip:beach", "button": "right"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordChipMenu:remove"}));
+    assert!(none_has(&h, &ids, "beach") && toast(&h).contains("beach"), "{}", toast(&h));
+}
+
+// Names of any length and script stay inside the panel in both layouts, and nothing breaks: a
+// name of 400 letters, one of emoji and right-to-left text, levels of one letter.
+#[test]
+fn any_name_fits_the_panel() {
+    let (mut h, ids) = two_selected();
+    let long = "x".repeat(400);
+    let keywords: Vec<String> =
+        vec![long.clone(), format!("a|{long}"), "🙂|العربية|שלום".into(), "🙂|العربية|مرحبا".into(), "a|b|c|d|e|f|g|h".into(), "İ|ı".into()];
+    give(&mut h, &ids, &keywords);
+    for layout in [crate::state::KeywordChips::Paths, crate::state::KeywordChips::Grouped] {
+        h.app.ui.settings.keyword_chips = layout;
+        h.settle(SETTLE);
+        let panel = rect(&h, "panel:right_panel");
+        let chips: Vec<(String, egui::Rect)> = h.app.widgets.iter().filter(|(w, _)| w.starts_with("keywordChip:")).cloned().collect();
+        assert_eq!(chips.len(), keywords.len(), "{layout:?}");
+        for (id, r) in &chips {
+            assert!(
+                r.left() >= panel.left() && r.right() <= panel.right(),
+                "{layout:?}: {} inside the panel: {r:?}",
+                id.chars().take(40).collect::<String>()
+            );
+            assert!(r.width() > 0.0 && r.height() < 30.0);
+        }
+    }
+    // and typing them offers them without trouble
+    typed(&mut h, &"x".repeat(300));
+    typed(&mut h, "🙂");
+    assert!(count(&h, "kwComplete") >= 1);
+}

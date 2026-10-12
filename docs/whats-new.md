@@ -213,6 +213,9 @@
   give the offered keyword and keep the cursor in the box for the next one; Return alone still adds what you typed.
   A name the library doesn't have is marked as a new keyword before you press Return, so a misspelling no longer
   becomes a keyword unnoticed. The suggestions further down stay put while you type.
+- With several photos selected, the Keywords panel says how many photos its keywords belong to. The × on a keyword
+  is a larger target that lights up on its own, and taking a keyword off several photos at once now says which
+  keyword left how many photos, and that Edit ▸ Undo puts it back.
 
 ### HDR and panorama merges of CR2 keep their colour
 - Photo Merge of Canon CR2 (and other raws whose colour LightCraft fits from the camera's own JPEG, such as NEF and

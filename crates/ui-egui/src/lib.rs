@@ -1513,6 +1513,8 @@ pub struct Caches {
     keyword_names: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
     /// The Keywording box's chips, by library revision and selection.
     keyword_chips: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
+    /// How many photos of the library the selection is, by library revision and selection.
+    selected_photos: Option<(u64, u64, usize)>,
     /// The Keywording box's chips grouped by the keyword they are inside, by library revision and
     /// selection.
     keyword_groups: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Group>>)>,
@@ -1656,6 +1658,19 @@ impl Caches {
                 let c = std::sync::Arc::new(panels::keywording::chips(cat, selection));
                 self.keyword_chips = Some((cat.revision, key, c.clone()));
                 c
+            }
+        }
+    }
+    /// How many photos the selection is: each once, those the library has (what the Keywording
+    /// box's "N of M" counts).
+    pub(crate) fn selected_photos(&mut self, cat: &lightcraft_catalog::Catalog, selection: &[lightcraft_catalog::PhotoId]) -> usize {
+        let key = key_of(selection);
+        match self.selected_photos {
+            Some((r, k, n)) if r == cat.revision && k == key => n,
+            _ => {
+                let n = panels::keywording::distinct(cat, selection).len();
+                self.selected_photos = Some((cat.revision, key, n));
+                n
             }
         }
     }
