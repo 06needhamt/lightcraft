@@ -48,7 +48,8 @@ pub fn preview_only_explanation(reason: &str) -> String {
     if reason.starts_with("Nikon High Efficiency NEF (") {
         return crate::i18n::tr(
             "Nikon High Efficiency NEF uses licensed TicoRAW compression, which LightCraft cannot decode. Only the camera's embedded JPEG preview is available. For editable raw data, shoot Lossless compressed NEF or convert existing HE files to DNG using a licensed converter.",
-        );
+        )
+        .to_string();
     }
     crate::i18n::tr_format!(
         "LightCraft can't decode this raw variant yet ({}). You're editing the camera's embedded JPEG preview, which already includes the camera's picture style (e.g. Monochrome) and white balance.",
