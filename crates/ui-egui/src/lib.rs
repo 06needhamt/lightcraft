@@ -108,6 +108,8 @@ mod tests_preview_limit;
 #[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]
+mod tests_sam_setup;
+#[cfg(test)]
 mod tests_scroll;
 #[cfg(test)]
 mod tests_switch_library;
@@ -155,6 +157,9 @@ pub type OpenUrlFn = Box<dyn FnMut(&str) -> Result<(), String>>;
 pub type OpenWithFn = Box<dyn FnMut(&str, &str) -> Result<(), String>>;
 /// Open several files with one start of an application (`app` as for [`OpenWithFn`]).
 pub type OpenAllWithFn = Box<dyn FnMut(&[String], &str) -> Result<(), String>>;
+/// Linux model-folder work: wait for the default opener on a background task.
+#[cfg(target_os = "linux")]
+pub type OpenModelFolderFn = std::sync::Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 /// The ICC profile of the screen showing the window, as the system colour-manages it (`None`:
 /// not known).
 pub type ScreenProfileFn = Box<dyn FnMut() -> Option<Vec<u8>>>;
@@ -223,6 +228,9 @@ pub struct Services {
     /// Open several files with one start of the editor (Open Original; desktop only): an editor
     /// that keeps one window takes them all. None = [`Services::open_with`] for each.
     pub open_all_with: Option<OpenAllWithFn>,
+    /// Optional worker-safe model-folder opener alongside `open_with` (Linux desktop only).
+    #[cfg(target_os = "linux")]
+    pub open_model_folder: Option<OpenModelFolderFn>,
     /// Checked before Edit In renders a copy, so a missing editor leaves no copy behind (none =
     /// assume it can).
     pub check_editor: Option<CheckEditorFn>,
