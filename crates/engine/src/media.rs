@@ -62,7 +62,7 @@ impl SettingsHashes {
 }
 
 /// Bump when the pipeline's output changes, to invalidate cached thumbnails.
-pub const RENDER_CACHE_VERSION: u64 = 62;
+pub const RENDER_CACHE_VERSION: u64 = 63;
 
 /// Thumbnails render at one of these long edges (so window/cell size changes reuse the cache).
 pub const THUMB_SIZES: [usize; 4] = [128, 256, 384, 512];
@@ -214,9 +214,13 @@ impl DecodedSource {
     }
 
     /// What to render these pixels against: the decoder's facts, else `header` (the catalog's)
-    /// with any stored camera tone curve.
+    /// with any stored camera tone curve. The original's size comes from `header` either way: the
+    /// decoder only sees the level it decoded.
     pub fn info_or(&self, header: SourceInfo) -> SourceInfo {
-        self.info.clone().unwrap_or_else(|| SourceInfo { camera_tone: self.camera_tone.or(header.camera_tone), ..header })
+        match &self.info {
+            Some(info) => SourceInfo { native_long: info.native_long.or(header.native_long), ..info.clone() },
+            None => SourceInfo { camera_tone: self.camera_tone.or(header.camera_tone), ..header },
+        }
     }
 }
 
@@ -1096,9 +1100,16 @@ pub fn content_key(p: &Photo) -> String {
 
 pub fn source_info(p: &Photo) -> SourceInfo {
     // Procedural demo scenes are scene-referred HDR (like raw files): use the filmic tone map.
+    // (They are drawn afresh at every size, so they have no original size.)
     if matches!(p.source, Source::Demo { .. }) {
         return SourceInfo { raw: true, ..Default::default() };
     }
+    // the thumbnail and preview levels are smaller copies: noise reduction works in the original's pixels (#960)
+    let native_long = Some(p.width.max(p.height) as usize).filter(|&n| n > 0);
+    SourceInfo { native_long, ..header_info(p) }
+}
+
+fn header_info(p: &Photo) -> SourceInfo {
     // A raw shown from its embedded preview is a rendered (display-referred) JPEG: relative white
     // balance and the display tone curve, like any other rendered file.
     if p.develops_raw() {
@@ -1694,6 +1705,21 @@ mod thumbnail_hash_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn renders_know_the_original_size_whichever_level_they_come_from() {
+        // issue #960: noise reduction works in the original's pixels, so a grid cell drawn from the
+        // 512-px thumbnail level denoises like a scaled-down export
+        let p = Photo::new(PhotoId(1), Source::File { path: "/photos/a.ARW".into() }, "a.ARW", "ARW", 6000, 4000, "");
+        assert_eq!(source_info(&p).native_long, Some(6000));
+        let decoded = SourceInfo { raw: true, as_shot_temp: 4800.0, ..Default::default() };
+        let thumb = DecodedSource::new(Arc::new(Rgb32f::new(8, 8)), Some(decoded.clone()));
+        let info = thumb.info_or(source_info(&p));
+        assert_eq!(info, SourceInfo { native_long: Some(6000), ..decoded }, "the decoder's facts, the catalog's size");
+        let unknown = Photo::new(PhotoId(2), Source::File { path: "/photos/b.jpg".into() }, "b.jpg", "JPEG", 0, 0, "");
+        assert_eq!(source_info(&unknown).native_long, None);
+        assert_eq!(source_info(&Photo::new(PhotoId(3), Source::Demo { scene: 0 }, "d", "ARW", 600, 400, "")).native_long, None);
+    }
 
     #[test]
     fn denoise_mix_is_reserved_before_the_source_enters_the_cache() {
