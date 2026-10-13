@@ -2,8 +2,8 @@
 
 ## 2026-10-14
 
-### Nikon Z 6II and Z 8 colour profiles
-- Raws from the Nikon Z 6II and Z 8 now start from a colour profile built from a few hundred photos from each camera, the same way the
+### Nikon Z 6II, Z 8 and D5300 colour profiles
+- Raws from the Nikon Z 6II, Z 8 and D5300 now start from a colour profile built from a few hundred photos from each camera, the same way the
   Sony and Fujifilm profiles were made, instead of fitting each photo's colour on its own. Colours that one photo
   shows only a little of come out closer to the camera's JPEG.
 
