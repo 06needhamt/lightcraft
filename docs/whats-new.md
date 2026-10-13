@@ -27,6 +27,8 @@
 ### Reliability
 - A crop a hair wide (or of no size), set by an agent or read from a sidecar, no longer crashes or hangs the
   render with Clarity, Dehaze, Texture or Highlights / Shadows on: their blurs are held to the picture's size.
+- A crop of no size with healing spots or masks no longer crashes the render: samples outside the picture read its
+  edge.
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
