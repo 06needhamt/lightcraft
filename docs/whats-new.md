@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+### Smaller JPEG exports
+- JPEG exports are 12–14 % smaller at the same quality, with exactly the same pixels (issue #1373): each file now
+  carries Huffman tables made for its own picture instead of the standard example tables. Every viewer opens them
+  as before.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
