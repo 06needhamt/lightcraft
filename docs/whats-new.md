@@ -8,6 +8,12 @@
   previews for up to a second.
 - A thumbnail of the photo open in Detail is made from its already decoded preview instead of decoding the file
   again.
+## 2026-10-12
+
+### Canon CR2 highlights
+- Blown highlights in CR2 files from the Canon EOS 50D, 60D, 450D (Rebel XSi), 500D (Rebel T1i), 550D (Rebel T2i),
+  1200D (Rebel T5) and 100D (Rebel SL1) now count as clipped (issue #1272). They used to stop at 81–98% of white, so
+  highlight recovery missed them and, darkened, they took a colour cast instead of going neutral grey.
 
 ## 2026-10-11
 
