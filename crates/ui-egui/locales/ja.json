@@ -1284,6 +1284,7 @@
   "Show overlay (O)": "重ね表示（O）",
   "Show ratings, flags and edit badges": "評価・フラグ・編集済みマークを表示",
   "Show the Navigator while zoomed in": "拡大時にナビゲーターを表示",
+  "Show the import review when a camera or card is connected": "カメラやメモリーカードを接続したときに読み込み画面を表示",
   "Show the template tags; click one to insert it": "テンプレートのタグを表示（クリックで挿入）",
   "Show/Hide Mask": "マスクの表示／非表示",
   "Show/hide My Photos panel": "マイフォトパネルを表示／非表示",

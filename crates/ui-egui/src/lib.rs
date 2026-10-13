@@ -1092,6 +1092,16 @@ impl LightcraftApp {
             }
             ctx.request_repaint_after(std::time::Duration::from_secs(3));
         }
+        // Settings → Import: open the import review when a camera or card is connected
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.session.import_defaults.show_on_card {
+            if let Some(now) = lightcraft_engine::devices::devices_scanned() {
+                import::cards_seen(self, now);
+            }
+            ctx.request_repaint_after(lightcraft_engine::devices::MAX_AGE);
+        } else {
+            self.ui.known_cards = None;
+        }
         self.session.persist_if_dirty();
         panels::denoise::pump(self, ctx);
         model_setup::pump(self, ctx);

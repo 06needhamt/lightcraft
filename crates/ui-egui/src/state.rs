@@ -613,6 +613,10 @@ pub struct UiState {
     /// When the watched folder was last scanned (egui time).
     #[serde(skip)]
     pub auto_import_at: f64,
+    /// The cards and cameras already seen (volume roots) while Settings → Import → "Show the
+    /// import review when a camera or card is connected" is on; `None` = not looked yet.
+    #[serde(skip)]
+    pub known_cards: Option<Vec<String>>,
     /// The develop control whose slider is being dragged (geometry sliders show a grid).
     #[serde(skip)]
     pub dragging_control: Option<String>,
@@ -1101,6 +1105,7 @@ impl Default for UiState {
             external_edits: Vec::new(),
             was_focused: true,
             auto_import_at: 0.0,
+            known_cards: None,
             search: String::new(),
             focus_search: false,
             renaming_mask: None,

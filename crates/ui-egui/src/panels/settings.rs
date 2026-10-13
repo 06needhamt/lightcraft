@@ -358,6 +358,11 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
     });
     if !cfg!(target_arch = "wasm32") {
+        heading(ui, t, crate::i18n::tr("Cameras and Cards"));
+        let mut on_card = d.show_on_card;
+        if check(ui, "settings.importOnCard", &mut on_card, "Show the import review when a camera or card is connected") {
+            let _ = app.run("library.preferences", json!({"import": {"showOnCard": on_card}}));
+        }
         heading(ui, t, crate::i18n::tr("Auto Import"));
         hint(ui, t, crate::i18n::tr("Photos that arrive in this folder (tethering, a scanner, a sync app) are added as soon as they're complete."));
         row(ui, t, crate::i18n::tr("Watched folder"), |ui| {

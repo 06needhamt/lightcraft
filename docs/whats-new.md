@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+### Import when a card is connected
+- Settings → Import → Cameras and Cards has an option to open the import review as soon as a camera or memory card
+  is connected, the same review File → Import from Device opens. It's off by default. A card that's already in when
+  LightCraft starts doesn't ask, and if a dialog is open or an import is running it waits until that's done.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
@@ -108,6 +113,8 @@
 - An export enlarged far past the photo's size (20000 typed for 2000 with Don't Enlarge off) no longer ends
   LightCraft: an enlargement stops at 512 megapixels, as in Lightroom, and one that needs more memory than the
   computer has is refused with the size it would take, before it starts.
+
+## 2026-10-13
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you

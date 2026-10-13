@@ -444,6 +444,28 @@ pub(crate) fn busy_synchronizing(app: &LightcraftApp) -> Result<(), String> {
     if app.sync_run.is_some() { Err(crate::i18n::tr("A folder is being synchronized").to_string()) } else { Ok(()) }
 }
 
+/// Settings → Import → "Show the import review when a camera or card is connected", called with
+/// each device scan while it's on. The first look only notes the cards already in. A card that
+/// shows up after that opens Import from Device once nothing else is open, and a card that is
+/// taken out and put back in asks again.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn cards_seen(app: &mut LightcraftApp, now: Vec<lightcraft_engine::devices::Device>) {
+    let Some(known) = app.ui.known_cards.as_mut() else {
+        app.ui.known_cards = Some(now.into_iter().map(|d| d.root).collect());
+        return;
+    };
+    known.retain(|root| now.iter().any(|d| d.root == *root));
+    let Some(card) = now.into_iter().find(|d| !known.contains(&d.root)) else { return };
+    // busy: ask when the window is free (the card isn't noted until then)
+    if app.import.is_some() || app.scan.is_some() || app.sync_run.is_some() || app.lightroom.is_some() || app.ui.dialog.is_some() {
+        return;
+    }
+    known.push(card.root);
+    if let Err(e) = app.run("file.addFromDevice", json!({"path": card.path})) {
+        log::warn!("import from {}: {e}", card.name);
+    }
+}
+
 /// Scan `paths` in the background, then open the review dialog (see [`poll_scan`]).
 pub fn open(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value, String> {
     if app.scan.is_some() {
