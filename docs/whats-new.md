@@ -2,6 +2,10 @@
 
 ## 2026-10-13
 
+### Reliability
+- Importing a preset zip that unpacks to far more than any preset (a "zip bomb") is refused with a message naming
+  the file, instead of asking for gigabytes of memory, which could end LightCraft.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
