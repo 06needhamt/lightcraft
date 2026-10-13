@@ -2269,4 +2269,44 @@ fn an_album_menu_imports_into_that_album() {
     assert_eq!(r["result"]["scanning"], true, "{r}");
     assert_eq!(review_album(&mut h), None);
     let _ = std::fs::remove_dir_all(&dir);
+/// Delete asks before photos go to Recently Deleted, by default and from every way in: the key, the
+/// Photo menu and a photo's right-click menu (#1239). With the setting off, it deletes at once.
+#[test]
+fn deleting_a_photo_asks_first_from_the_key_the_menu_and_the_right_click_menu() {
+    use crate::state::Dialog;
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid"}));
+    assert!(h.app.ui.settings.confirm_delete, "on by default");
+    let photo = h.app.session.visible_cloned()[0];
+    exec(&mut h, "library.select", json!({"ids": [photo.0]}));
+    let deleted = |h: &Headless| h.app.session.catalog.photo(photo).unwrap().deleted;
+
+    // ⌫ and Photo ▸ Delete Photo ask; Cancel keeps the photo
+    h.request("ui.key", json!({"key": "delete"}), T);
+    assert_eq!(h.app.ui.dialog, Some(Dialog::ConfirmDelete { count: 1 }), "the key asks");
+    h.request("ui.dialog.cancel", json!({}), T);
+    assert!(!deleted(&h));
+    // (what a click on the menu bar's item runs; `ui.menu.invoke` is the agents' engine.execute)
+    crate::menubar::run_item(&mut h.app, "photo.delete", json!({})).unwrap();
+    assert_eq!(h.app.ui.dialog, Some(Dialog::ConfirmDelete { count: 1 }), "the menu asks");
+    h.request("ui.dialog.cancel", json!({}), T);
+    assert!(!deleted(&h));
+
+    // the right-click menu's Delete Photo asks too; OK deletes
+    let thumb = format!("thumb:{}", photo.0);
+    right_click(&mut h, &thumb);
+    click(&mut h, "button:contextDeletePhoto");
+    assert_eq!(h.app.ui.dialog, Some(Dialog::ConfirmDelete { count: 1 }), "the right-click menu asks");
+    assert!(!deleted(&h), "nothing deleted before the answer");
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(deleted(&h));
+
+    // turned off, the right-click menu deletes at once
+    exec(&mut h, "edit.undo", json!({}));
+    assert!(!deleted(&h));
+    h.app.ui.settings.confirm_delete = false;
+    right_click(&mut h, &thumb);
+    click(&mut h, "button:contextDeletePhoto");
+    assert_eq!(h.app.ui.dialog, None);
+    assert!(deleted(&h));
 }
