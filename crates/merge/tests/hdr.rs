@@ -125,6 +125,31 @@ fn bracket_merge_recovers_radiance_and_alignment() {
     assert!(rmed < 0.05, "recovered highlights: median log error {rmed}");
 }
 
+/// The result doesn't depend on the order the frames come in: every permutation of a bracket gives the same radiance and
+/// deghost overlay, bit for bit, and the same per-frame results for each frame. (Real brackets merged in the app's
+/// selection order and in the CLI's file order differed on 0.6 % of their pixels: alignment seeds followed the input
+/// positions.)
+#[test]
+fn merge_does_not_depend_on_the_frame_order() {
+    let t = truth();
+    let shifts = [(3.25f32, -2.0f32), (0.0, 0.0), (-4.0, 1.5)];
+    let ks = [0.25f32, 1.0, 4.0];
+    let shot: Vec<Frame> = (0..3).map(|i| shoot(&t, ks[i], shifts[i].0, shifts[i].1, i as u64 + 1)).collect();
+    let opts = HdrOptions { align: true, deghost: Deghost::Medium };
+    let base = merge_hdr(shot.clone(), &opts, &no_progress).unwrap();
+    assert_eq!(base.reference, 1);
+    for perm in [[2usize, 0, 1], [1, 2, 0], [0, 2, 1]] {
+        let r = merge_hdr(perm.iter().map(|&i| shot[i].clone()).collect(), &opts, &no_progress).unwrap();
+        assert!(r.radiance.data == base.radiance.data, "{perm:?}: the radiance differs");
+        assert!(r.ghost.data == base.ghost.data, "{perm:?}: the deghost overlay differs");
+        assert_eq!(perm[r.reference], base.reference, "{perm:?}");
+        for (p, &i) in perm.iter().enumerate() {
+            assert_eq!(r.ev[p], base.ev[i], "{perm:?}");
+            assert_eq!(r.alignments[p].h, base.alignments[i].h, "{perm:?}");
+        }
+    }
+}
+
 #[test]
 fn deghost_removes_a_moving_object() {
     let t = truth();
