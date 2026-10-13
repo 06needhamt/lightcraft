@@ -31,6 +31,7 @@ pub mod devices;
 pub mod display;
 pub mod export;
 pub mod face_download;
+pub mod face_tiles;
 #[cfg(not(target_arch = "wasm32"))]
 mod faces_index;
 #[cfg(not(target_arch = "wasm32"))]
@@ -999,6 +1000,9 @@ mod tests_face_models;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod tests_face_recognize;
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod tests_face_tiles;
 #[cfg(test)]
 mod tests_filesystem_history;
 #[cfg(test)]

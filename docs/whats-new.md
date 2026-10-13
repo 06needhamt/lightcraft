@@ -2,6 +2,16 @@
 
 ## 2026-10-13
 
+### Faces load faster in the People view
+- Faces on unedited raws are cut from the camera's preview inside the file instead of developing the raw (issue
+  #1440): a Sony α1 face reads 8 MB instead of 70 MB, an A7S III face about 1 MB instead of 24 MB, several times
+  faster on an external hard disk. A face whose preview is too small, and any edited photo, is still developed from
+  the raw, so it keeps its look.
+- Raws whose preview is in Adobe RGB (Sony α1 among others) no longer read the whole file for their grid thumbnail:
+  only the header and the preview are read, as for other raws.
+- Faces are kept in the thumbnail cache at a few fixed sizes, so moving the thumbnail slider no longer renders them
+  all again.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
