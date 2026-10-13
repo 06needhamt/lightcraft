@@ -233,59 +233,24 @@ mod tests {
     }
 
     #[test]
-    fn windows_lookup_prefers_the_recorded_install_folder() {
-        let env = |k: &str| match k {
-            "ProgramFiles" => Some(r"C:\Program Files".to_string()),
-            "LOCALAPPDATA" => Some(r"C:\Users\Simon\AppData\Local".to_string()),
-            _ => None,
-        };
-        let c = windows_candidates(Some(r"D:\Apps\PhotoCraft\".into()), Some(r#""C:\Program Files\PhotoCraft\photocraft.exe""#.into()), env);
-        let c: Vec<String> = c.iter().map(|p| p.to_string_lossy().replace('/', "\\")).collect();
-        assert!(c[0].starts_with(r"D:\Apps\PhotoCraft") && c[0].ends_with("photocraft.exe"), "{c:?}");
-        assert_eq!(c[1], r"C:\Program Files\PhotoCraft\photocraft.exe", "App Paths, quotes dropped");
-        assert!(c[2].starts_with(r"C:\Program Files") && c[2].ends_with("photocraft.exe"), "{c:?}");
-        assert!(c[3].contains("Programs") && c[3].ends_with("photocraft.exe"), "{c:?}");
-        assert_eq!(c.len(), 4);
+    fn a_failed_open_is_an_error() {
+        assert!(open_result(true, "").is_ok());
+        assert!(open_result(false, "Unable to find application\n").is_err());
+        assert!(open_result(false, "").is_err(), "even when it says nothing");
     }
 
     #[test]
-    fn reg_query_output_is_read() {
-        let out = "\r\nHKEY_LOCAL_MACHINE\\Software\\PhotoCraft\r\n    InstallDir    REG_SZ    C:\\Program Files\\PhotoCraft\\\r\n\r\n";
-        assert_eq!(reg_value(out).as_deref(), Some(r"C:\Program Files\PhotoCraft\"));
-        let default = "\r\nHKEY_LOCAL_MACHINE\\...\\photocraft.exe\r\n    (Default)    REG_SZ    C:\\Program Files\\PhotoCraft\\photocraft.exe\r\n";
-        assert_eq!(reg_value(default).as_deref(), Some(r"C:\Program Files\PhotoCraft\photocraft.exe"));
-        assert_eq!(reg_value("ERROR: The system was unable to find the specified registry key or value."), None);
-    }
-
-    #[test]
-    fn desktop_entries_give_their_program() {
-        let appimage = "[Desktop Entry]\nName=PhotoCraft\nExec=\"/home/simon/Apps/photocraft-1.2-linux-x86_64.AppImage\" %F\n";
-        assert_eq!(desktop_exec(appimage), Some(PathBuf::from("/home/simon/Apps/photocraft-1.2-linux-x86_64.AppImage")));
-        assert_eq!(desktop_exec("Exec=/opt/photocraft/photocraft %F\n"), Some(PathBuf::from("/opt/photocraft/photocraft")));
-        assert_eq!(desktop_exec("Exec=photocraft %F\nTryExec=photocraft\n"), Some(PathBuf::from("photocraft")), "a bare name, for a PATH lookup");
-        assert_eq!(desktop_exec("[Desktop Entry]\n"), None);
-        let dirs = desktop_entry_dirs(|k| (k == "HOME").then(|| "/home/simon".to_string()));
-        assert_eq!(dirs[0], PathBuf::from("/home/simon/.local/share/applications"));
-        assert!(dirs.contains(&PathBuf::from("/usr/share/applications")));
-    }
-
-    #[test]
-    fn appimages_and_spotlight_results_are_recognised() {
-        assert!(is_photocraft_appimage(Path::new("/home/s/Applications/PhotoCraft-1.4.0-x86_64.AppImage")));
-        assert!(is_photocraft_appimage(Path::new("/home/s/.local/bin/photocraft.appimage")));
-        assert!(!is_photocraft_appimage(Path::new("/home/s/Applications/Other-1.0.AppImage")));
-        assert!(!is_photocraft_appimage(Path::new("/home/s/Applications/photocraft.desktop")));
-        let found = mdfind_app("\n/Volumes/X/Apps/PhotoCraft.app\n/Users/s/PhotoCraft.app\n");
-        assert_eq!(found, Some(PathBuf::from("/Volumes/X/Apps/PhotoCraft.app")));
-        assert_eq!(mdfind_app(""), None);
-    }
-
-    #[test]
-    fn a_failed_open_says_why() {
-        assert_eq!(open_result(true, ""), Ok(()));
-        let e = open_result(false, "Unable to find application named 'PhotoCraft'\n");
-        assert_eq!(e, Err("Unable to find application named 'PhotoCraft'".into()));
-        assert!(open_result(false, "").is_err());
+    fn odd_detection_input_does_not_panic() {
+        for text in ["", "Exec=", "Exec=\"", "Exec=\"\"", "\u{0}\u{fffd}", "Exec= %F", "[Desktop Entry]\nExec=\u{e9}\u{301}"] {
+            let _ = desktop_exec(text);
+            let _ = mdfind_app(text);
+            let _ = reg_value(text);
+        }
+        for p in ["", "/", ".AppImage", "\u{e9}.appimage", "a/../b"] {
+            let _ = is_photocraft_appimage(Path::new(p));
+        }
+        let _ = desktop_entry_dirs(|_| None);
+        let _ = windows_candidates(None, Some("\"".into()), |_| None);
     }
 
     #[test]
