@@ -652,9 +652,16 @@ pub(crate) fn decode_raw_preview(bytes: &[u8], opts: lightcraft_codecs::DecodeOp
 /// Oriented size of the embedded preview of a raw file.
 fn embedded_preview_size(bytes: &[u8]) -> Option<(u32, u32)> {
     let jpeg = stand_in_image(bytes)?;
-    let d = lightcraft_codecs::decode(&jpeg, lightcraft_codecs::DecodeOptions::fit(64, 64)).ok()?;
-    let (mut w, mut h) = (d.source_width, d.source_height);
-    if preview_orientation(bytes, d.orientation).swaps_axes() {
+    // headers only, as for other images (issue #367): decoding a full-size preview just for its
+    // size took about a second per file in an import; a decode remains the fallback
+    let (mut w, mut h, orientation) = match lightcraft_codecs::read_header(&jpeg) {
+        Ok(header) => (header.width, header.height, header.orientation),
+        Err(_) => {
+            let d = lightcraft_codecs::decode(&jpeg, lightcraft_codecs::DecodeOptions::fit(64, 64)).ok()?;
+            (d.source_width, d.source_height, d.orientation)
+        }
+    };
+    if preview_orientation(bytes, orientation).swaps_axes() {
         std::mem::swap(&mut w, &mut h);
     }
     Some((w, h))
