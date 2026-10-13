@@ -531,7 +531,7 @@ fn run(args: &[String]) -> Result<(), String> {
                 if took {
                     i += 1;
                 }
-            },
+            }
             a if a.starts_with("--connect=") => {
                 let (addr, _) = connect_value(Some(&a["--connect=".len()..]));
                 connect = Some(addr);
