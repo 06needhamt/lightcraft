@@ -49,6 +49,11 @@
 ### Older raw cameras
 - Canon PowerShot G9 raws open with the camera's white balance (White Balance ▸ As Shot); it used to start from a
   neutral default.
+## 2026-10-12
+
+### Older raw cameras
+- Olympus E-10 raws open with the camera's white balance (White Balance ▸ As Shot) and without the grey haze in
+  the shadows: the black level recorded in the file is now subtracted.
 
 ## 2026-10-11
 
