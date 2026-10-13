@@ -12,6 +12,10 @@
   models in a `LightCraftData` folder beside it instead of the per-user settings folder (issue #1200), as
   PhotoCraft does. If that folder can't be written, the usual folder is used and the log says why.
 
+### Reliability
+- A photo whose Defringe amount was stored far past the sliders' 20 (in a damaged catalog or sidecar) no longer
+  crashes LightCraft each time it renders: the amount acts as 20.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
