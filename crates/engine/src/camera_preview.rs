@@ -30,7 +30,8 @@ use lightcraft_raw::{
 /// states, for every make (#778).
 /// 4: a tone curve from black-and-white camera JPEGs (#577).
 /// 5: dark JPEG luminance pairs for the camera toe (#1307).
-pub const LOOK_VERSION: u32 = 5;
+/// 6: the ILCA-99M2 profile.
+pub const LOOK_VERSION: u32 = 6;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -2257,15 +2258,15 @@ mod tests {
         assert_eq!(info.camera_tone.is_some(), look.is_some());
     }
 
-    /// A public ILCE-7CR sample (skipped without the corpus) takes its colour from the bundled ILCE-7CR profile and
-    /// passes the acceptance gates with it: the fitted look keeps the profile's matrix and table, which the photo's
-    /// own fit (the fallback when a profile is rejected) would not.
-    #[test]
-    fn corpus_a7cr_uses_the_bundled_profile() {
+    /// A public sample of `model` (skipped without the corpus) takes its colour from the bundled profile for `model`
+    /// and passes the acceptance gates with it: the fitted look keeps the profile's matrix and table, which the
+    /// photo's own fit (the fallback when a profile is rejected) would not.
+    fn corpus_uses_the_bundled_profile(file: &str, model: &str) {
         let path = std::env::var_os("LIGHTCRAFT_CORPUS")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
-            .join("raw/arw-sony-a7cr-lossless-l.arw");
+            .join("raw")
+            .join(file);
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -2274,12 +2275,12 @@ mod tests {
             }
             Err(e) => panic!("{}: {e}", path.display()),
         };
-        let (_, json) = crate::camera_profiles::BUNDLED.iter().find(|(m, _)| *m == "ILCE-7CR").expect("ILCE-7CR is built in");
+        let (_, json) = crate::camera_profiles::BUNDLED.iter().find(|(m, _)| *m == model).expect("the model is built in");
         let bundled: crate::camera_profiles::CameraProfile = serde_json::from_str(json).unwrap();
-        let used = crate::camera_profiles::get("ILCE-7CR").expect("ILCE-7CR profile");
-        assert_eq!(*used, bundled, "a local ILCE-7CR profile overrides the built-in one; remove it to run this test");
+        let used = crate::camera_profiles::get(model).expect("a profile for the model");
+        assert_eq!(*used, bundled, "a local {model} profile overrides the built-in one; remove it to run this test");
         let raw = lightcraft_raw::decode(&bytes).unwrap();
-        assert_eq!(raw.metadata.model.as_deref(), Some("ILCE-7CR"));
+        assert_eq!(raw.metadata.model.as_deref(), Some(model));
         let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
         let look = fit_preview(&raw, &bytes, &transform).0.expect("fit accepted");
         let expected = bundled.matrix().mul(&transform.matrix.inverse().unwrap());
@@ -2289,6 +2290,16 @@ mod tests {
             }
         }
         assert_eq!(look.hue_sat, bundled.hue_sat, "the look's table is not the profile's");
+    }
+
+    #[test]
+    fn corpus_a7cr_uses_the_bundled_profile() {
+        corpus_uses_the_bundled_profile("arw-sony-a7cr-lossless-l.arw", "ILCE-7CR");
+    }
+
+    #[test]
+    fn corpus_a99m2_uses_the_bundled_profile() {
+        corpus_uses_the_bundled_profile("arw-sony-a99m2.arw", "ILCA-99M2");
     }
 
     /// A public D7500 NEF (skipped without the corpus): its look is fitted to its own JPEG and white

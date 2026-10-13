@@ -383,6 +383,12 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "https://raw.pixls.us/data/Sony/ILCE-7CM2/DSC02436.ARW",
         "002c86d38a16b08a2438780728b4fda8efcc745fa6c26231dad6af67b383b11e",
     ),
+    // ILCA-99M2 (42 MP, compressed): checks that it takes its colour from the bundled ILCA-99M2 profile
+    (
+        "arw-sony-a99m2.arw",
+        "https://raw.pixls.us/data/Sony/ILCA-99M2/BR_00086.ARW",
+        "be898847ac6da485874d95469bf274df1f8f77f8b8542460464f0f393981b2d2",
+    ),
     // a dusk sky clipped in green behind a poplar: the clipped-highlight colour of issue #523
     (
         "arw-sony-a7rm4-14bit-compressed.arw",
