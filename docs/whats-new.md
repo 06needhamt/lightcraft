@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+### Closer camera colour for lens-corrected raws
+- Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
+  Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that
+  didn't line up with the raw near the edges. Photos you already imported pick this up when their previews are rebuilt.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
