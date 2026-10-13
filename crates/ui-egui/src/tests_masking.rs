@@ -1500,6 +1500,36 @@ fn a_selected_develop_slider_accepts_wheel_nudges() {
     assert!(after > before, "selected exposure did not increase: {before} -> {after}");
 }
 
+/// Scrolling sideways over a slider adjusts it without selecting it first: a trackpad swipe
+/// right raises the value, left lowers it, and Shift+wheel (sideways scrolling with a mouse) does
+/// the same. A mostly vertical swipe still scrolls the panel and leaves the slider alone.
+#[test]
+fn sideways_scrolling_adjusts_the_slider_under_the_pointer() {
+    let mut h = detail("panel.edit");
+    let r = h.request("ui.set", json!({"right": "edit"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let exposure = |h: &Headless| lightcraft_develop::controls::get(&develop(h), "light.exposure").expect("exposure");
+    let scroll = |h: &mut Headless, params: serde_json::Value| {
+        // the pointer rests on the track, the slider is not clicked
+        let r = h.request("ui.hoverWidget", json!({"id": "slider:light.exposure"}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        let before = exposure(h);
+        let r = h.request("ui.scroll", params, T);
+        assert_eq!(r["ok"], true, "{r}");
+        for _ in 0..10 {
+            h.step();
+        }
+        exposure(h) - before
+    };
+    assert!(scroll(&mut h, json!({"dx": 120.0})) > 0.0, "a swipe right raises the value");
+    assert!(scroll(&mut h, json!({"dx": -120.0})) < 0.0, "a swipe left lowers it");
+    assert!(scroll(&mut h, json!({"dy": 120.0, "shift": true})) > 0.0, "Shift+wheel scrolls sideways");
+    let undo = h.app.session.undo.len();
+    assert_eq!(scroll(&mut h, json!({"dx": 30.0, "dy": -120.0})), 0.0, "a mostly vertical swipe leaves the slider alone");
+    assert_eq!(h.app.session.undo.len(), undo);
+}
+
 /// Issue #517: a fast brush stroke (pointer samples several brush widths apart) shows on the photo
 /// while the button is held as the continuous, feathered band it will be once committed, not as
 /// separate dabs at the samples with gaps between them.

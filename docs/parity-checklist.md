@@ -667,7 +667,7 @@ From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained 
 | KEY-CROP-RESET | Reset crop — ⌥⌘R | P0 | ✅ | `cmd:crop.reset` | |
 | KEY-STRAIGHTEN | Straighten while held — ⌘ drag | P1 | ✅ | `cmd:crop.straighten`, `crates/ui-egui/src/panels/detail.rs` (`straighten_overlay`) | ⌘-drag in Crop draws a level line; the crop tool stays active |
 | KEY-SLIDER-RESET | Reset slider — double-click | P0 | ✅ | `crates/ui-egui/src/widgets.rs` | |
-| KEY-SLIDER-NUDGE | Nudge slider — ↑/↓ | P1 | ✅ | `crates/ui-egui/src/widgets.rs` (`nudged`), `cmd:develop.adjust` | ↑/↓ over any slider: ≈ 1/200 of its range (exposure 0.05, most sliders 1, temperature 50 K); ⇧ ×5; one undo step each |
+| KEY-SLIDER-NUDGE | Nudge slider — ↑/↓ | P1 | ✅ | `crates/ui-egui/src/widgets.rs` (`nudged`), `cmd:develop.adjust` | ↑/↓ over any slider: ≈ 1/200 of its range (exposure 0.05, most sliders 1, temperature 50 K); ⇧ ×5; one undo step each. Scrolling sideways over any slider (trackpad swipe, tilting wheel, ⇧+wheel) nudges it the same way, one wheel notch a step, without selecting it first; only a mostly sideways movement counts, so scrolling the panel leaves sliders alone (`crates/ui-egui/src/tests_masking.rs`, `sideways_scrolling_adjusts_the_slider_under_the_pointer`) |
 | KEY-SLIDER-TYPE | Type a slider value | P1 | ✅ | `crates/ui-egui/src/widgets.rs` (`typed_value`), `crates/ui-egui/src/text_field.rs`, `crates/ui-egui/src/widgets/tests_numeric_entry.rs` (`opening_release_honors_return_and_escape_immediately`), `crates/ui-egui/src/tests_keymap.rs` (`opening_numeric_release_keeps_keys_in_the_editor`) | click the value next to any slider's name and type one (`1.5`, `+0,25`, `-20`, `5600 K`): Return or clicking away applies it on the control's steps and range as one undo step, Esc keeps the old value; issue #322; Return/Escape take effect on the opening release, retaining the stored value on Escape; typing stays in the editor without triggering global shortcuts |
 | KEY-SHORTCUTS | Shortcut list — ⌘/ | P1 | ✅ | `cmd:app.shortcuts` | |
 | KEY-HELP | Help — F1 | P2 | ✅ | `cmd:app.help` | |
@@ -801,6 +801,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-12 | minor | LRC-LIB-MISSING: folder and disk context menus locate a moved tree recursively without relinking missing photos outside it (issue #1194) |
 | 2026-10-12 | minor | LR-IMP-CAMERA-COVERAGE: Canon PowerShot G9 as-shot white balance from WBInfo (issue #1273); status unchanged (🟡) |
 | 2026-10-12 | minor | LR-IMP-CAMERA-COVERAGE: Olympus E-10 as-shot white balance and black level from the main maker note (issue #1273); status unchanged (🟡) |
+| 2026-10-13 | minor | KEY-SLIDER-NUDGE: scrolling sideways over a slider adjusts it |
 | 2026-10-13 | minor | LR-IMP-CAMERA-COVERAGE: Nikon D90 NEFs drop their 42 filler columns (pink band on the right) and clip at one measured white level; status unchanged (🟡) |
 | 2026-10-13 | minor | LR-VER-HISTORY, LRC-DEV-HISTORY: History cursor (go to a step without adding one; Previous/Next History Step) |
 | 2026-10-12 | minor | LR-IMP-FORMATS: the Hasselblad Lunar (a Sony NEX-7 ARW under Make HASSELBLAD) decodes from sensor data instead of opening as its preview; an uncompressed Leaf MOS imports as a preview-only raw instead of a greyscale image of its mosaic (#1275); status unchanged (🟡) |

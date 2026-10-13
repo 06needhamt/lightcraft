@@ -177,8 +177,9 @@ pub(crate) fn shown_value(spec: &ControlSpec, v: f64) -> String {
 }
 
 /// A Lightroom slider row (label + value above a track with a hollow ring thumb).
-/// Double-click the label or thumb to reset. Shift-drag = fine adjustment. Click the value to
-/// type one: Return or clicking away applies it, Esc keeps the old one.
+/// Double-click the label or thumb to reset. Shift-drag = fine adjustment. Scroll sideways over
+/// it to nudge it. Click the value to type one: Return or clicking away applies it, Esc keeps the
+/// old one.
 pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_override: Option<&str>) -> SliderOut {
     let t = Tokens::get(ui.ctx());
     let w = ui.available_width();
@@ -349,6 +350,28 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
                     out.drag_stopped = true;
                     v = nv;
                 }
+            }
+        }
+        // Sideways scrolling (a trackpad swipe, a tilting wheel, Shift+wheel) adjusts the slider under
+        // the pointer, selected or not: the panel only scrolls vertically, so nothing else wants it.
+        // Only a mostly sideways movement counts, so a slightly diagonal swipe that scrolls the panel
+        // leaves the sliders it passes alone. Right raises the value, as dragging the thumb right does.
+        let side_id = id.with("side-rem");
+        let (dx, dy) = ui.input(|i| (i.smooth_scroll_delta.x, i.smooth_scroll_delta.y));
+        if !enabled || typing.is_some() || out.value.is_some() || !ui.rect_contains_pointer(row) || dx.abs() <= dy.abs() {
+            ui.data_mut(|m| m.remove::<f32>(side_id));
+        } else {
+            // the vertical part would scroll the panel and move the slider out from under the pointer
+            ui.input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
+            let mut remainder = ui.data(|m| m.get_temp::<f32>(side_id)).unwrap_or(0.0);
+            let steps = wheel_nudges(&mut remainder, dx);
+            ui.data_mut(|m| m.insert_temp(side_id, remainder));
+            let nv = nudged(spec, value, steps);
+            if steps != 0.0 && (nv - value).abs() > 1e-12 {
+                out.value = Some(nv);
+                out.drag_started = true;
+                out.drag_stopped = true;
+                v = nv;
             }
         }
         // Wheel nudges require an explicitly selected slider, unlike regular panel scrolling.
