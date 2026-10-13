@@ -32,6 +32,13 @@
 - With a GPU, a slider drag's preview is drawn in the same frame as the slider moves instead of one frame later,
   when the preview renders in a few milliseconds (it waits at most 40 % of a frame for it; slower renders, such as
   on the CPU, are not waited for).
+## 2026-10-12
+
+### Kelvin white balance for more Sony cameras
+- Sony ILCA-99M2, ILCA-77M2, SLT-A33, DSC-RX10, ILCE-3500 and ILCE-7S raws now show white balance in Kelvin too,
+  read from the white-balance presets the camera stores in every ARW: a photo shot at 3400 K on the camera reads
+  3396 K, one on the Shade preset 7493 K. As for #730, only the numbers change: edits made on the old relative
+  scale keep their look, and As Shot shows the real temperature once the file is opened.
 
 ## 2026-10-11
 
