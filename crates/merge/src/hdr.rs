@@ -10,10 +10,11 @@
 //!    measured robustly — the median of log ratios over pixels well exposed in both — and chained
 //!    to the reference; EXIF is the fallback when too few pixels overlap. Radiance
 //!    `Rᵢ = vᵢ / kᵢ` is expressed in reference units.
-//! 4. **Weights.** `wᵢ = kᵢ · (1 − smoothstep(0.80·clip, 0.96·clip, max channel))`: longer
-//!    exposures get more weight (shot-noise optimal for a linear sensor), saturated pixels none
-//!    (all channels together, so a clipped channel never shifts colour). The darkest frame keeps a
-//!    tiny weight so fully saturated pixels still get a value.
+//! 4. **Weights.** `wᵢ = kᵢ · (1 − smoothstep(0.80·clip, 0.96·clip, max channel within 1 px))`:
+//!    longer exposures get more weight (shot-noise optimal for a linear sensor), saturated pixels
+//!    none (all channels together, so a clipped channel never shifts colour), nor their neighbours,
+//!    which demosaicing interpolated from clipped photosites. The darkest frame keeps a tiny weight
+//!    so fully saturated pixels still get a value.
 //! 5. **Deghost** (None/Low/Medium/High): on a ≤ 1024 px version, a per-pixel consistency test
 //!    against the reference: the reference radiance (or, where the reference is clipped/too dark,
 //!    the nearest well-exposed frame's) predicts what each frame should have recorded; frames that
@@ -221,6 +222,8 @@ pub fn merge_hdr(mut frames: Vec<Frame>, opts: &HdrOptions, progress: &Progress)
 
     let darkest = order[0];
     let clips: Vec<f32> = frames.iter().map(|f| f.clip).collect();
+    // how close each pixel of each frame is to saturation: its brightest channel within 1 px (see `saturation`)
+    let sat: Vec<Vec<f32>> = frames.par_iter().map(|f| saturation(&f.image)).collect();
     let mut out = Rgb32f::new(w, h);
     let fr = &frames;
     let vd = &valid;
@@ -235,7 +238,7 @@ pub fn merge_hdr(mut frames: Vec<Frame>, opts: &HdrOptions, progress: &Progress)
                     continue;
                 }
                 let v = fr[i].image.data[i_px];
-                let m = maxc(v);
+                let m = sat[i][i_px];
                 let mut wt = k[i] * (1.0 - smoothstep(0.80 * clips[i], 0.96 * clips[i], m));
                 if i == darkest {
                     wt += 1e-6;
@@ -476,5 +479,31 @@ fn dilate(p: &Plane, r: usize) -> Plane {
             out.data[y * w + x] = (a..=b).map(|yy| tmp.data[yy * w + x]).fold(0.0, f32::max);
         }
     }
+    out
+}
+
+/// A frame's saturation per pixel: the brightest channel within 1 px (3 × 3). A demosaiced pixel next to clipped
+/// photosites is interpolated from them and reads low in the channel that clipped (green, in camera RGB), so it loses
+/// its weight with them. On real ARW brackets the brightest frame's green was 3–5 % low within 2 px of clipped pixels
+/// (and linear to 1 % elsewhere), and as that frame carries the most weight, bright windows got magenta fringes.
+fn saturation(img: &Rgb32f) -> Vec<f32> {
+    let (w, h) = (img.width, img.height);
+    let m: Vec<f32> = img.data.iter().map(|p| maxc(*p)).collect();
+    if w == 0 || h == 0 {
+        return m;
+    }
+    let mut rows = vec![0f32; w * h];
+    rows.par_chunks_mut(w).zip(m.par_chunks(w)).for_each(|(out, src)| {
+        for (x, o) in out.iter_mut().enumerate() {
+            *o = src[x.saturating_sub(1)..=(x + 1).min(w - 1)].iter().copied().fold(0.0, f32::max);
+        }
+    });
+    let mut out = vec![0f32; w * h];
+    out.par_chunks_mut(w).enumerate().for_each(|(y, row)| {
+        let (a, b) = (y.saturating_sub(1), (y + 1).min(h - 1));
+        for (x, v) in row.iter_mut().enumerate() {
+            *v = (a..=b).map(|yy| rows[yy * w + x]).fold(0.0, f32::max);
+        }
+    });
     out
 }

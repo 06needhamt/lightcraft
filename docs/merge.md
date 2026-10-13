@@ -25,7 +25,10 @@ reference. Auto Align: features on exposure-normalised luminance, RANSAC transla
 homography (the simplest model that explains ≥ 97 % of the matches). Exposure ratios are measured
 (median log ratio of well-exposed pixels between brightness neighbours), EXIF is the fallback.
 Radiance is a weighted mean in linear light, weight `k · (1 − smoothstep(0.8·clip, 0.96·clip, max
-channel))`. Deghost: a per-pixel consistency test against the reference radiance (with a noise
+channel within 1 px))`: a pixel next to clipped photosites was demosaiced from them and reads low in the clipped
+channel, so it goes with them (on real ARW brackets the brightest frame's green was 3–5 % low there, and bright
+windows took a magenta tinge). The frames are taken in brightness order (ties by content), so the result doesn't
+depend on the order they come in. Deghost: a per-pixel consistency test against the reference radiance (with a noise
 floor), dilated and feathered masks; the union is the deghost overlay. Output: 16-bit float DNG.
 
 **Panorama** (`pano/`): MOPS-style features, pairwise RANSAC homographies with Brown & Lowe's
