@@ -256,5 +256,8 @@
   "Exported {} effect preset{}": "已导出 {} 个效果预设{:.0}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "已导入 {e} 个蒙版效果{:.0}（蒙版 → 效果）",
   "Update “{name}” with Current Settings": "用当前设置更新“{name}”",
-  "{n} preset{}": "{n} 个预设{:.0}"
+  "{n} preset{}": "{n} 个预设{:.0}",
+  "{name} opened in the other editor": "已在其他编辑器中打开 {name}",
+  "{n} originals opened in the other editor": "已在其他编辑器中打开 {n} 个原始文件",
+  "· {in_source} identical copies": "· {in_source} 个相同副本"
 }

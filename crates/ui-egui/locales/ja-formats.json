@@ -256,5 +256,8 @@
   "Exported {} effect preset{}": "効果プリセットを{}件書き出しました{:.0}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "マスク効果を{e}件読み込みました{:.0}（マスク → 効果）",
   "Update “{name}” with Current Settings": "「{name}」を現在の設定で更新",
-  "{n} preset{}": "{n}件のプリセット{:.0}"
+  "{n} preset{}": "{n}件のプリセット{:.0}",
+  "{name} opened in the other editor": "{name}を別のエディタで開きました",
+  "{n} originals opened in the other editor": "{n}個の元ファイルを別のエディタで開きました",
+  "· {in_source} identical copies": "・同一のコピー {in_source} 件"
 }

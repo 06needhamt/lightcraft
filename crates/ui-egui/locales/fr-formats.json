@@ -256,5 +256,8 @@
   "Exported {} effect preset{}": "Paramètres d’effet exportés : {}{:.0}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "{e} effet(s) de masque importé(s){:.0} (Masquage → Effet)",
   "Update “{name}” with Current Settings": "Mettre à jour « {name} » avec les réglages actuels",
-  "{n} preset{}": "{n} paramètre(s){:.0}"
+  "{n} preset{}": "{n} paramètre(s){:.0}",
+  "{name} opened in the other editor": "{name} ouvert dans l’autre éditeur",
+  "{n} originals opened in the other editor": "{n} originaux ouverts dans l’autre éditeur",
+  "· {in_source} identical copies": "· {in_source} copies identiques"
 }
