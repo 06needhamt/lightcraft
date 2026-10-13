@@ -103,6 +103,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 child.painter().galley(pos2(x0 + 24.0, sr.center().y - g.size().y / 2.0), g, t.text_dim);
             }
             let resp = crate::text_field::TextField::singleline("field:search", &mut app.ui.search)
+                .label(crate::i18n::tr("Search Photos"))
                 .frame(false)
                 .width(sr.width() - 20.0)
                 .font(t.font(13.5))

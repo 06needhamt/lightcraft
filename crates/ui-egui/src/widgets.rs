@@ -185,6 +185,10 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     let resp = ui.interact(track_rect.expand2(vec2(8.0, 2.0)), id, if enabled { Sense::click_and_drag() } else { Sense::hover() });
     // A click selects the slider for arrow/wheel adjustments. Keep scroll-to-adjust
     // opt-in so hovering an unfocused slider still scrolls the containing panel.
+    // Tab reaching the slider selects it as a click does: the arrow keys then adjust it
+    if enabled && resp.gained_focus() {
+        ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
+    }
     if enabled && (resp.clicked() || resp.drag_started()) {
         resp.request_focus();
         ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
@@ -192,6 +196,18 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // screen readers: a slider named after its control, with its value
     let label_text = crate::i18n::tr(label_override.unwrap_or(spec.label)).to_string();
     resp.widget_info(|| egui::WidgetInfo::slider(enabled, value, label_text.clone()));
+    // and its range, step and the value as shown ("+0.50", "5600")
+    let shown = shown_value(spec, value);
+    ui.ctx().accesskit_node_builder(resp.id, |node| {
+        node.set_min_numeric_value(spec.min);
+        node.set_max_numeric_value(spec.max);
+        node.set_numeric_value_step(spec.step);
+        node.set_value(shown);
+        if enabled {
+            node.add_action(egui::accesskit::Action::Increment);
+            node.add_action(egui::accesskit::Action::Decrement);
+        }
+    });
     let label_resp = ui.interact(label_rect, id.with("label"), Sense::click());
     register(ui.ctx(), format!("slider:{}", spec.id), track_rect);
     // the value: click it to type an exact one (over the label, so it takes the click)
@@ -302,13 +318,23 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         if resp.drag_stopped() {
             out.drag_stopped = true;
         }
+        // a screen reader's increment / decrement (VoiceOver: Ctrl-Option-Up / Down)
+        let (inc, dec) = ui.input(|i| {
+            i.events.iter().fold((false, false), |(inc, dec), e| match e {
+                egui::Event::AccessKitActionRequest(r) if r.target_node == resp.id.accesskit_id() => {
+                    (inc || r.action == egui::accesskit::Action::Increment, dec || r.action == egui::accesskit::Action::Decrement)
+                }
+                _ => (inc, dec),
+            })
+        });
         // Arrow keys work with either a hovered or a focused slider.
-        if enabled && out.value.is_none() && typing.is_none() && (ui.rect_contains_pointer(row) || resp.has_focus()) {
+        if enabled && out.value.is_none() && typing.is_none() && (ui.rect_contains_pointer(row) || resp.has_focus() || inc || dec) {
             let (up, down, shift) = ui.input_mut(|i| {
                 let shift = i.modifiers.shift;
                 let m = if shift { egui::Modifiers::SHIFT } else { egui::Modifiers::NONE };
                 (i.consume_key(m, egui::Key::ArrowUp), i.consume_key(m, egui::Key::ArrowDown), shift)
             });
+            let (up, down) = (up || inc, down || dec);
             if up || down {
                 let nv = nudged(spec, value, if up { 1.0 } else { -1.0 } * if shift { 5.0 } else { 1.0 });
                 if (nv - value).abs() > 1e-12 {
@@ -719,6 +745,7 @@ mod access_tests {
         ctx.enable_accesskit();
         let spec = lightcraft_develop::controls::find("light.exposure").unwrap();
         let mut found = Vec::new();
+        let mut ranges = Vec::new();
         for _ in 0..3 {
             let out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let _ = slider(ui, spec, 0.5, true, None);
@@ -728,6 +755,12 @@ mod access_tests {
             let mut out = out;
             out.textures_delta.clear();
             if let Some(update) = out.platform_output.accesskit_update.take() {
+                ranges = update
+                    .nodes
+                    .iter()
+                    .filter(|(_, n)| n.role() == egui::accesskit::Role::Slider)
+                    .map(|(_, n)| (n.min_numeric_value(), n.max_numeric_value()))
+                    .collect();
                 found = update
                     .nodes
                     .iter()
@@ -738,9 +771,23 @@ mod access_tests {
         let has = |role: &str, label: &str| found.iter().any(|(r, l, _)| r == role && l == label);
         assert!(has("Slider", "Exposure"), "{found:?}");
         assert!(found.iter().any(|(r, l, v)| r == "Slider" && l == "Exposure" && *v == Some(0.5)), "the slider's value: {found:?}");
+        assert!(ranges.contains(&(Some(spec.min), Some(spec.max))), "the slider's range: {ranges:?}");
         assert!(has("Button", "Auto"), "{found:?}");
         assert!(has("Button", "Delete mask"), "{found:?}");
     }
+}
+
+/// Names a widget for screen readers (`name` replaces what egui gave it): for a plain egui field
+/// whose caption is a separate label beside it.
+pub(crate) fn screen_reader_name(ctx: &egui::Context, id: egui::Id, name: &str) {
+    ctx.accesskit_node_builder(id, |node| node.set_label(name.to_string()));
+}
+
+/// `r`, named `name` for screen readers: a plain egui field or slider whose caption is drawn
+/// beside it, or whose hint is all it shows.
+pub(crate) fn named(r: egui::Response, name: &str) -> egui::Response {
+    screen_reader_name(&r.ctx, r.id, name);
+    r
 }
 
 /// `text` laid out on one line, cut short with … when it is wider than `max` (the galley's
