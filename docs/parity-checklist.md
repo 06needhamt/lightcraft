@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-BEHAV-WINDOW: the window opens at the size it was left at, zoomed if it was; integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -49,13 +49,13 @@ cited here still exists. Formerly docs/parity.md.
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
 | V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
-| X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
+| X. Cross-cutting behaviours (BEHAV) | 23 | 7 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
 | Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 409 | 53 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
+| **Total** | 409 | 54 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 173.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 535 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 174.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -481,6 +481,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-BEHAV-WHATSNEW | What's new | P2 | ✅ | `cmd:app.whatsNew`, `docs/whats-new.md` | Help ▸ What's New: release highlights |
 | LR-BEHAV-AI-EA | Early-access badges | P2 | ⬜ | | |
 | LR-BEHAV-TITLEBAR | Title bar drag and double-click zoom (macOS) | P2 | 🟡 | `crates/ui-egui/src/titlebar.rs`, `crates/ui-egui/src/panels/topbar.rs`, `crates/ui-egui/src/tests_titlebar.rs` | the native title bar is hidden on macOS, so the top bar's empty space (including the traffic-light margin) moves the window and a double-click zooms or restores it; buttons and the search field keep their clicks; ignored in full screen. Zoom is winit's `Maximized`: it does not follow System Settings › “Double-click a window's title bar to” (Fill / Minimize). a press that starts on a button or the search field never moves the window. Known gap: egui-winit reads the zoomed state only at start-up and after our own `Maximized` command, so a window zoomed another way (green button, Window ▸ Zoom, snapping) makes the first double-click a no-op before the toggle catches up. Checked by hand on a real macOS window (drag, zoom, restore) |
+| LR-BEHAV-WINDOW | The window opens as it was left | P2 | 🟡 | `crates/ui-egui/src/window_place.rs`, `apps/lightcraft/src/main.rs` (`as_remembered`, `PrefsWriter::tick`) | the desktop app's window opens at the size it last rested at, and zoomed (macOS) / maximized if it was, with the size it goes back to when un-zoomed (`window` in the UI state: `{size, zoomed}`, in the system's points); it used to open at 1600 × 1000 every time. Full screen is not remembered (the app opens as a window), and neither is the window's place on the desktop: the system places it, since a remembered place can be on a display that is gone. Windows and Linux say whether the window is maximized; macOS says so only at launch and when the app zooms the window itself, so there the watch also goes by the window's size: zoomed when the system said so or the window was seen to come to fill its screen (as wide as it, and no more than a menu bar and a Dock shorter), and for as long as it then keeps its size or is fitted to another screen that it fills; whatever is in doubt is a window of the size it has, which opens as large as it was left. A `window` in the settings that is not one reads as none and costs no other setting. Partial: run on macOS with one display only (Windows, X11 and Wayland follow the sources of winit and egui, not a run); on macOS a window zoomed from the Window menu beside a Dock at the side of the screen, or when it was already as wide as its screen, is remembered as a window of that size (the size it would go back to is not kept), and a window dragged out by hand until it is as wide as its screen and nearly as tall is taken for zoomed; a window is not looked at for a second after it leaves full screen; the web app has no window of its own |
 
 ## Y. Menus
 
@@ -790,6 +791,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-13 | minor | LR-BEHAV-WINDOW (new, 🟡): the desktop app's window opens at the size it was left at, zoomed / maximized if it was; full screen and the place on the desktop are not remembered |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |

@@ -8,6 +8,20 @@
 
 ## 2026-10-13
 
+### The window opens at the size you left it
+- LightCraft's window opens at the size it had when you last used it, and zoomed (macOS) / maximized if it was: it
+  used to open at 1600 × 1000 every time. Double-click the top bar to zoom the window, quit, and it is zoomed when
+  you come back; un-zoom it and it goes back to the size it had before.
+- Full screen is not remembered (the app opens as a window), and neither is where on the desktop the window was:
+  the system places it.
+- On macOS the system does not tell LightCraft when a window is zoomed from the Window menu or resized after a
+  zoom, so it goes by the window's size, and when in doubt takes the window for a window of the size it has: it
+  comes back as large as you left it, but not as a zoomed window. That is so after a zoom from the Window menu
+  with the Dock at a side of the screen, or of a window already as wide as the screen. Zoomed by a double-click
+  on the top bar it comes back zoomed. The other way round, a window you drag out until it is as wide as the
+  screen and nearly as tall counts as zoomed.
+- For scripts: a size set with `ui.resize` is remembered like any other, so a script that needs a size sets it.
+
 ### HDR merges keep the lens correction
 - An HDR made with Photo ▸ Photo Merge ▸ HDR now keeps the lens correction the photos carry (Sony's, Panasonic's
   and Leica's, and the one some DNGs carry, e.g. from drones): Optics ▸ Enable Lens Corrections straightens it as it

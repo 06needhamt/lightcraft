@@ -39,6 +39,7 @@ pub mod text_field;
 pub mod theme;
 pub mod titlebar;
 pub mod widgets;
+pub mod window_place;
 
 #[cfg(test)]
 mod tests_activity;
