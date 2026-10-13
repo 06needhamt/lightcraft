@@ -14,6 +14,13 @@
 - Blown highlights in CR2 files from the Canon EOS 50D, 60D, 450D (Rebel XSi), 500D (Rebel T1i), 550D (Rebel T2i),
   1200D (Rebel T5) and 100D (Rebel SL1) now count as clipped (issue #1272). They used to stop at 81–98% of white, so
   highlight recovery missed them and, darkened, they took a colour cast instead of going neutral grey.
+## 2026-10-12
+
+### Pentax raws without black borders
+- Raws from the Pentax KP, KF, K-3 Mark III (and Monochrome), K-70, K-1, K-1 Mark II, K-S1, K-S2 and 645Z no longer
+  show a black (or, on the 645Z, white) band along one or more edges (issue #1271). The sensor's masked border is
+  left out, so these photos come out a little smaller, closer to the camera's own JPEG. Crops and masks on photos
+  edited earlier may shift by a few pixels.
 
 ## 2026-10-11
 
