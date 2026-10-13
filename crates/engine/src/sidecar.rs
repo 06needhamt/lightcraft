@@ -65,15 +65,18 @@ pub fn sidecar_path(original: &str, naming: SidecarNaming) -> PathBuf {
 /// An existing sidecar for `original`: the preferred naming first, then the other one (also
 /// accepting an upper-case `.XMP`).
 pub fn find_sidecar(original: &str, naming: SidecarNaming) -> Option<PathBuf> {
+    sidecar_candidates(original, naming).find(|p| p.is_file())
+}
+
+/// The names `original`'s sidecar can have, in the order they are looked for: under `naming`,
+/// then under the other naming, each as `.xmp` and as `.XMP`.
+pub(crate) fn sidecar_candidates(original: &str, naming: SidecarNaming) -> impl Iterator<Item = PathBuf> {
     let other = if naming == SidecarNaming::Stem { SidecarNaming::Full } else { SidecarNaming::Stem };
-    [naming, other]
-        .into_iter()
-        .flat_map(|n| {
-            let p = sidecar_path(original, n);
-            let upper = p.with_extension("XMP");
-            [p, upper]
-        })
-        .find(|p| p.is_file())
+    [naming, other].into_iter().flat_map(move |n| {
+        let p = sidecar_path(original, n);
+        let upper = p.with_extension("XMP");
+        [p, upper]
+    })
 }
 
 /// What a sidecar (or embedded XMP packet) says about a photo. `None` = not stated.

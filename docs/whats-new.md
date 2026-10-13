@@ -53,6 +53,23 @@
   else (issue #1504): trimming or clearing the cache can't delete files outside it, and thumbnails are never read
   from or written through such a link.
 
+### Synchronize Folder asks a network share less
+- A Synchronize Folder scan no longer asks the disk about every photo of the library in the folder (is its file
+  there, has it a sidecar): it has just listed the folder, and reads the answers off the listing. On a network share
+  each of those questions is a round trip. Measured on a hard disk over SMB, for folders of 1,600 to 2,400 photos
+  that had not changed: 4.6 to 7.1 s of questions after the listing (about 3 ms a photo), now under 0.05 s. The
+  listing itself took 4 to 5 s and is as it was.
+- The disk is still asked wherever a listing can't be sure what a file system would say: about a name that is
+  there in another case, a link, a name Windows reads another way (`aux.jpg`, a `~`, a `:`, a dot or a space at the
+  end), a folder the scan did not walk to its end, and, in a folder that holds any name with a character outside
+  ASCII (an umlaut, a curly apostrophe, a dash), about every name the folder does not list. Names it does list are
+  answered there too. In such a folder the scan saves less, and its checks now start after the listing where they
+  ran beside it.
+- A photo the folder lists is there for the scan, also where its file could not be opened by its path (a folder
+  that may be listed but not searched, a path longer than the system takes): such photos used to be listed as
+  missing. And a share that drops after the scan has listed a folder no longer turns that folder's photos into
+  missing ones.
+
 ### Large libraries: Synchronize Folder, import and sidecars start sooner
 - Opening Synchronize Folder, an import review or an import no longer makes a table of every photo in the library
   before it looks at the first file. In a library of 3.5 million photos that held the window for about 6 s before
