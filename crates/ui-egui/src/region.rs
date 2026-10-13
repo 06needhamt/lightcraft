@@ -107,14 +107,20 @@ const GIVE_UP_FACTOR: f64 = 2.0;
 /// The full-size drafts (after the first) a drag times before it may give up on full size.
 const GIVE_UP_AFTER: usize = 3;
 
-/// The most (photo, control) pairs [`DragScale`] remembers as too slow for full-size drafts.
+/// The most (photo, control) pairs [`DragScale`] remembers as too slow for full-size drafts; past
+/// it, the one remembered longest ago is forgotten.
 const SLOW_DRAGS_KEPT: usize = 256;
+
+/// A host frame time (ms) longer than this is not a texture upload but a window that was hidden,
+/// occluded or stalled: it counts as unknown, like a frame time from no host at all.
+const FRAME_MS_KNOWN: f64 = 1000.0;
 
 /// The size of a slider drag's whole-frame draft, chosen when the drag starts and kept until it
 /// ends (a change in the middle would make the resolution jump), unless its full-size drafts are
 /// far over budget. A drag renders at full size when the GPU draws the view and no earlier drag of
 /// the same control on this photo went over budget at that size; otherwise at [`CPU_DRAFT_SCALE`]
-/// (issue #330). Whether the GPU drew a render is not enough on its own: some views (a LUT
+/// (issue #330). A slow drag is remembered for its photo only: the same control on another photo
+/// (another size, other edits) starts at full size again and is timed afresh. Whether the GPU drew a render is not enough on its own: some views (a LUT
 /// profile, refined masks, a photo past a GPU limit) fall back to the CPU per render, and a large
 /// draft costs a texture upload too, which only the time a draft took to show tells.
 #[derive(Clone, Debug, Default)]
@@ -128,8 +134,8 @@ pub struct DragScale {
     /// The render time (ms) of a draft that reached the screen this frame: the time of the frame
     /// that uploads it is only known on the next one.
     pending: Option<f64>,
-    /// Drags whose full-size drafts went over budget.
-    slow: std::collections::HashSet<(lightcraft_catalog::PhotoId, String)>,
+    /// Drags whose full-size drafts went over budget, the one remembered longest ago first.
+    slow: std::collections::VecDeque<(lightcraft_catalog::PhotoId, String)>,
 }
 
 impl DragScale {
@@ -165,7 +171,7 @@ impl DragScale {
             return;
         }
         if let Some(render) = self.pending.take() {
-            let frame = last_frame_ms.filter(|ms| ms.is_finite() && *ms >= 0.0).unwrap_or(0.0);
+            let frame = last_frame_ms.filter(|ms| ms.is_finite() && (0.0..=FRAME_MS_KNOWN).contains(ms)).unwrap_or(0.0);
             if self.samples.len() < 1024 {
                 self.samples.push(render + frame);
             }
@@ -189,7 +195,19 @@ impl DragScale {
     /// Remember drags of `control` on `photo` as too slow for full-size drafts (tests).
     #[cfg(test)]
     pub fn remember_slow(&mut self, photo: lightcraft_catalog::PhotoId, control: &str) {
-        self.slow.insert((photo, control.to_string()));
+        self.mark_slow((photo, control.to_string()));
+    }
+
+    /// Remember a slow drag, forgetting the one remembered longest ago when the set is full (not
+    /// all of them: each forgotten pair costs one more slow full-size drag).
+    fn mark_slow(&mut self, key: (lightcraft_catalog::PhotoId, String)) {
+        if self.slow.contains(&key) {
+            return;
+        }
+        while self.slow.len() >= SLOW_DRAGS_KEPT {
+            self.slow.pop_front();
+        }
+        self.slow.push_back(key);
     }
 
     /// The drag ended: remember it if its full-size drafts were over budget.
@@ -197,10 +215,7 @@ impl DragScale {
         if let Some((key, _)) = self.current.take()
             && median_after_first(&self.samples).is_some_and(|m| m > DRAFT_BUDGET_MS)
         {
-            if self.slow.len() >= SLOW_DRAGS_KEPT {
-                self.slow.clear();
-            }
-            self.slow.insert(key);
+            self.mark_slow(key);
         }
         self.samples.clear();
         self.seen = None;
@@ -520,6 +535,40 @@ mod tests {
         }
         hostile.scale(None, true, None);
         assert_eq!(hostile.scale(drag, true, None), Some(1.0));
+    }
+
+    // Given more slow drags than are remembered, only the one remembered longest ago is forgotten:
+    // clearing them all would bring back a slow full-size drag for every pair
+    #[test]
+    fn a_full_slow_set_forgets_only_the_oldest_drag() {
+        use lightcraft_catalog::PhotoId;
+        let mut d = DragScale::default();
+        for photo in 0..=SLOW_DRAGS_KEPT as u64 {
+            d.remember_slow(PhotoId(photo), "Exposure");
+        }
+        assert_eq!(d.scale(Some((PhotoId(0), "Exposure")), true, None), Some(1.0), "the oldest is forgotten");
+        d.scale(None, true, None);
+        for photo in [1, SLOW_DRAGS_KEPT as u64] {
+            assert_eq!(d.scale(Some((PhotoId(photo), "Exposure")), true, None), Some(CPU_DRAFT_SCALE), "photo {photo}");
+            d.scale(None, true, None);
+        }
+        d.remember_slow(PhotoId(1), "Exposure"); // already remembered: nothing is forgotten
+        assert_eq!(d.scale(Some((PhotoId(2), "Exposure")), true, None), Some(CPU_DRAFT_SCALE));
+    }
+
+    // Given draft frames that took seconds (the window hidden or occluded mid-drag), they count as
+    // unknown: fast renders don't mark the drag slow because the window wasn't drawing
+    #[test]
+    fn a_hidden_windows_frame_times_dont_mark_a_drag_slow() {
+        use lightcraft_catalog::PhotoId;
+        let mut d = DragScale::default();
+        let drag = Some((PhotoId(1), "Exposure"));
+        d.scale(drag, true, None);
+        for key in 1..=6 {
+            d.observe(key, 6.0, Some(4000.0));
+        }
+        d.scale(None, true, None);
+        assert_eq!(d.scale(drag, true, None), Some(1.0));
     }
 
     // Given full-size drafts far over budget (a refined mask the CPU renders at 190 ms a step),
