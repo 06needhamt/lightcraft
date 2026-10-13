@@ -31,7 +31,8 @@ use lightcraft_raw::{
 /// 4: a tone curve from black-and-white camera JPEGs (#577).
 /// 5: dark JPEG luminance pairs for the camera toe (#1307).
 /// 6: the sensor proxy follows the file's lens warp when the camera JPEG is lens-corrected.
-pub const LOOK_VERSION: u32 = 6;
+/// 7: the bundled NIKON Z 6_2 profile.
+pub const LOOK_VERSION: u32 = 7;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -2489,6 +2490,39 @@ mod tests {
         assert_eq!(*used, bundled, "a local ILCE-7CR profile overrides the built-in one; remove it to run this test");
         let raw = lightcraft_raw::decode(&bytes).unwrap();
         assert_eq!(raw.metadata.model.as_deref(), Some("ILCE-7CR"));
+        let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
+        let look = fit_preview(&raw, &bytes, &transform, None).0.expect("fit accepted");
+        let expected = bundled.matrix().mul(&transform.matrix.inverse().unwrap());
+        for (row, want) in look.matrix.0.iter().zip(expected.0) {
+            for (got, want) in row.iter().zip(want) {
+                assert!((got - want).abs() < 1e-12, "the look's matrix is not the profile's: {:?} vs {:?}", look.matrix.0, expected.0);
+            }
+        }
+        assert_eq!(look.hue_sat, bundled.hue_sat, "the look's table is not the profile's");
+    }
+
+    /// The public Z 6II NEF (skipped without the corpus) takes its colour from the bundled Z 6II profile. It wasn't
+    /// one of the photos the profile was fitted to.
+    #[test]
+    fn corpus_z6ii_uses_the_bundled_profile() {
+        let path = std::env::var_os("LIGHTCRAFT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
+            .join("raw/nef-nikon-z6ii-lossless.nef");
+        let bytes = match std::fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                eprintln!("skip: {} absent", path.display());
+                return;
+            }
+            Err(e) => panic!("{}: {e}", path.display()),
+        };
+        let (_, json) = crate::camera_profiles::BUNDLED.iter().find(|(m, _)| *m == "NIKON Z 6_2").expect("the Z 6II profile is built in");
+        let bundled: crate::camera_profiles::CameraProfile = serde_json::from_str(json).unwrap();
+        let used = crate::camera_profiles::get("NIKON Z 6_2").expect("Z 6II profile");
+        assert_eq!(*used, bundled, "a local NIKON_Z_6_2 profile overrides the built-in one; remove it to run this test");
+        let raw = lightcraft_raw::decode(&bytes).unwrap();
+        assert_eq!(raw.metadata.model.as_deref(), Some("NIKON Z 6_2"));
         let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
         let look = fit_preview(&raw, &bytes, &transform, None).0.expect("fit accepted");
         let expected = bundled.matrix().mul(&transform.matrix.inverse().unwrap());
