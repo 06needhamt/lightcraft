@@ -6,6 +6,8 @@
 //! 3. Probe the rest — dimensions, metadata, and the **content hash** of the bytes — in parallel
 //!    on native targets.
 //! 4. Skip **duplicates by content** (same bytes already in the library, or twice in this batch).
+//!    A duplicate (by path or content) of a photo in Recently Deleted is restored instead, with
+//!    its edits, unless the import says otherwise ([`OnDeleted`]).
 //! 5. *Add* in place (the photo points at the original file), *copy* into the library's
 //!    `Originals/YYYY/YYYY-MM-DD/` folder (names made unique) and point at the copy, or *move*
 //!    there: placed like a copy (with its XMP sidecars), and the original removed only once its
@@ -53,12 +55,19 @@ pub enum ImportMode {
 }
 
 /// What an import does with a file the library already has in Recently Deleted.
+///
+/// Someone who imports such a file wants the photo in the library again, so the default brings
+/// it back (issues #298, #706: before, the import skipped it as "already in the library" while
+/// the grid showed it deleted, and the user was stuck). Restoring loses nothing — the edits,
+/// rating and albums come back with the photo and Reset Edits gives a clean start — where
+/// importing afresh would silently drop them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OnDeleted {
     /// Leave it there; the report says so ([`Duplicate::existing_deleted`]).
-    #[default]
     Skip,
-    /// Bring the trashed photo back, with its edits ([`ImportReport::restored`]).
+    /// Bring the trashed photo back, with its edits ([`ImportReport::restored`]); a photo whose
+    /// file is no longer where the library had it is relinked to the imported file.
+    #[default]
     Restore,
     /// Delete the trashed record permanently and import the file as a new photo.
     Fresh,
@@ -78,7 +87,7 @@ impl OnDeleted {
 /// What an import does besides adding the photos.
 #[derive(Clone, Debug, Default)]
 pub struct ImportOptions {
-    /// A file that is in Recently Deleted: skip (default), restore, or import afresh.
+    /// A file that is in Recently Deleted: restore (default), skip, or import afresh.
     pub on_deleted: OnDeleted,
     pub mode: ImportMode,
     /// Applied to every imported photo (one History entry).
@@ -201,6 +210,48 @@ pub struct ImportReport {
     pub scanned: usize,
     /// Photos whose metadata/develop settings were read from an XMP sidecar (or embedded XMP).
     pub sidecars: usize,
+    /// Per-photo diagnostics from foreign XMP develop settings that could not be fully carried over.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<ImportWarning>,
+}
+
+/// A structured diagnostic from foreign XMP develop settings.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImportWarningCode {
+    /// A named camera profile was found but cannot be applied as Lightroom does.
+    CameraProfile,
+    /// Lightroom geometry data was found but its saved transform is not retained.
+    UprightGeometry,
+    /// One or more other XMP develop fields have no LightCraft mapping.
+    UnmappedXmp,
+}
+
+/// The saved Lightroom Upright mode associated with a foreign geometry transform.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImportUprightMode {
+    Off,
+    Auto,
+    Level,
+    Vertical,
+    Full,
+    Guided,
+    Unknown,
+}
+
+/// One actionable XMP import diagnostic. `path` is filled when its photo is committed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportWarning {
+    pub path: String,
+    pub code: ImportWarningCode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mode: Option<ImportUprightMode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<String>,
 }
 
 /// A file moved by an import.
@@ -415,10 +466,18 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
 
 /// Probe files (headers + content hash) as an import would.
 pub(crate) fn probe_paths(s: &Session, paths: &[String]) -> Vec<Result<ProbeInfo, String>> {
-    probe_all(s.media.file_probe.as_ref(), paths, &ScanProgress::default())
+    let progress = ScanProgress::default();
+    probe_all(s.media.file_probe.as_ref(), paths, &progress.done, &progress.cancel)
 }
 
-fn probe_all(probe: Option<&crate::media::FileProbe>, paths: &[String], progress: &ScanProgress) -> Vec<Result<ProbeInfo, String>> {
+/// Probe `paths` (several at once), counting each in `done`. Stops before the next file once
+/// `cancel` is set: the files not reached come back as errors.
+fn probe_all(
+    probe: Option<&crate::media::FileProbe>,
+    paths: &[String],
+    done: &std::sync::atomic::AtomicUsize,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Vec<Result<ProbeInfo, String>> {
     use std::sync::atomic::Ordering::Relaxed;
     let Some(probe) = probe.cloned() else {
         return paths
@@ -446,11 +505,11 @@ fn probe_all(probe: Option<&crate::media::FileProbe>, paths: &[String], progress
                             if i >= paths.len() {
                                 break;
                             }
-                            if progress.cancel.load(Relaxed) {
+                            if cancel.load(Relaxed) {
                                 break;
                             }
                             let r = probe(&paths[i]);
-                            progress.done.fetch_add(1, Relaxed);
+                            done.fetch_add(1, Relaxed);
                             out.lock().unwrap_or_else(|e| e.into_inner())[i] = Some(r);
                         }
                     });
@@ -462,11 +521,11 @@ fn probe_all(probe: Option<&crate::media::FileProbe>, paths: &[String], progress
     paths
         .iter()
         .map(|p| {
-            if progress.cancel.load(Relaxed) {
+            if cancel.load(Relaxed) {
                 return Err("cancelled".into());
             }
             let r = probe(p);
-            progress.done.fetch_add(1, Relaxed);
+            done.fetch_add(1, Relaxed);
             r
         })
         .collect()
@@ -569,7 +628,7 @@ pub fn scan_with(mut input: ScanInput, paths: &[String], progress: &ScanProgress
         .collect();
     let missing: Vec<String> = todo.iter().zip(&cached).filter(|(_, c)| c.is_none()).map(|(f, _)| f.clone()).collect();
     progress.done.store(todo.len() - missing.len(), Relaxed);
-    let mut fresh = probe_all(input.probe.as_ref(), &missing, progress).into_iter();
+    let mut fresh = probe_all(input.probe.as_ref(), &missing, &progress.done, &progress.cancel).into_iter();
     let probed: Vec<Result<ProbeInfo, String>> =
         cached.into_iter().map(|c| c.map(Ok).unwrap_or_else(|| fresh.next().unwrap_or_else(|| Err("not probed".into())))).collect();
     crate::memory::release();
@@ -590,6 +649,8 @@ pub fn scan_with(mut input: ScanInput, paths: &[String], progress: &ScanProgress
             Some(Ok(info)) => {
                 (c.format, c.kind, c.width, c.height, c.file_size, c.captured) =
                     (info.format.clone(), info.kind, info.width, info.height, info.file_size, info.captured.clone());
+                // as the import will date it (a sidecar's date, when there is one, still wins there)
+                c.captured = c.captured.or_else(|| info.file_modified.clone());
                 c.preview_only = info.preview_only.clone();
                 if let Some(h) = &info.content_hash {
                     match seen_hash.get(h) {
@@ -654,6 +715,10 @@ pub struct ImportJob {
     /// Files found so far (folders expanded) and handled so far, for progress.
     pub total: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub done: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// Of those, the files that have to be read first (not probed by a preceding scan) and the
+    /// ones read so far: the step before they are handled.
+    pub read_total: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub read_done: std::sync::Arc<std::sync::atomic::AtomicUsize>,
 }
 
 /// The outcome of [`ImportJob::prepare`] for one batch, in file order.
@@ -806,6 +871,8 @@ impl ImportJob {
             now: (s.clock)(),
             total: Default::default(),
             done: Default::default(),
+            read_total: Default::default(),
+            read_done: Default::default(),
         })
     }
 
@@ -866,8 +933,10 @@ impl ImportJob {
             })
             .collect();
         let missing: Vec<String> = todo.iter().zip(&cached).filter(|(_, c)| c.is_none()).map(|(f, _)| f.clone()).collect();
-        let progress = ScanProgress::default();
-        let mut fresh = probe_all(self.probe.as_ref(), &missing, &progress).into_iter();
+        // Reading the files is the slow part of adding them where they are: it is counted on its
+        // own, and `cancel` stops it too (a large library takes long enough to want both).
+        self.read_total.fetch_add(missing.len(), Relaxed);
+        let mut fresh = probe_all(self.probe.as_ref(), &missing, &self.read_done, cancel).into_iter();
         let probed: Vec<Result<ProbeInfo, String>> =
             cached.into_iter().map(|c| c.map(Ok).unwrap_or_else(|| fresh.next().unwrap_or_else(|| Err("not probed".into())))).collect();
         crate::memory::release();
@@ -912,7 +981,7 @@ impl ImportJob {
             let packet = crate::sidecar::find_sidecar(&path, self.naming)
                 .and_then(|f| std::fs::read_to_string(f).ok())
                 .or_else(|| info.xmp.clone().filter(|_| raw));
-            let target = crate::crs::Target::for_file(info.kind, &info.format, info.preview_only.is_some());
+            let target = crate::crs::Target::for_file(info.kind, &info.format, info.preview_only.is_some(), &info.meta.camera);
             let sidecar = packet.and_then(|x| match crate::sidecar::parse_sidecar(&x, target) {
                 Ok(sc) => Some(sc),
                 Err(e) => {
@@ -922,6 +991,10 @@ impl ImportJob {
             });
             if info.captured.is_none() {
                 info.captured = sidecar.as_ref().and_then(|sc| sc.captured.clone());
+            }
+            // no date in the file or its sidecar: the file's own date, as Lightroom does
+            if info.captured.is_none() {
+                info.captured = info.file_modified.clone();
             }
             let stored = match (mode, &self.copy_root) {
                 (ImportMode::Copy | ImportMode::Move, Some(root))
@@ -1170,6 +1243,16 @@ fn run_transfer(t: Transfer, file_bytes: Option<&crate::merge::ByteReader>) -> P
     PreparedItem::Ready(Box::new(ReadyFile { path, stored, info, sidecar, placed }))
 }
 
+/// A trashed photo's file is not where the library had it (never on the web, where paths are
+/// storage keys, not files).
+fn trashed_file_is_gone(cat: &lightcraft_catalog::Catalog, id: PhotoId) -> bool {
+    !cfg!(target_arch = "wasm32")
+        && match cat.photo(id).map(|p| &p.source) {
+            Some(Source::File { path }) => !Path::new(path).exists(),
+            _ => false,
+        }
+}
+
 /// The catalog half of an import: add the photos [`ImportJob::prepare`] readied (one undoable op;
 /// a Move's sources are removed once it is saved). On a failed commit a Move's placed files are
 /// taken back.
@@ -1210,9 +1293,15 @@ pub fn commit_prepared(s: &mut Session, opts: &ImportOptions, now: &str, prepare
                 });
                 let trashed = existing.filter(|id| s.catalog.photo(*id).is_some_and(|p| p.deleted));
                 match trashed {
-                    Some(id) if opts.on_deleted == OnDeleted::Restore => {
+                    // (browsing a folder in Local only looks: it never restores)
+                    Some(id) if opts.on_deleted == OnDeleted::Restore && !opts.local => {
                         if !report.restored.contains(&id.0) {
                             ops.push(Op::SetDeleted { id, deleted: false });
+                            // matched by content from another path, and the file the record
+                            // points at is gone (moved, renamed): the photo follows the file
+                            if reason == "content" && trashed_file_is_gone(&s.catalog, id) {
+                                ops.push(crate::cmd::missing::relink_op(id, &path));
+                            }
                             report.restored.push(id.0);
                         }
                     }
@@ -1249,6 +1338,10 @@ pub fn commit_prepared(s: &mut Session, opts: &ImportOptions, now: &str, prepare
                 if let Some(sc) = &sidecar {
                     crate::sidecar::merge_into(&mut p, sc, &now);
                     report.sidecars += 1;
+                    report.warnings.extend(sc.warnings.iter().cloned().map(|mut warning| {
+                        warning.path = path.clone();
+                        warning
+                    }));
                 }
                 if let Some(mp) = opts.metadata_preset.as_ref().and_then(|n| s.metadata_presets.iter().find(|m| m.name.eq_ignore_ascii_case(n))) {
                     crate::cmd::metadata::apply_to(&mut p.meta, &mp.fields);
@@ -1426,5 +1519,52 @@ mod prepared_tests {
         prepared.revalidate_add(&s);
         assert!(matches!(prepared.items.first(), Some(PreparedItem::Duplicate { reason: "path", .. })));
         assert!(matches!(prepared.items.get(1), Some(PreparedItem::Ready(_))));
+    }
+
+    fn unread_paths(n: usize) -> Vec<String> {
+        (0..n).map(|i| std::env::temp_dir().join(format!("lightcraft-probe-progress-{i}.jpg")).to_string_lossy().into()).collect()
+    }
+
+    /// Reading the files of a large import (a Lightroom catalog's originals) reported nothing:
+    /// the progress stood still at "14 of 24554" for as long as it took.
+    #[test]
+    fn prepare_counts_the_files_it_reads() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let mut s = Session::new();
+        let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (seen_in_probe, done_in_probe) = (seen.clone(), std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0)));
+        let mut job = ImportJob::new(&mut s, ImportOptions { mode: ImportMode::Add, ..ImportOptions::default() }).unwrap();
+        let (done, last) = (job.read_done.clone(), done_in_probe.clone());
+        job.probe = Some(std::sync::Arc::new(move |_: &str| {
+            seen_in_probe.fetch_add(1, Relaxed);
+            last.fetch_max(done.load(Relaxed), Relaxed);
+            Ok(ProbeInfo { format: "JPEG".into(), ..ProbeInfo::default() })
+        }));
+        let prepared = job.prepare(&unread_paths(40), &std::sync::atomic::AtomicBool::new(false));
+        assert_eq!(prepared.items.len(), 40);
+        assert_eq!(seen.load(Relaxed), 40);
+        assert!(done_in_probe.load(Relaxed) > 0, "progress moves while files are read");
+        assert_eq!((job.read_done.load(Relaxed), job.read_total.load(Relaxed)), (40, 40), "every file read is counted");
+        assert_eq!((job.done.load(Relaxed), job.total.load(Relaxed)), (40, 40), "handling them is counted on its own");
+    }
+
+    /// Cancel had no effect until every file had been read.
+    #[test]
+    fn cancel_stops_reading_files() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let mut s = Session::new();
+        let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let seen = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut job = ImportJob::new(&mut s, ImportOptions { mode: ImportMode::Add, ..ImportOptions::default() }).unwrap();
+        let (seen_in_probe, cancel_in_probe) = (seen.clone(), cancel.clone());
+        job.probe = Some(std::sync::Arc::new(move |_: &str| {
+            seen_in_probe.fetch_add(1, Relaxed);
+            cancel_in_probe.store(true, Relaxed);
+            Ok(ProbeInfo { format: "JPEG".into(), ..ProbeInfo::default() })
+        }));
+        let prepared = job.prepare(&unread_paths(400), &cancel);
+        // at most the files the (up to 8) readers had already started
+        assert!(seen.load(Relaxed) <= 8, "read {} files after cancel", seen.load(Relaxed));
+        assert!(prepared.items.is_empty());
     }
 }

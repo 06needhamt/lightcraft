@@ -59,6 +59,12 @@ fn photo_arg(s: &Session, p: &Value, c: &str) -> crate::Result<PhotoId> {
     }
 }
 
+// Catalog queries also run in the 32-bit web build. A narrowing cast wraps
+// an out-of-range offset to zero, returning the first page instead of no photos.
+fn pagination_usize(value: u64) -> usize {
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         cmd!(query "catalog.query", "Query Photos", [], None, "{filter?: Filter, sort?: Sort, offset?, limit?} — omit filter to list the current view", always, |s, p| {
@@ -69,8 +75,8 @@ pub fn specs() -> Vec<CommandSpec> {
             } else {
                 s.visible_cloned()
             };
-            let off = p.get("offset").and_then(Value::as_u64).unwrap_or(0) as usize;
-            let lim = p.get("limit").and_then(Value::as_u64).unwrap_or(200) as usize;
+            let off = pagination_usize(p.get("offset").and_then(Value::as_u64).unwrap_or(0));
+            let lim = pagination_usize(p.get("limit").and_then(Value::as_u64).unwrap_or(200));
             let items: Vec<Value> = ids.iter().skip(off).take(lim).filter_map(|id| s.catalog.photo(*id)).map(|p| photo_summary(p)).collect();
             Ok(json!({"total": ids.len(), "photos": items}))
         }),
@@ -189,20 +195,21 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!(query "presets.list", "List Presets", [], None, "{}", always, |s, _| {
             Ok(Value::Array(s.presets.iter().map(|p| json!({"id": p.id, "name": p.name, "group": p.group, "favorite": p.favorite, "builtin": p.builtin})).collect()))
         }),
-        cmd!(query "profiles.list", "List Profiles", [], None, "{} — every profile with its group and favourite flag", always, |s, _| {
-            Ok(Value::Array(
-                crate::presets::PROFILES
-                    .iter()
-                    .map(|p| json!({"id": p.id, "name": p.name, "group": p.group, "favorite": s.profile_favorites.iter().any(|f| f == p.id)}))
-                    .collect(),
-            ))
+        cmd!(query "profiles.list", "List Profiles", [], None, "{} — every profile (built-in, then imported LUTs marked `imported`) with its group and favourite flag", always, |s, _| {
+            let favorite = |id: &str| s.profile_favorites.iter().any(|f| f == id);
+            let builtin = crate::presets::PROFILES.iter().map(|p| json!({"id": p.id, "name": p.name, "group": p.group, "favorite": favorite(p.id)}));
+            // imported LUT profiles too (#618), marked as in `profiles.menu`
+            let imported =
+                s.lut_profiles.iter().map(|p| json!({"id": p.id, "name": p.name, "group": p.group, "favorite": favorite(&p.id), "imported": true}));
+            Ok(Value::Array(builtin.chain(imported).collect()))
         }),
         cmd!(query "profiles.menu", "Profile Menu", [], None, "{} — favourites, recent (newest first) and groups", always, |s, _| Ok(s.profile_menu())),
-        cmd!(query "history.list", "List History", [], None, "{id?}", has_active, |s, p| {
+        cmd!(query "history.list", "List History", [], None, "{id?} — returns {history: labels oldest first, cursor: index of the step the settings are at (later steps can be returned to), versions}", has_active, |s, p| {
             let id = photo_arg(s, p, "history.list")?;
             let ph = s.catalog.photo(id).ok_or_else(|| bad("history.list", "no such photo"))?;
             Ok(json!({
                 "history": ph.history.iter().map(|h| h.label.clone()).collect::<Vec<_>>(),
+                "cursor": ph.history_index(),
                 "versions": ph.versions.iter().map(|v| json!({"name": v.name, "created": v.created})).collect::<Vec<_>>(),
             }))
         }),
@@ -236,4 +243,18 @@ pub fn specs() -> Vec<CommandSpec> {
             Ok(Value::Array(s.journal[start..].iter().map(|(c, p)| json!({"command": c, "params": p})).collect()))
         }),
     ]
+}
+
+#[cfg(test)]
+mod pagination_tests {
+    use super::*;
+
+    #[test]
+    fn offsets_and_limits_saturate_instead_of_wrapping_on_wasm() {
+        assert_eq!(pagination_usize(0), 0);
+        assert_eq!(pagination_usize(200), 200);
+        assert_eq!(pagination_usize(u64::MAX), usize::MAX);
+        #[cfg(target_pointer_width = "32")]
+        assert_eq!(pagination_usize(u64::from(u32::MAX) + 1), usize::MAX);
+    }
 }

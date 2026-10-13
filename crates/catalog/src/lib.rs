@@ -125,6 +125,12 @@ pub enum Op {
         id: PhotoId,
         step: HistoryStep,
     },
+    /// Move the History cursor (see [`Photo::history_cursor`]) without changing the steps.
+    SetHistoryCursor {
+        id: PhotoId,
+        #[serde(default)]
+        cursor: Option<usize>,
+    },
     AddAlbum {
         album: Album,
     },
@@ -213,6 +219,13 @@ pub enum Op {
     SetEmbeddedLens {
         id: PhotoId,
         lens: Option<Box<lightcraft_develop::EmbeddedLens>>,
+    },
+    /// A raw's as-shot white balance (Kelvin, tint) as its file reads now: what a decode or Reload finds when the
+    /// camera's colour matrices give the file a Kelvin scale it was imported without (issue #730). Bookkeeping,
+    /// not an edit: the look does not change, only the As Shot readout.
+    SetAsShotWb {
+        id: PhotoId,
+        wb: Option<(f64, f64)>,
     },
     /// The name shown for a colour label (`None` = its colour's name).
     SetLabelName {
@@ -538,12 +551,25 @@ impl Catalog {
             Op::PushHistory { id, step } => {
                 let p = self.photo_mut(id)?;
                 let old = p.history.clone();
+                let old_cursor = p.history_cursor.take();
+                // a new edit made from an earlier step drops the steps after it
+                if let Some(c) = old_cursor {
+                    p.history.truncate(c.saturating_add(1));
+                }
                 p.history.push(step);
                 if p.history.len() > HISTORY_LIMIT {
                     let n = p.history.len() - HISTORY_LIMIT;
                     p.history.drain(..n);
                 }
-                Op::SetHistory { id, history: old }
+                if old_cursor.is_none() {
+                    Op::SetHistory { id, history: old }
+                } else {
+                    Op::Batch { ops: vec![Op::SetHistory { id, history: old }, Op::SetHistoryCursor { id, cursor: old_cursor }] }
+                }
+            }
+            Op::SetHistoryCursor { id, cursor } => {
+                let p = self.photo_mut(id)?;
+                Op::SetHistoryCursor { id, cursor: std::mem::replace(&mut p.history_cursor, cursor) }
             }
             Op::AddAlbum { album } => {
                 if self.albums.contains_key(&album.id) {
@@ -684,6 +710,13 @@ impl Catalog {
             Op::SetEmbeddedLens { id, lens } => {
                 let p = self.photo_mut(id)?;
                 Op::SetEmbeddedLens { id, lens: std::mem::replace(&mut p.embedded_lens, lens.map(|l| *l)).map(Box::new) }
+            }
+            Op::SetAsShotWb { id, wb } => {
+                if wb.is_some_and(|(t, tint)| !(t.is_finite() && tint.is_finite())) {
+                    return Err(CatalogError::Invalid("as-shot white balance is not a number".into()));
+                }
+                let p = self.photo_mut(id)?;
+                Op::SetAsShotWb { id, wb: std::mem::replace(&mut p.as_shot_wb, wb) }
             }
             Op::SetFile { id, file_name, source } => {
                 if file_name.trim().is_empty() {

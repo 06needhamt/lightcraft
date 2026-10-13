@@ -31,7 +31,7 @@ const ASPECT_INFO: u16 = 0x009a;
 /// Pick the first largest raw track. Equal-sized later tracks can be the Dual Pixel delta, which
 /// must never replace the main sensor image. An invalid full-size descriptor is reported, not
 /// silently replaced with the reduced raw preview.
-fn main_track(tracks: &[Cr3Track]) -> Option<&Cr3Track> {
+pub(crate) fn main_track(tracks: &[Cr3Track]) -> Option<&Cr3Track> {
     let mut best = None;
     let mut best_area = 0u64;
     for track in tracks {
@@ -108,10 +108,20 @@ fn aspect_crop(maker: Option<&Ifd>, image: Rect) -> Option<Rect> {
 fn geometry(area: Option<&Cr3ImageArea>, maker: Option<&Ifd>, width: usize, height: usize) -> (Rect, Rect) {
     let area = area.filter(|a| usize::from(a.width) == width && usize::from(a.height) == height);
     let sensor = sensor_crop(maker, width, height);
-    let active = area.and_then(|a| a.active).and_then(|b| inclusive_rect(b, width, height)).or(sensor).unwrap_or(Rect::new(0, 0, width, height));
-    // The recommended crop, when the file gives a consistent one. `AspectInfo` is measured from its origin, so it
-    // is only applied on top of that; without it (the crop doesn't fit the valid area) the whole active area stays.
-    let recommended = area.and_then(|a| inclusive_rect(a.crop, width, height)).or(sensor).and_then(|c| relative_crop(c, active));
+    let mut active = area.and_then(|a| a.active).and_then(|b| inclusive_rect(b, width, height)).or(sensor).unwrap_or(Rect::new(0, 0, width, height));
+    // The recommended crop. `AspectInfo` is measured from its origin, so it is applied on top of it.
+    let stated = area.and_then(|a| inclusive_rect(a.crop, width, height)).or(sensor);
+    let mut recommended = stated.and_then(|c| relative_crop(c, active));
+    // Some crop-mode files (EOS R5 Mark II APS-C, 5376 x 3574) state an active area that starts in the dark
+    // columns and stops short of the image, while their recommended crop lies on the image (measured: columns
+    // 132..~256 sit at the black level, the image runs to the right edge). The recommended crop is then the
+    // valid area.
+    if recommended.is_none()
+        && let Some(c) = stated.filter(|c| c.width >= 2 && c.height >= 2)
+    {
+        active = c;
+        recommended = Some(Rect::new(0, 0, c.width, c.height));
+    }
     let crop = recommended.map(|c| aspect_crop(maker, c).unwrap_or(c)).unwrap_or(Rect::new(0, 0, active.width, active.height));
     (active, crop)
 }
@@ -125,13 +135,15 @@ struct CameraLevels {
 
 /// Canon's versioned word arrays. Offsets are word indices from the published tag tables, not
 /// byte offsets. The four as-shot WB values are R, G, G, B, independent of the CFA layout.
+/// A version without a white-level offset takes its white level from the data (see `docs/cr3.md`).
 fn camera_levels(maker: Option<&Ifd>, bits: u8) -> CameraLevels {
     let Some(values) = maker.and_then(|m| m.u64s(COLOR_DATA)) else { return CameraLevels::default() };
     let offsets = match values.first().copied() {
-        Some(16..=19) => (71, 329, 797),
-        Some(32 | 33) => (85, 343, 811),
-        Some(34 | 48) => (105, 363, 641),
-        Some(64 | 65) => (105, 383, 661),
+        Some(16..=19) => (71, 329, Some(797)),
+        Some(32 | 33) => (85, 343, Some(811)),
+        Some(34 | 48) => (105, 363, Some(641)),
+        Some(64 | 65) => (105, 383, Some(661)),
+        Some(66) => (105, 383, None),
         _ => return CameraLevels::default(),
     };
     let full = ((1u32 << u32::from(bits.clamp(1, 16))) - 1) as f32;
@@ -150,7 +162,7 @@ fn camera_levels(maker: Option<&Ifd>, bits: u8) -> CameraLevels {
     });
     let black = quadruple(offsets.1).filter(|v| v.iter().any(|&b| b > 0.0) && v.iter().all(|&b| b >= 0.0 && b < full * 0.5));
     let max_black = black.map(|v| v.into_iter().fold(0.0f32, f32::max)).unwrap_or(0.0);
-    let white = values.get(offsets.2).map(|&v| v as f32).filter(|&v| v > max_black && v >= full * 0.5 && v <= full);
+    let white = offsets.2.and_then(|at| values.get(at)).map(|&v| v as f32).filter(|&v| v > max_black && v >= full * 0.5 && v <= full);
     CameraLevels { wb, black, white }
 }
 
@@ -424,8 +436,9 @@ mod tests {
         }
     }
 
-    /// Some crop-mode files (EOS R5 Mark II 7883) record a recommended crop that reaches past their valid area. The
-    /// whole active area stays then, and `AspectInfo`, which is measured from the recommended crop, is not applied.
+    /// Some crop-mode files (EOS R5 Mark II 7883) record a recommended crop that reaches past their stated active
+    /// area, which starts in dark columns. The recommended crop is then the valid area (no black band on the left),
+    /// and `AspectInfo` applies from its origin.
     #[test]
     fn aspect_info_needs_a_consistent_recommended_crop() {
         let aspect = lightcraft_tiff::IfdBuilder::new().with(ASPECT_INFO, Value::Long(vec![13, 5088, 3392, 0, 0]));
@@ -433,8 +446,11 @@ mod tests {
         let maker = Tiff::parse(&bytes).unwrap().ifds.remove(0);
         let area =
             |crop| Cr3ImageArea { width: 5376, height: 3574, crop, active: Some([132, 160, 5243, 3567]), masked_left: [0; 4], masked_top: None };
-        // crop right edge 5359 > active right edge 5243: not a crop of the active area
-        assert_eq!(geometry(Some(&area([272, 172, 5359, 3563])), Some(&maker), 5376, 3574).1, Rect::new(0, 0, 5112, 3408));
+        // crop right edge 5359 > active right edge 5243: the recommended crop becomes the valid area
+        assert_eq!(
+            geometry(Some(&area([272, 172, 5359, 3563])), Some(&maker), 5376, 3574),
+            (Rect::new(272, 172, 5088, 3392), Rect::new(0, 0, 5088, 3392))
+        );
         // consistent crop: AspectInfo applies from its origin
         assert_eq!(geometry(Some(&area([140, 172, 5227, 3563])), Some(&maker), 5376, 3574).1, Rect::new(8, 12, 5088, 3392));
     }
@@ -512,6 +528,11 @@ mod tests {
             assert_eq!(levels.black, Some([100.0, 101.0, 102.0, 103.0]));
             assert_eq!(levels.white, Some(15000.0));
         }
+        // A version without a white-level offset leaves the white level to the data.
+        let levels = camera_levels(Some(&maker(66, 105, 383, 661)), 14);
+        assert_eq!(levels.wb, Some([2.0, 1.0, 1.5]));
+        assert_eq!(levels.black, Some([100.0, 101.0, 102.0, 103.0]));
+        assert_eq!(levels.white, None);
         assert!(camera_levels(Some(&maker(255, 71, 329, 797)), 14).wb.is_none());
         assert!(camera_levels(None, 14).black.is_none());
     }
