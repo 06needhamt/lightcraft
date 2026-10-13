@@ -13,7 +13,7 @@ use crate::backend::{Backend, ProgressHook};
 /// File extensions recognised as photos when expanding folders.
 pub const PHOTO_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "tif", "tiff", "webp", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "rwl", "raw", "pef", "srw", "psd", "jxl",
-    "gif", "bmp", "avif", // containers LightCraft cannot decode but imports as preview only (their embedded JPEG)
+    "gif", "bmp", "avif", "heic", "heif", "nrw", // avif is preview-only; heic/heif/nrw match the engine list (#1080)
     "iiq", "crw", "mrw", "x3f", "kdc", "mos", "erf", "3fr", "fff",
 ];
 
@@ -191,6 +191,29 @@ pub fn expand_paths(paths: &[String]) -> Vec<String> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod expand_tests {
+    use super::expand_paths;
+
+    #[test]
+    fn a_folder_import_includes_heic_heif_and_nrw() {
+        let dir = std::env::temp_dir().join(format!("lightcraft-ext-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in ["a.heic", "b.HEIF", "c.nrw", "d.png", "note.txt"] {
+            std::fs::write(dir.join(name), b"x").unwrap();
+        }
+        let got = expand_paths(&[dir.to_string_lossy().to_string()]);
+        let names: Vec<String> = got.iter().map(|p| std::path::Path::new(p).file_name().unwrap().to_string_lossy().to_lowercase()).collect();
+        assert!(names.contains(&"a.heic".into()), "{names:?}");
+        assert!(names.contains(&"b.heif".into()), "{names:?}");
+        assert!(names.contains(&"c.nrw".into()), "{names:?}");
+        assert!(names.contains(&"d.png".into()), "{names:?}");
+        assert!(!names.iter().any(|n| n == "note.txt"), "{names:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 /// Encode by extension: `.png` (default), `.jpg`/`.jpeg` (quality), `.tif`/`.tiff`, `.webp` (lossless),
