@@ -1387,6 +1387,122 @@ mod tests {
         assert_eq!(h.request("engine.execute", json!({"command": "view.person", "params": {"name": "  "}}), t)["ok"], false);
     }
 
+    /// A person's More grid confirms a score-bounded batch through either ↑ or the focused tile's A key. Both
+    /// routes use one undo step and leave hidden, lower-score and already named faces alone.
+    #[test]
+    fn person_more_confirms_all_above_with_one_undo_step() {
+        use lightcraft_catalog::Op;
+        let mut h = demo([1400.0, 900.0]);
+        let t = Duration::from_secs(10);
+        let ids: Vec<_> = h.app.session.catalog.photos().map(|p| p.id).take(7).collect();
+        assert_eq!(ids.len(), 7);
+        let region = |name: Option<&str>| lightcraft_meta::Region {
+            rect: lightcraft_geom::Rect { x0: 0.25, y0: 0.2, x1: 0.55, y1: 0.6 },
+            kind: lightcraft_meta::RegionKind::Face,
+            name: name.map(str::to_string),
+            description: None,
+        };
+        for (id, name) in ids.iter().zip([Some("Jane Doe"), None, None, None, None, None, Some("John Roe")]) {
+            let mut meta = h.app.session.catalog.photo(*id).unwrap().meta.clone();
+            meta.regions = vec![region(name)];
+            h.app.session.commit("setup", Op::SetMeta { id: *id, meta: Box::new(meta) }).unwrap();
+        }
+        h.request("engine.execute", json!({"command": "view.person", "params": {"name": "Jane Doe"}}), t);
+        h.settle(SETTLE);
+        let page = crate::panels::person::PersonPage {
+            name: "Jane Doe".into(),
+            total: 1,
+            confirmed: vec![crate::panels::person::Face { photo: ids[0].0, index: 0, rect: region(None).rect, score: 0.0 }],
+            more: ids[1..6]
+                .iter()
+                .zip([0.95, 0.80, 0.80, 0.80, 0.60])
+                .map(|(id, score)| crate::panels::person::Face { photo: id.0, index: 0, rect: region(None).rect, score })
+                .collect(),
+            ready: true,
+            pending: 0,
+        };
+        let set_page = |h: &mut Headless| {
+            h.app.caches.person_page =
+                Some(("Jane Doe".into(), h.app.session.catalog.revision, h.app.caches.faces_indexed, 0.0, Arc::new(page.clone())));
+            h.step();
+        };
+        h.app.ui.dismissed_faces.insert((ids[4].0, 0));
+        set_page(&mut h);
+        let bulk_id = format!("more-face-above:{}:0", ids[2].0);
+        assert!(h.request("ui.widgets", json!({"filter": "more-face-above:"}), t).to_string().contains(&bulk_id));
+        let undo = h.app.session.undo.len();
+        let r = h.request("ui.clickWidget", json!({"id": bulk_id}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step();
+        let names = |h: &Headless| ids.iter().map(|id| h.app.session.catalog.photo(*id).unwrap().meta.regions[0].name.clone()).collect::<Vec<_>>();
+        assert_eq!(
+            names(&h),
+            vec![
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                None,
+                None,
+                Some("John Roe".into())
+            ]
+        );
+        assert_eq!(h.app.session.undo.len(), undo + 1);
+        h.request("engine.execute", json!({"command": "edit.undo"}), t);
+        h.step();
+        assert_eq!(names(&h), vec![Some("Jane Doe".into()), None, None, None, None, None, Some("John Roe".into())]);
+        // With no target A cannot name a face, even on this page.
+        h.request("ui.move", json!({"x": 1, "y": 1}), t);
+        h.view.ctx.memory_mut(|m| m.surrender_focus(egui::Id::new(("more-face-above", ids[2].0, 0_usize))));
+        set_page(&mut h);
+        h.request("ui.key", json!({"key": "a"}), t);
+        h.step();
+        assert_eq!(names(&h)[1], None);
+        // Text editing owns A even if a face was the last pointer target.
+        let search = h.request("ui.clickWidget", json!({"id": "field:search"}), t);
+        assert_eq!(search["ok"], true, "{search}");
+        h.step();
+        h.request("ui.key", json!({"key": "a"}), t);
+        h.step();
+        assert_eq!(names(&h)[1], None);
+        h.request("ui.key", json!({"key": "escape"}), t);
+        h.step();
+        // Hovering a tile is enough for the A key, without clicking or moving keyboard focus there.
+        let tile_id = format!("more-face:{}:0", ids[2].0);
+        let rect = h.app.widgets.iter().find(|(id, _)| id == &tile_id).unwrap().1;
+        h.request("ui.move", json!({"x": rect.center().x, "y": rect.center().y}), t);
+        h.step();
+        h.request("ui.key", json!({"key": "a"}), t);
+        h.step();
+        assert_eq!(names(&h)[1..4], [Some("Jane Doe".into()), Some("Jane Doe".into()), Some("Jane Doe".into())]);
+        assert_eq!(h.app.session.undo.len(), undo + 1);
+        h.request("engine.execute", json!({"command": "edit.undo"}), t);
+        h.step();
+        h.request("ui.move", json!({"x": 1, "y": 1}), t);
+        set_page(&mut h);
+        // Keyboard focus on the candidate makes the same batch action available without hovering it.
+        h.view.ctx.memory_mut(|m| m.request_focus(egui::Id::new(("more-face", ids[2].0, 0_usize))));
+        h.request("ui.key", json!({"key": "a"}), t);
+        h.step();
+        assert_eq!(
+            names(&h),
+            vec![
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                Some("Jane Doe".into()),
+                None,
+                None,
+                Some("John Roe".into())
+            ]
+        );
+        assert_eq!(h.app.session.undo.len(), undo + 1);
+        h.request("engine.execute", json!({"command": "view.photoGrid"}), t);
+        h.request("ui.key", json!({"key": "a"}), t);
+        h.step();
+        assert_eq!(h.app.session.undo.len(), undo + 1, "A outside the person page cannot name more faces");
+    }
+
     /// The People view lists the unnamed faces below the named people: select some (a click each, or all), type a name,
     /// press Enter, and they are all named at once, in one undo step; the new person appears among the named.
     #[test]
