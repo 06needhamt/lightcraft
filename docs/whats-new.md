@@ -7,6 +7,11 @@
   and Leica's, and the one some DNGs carry, e.g. from drones): Optics ▸ Enable Lens Corrections straightens it as it
   does the photos it was made from. HDRs merged before this don't have it; merge them again.
 
+### Portable mode
+- A file named `portable.txt` next to the LightCraft program makes it keep its settings, logs and downloaded
+  models in a `LightCraftData` folder beside it instead of the per-user settings folder (issue #1200), as
+  PhotoCraft does. If that folder can't be written, the usual folder is used and the log says why.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
