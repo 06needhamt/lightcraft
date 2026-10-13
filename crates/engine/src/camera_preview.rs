@@ -32,7 +32,8 @@ use lightcraft_raw::{
 /// 5: dark JPEG luminance pairs for the camera toe (#1307).
 /// 6: the sensor proxy follows the file's lens warp when the camera JPEG is lens-corrected.
 /// 7: the bundled NIKON Z 6_2 profile.
-pub const LOOK_VERSION: u32 = 7;
+/// 8: the bundled NIKON Z 8 and NIKON D5300 profiles.
+pub const LOOK_VERSION: u32 = 8;
 
 #[derive(Clone, Debug)]
 pub(crate) struct CameraLook {
@@ -2501,14 +2502,14 @@ mod tests {
         assert_eq!(look.hue_sat, bundled.hue_sat, "the look's table is not the profile's");
     }
 
-    /// The public Z 6II NEF (skipped without the corpus) takes its colour from the bundled Z 6II profile. It wasn't
-    /// one of the photos the profile was fitted to.
-    #[test]
-    fn corpus_z6ii_uses_the_bundled_profile() {
+    /// A public corpus raw of `model` (skipped without the corpus) takes its colour from that model's bundled profile:
+    /// its fit is accepted and uses exactly the profile's matrix and table.
+    fn assert_corpus_raw_uses_the_bundled_profile(file: &str, model: &str) {
         let path = std::env::var_os("LIGHTCRAFT_CORPUS")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
-            .join("raw/nef-nikon-z6ii-lossless.nef");
+            .join("raw")
+            .join(file);
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -2517,12 +2518,12 @@ mod tests {
             }
             Err(e) => panic!("{}: {e}", path.display()),
         };
-        let (_, json) = crate::camera_profiles::BUNDLED.iter().find(|(m, _)| *m == "NIKON Z 6_2").expect("the Z 6II profile is built in");
+        let (_, json) = crate::camera_profiles::BUNDLED.iter().find(|(m, _)| *m == model).expect("the profile is built in");
         let bundled: crate::camera_profiles::CameraProfile = serde_json::from_str(json).unwrap();
-        let used = crate::camera_profiles::get("NIKON Z 6_2").expect("Z 6II profile");
-        assert_eq!(*used, bundled, "a local NIKON_Z_6_2 profile overrides the built-in one; remove it to run this test");
+        let used = crate::camera_profiles::get(model).expect("a profile");
+        assert_eq!(*used, bundled, "a local {model} profile overrides the built-in one; remove it to run this test");
         let raw = lightcraft_raw::decode(&bytes).unwrap();
-        assert_eq!(raw.metadata.model.as_deref(), Some("NIKON Z 6_2"));
+        assert_eq!(raw.metadata.model.as_deref(), Some(model));
         let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
         let look = fit_preview(&raw, &bytes, &transform, None).0.expect("fit accepted");
         let expected = bundled.matrix().mul(&transform.matrix.inverse().unwrap());
@@ -2532,6 +2533,18 @@ mod tests {
             }
         }
         assert_eq!(look.hue_sat, bundled.hue_sat, "the look's table is not the profile's");
+    }
+
+    /// The public Z 6II NEF wasn't one of the photos its bundled profile was fitted to.
+    #[test]
+    fn corpus_z6ii_uses_the_bundled_profile() {
+        assert_corpus_raw_uses_the_bundled_profile("nef-nikon-z6ii-lossless.nef", "NIKON Z 6_2");
+    }
+
+    /// The public Z 8 NEF (Z 14-24 f/2.8 S) wasn't one of the photos its bundled profile was fitted to.
+    #[test]
+    fn corpus_z8_uses_the_bundled_profile() {
+        assert_corpus_raw_uses_the_bundled_profile("nef-nikon-z8-lossless.nef", "NIKON Z 8");
     }
 
     /// A public D7500 NEF (skipped without the corpus): its look is fitted to its own JPEG and white
