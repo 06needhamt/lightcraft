@@ -172,8 +172,10 @@ fn desktop_exec(entry: &str) -> Option<PathBuf> {
         Some(rest) => rest.split('"').next()?,
         None => exec.split_whitespace().next()?,
     };
-    // a bare name (`photocraft %F`) was already looked for on the PATH
-    Some(PathBuf::from(program)).filter(|p| p.is_absolute())
+    // a bare name (`photocraft %F`) was already looked for on the PATH. Desktop entries are a
+    // freedesktop (POSIX) format: absolute means a leading `/` on every platform the parser runs on
+    // (`Path::is_absolute` wants a drive letter on Windows, where the tests run too)
+    program.starts_with('/').then(|| PathBuf::from(program))
 }
 
 #[cfg(test)]

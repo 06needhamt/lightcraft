@@ -1,7 +1,7 @@
 //! Real Session/serializer regressions for saves that overlap retained physical repairs.
 use super::*;
 use crate::rename::{MoveFs, RealFs};
-use crate::tests_xmp::{case_insensitive, same_path_or_file};
+use crate::tests_xmp::same_path_or_file;
 use lightcraft_catalog::{Op, Photo, Source};
 use serde_json::json;
 
@@ -151,9 +151,10 @@ fn autowrite_repairs_partial_rename_before_merging_foreign_xmp_across_library_sw
                     assert_eq!(parsed.rating, Some(4));
                     assert_eq!(parsed.title.as_deref(), Some("Final title"));
                     assert!(parsed.keywords.as_ref().unwrap().contains(&"café".to_string()));
-                    // (on a case-insensitive volume the two spellings are one file)
-                    if upper && !case_insensitive(&root) {
-                        assert!(!preferred.exists(), "merge uses the repaired uppercase packet");
+                    if upper {
+                        // by listing: on a case-insensitive volume `preferred` answers for the upper-case packet
+                        let listed = std::fs::read_dir(&root).unwrap().any(|e| Some(e.unwrap().file_name().as_os_str()) == preferred.file_name());
+                        assert!(!listed, "merge uses the repaired uppercase packet");
                     }
                     for (step, title) in [("edit.undo", "Fresh title"), ("edit.redo", "Final title")] {
                         s.execute(step, &json!({})).unwrap();
