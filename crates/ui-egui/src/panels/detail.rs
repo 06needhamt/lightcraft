@@ -258,6 +258,9 @@ pub(crate) fn overlay_supports_window(overlay: lightcraft_pipeline::Overlay) -> 
     use lightcraft_pipeline::Overlay as O;
     match overlay {
         O::None | O::Mask { .. } | O::PointColorRange(_) | O::HdrRange | O::Spots(_) => true,
+        // Show All Masks reads every mask's alpha in one GPU readback for the whole frame; not
+        // tested on a window yet, so it keeps the whole-frame render
+        O::AllMasks { .. } => false,
     }
 }
 
