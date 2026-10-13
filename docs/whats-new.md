@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### Thumbnail cache stays in its folder
+- The thumbnail cache no longer follows a shard folder (`thumbs/ab/`) that is a symlink or junction to somewhere
+  else (issue #1504): trimming or clearing the cache can't delete files outside it, and thumbnails are never read
+  from or written through such a link.
+## 2026-10-13
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
