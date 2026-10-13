@@ -471,6 +471,10 @@ pub fn settings_for<'a>(s: &'a DevelopSettings, req: &RenderRequest) -> std::bor
 /// Long edge (pixels) of the small HDR render [`hdr_histogram`] measures.
 pub const HDR_HISTOGRAM_EDGE: usize = 384;
 
+/// Long edge of the render that gives a slider drag its live HDR histogram (drafts have none: a
+/// second render per tick would slow them down), run beside the drafts by the UI.
+pub const HDR_HISTOGRAM_DRAG_EDGE: usize = 192;
+
 /// The histogram of an HDR edit's HDR rendition for a preview request `req`: a small float HDR
 /// render of the same framing ([`HDR_HISTOGRAM_EDGE`]), binned with SDR on the left half and the
 /// whole HDR range ([`Hdr::MAX_EV_LIMIT`](lightcraft_develop::Hdr::MAX_EV_LIMIT) stops above SDR
