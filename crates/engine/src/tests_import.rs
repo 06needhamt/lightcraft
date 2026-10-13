@@ -1119,7 +1119,7 @@ fn emptying_trashed_photos_of_one_album_and_stack_leaves_nothing_dangling() {
     s.execute("edit.undo", &json!({})).unwrap();
     assert_eq!(s.catalog.len(), 2, "one undo step brings both back");
     assert_eq!(s.catalog.album(lightcraft_catalog::AlbumId(al)).unwrap().photos.len(), 2);
-    assert!(s.catalog.stack_of(lightcraft_catalog::PhotoId(ids[0])).is_some());
+    assert!(s.catalog.stack_of(lightcraft_catalog::PhotoId(ids[0])).is_none(), "soft-delete already left the stack");
     assert!(s.catalog.photos().all(|p| p.deleted), "back in Recently Deleted");
     let _ = std::fs::remove_dir_all(&src);
 }
