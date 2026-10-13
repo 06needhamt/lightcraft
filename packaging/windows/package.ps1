@@ -11,6 +11,8 @@
   zip needs the Visual C++ redistributable. Signing is delegated to sign.ps1 (skipped with a
   warning when no signing secrets are set).
 
+  Fonts: uses CRAFT_FONTS_DIR or ../craft-fonts; downloads the pinned checkout if absent.
+
   Needs: Rust (MSVC toolchain + the target), the Windows SDK (rc.exe, signtool.exe),
   and WiX v5: dotnet tool install --global wix --version 5.0.2
   The WiX UI and Util extensions (installer dialogs, "Launch LightCraft" on Finish) are added to
@@ -81,6 +83,8 @@ if (-not $env:LIGHTCRAFT_BUILD_DATE) { $env:LIGHTCRAFT_BUILD_DATE = (Get-Date).T
 Write-Output "LightCraft $Version for Windows $Arch ($Target)"
 
 if (-not $SkipBuild) {
+  . (Join-Path $PSScriptRoot 'fonts.ps1')
+  Initialize-CraftFonts $Root
   # Static CRT: no VC++ redistributable needed. Scoped to the target so host build scripts and
   # proc-macros are unaffected.
   $flagVar = 'CARGO_TARGET_' + ($Target.ToUpper() -replace '-', '_') + '_RUSTFLAGS'
