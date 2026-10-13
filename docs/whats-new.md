@@ -2,6 +2,13 @@
 
 ## 2026-10-13
 
+### Search finds people
+- Typing a person's name in Search Photos finds the photos with that named face (issue #1449).
+- Quotes keep several words together: `person:"Jane Doe"` finds exactly that person, `"jane doe"` those words side
+  by side, and `keyword:"new york"` a keyword of two words.
+
+## 2026-10-13
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
