@@ -2,7 +2,7 @@
 title: Is LightCraft free, and does it need an account?
 description: LightCraft is free and open source, needs no account or subscription, and keeps your library on your computer.
 order: 10
-verified: 0.6.0
+verified: 0.7.1
 ---
 
 Yes, it is free. LightCraft is open source under the MIT or Apache-2.0 licence, your choice. It needs no account, no cloud service and no subscription, and it sends no telemetry.

@@ -2,7 +2,7 @@
 title: Rate, flag and label photos
 description: Sort a shoot with star ratings, pick and reject flags and colour labels, from the keyboard or the Photo menu.
 order: 20
-verified: 0.6.0
+verified: 0.7.1
 ---
 
 Select photos in **Photo Grid** or **Square Grid**, then press a key: `1` to `5` for stars, `P` to pick, `X` to reject, `6` to `9` for a colour label. The same actions are in the **Photo** menu.

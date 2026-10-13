@@ -2,7 +2,7 @@
 title: Get help with a problem
 description: What to include when you ask for help with a LightCraft bug, and where to post it.
 order: 30
-verified: 0.6.0
+verified: 0.7.1
 ---
 
 Open an issue in the [issue tracker](https://github.com/storytold/lightcraft/issues), or ask in [Discord](https://discord.gg/artcraft). Include your version, your system, what you did, and what you expected.

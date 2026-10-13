@@ -2,10 +2,10 @@
 title: Install LightCraft
 description: Download LightCraft for Windows 11, macOS or Linux, install it, and open your photo library.
 order: 10
-verified: 0.6.0
+verified: 0.7.1
 ---
 
-Download the file for your system from the [latest release](https://github.com/storytold/lightcraft/releases/latest) and install it. In the file names, `<version>` stands for the version number, for example `0.6.0`. The [LightCraft page on getartcraft.com](https://getartcraft.com/apps/lightcraft) also links the download.
+Download the file for your system from the [latest release](https://github.com/storytold/lightcraft/releases/latest) and install it. In the file names, `<version>` stands for the version number, for example `0.7.1`. The [LightCraft page on getartcraft.com](https://getartcraft.com/apps/lightcraft) also links the download.
 
 ## Windows 11
 
@@ -14,9 +14,11 @@ Download the file for your system from the [latest release](https://github.com/s
 3. Run the file. The installer asks where to install. The default is `C:\Program Files\LightCraft`, and upgrades stay in the folder you chose.
 4. At the end, choose the option to start LightCraft.
 
-For a Snapdragon or other Arm PC, download `lightcraft-<version>-windows-arm64.msi` instead.
+For a Snapdragon or other Arm PC, download `lightcraft-<version>-windows-arm64.msi` instead. For a 32-bit Windows, download `lightcraft-<version>-windows-x86.msi`.
 
-To run it without installing, download `lightcraft-<version>-windows-x64-portable.zip`. A portable build for `arm64` is on the release page too.
+Upgrading from an installer older than 0.6.0 also keeps LightCraft in the folder it was installed in. If that folder was deleted, the upgrade installs to `C:\Program Files\LightCraft`.
+
+To run it without installing, download `lightcraft-<version>-windows-x64-portable.zip`. Portable builds for `arm64` and `x86` are on the release page too.
 
 ## macOS
 

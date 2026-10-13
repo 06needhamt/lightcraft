@@ -1,7 +1,7 @@
 ---
 title: LightCraft
 description: LightCraft is a free, open-source photo library and raw developer, an alternative to Adobe Lightroom.
-verified: 0.6.0
+verified: 0.7.1
 ---
 
 LightCraft is a photo library and raw developer that runs on your own computer. It is an open-source alternative to Adobe Lightroom, written in Rust, and part of the Craft App Suite from the ArtCraft team.

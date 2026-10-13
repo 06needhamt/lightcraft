@@ -2,7 +2,7 @@
 title: Edit a photo
 description: Open a photo in the Edit panel, adjust Light, Color and Effects sliders, compare with the original, and undo or reset.
 order: 30
-verified: 0.6.0
+verified: 0.7.1
 ---
 
 Double-click a photo in the grid, then press `E` to open the **Edit** panel. Drag a slider to change the photo. Your original file is never changed, because edits are stored in the library.
@@ -20,6 +20,10 @@ Double-click a photo in the grid, then press `E` to open the **Edit** panel. Dra
 ## Black and white
 
 Click **B&W** at the top of the **Edit** panel to turn the photo monochrome. Click it again to return to colour.
+
+## HDR
+
+Click **HDR**, next to **B&W**, to edit the photo in HDR, with highlights brighter than SDR white for HDR exports. LightCraft cannot show HDR on an HDR screen yet, so you edit without seeing the extra brightness.
 
 ## Other edit tools
 
