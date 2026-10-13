@@ -44,6 +44,11 @@
 ### Bold text in other scripts
 - Arabic names and other Arabic text in headings, chosen tabs and other bold places are now drawn bold, as Latin text
   beside them is; they used to stay at regular weight.
+## 2026-10-12
+
+### Older raw cameras
+- Canon PowerShot G9 raws open with the camera's white balance (White Balance ▸ As Shot); it used to start from a
+  neutral default.
 
 ## 2026-10-11
 
