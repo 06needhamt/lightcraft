@@ -2273,6 +2273,8 @@ fn an_album_menu_imports_into_that_album() {
     assert_eq!(r["result"]["scanning"], true, "{r}");
     assert_eq!(review_album(&mut h), None);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Delete asks before photos go to Recently Deleted, by default and from every way in: the key, the
 /// Photo menu and a photo's right-click menu (#1239). With the setting off, it deletes at once.
 #[test]
@@ -2313,6 +2315,8 @@ fn deleting_a_photo_asks_first_from_the_key_the_menu_and_the_right_click_menu() 
     click(&mut h, "button:contextDeletePhoto");
     assert_eq!(h.app.ui.dialog, None);
     assert!(deleted(&h));
+}
+
 /// New Album's "Include selected photos" (as in Lightroom): on by default; unticked, the new album
 /// starts empty; with nothing selected the option isn't shown, and a folder never has it.
 #[test]

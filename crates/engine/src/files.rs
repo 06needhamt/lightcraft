@@ -1293,6 +1293,8 @@ mod tests {
         let (_, window, read) = preview_window(&path).expect("the file reads").expect("sRGB is what the JPEG-only decode assumes");
         assert!(read.planned, "the plan still answers");
         assert!(window.starts_with(&[0xff, 0xd8]), "and hands on the JPEG");
+    }
+
     /// A JPEG with no date in its metadata (an export saved without it) takes the file's date, as
     /// in Lightroom, instead of grouping under "Unknown Date"; a dated one keeps its capture time.
     #[test]

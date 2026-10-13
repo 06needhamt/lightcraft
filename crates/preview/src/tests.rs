@@ -391,6 +391,8 @@ fn pool_wait_keeps_the_finished_job_for_try_recv() {
     assert!(p.wait(std::time::Duration::ZERO), "kept until taken");
     assert_eq!(p.try_recv().map(|d| d.result), Some(7));
     assert!(p.try_recv().is_none());
+}
+
 /// Wait up to `secs` for `f` to hold.
 fn eventually(secs: u64, mut f: impl FnMut() -> bool) -> bool {
     let t0 = std::time::Instant::now();
