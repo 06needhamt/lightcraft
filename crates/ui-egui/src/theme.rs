@@ -370,6 +370,10 @@ fn craft_font_name(f: &lightcraft_engine::CraftFont) -> String {
 /// Points one mouse-wheel notch (a line) scrolls.
 pub const WHEEL_LINE_POINTS: f32 = 100.0;
 
+/// Share of its visible size one mouse-wheel notch scrolls the photo grid and the filmstrip (Lightroom
+/// Classic: three notches move a photo from one edge to the other, at any window size).
+pub const WHEEL_STRIP_SHARE: f32 = 1.0 / 3.0;
+
 /// Zoom per wheel point (`exp(speed × points)`): egui's 1/200 at its stock 40-point notch, rescaled so
 /// one notch still zooms the same amount now that it scrolls [`WHEEL_LINE_POINTS`].
 pub const WHEEL_ZOOM_PER_POINT: f32 = 40.0 / 200.0 / WHEEL_LINE_POINTS;
