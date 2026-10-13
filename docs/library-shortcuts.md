@@ -11,6 +11,8 @@ Select photos in Photo Grid or Square Grid, then use:
 | `P` | Flag as a pick |
 | `X` | Flag as rejected |
 | `U` | Clear the flag |
+| `` ` `` (backtick) | Cycle the flag: unflagged → pick → reject → unflagged |
+| `Cmd`/`Ctrl` + `↑` / `↓` | Raise / lower flag status (reject < unflagged < pick; stops at either end) |
 | `Shift` + `0`–`9`, `P`, `X` or `U` | Apply the action and select the next photo |
 
 Purple and clearing a colour label are available in Photo → Set Color Label and the photo context
@@ -28,6 +30,8 @@ step. AutoWrite uses the normal rating metadata path. In Detail, including Maski
 `[` / `]` keep resizing the brush and shifted brackets keep adjusting feather. Saved overrides,
 remapping and disabling the default brush bindings take precedence over their grid bracket actions.
 The separate Decrease Rating / Increase Rating commands can also be assigned in Help → Keyboard Shortcuts.
+
+Flag cycling and raise/lower use each photo's own flag, so a mixed selection steps together without being made uniform. Adobe's shortcut list names the backtick "Cycle flag settings" but does not state the order; unflagged → pick → reject is LightCraft's choice. The key is the logical grave key, so it follows the keyboard layout (on layouts where it is a dead accent key, assign another key in Help → Keyboard Shortcuts to `photo.cycleFlag`).
 
 Grid actions apply to all selected photos and support Undo / Redo. In Compare and Survey, culling
 actions apply to the active photo. Auto Advance moves forward after an action; holding Shift with

@@ -168,6 +168,7 @@ pub fn format(m: Modifiers, k: Key) -> Option<String> {
         Key::CloseBracket => "]",
         Key::Quote => "'",
         Key::Comma => ",",
+        Key::Backtick => "`",
         k => k.name(),
     };
     let mut s = String::new();
@@ -451,6 +452,17 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         } else if compare::culling(app) && (f == "library.next" || f == "library.previous") {
             let d = if f == "library.next" { 1 } else { -1 };
             let _ = if app.ui.view == crate::state::ViewMode::Compare { compare::compare_step(app, d) } else { compare::survey_step(app, d) };
+        } else if matches!(f.as_str(), "photo.cycleFlag" | "photo.increaseFlag" | "photo.decreaseFlag") {
+            // `, ⌘↑, ⌘↓: step the flag; the toast names the active photo's new state (read before Auto Advance moves on)
+            let active = app.session.active();
+            cull(app, &f, json!({}), false);
+            let flag = active.and_then(|id| app.session.catalog.photo(id)).map(|p| p.flag);
+            match flag {
+                Some(lightcraft_catalog::Flag::Pick) => app.toast(ctx, crate::i18n::tr("Flagged as Pick")),
+                Some(lightcraft_catalog::Flag::Reject) => app.toast(ctx, crate::i18n::tr("Flagged as Reject")),
+                Some(lightcraft_catalog::Flag::None) => app.toast(ctx, crate::i18n::tr("Unflagged")),
+                None => {}
+            }
         } else if matches!(f.as_str(), "photo.pick" | "photo.reject" | "photo.unflag") && app.ui.right != crate::state::RightPanel::Crop {
             cull(app, &f, json!({}), false);
             match f.as_str() {
@@ -946,3 +958,7 @@ mod tests {
 #[cfg(test)]
 #[path = "shortcuts/tests_relative_ratings.rs"]
 mod relative_rating_tests;
+
+#[cfg(test)]
+#[path = "shortcuts/tests_flag_cycle.rs"]
+mod flag_cycle_tests;

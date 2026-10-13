@@ -196,6 +196,25 @@ fn change_rating(s: &mut Session, p: &Value, delta: i8, label: &str) -> Result<V
     Ok(json!({"changed": n}))
 }
 
+/// Move each target's own flag by `step`: cycling wraps unflagged -> pick -> reject -> unflagged,
+/// raising/lowering clamps on reject < unflagged < pick. Unchanged photos make no history step.
+fn change_flag(s: &mut Session, p: &Value, label: &str, step: impl Fn(Flag) -> Flag) -> Result<Value> {
+    let mut ops = Vec::new();
+    for id in s.targets(p) {
+        let old = s.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?.flag;
+        let flag = step(old);
+        if flag != old {
+            ops.push(Op::SetFlag { id, flag });
+        }
+    }
+    let n = ops.len();
+    if n > 0 {
+        s.commit(label, Op::Batch { ops })?;
+    }
+    advance_if(s, p);
+    Ok(json!({"changed": n}))
+}
+
 fn advance_if(s: &mut Session, p: &Value) {
     if bool_or(p, "advance", false) {
         let _ = step(s, 1);
@@ -687,6 +706,40 @@ pub fn specs() -> Vec<CommandSpec> {
             advance_if(s, p);
             Ok(v)
         }),
+        // Classic: ` cycles the flag; Cmd+Up / Cmd+Down raise / lower it (Ctrl on Windows and Linux)
+        cmd!(
+            "photo.cycleFlag",
+            "Cycle Flag",
+            ["Photo", "Set Flag"],
+            Some("`"),
+            "{ids?, advance?: bool} — each photo's own flag: unflagged -> pick -> reject -> unflagged",
+            has_selection,
+            |s, p| {
+                change_flag(s, p, "Cycle Flag", |f| match f {
+                    Flag::None => Flag::Pick,
+                    Flag::Pick => Flag::Reject,
+                    Flag::Reject => Flag::None,
+                })
+            }
+        ),
+        cmd!(
+            "photo.increaseFlag",
+            "Increase Flag Status",
+            ["Photo", "Set Flag"],
+            Some("Cmd+Up"),
+            "{ids?, advance?: bool} — reject -> unflagged -> pick (stops at pick)",
+            has_selection,
+            |s, p| { change_flag(s, p, "Increase Flag Status", |f| if f == Flag::Reject { Flag::None } else { Flag::Pick }) }
+        ),
+        cmd!(
+            "photo.decreaseFlag",
+            "Decrease Flag Status",
+            ["Photo", "Set Flag"],
+            Some("Cmd+Down"),
+            "{ids?, advance?: bool} — pick -> unflagged -> reject (stops at reject)",
+            has_selection,
+            |s, p| { change_flag(s, p, "Decrease Flag Status", |f| if f == Flag::Pick { Flag::None } else { Flag::Reject }) }
+        ),
         cmd!("photo.pick", "Flag as Pick", ["Photo", "Set Flag"], Some("P"), "{ids?}", has_selection, |s, p| {
             for_targets(s, p, "Flag as Pick", |id| Some(Op::SetFlag { id, flag: Flag::Pick }))
         }),
@@ -1623,3 +1676,7 @@ mod gps_tests {
 #[cfg(test)]
 #[path = "library/tests_relative_ratings.rs"]
 mod relative_rating_tests;
+
+#[cfg(test)]
+#[path = "library/tests_flag_cycle.rs"]
+mod flag_cycle_tests;
