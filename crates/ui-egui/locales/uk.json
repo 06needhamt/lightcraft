@@ -1024,6 +1024,7 @@
   "Local folders": "Локальні теки",
   "Local library — no cloud account needed": "Локальна бібліотека — хмарний обліковий запис не потрібен",
   "Locate Missing File…": "Знайти відсутній файл…",
+  "Locate Missing Files…": "Знайти відсутні файли…",
   "Long Edge": "Довгий край",
   "Looking for photos…": "Пошук фото…",
   "Luminance Range": "Діапазон яскравості",
@@ -1331,6 +1332,8 @@
   "Show Hidden Local Locations": "Показати приховані локальні розташування",
   "Show Luminance Map": "Показати карту яскравості",
   "Show Mask Overlay": "Показати накладання маски",
+  "Show All Mask Overlays": "Показати всі накладення масок",
+  "Show all overlays": "Показати всі накладення",
   "Show Mask Pins": "Показати маркери масок",
   "Show Original": "Показати оригінал",
   "Show Photo Counts": "Показати кількість фото",
@@ -2150,5 +2153,8 @@
   "imported earlier switch over with Photo ▸ Reload from Disk.": "імпортовані раніше, переходять на них через Фото → Перезавантажити з диска.",
   "scene) now develop from their sensor data with every editing tool, like the camera's other raws. Photos": "сцени), тепер проявляються з даних сенсора з усіма інструментами редагування, як інші raw-файли камери. Фото,",
   "smart album value|No": "Ні",
-  "smart album value|Yes": "Так"
+  "smart album value|Yes": "Так",
+  "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "Графічний процесор не знайдено: LightCraft виконує рендеринг на ЦП, а це набагато повільніше. Докладніше: Довідка → Інформація про систему.",
+  "On NixOS, start it from `nix develop`.": "У NixOS запускайте його з `nix develop`.",
+  "Files with the same content as another file in this import: only the first is imported.": "Файли з тим самим вмістом, що й інший файл цього імпорту: імпортується лише перший."
 }

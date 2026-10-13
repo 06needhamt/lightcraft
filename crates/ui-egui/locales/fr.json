@@ -761,6 +761,7 @@
   "Local folders": "Dossiers locaux",
   "Local library — no cloud account needed": "Bibliothèque locale : aucun compte cloud nécessaire",
   "Locate Missing File…": "Localiser le fichier manquant…",
+  "Locate Missing Files…": "Localiser les fichiers manquants…",
   "Locate Photo": "Localiser la photo",
   "Location": "Lieu",
   "Lock": "Verrouiller",
@@ -1317,6 +1318,8 @@
   "Show Luminance Map": "Afficher la carte de luminance",
   "Show Mask": "Afficher le masque",
   "Show Mask Overlay": "Afficher l'incrustation du masque",
+  "Show All Mask Overlays": "Afficher toutes les superpositions de masque",
+  "Show all overlays": "Afficher toutes les superpositions",
   "Show Mask Pins": "Afficher les épingles de masque",
   "Show Original": "Afficher l'original",
   "Show Photo Counts": "Afficher le nombre de photos",
@@ -2150,5 +2153,8 @@
   "with a counterpart here come along, the rest is listed.": "qui ont un équivalent ici suivent, le reste est listé.",
   "written by a newer LightCraft is refused with \"this library was written by a newer version of LightCraft\" and left": "écrite par une version plus récente de LightCraft est refusée avec « cette bibliothèque a été écrite par une version plus récente de LightCraft » et laissée",
   "written by a newer LightCraft), LightCraft says so and why, and offers Try Again, Choose Another Library…, Continue": "écrite par une version plus récente de LightCraft), LightCraft le signale avec la raison et propose Réessayer, Choisir une autre bibliothèque…, Continuer",
-  "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-glisser pour redresser, ⇧G Upright guidé, une grille pendant la transformation."
+  "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-glisser pour redresser, ⇧G Upright guidé, une grille pendant la transformation.",
+  "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "Aucun processeur graphique trouvé : LightCraft effectue le rendu sur le processeur, ce qui est beaucoup plus lent. Détails dans Aide → Informations système.",
+  "On NixOS, start it from `nix develop`.": "Sous NixOS, lancez-le depuis `nix develop`.",
+  "Files with the same content as another file in this import: only the first is imported.": "Fichiers au contenu identique à un autre fichier de cette importation : seul le premier est importé."
 }
