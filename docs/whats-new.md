@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-12
+
+### Bold text in other scripts
+- Arabic names and other Arabic text in headings, chosen tabs and other bold places are now drawn bold, as Latin text
+  beside them is; they used to stay at regular weight.
+
 ## 2026-10-11
 
 ### JPEG XL export
