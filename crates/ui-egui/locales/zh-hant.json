@@ -1326,6 +1326,8 @@
   "Show Luminance Map": "顯示明度圖",
   "Show Mask": "顯示遮色片",
   "Show Mask Overlay": "顯示遮色片疊加",
+  "Show All Mask Overlays": "顯示所有蒙版疊加",
+  "Show all overlays": "顯示所有疊加",
   "Show Mask Pins": "顯示遮色片控制點",
   "Show Original": "顯示原始照片",
   "Show Photo Counts": "顯示照片數量",
