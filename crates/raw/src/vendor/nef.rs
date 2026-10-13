@@ -232,7 +232,8 @@ fn uncompressed(bytes: &[u8], info: &ImageInfo, order: ByteOrder, mn: Option<&ma
     let packing = if bytes_per_row >= row_samples * 2 {
         Packing::Word16
     } else if bits == 12 && bytes_per_row * 8 >= row_samples * 12 && bytes_per_row * 8 < row_samples * 13 {
-        if nrw_data(mn).is_some() && bytes_per_row.is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
+        // the row's own size (a strip may be padded past the last row, which skews `bytes_per_row`)
+        if nrw_data(mn).is_some() && (row_samples * 12).div_ceil(8).is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
     } else if info.compression == 1 && bits != 8 && bits != 16 {
         return Err(RawError::Unsupported(format!("NEF uncompressed packing ({bytes_per_row} bytes per {row_samples}-sample row)")));
     } else {
@@ -573,6 +574,17 @@ mod tests {
         let mut both = nrw_note(200);
         both.set(BLACK_LEVEL, Value::Short(vec![400, 404, 408, 412]));
         assert_eq!(decode(Some(both)).black.values, vec![100.0, 101.0, 102.0, 103.0]);
+    }
+
+    #[test]
+    fn nrw_padded_strip_keeps_32_bit_word_packing() {
+        // 16 x 6 12-bit samples are 24 bytes a row; a strip padded past the last row must not change the packing
+        let (w, h) = (16usize, 6usize);
+        let px: Vec<u16> = (0..w * h).map(|i| (200 + i * 131 % 3800) as u16).collect();
+        let mut packed = words32(&px, w, ByteOrder::Little);
+        packed.extend_from_slice(&[0u8; 6]);
+        let r = crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![packed], w as u32, h as u32, h as u32, Some(nrw_note(0)))).unwrap();
+        assert_eq!(r.data, RawData::U16(px));
     }
 
     #[test]
