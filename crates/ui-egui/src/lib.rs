@@ -117,6 +117,8 @@ mod tests_sync;
 #[cfg(test)]
 mod tests_titlebar;
 #[cfg(test)]
+mod tests_toast;
+#[cfg(test)]
 mod tests_unsaved;
 #[cfg(test)]
 mod tests_wb_selector;

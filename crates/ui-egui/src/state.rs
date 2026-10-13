@@ -769,12 +769,15 @@ pub enum Dialog {
     SlideshowExport {
         settings: lightcraft_engine::slideshow_export::ExportSettings,
     },
-    /// `parent`: the folder to create it in (none: the top level).
+    /// `parent`: the folder to create it in (none: the top level). `include_selected`: the new album
+    /// holds the selected photos (Lightroom's "Include selected photos"; folders hold none).
     NewAlbum {
         name: String,
         folder: bool,
         #[serde(default)]
         parent: Option<u64>,
+        #[serde(default = "yes")]
+        include_selected: bool,
     },
     RenameAlbum {
         id: u64,
