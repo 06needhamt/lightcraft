@@ -26,7 +26,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::align::{self, Alignment};
-use crate::frame::{Frame, FrameColor};
+use crate::frame::{Frame, FrameColor, consensus_multipliers};
 use crate::{MergeError, Progress, Result, check};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,6 +83,9 @@ pub struct HdrResult {
     pub orientation: lightcraft_geom::Orientation,
     pub metadata: lightcraft_meta::Metadata,
     pub baseline_exposure: f64,
+    /// The inputs' as-shot white-balance multipliers they agree on ([`crate::frame::consensus_multipliers`]), already in
+    /// `color`; kept so merged brackets stitched into a panorama can vote as frames of their own.
+    pub wb_multipliers: Option<[f32; 3]>,
 }
 
 #[inline]
@@ -265,6 +268,12 @@ pub fn merge_hdr(mut frames: Vec<Frame>, opts: &HdrOptions, progress: &Progress)
         None => Plane::new(0, 0),
     };
     let rf = &frames[reference];
+    // the merge's white balance is the median of its inputs', as a panorama's: a CR2's or NEF's colour tags have none
+    let wb_multipliers = consensus_multipliers(&frames);
+    let mut color = rf.color.clone();
+    if let Some(multipliers) = wb_multipliers {
+        color.set_as_shot_multipliers(multipliers);
+    }
     Ok(HdrResult {
         radiance: out,
         ghost,
@@ -272,11 +281,12 @@ pub fn merge_hdr(mut frames: Vec<Frame>, opts: &HdrOptions, progress: &Progress)
         ev,
         ev_exif,
         alignments,
-        color: rf.color.clone(),
+        color,
         raw: rf.raw,
         orientation: rf.orientation,
         metadata: rf.metadata.clone(),
         baseline_exposure: rf.baseline_exposure,
+        wb_multipliers,
     })
 }
 

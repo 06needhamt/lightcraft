@@ -1,4 +1,4 @@
-//! A panorama of raw files keeps their as-shot white balance (issue #1144).
+//! A panorama or an HDR merge of raw files keeps their as-shot white balance (issue #1144).
 //!
 //! CR2, NEF and the like carry their white balance as vendor multipliers, not as DNG tags. The merged DNG has
 //! to say it as `AsShotNeutral`, or a viewer has no white to start from and shows a colour cast.
@@ -6,6 +6,7 @@
 use lightcraft_color::{D50, Xy};
 use lightcraft_geom::Orientation;
 use lightcraft_merge::frame::{Frame, FrameColor, consensus_multipliers, detect_clip};
+use lightcraft_merge::hdr::{HdrOptions, HdrResult, merge_hdr};
 use lightcraft_merge::output::color_data;
 use lightcraft_merge::pano::{PanoOptions, PanoResult, Projection, stitch};
 use lightcraft_merge::{DngSamples, no_progress, write_linear_dng};
@@ -188,4 +189,58 @@ fn without_multipliers_the_dng_has_no_as_shot_neutral_as_before() {
     let res = pano(shoot(&ColorData::default(), &[None, None, None]));
     let raw = dng_of(&res);
     assert_eq!((raw.color.as_shot_neutral, raw.color.as_shot_white_xy), (None, None));
+}
+
+/// Exposures `evs` (EV, relative to the view's) of one view, one frame each, with `wb` as their multipliers.
+fn bracket(color: &ColorData, evs: &[f64], wb: &[Multipliers]) -> Vec<Frame> {
+    let view = lightcraft_merge::synth::pano_views(320, 240, 280.0, &[0.0]).unwrap().remove(0);
+    evs.iter()
+        .zip(wb)
+        .map(|(ev, m)| {
+            let k = 2f32.powf(*ev as f32);
+            let mut frame = raw_frame(view.map(|p| p.map(|v| (v * k).min(1.0))), color, *m);
+            frame.exposure = Some(*ev);
+            frame
+        })
+        .collect()
+}
+
+fn hdr(frames: Vec<Frame>) -> HdrResult {
+    merge_hdr(frames, &HdrOptions::default(), &no_progress).unwrap()
+}
+
+fn hdr_neutral(res: &HdrResult) -> Option<[f64; 3]> {
+    match &res.color {
+        FrameColor::Camera(c) => c.as_shot_neutral,
+        FrameColor::Linear { .. } => None,
+    }
+}
+
+#[test]
+fn an_hdr_merge_of_raw_frames_has_their_median_white_balance() {
+    let source = camera_without_white_balance();
+    let wb = [Some([2.1, 1.0, 1.55]), Some(DAYLIGHT), Some([1.9, 1.0, 1.7])];
+    let res = hdr(bracket(&source, &[-2.0, 0.0, 2.0], &wb));
+    assert_eq!(res.wb_multipliers, Some(DAYLIGHT));
+    assert_close(hdr_neutral(&res).expect("an as-shot neutral"), reciprocal([2.0, 1.0, 1.6f32.into()]), 1e-6);
+    // the DNG says it, to the precision of a TIFF rational
+    let bytes = write_linear_dng(&res.radiance, &res.color, res.orientation, &res.metadata, res.baseline_exposure, DngSamples::Half).unwrap();
+    let raw = lightcraft_raw::decode(&bytes).unwrap();
+    assert_close(raw.color.as_shot_neutral.expect("AsShotNeutral in the DNG"), [0.5, 1.0, 0.625], 2e-6);
+    // an even count takes the mean of the middle two; frames without multipliers do not vote
+    let res = hdr(bracket(&source, &[-1.0, 1.0], &[Some([2.0, 1.0, 1.0]), Some([3.0, 1.0, 2.0])]));
+    assert_close(hdr_neutral(&res).expect("an as-shot neutral"), reciprocal([2.5, 1.0, 1.5]), 1e-6);
+    let res = hdr(bracket(&source, &[-2.0, 0.0, 2.0], &[None, Some([2.0, 1.0, 1.6]), Some([f32::NAN, 1.0, 1.0])]));
+    assert_eq!(res.wb_multipliers, Some([2.0, 1.0, 1.6]));
+    assert_close(hdr_neutral(&res).expect("an as-shot neutral"), reciprocal([2.0, 1.0, 1.6f32.into()]), 1e-6);
+}
+
+#[test]
+fn an_hdr_merge_without_multipliers_keeps_the_reference_colour_as_before() {
+    let source = ColorData { as_shot_neutral: Some([0.5, 1.0, 0.62]), ..camera_without_white_balance() };
+    let frames = bracket(&source, &[-2.0, 0.0, 2.0], &[None, None, None]);
+    let reference = frames[1].color.clone();
+    let res = hdr(frames);
+    assert_eq!((res.reference, res.wb_multipliers), (1, None));
+    assert_eq!(res.color, reference);
 }
