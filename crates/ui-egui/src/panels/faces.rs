@@ -170,9 +170,7 @@ fn mb(bytes: Option<u64>) -> String {
 /// "its input is not an image" → "Its input is not an image."
 fn sentence(s: &str) -> String {
     let s = s.trim();
-    let mut c = s.chars();
-    let mut out: String = c.next().map(|f| f.to_uppercase().collect()).unwrap_or_default();
-    out.push_str(c.as_str());
+    let mut out = crate::i18n::upper_first(s);
     if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
         out.push('.');
     }
@@ -340,7 +338,7 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if installed {
-                    let r = ui.button("Remove");
+                    let r = ui.button(crate::i18n::tr("Remove"));
                     register(ui.ctx(), format!("faces:remove:{id}"), r.rect);
                     if r.clicked() {
                         let _ = app.run("faces.models.remove", json!({"id": id}));

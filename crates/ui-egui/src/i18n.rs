@@ -126,6 +126,7 @@ language_table! {
     Ru, "ru", "Русский", "Cyrl", include_str!("../locales/ru.json");
     Fr, "fr", "Français", "Latn", include_str!("../locales/fr.json");
     Uk, "uk", "Українська", "Cyrl", include_str!("../locales/uk.json");
+    Ka, "ka", "ქართული", "Geor", include_str!("../locales/ka.json");
 }
 
 // The settings file stores the BCP-47 code (`"zh-hans"`), never the Rust variant name, so a
@@ -210,6 +211,22 @@ pub fn startup_failed_message(error: &str, log_file: Option<&str>) -> (String, S
         None => tr_format!("LightCraft could not open its window: {e}", e = error),
     };
     (tr("LightCraft could not start").to_string(), text)
+}
+
+/// Whether sentence case may upper-case `c`. Georgian has no case: upper-casing Mkhedruli would
+/// turn it into Mtavruli, a different (all-caps) script, so Georgian letters stay as written.
+pub fn capitalizes(c: char) -> bool {
+    !matches!(c, '\u{10A0}'..='\u{10FF}' | '\u{1C90}'..='\u{1CBF}' | '\u{2D00}'..='\u{2D2F}')
+}
+
+/// `text` with its first letter upper-cased ("its input" → "Its input"), unless [`capitalizes`]
+/// says that letter has no capital to take.
+pub fn upper_first(text: &str) -> String {
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) if capitalizes(first) => first.to_uppercase().chain(chars).collect(),
+        _ => text.to_string(),
+    }
 }
 
 pub fn builtin_label(source: &str, builtin: bool) -> &str {
@@ -431,6 +448,15 @@ pub fn rules_label(rules: &lightcraft_catalog::RuleSet, catalog: &lightcraft_cat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sentence_case_keeps_georgian_lowercase() {
+        assert_eq!(upper_first("its input is not an image"), "Its input is not an image");
+        assert_eq!(upper_first("ფაილი ვერ იკითხება"), "ფაილი ვერ იკითხება");
+        assert_eq!(upper_first("ᲥᲐᲠᲗᲣᲚᲘ"), "ᲥᲐᲠᲗᲣᲚᲘ");
+        assert_eq!(upper_first(""), "");
+        assert!(capitalizes('a') && capitalizes('ж') && !capitalizes('ქ') && !capitalizes('Ⴀ') && !capitalizes('ⴀ'));
+    }
 
     #[test]
     fn every_language_has_a_catalog_covering_the_source() {
@@ -667,6 +693,7 @@ mod tests {
             ("app.language.german", Locale::De),
             ("app.language.russian", Locale::Ru),
             ("app.language.ukrainian", Locale::Uk),
+            ("app.language.georgian", Locale::Ka),
         ];
         // One command per language, and every command reachable from the menu table.
         assert_eq!(commands.len(), Locale::ALL.len());
@@ -889,6 +916,31 @@ mod tests {
             let Outcome::Done(reply) = crate::control::handle(&mut app, &ctx, &request) else { panic!("expected reply") };
             assert_eq!(reply["ok"], true);
             assert_eq!(language(), Locale::Uk);
+        }
+        set_language(Locale::En);
+    }
+
+    #[test]
+    fn georgian_switches_formats_counts_and_dates() {
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.run("app.language.georgian", serde_json::json!({})).unwrap();
+        assert_eq!(app.ui.language, Locale::Ka);
+        assert_eq!(crate::menubar::checked(&app, "app.language.georgian"), Some(true));
+        assert_eq!(tr("Light"), "სინათლე");
+        assert_eq!(date_group_label("2026-09-20", false), "კვირა, 20.09.2026");
+        assert_eq!(date_group_label("2026-09", false), "09.2026");
+        for n in [0, 1, 2, 5, 21] {
+            assert_eq!(tr_format!("Imported {} photo{}", n, if n == 1 { "" } else { "s" }), format!("იმპორტირებულია ფოტო: {n}"));
+        }
+        assert_eq!(tr_format!("Added {n} photo{} to “{}”", "s", "Trip", n = 3), "„Trip“-ს დაემატა ფოტო: 3");
+        let saved = serde_json::to_string(&app.ui).unwrap();
+        assert!(saved.contains(r#""language":"ka""#));
+        for code in ["ka", "ka-GE", "ka_GE.UTF-8"] {
+            assert_eq!(Locale::parse_tag(code), Some(Locale::Ka));
+        }
+        // no Mtavruli: Georgian UI text is written in lowercase Mkhedruli
+        for text in Locale::Ka.catalog().values() {
+            assert!(!text.chars().any(|c| ('\u{1C90}'..='\u{1CBF}').contains(&c)), "{text}");
         }
         set_language(Locale::En);
     }
