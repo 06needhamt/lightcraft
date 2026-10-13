@@ -20,6 +20,10 @@
 - Importing a preset zip that unpacks to far more than any preset (a "zip bomb") is refused with a message naming
   the file, instead of asking for gigabytes of memory, which could end LightCraft.
 
+### Reliability
+- A crop of no size (from an agent or a sidecar) no longer gives the Detail view a photo of no size to lay out
+  (its width over its height was 0 / 0, which stopped debug builds); it shows as a single pixel's colour.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
