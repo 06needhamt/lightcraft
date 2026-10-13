@@ -71,9 +71,6 @@ pub fn resizable_side(
 }
 
 /// The HUD toast at the bottom centre of the canvas.
-///
-/// Drawn as widgets rather than a painted galley so the message can be selected and copied: an
-/// error here often carries a path or a command the user wants to paste somewhere else.
 pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     let now = ctx.input(|i| i.time);
     let Some((text, until, label)) = app.ui.toast.clone() else { return };
@@ -84,30 +81,18 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     let Some(canvas) = app.canvas_rect else { return };
     let t = Tokens::get(ctx);
     let fade = ((until - now) / 0.25).clamp(0.0, 1.0) as f32;
-    let (background, foreground) = label.map(crate::theme::label_toast_colors).unwrap_or((egui::Color32::from_black_alpha(200), t.text));
-    let background = background.gamma_multiply(fade);
-    let foreground = foreground.gamma_multiply(fade);
+    let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::new("toast")));
     // long messages (a save warning, the web build's notices) wrap within the canvas
     let wrap = (canvas.width() - 80.0).clamp(200.0, 720.0);
-    egui::Area::new(egui::Id::new("toast"))
-        .order(egui::Order::Foreground)
-        .movable(false)
-        .pivot(Align2::CENTER_CENTER)
-        // the toast takes the pointer (its text can be selected), so it must not sit on buttons: a
-        // slideshow's playback controls and a dialog's buttons are at the bottom, so it goes to the top there
-        .fixed_pos(pos2(
-            canvas.center().x,
-            if app.ui.slideshow.is_some() || app.ui.dialog.is_some() { canvas.top() + 60.0 } else { canvas.bottom() - 60.0 },
-        ))
-        .show(ctx, |ui| {
-            ui.set_max_width(wrap);
-            egui::Frame::NONE.fill(background).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::symmetric(20, 11)).show(
-                ui,
-                |ui| {
-                    ui.add(egui::Label::new(egui::RichText::new(text).font(t.font(14.0)).color(foreground)).wrap());
-                },
-            );
-        });
+    let (background, foreground) = label.map(crate::theme::label_toast_colors).unwrap_or((egui::Color32::from_black_alpha(200), t.text));
+    let foreground = foreground.gamma_multiply(fade);
+    let galley = painter.layout(text, t.font(14.0), foreground, wrap);
+    let size = vec2(galley.size().x + 40.0, (galley.size().y + 22.0).max(40.0));
+    // a slideshow's playback controls sit at the bottom: the toast goes to the top there, clear of them
+    let y = if app.ui.slideshow.is_some() { canvas.top() + 60.0 } else { canvas.bottom() - 60.0 };
+    let r = Rect::from_center_size(pos2(canvas.center().x, y), size);
+    painter.rect_filled(r, 6.0, background.gamma_multiply(fade));
+    painter.galley(r.center() - galley.size() / 2.0, galley, foreground);
     ctx.request_repaint_after(std::time::Duration::from_millis(30));
 }
 

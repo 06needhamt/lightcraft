@@ -303,16 +303,20 @@ fn mcp(args: &[String]) -> Result<(), String> {
     while i < args.len() {
         match args[i].as_str() {
             "--connect" => {
-                let (addr, took) = connect_value(args.get(i + 1).map(String::as_str));
-                connect = Some(addr);
-                if took {
-                    i += 1;
+                // Optional address argument. A bare port (all digits) is taken as a port on the
+                // loopback default — matches the help's `--connect [ADDR]` hint alongside the
+                // `--control 7980` example. A non-numeric, non-`--`-prefixed token (e.g. a
+                // command id like `ui.inspect`) leaves the address at its default so the
+                // command is still consumed next. (#1178)
+                match args.get(i + 1).filter(|a| a.contains(':') || a.chars().all(|c| c.is_ascii_digit())) {
+                    Some(a) => {
+                        connect = Some(if a.contains(':') { a.clone() } else { format!("127.0.0.1:{a}") });
+                        i += 1;
+                    }
+                    None => connect = Some(DEFAULT_ADDR.to_string()),
                 }
             }
-            a if a.starts_with("--connect=") => {
-                let (addr, _) = connect_value(Some(&a["--connect=".len()..]));
-                connect = Some(addr);
-            }
+            a if a.starts_with("--connect=") => connect = Some(a["--connect=".len()..].to_string()),
             "--headless" => connect = None,
             "--demo" => demo = true,
             "--compact" => compact = true,
@@ -525,17 +529,14 @@ fn run(args: &[String]) -> Result<(), String> {
                 i += 1;
                 break;
             }
-            "--connect" => {
-                let (addr, took) = connect_value(args.get(i + 1).map(String::as_str));
-                connect = Some(addr);
-                if took {
+            "--connect" => match args.get(i + 1).filter(|a| !a.contains('=') && (a.contains(':') || a.chars().all(|c| c.is_ascii_digit()))) {
+                Some(a) => {
+                    connect = Some(if a.contains(':') { a.clone() } else { format!("127.0.0.1:{a}") });
                     i += 1;
                 }
-            }
-            a if a.starts_with("--connect=") => {
-                let (addr, _) = connect_value(Some(&a["--connect=".len()..]));
-                connect = Some(addr);
-            }
+                None => connect = Some(DEFAULT_ADDR.to_string()),
+            },
+            a if a.starts_with("--connect=") => connect = Some(a["--connect=".len()..].to_string()),
             "--demo" => demo = true,
             "--library" => library = Some(take_value(args, &mut i, "--library")?.to_string()),
             "--import" => imports.push(take_value(args, &mut i, "--import")?.to_string()),
@@ -630,18 +631,6 @@ fn take_value<'a>(args: &'a [String], i: &mut usize, flag: &str) -> Result<&'a s
 
 /// The port an `--connect` address names, for the recovery hint. The whole address when it has
 /// no port, so a hint is never built from a guess.
-/// `--connect` takes an address, or a bare port (`7980` → `127.0.0.1:7980`). A following
-/// command id is left alone (#1178).
-fn connect_value(next: Option<&str>) -> (String, bool) {
-    match next {
-        Some(a) if !a.starts_with('-') && a.contains(':') && !a.contains('=') => (a.to_string(), true),
-        Some(a) if !a.is_empty() && a.bytes().all(|c| c.is_ascii_digit()) && a.parse::<u16>().ok().is_some_and(|p| p > 0) => {
-            (format!("127.0.0.1:{a}"), true)
-        }
-        _ => (DEFAULT_ADDR.to_string(), false),
-    }
-}
-
 fn connect_port(addr: &str) -> &str {
     addr.rsplit_once(':').map_or(addr, |(_, port)| port)
 }
@@ -978,20 +967,6 @@ fn denoise_serve(args: &[String]) -> Result<(), String> {
     }
     let opts = ServerOptions { token, max_connections, ..Default::default() };
     serve(listener, s.model, s.tile, s.device, s.run, opts, std::sync::Arc::new(|m: &str| eprintln!("lightcraft-cli denoise-serve: {m}")))
-}
-
-#[cfg(test)]
-mod connect_tests {
-    use super::connect_value;
-
-    #[test]
-    fn a_bare_port_is_loopback_and_a_command_is_not_consumed() {
-        assert_eq!(connect_value(Some("7980")), ("127.0.0.1:7980".into(), true));
-        assert_eq!(connect_value(Some("127.0.0.1:7980")), ("127.0.0.1:7980".into(), true));
-        assert_eq!(connect_value(Some("photo.rate")), ("127.0.0.1:7980".into(), false));
-        assert_eq!(connect_value(Some("0")), ("127.0.0.1:7980".into(), false));
-        assert_eq!(connect_value(None), ("127.0.0.1:7980".into(), false));
-    }
 }
 
 #[cfg(not(feature = "denoise"))]
