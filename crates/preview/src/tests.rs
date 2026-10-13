@@ -391,4 +391,78 @@ fn pool_wait_keeps_the_finished_job_for_try_recv() {
     assert!(p.wait(std::time::Duration::ZERO), "kept until taken");
     assert_eq!(p.try_recv().map(|d| d.result), Some(7));
     assert!(p.try_recv().is_none());
+/// Wait up to `secs` for `f` to hold.
+fn eventually(secs: u64, mut f: impl FnMut() -> bool) -> bool {
+    let t0 = std::time::Instant::now();
+    while t0.elapsed() < std::time::Duration::from_secs(secs) {
+        if f() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    false
+}
+
+/// A slider drag submits for a view faster than its renders finish. A newer job for a slot used
+/// to start beside the running one on another worker: one view's renders piled up on the GPU and
+/// most were thrown away. Now a slot runs one job at a time: the newer one waits (replacing an
+/// older one still queued), other slots keep going, and it starts when the slot's job ends.
+#[test]
+fn a_slot_runs_one_job_at_a_time() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let mut p: JobPool<u8, u32> = JobPool::new(4);
+    let (release, released) = std::sync::mpsc::channel::<()>();
+    let (started, has_started) = std::sync::mpsc::channel();
+    let running = Arc::new(AtomicUsize::new(0));
+    let most = Arc::new(AtomicUsize::new(0));
+    let job = |n: u32, wait: Option<std::sync::mpsc::Receiver<()>>| -> crate::pool::Job<u32> {
+        let (running, most, started) = (running.clone(), most.clone(), started.clone());
+        Box::new(move || {
+            let now = running.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(now, Ordering::SeqCst);
+            let _ = started.send(n);
+            if let Some(w) = wait {
+                let _ = w.recv_timeout(std::time::Duration::from_secs(30));
+            }
+            running.fetch_sub(1, Ordering::SeqCst);
+            n
+        })
+    };
+    p.submit(1, 1, 9, job(1, Some(released)));
+    assert_eq!(has_started.recv().unwrap(), 1);
+    // two newer requests for the busy slot: the second replaces the first, neither starts
+    p.submit(1, 2, 9, job(2, None));
+    p.submit(1, 3, 9, job(3, None));
+    // another slot is not held up
+    p.submit(2, 9, 1, Box::new(|| 9));
+    let mut done = Vec::new();
+    assert!(eventually(10, || {
+        done.extend(std::iter::from_fn(|| p.try_recv()).map(|d| d.result));
+        done.contains(&9)
+    }));
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    assert!(has_started.try_recv().is_err(), "a second job of slot 1 started beside the first");
+    assert!(p.is_queued(1));
+    drop(release);
+    assert!(eventually(10, || {
+        done.extend(std::iter::from_fn(|| p.try_recv()).map(|d| d.result));
+        done.contains(&3)
+    }));
+    assert!(!done.contains(&2), "the replaced job never runs");
+    assert_eq!(most.load(Ordering::SeqCst), 1, "slot 1 ran two jobs at once");
+}
+
+/// A job that panics still frees its slot: the slot's next job runs (on another worker).
+#[test]
+fn a_panicking_job_frees_its_slot() {
+    let mut p: JobPool<u8, u32> = JobPool::new(2);
+    p.submit(1, 1, 9, Box::new(|| panic!("simulated render panic")));
+    assert!(eventually(10, || !p.is_queued(1) && p.live_workers() == 1));
+    p.submit(1, 2, 9, Box::new(|| 2));
+    let mut got = None;
+    assert!(eventually(10, || {
+        got = got.or_else(|| p.try_recv().map(|d| d.result));
+        got.is_some()
+    }));
+    assert_eq!(got, Some(2));
 }
