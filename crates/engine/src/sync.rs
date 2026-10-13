@@ -46,7 +46,7 @@ use serde::Serialize;
 
 use crate::import::{ImportCandidate, ImportMode, ImportOptions, ScanInput, ScanProgress};
 use crate::media::ProbeInfo;
-use crate::sidecar::SidecarNaming;
+use crate::sidecar::SidecarLookup;
 use crate::{EngineError, Result, Session};
 
 /// The largest XMP sidecar read when looking for metadata updates; a bigger one is skipped.
@@ -75,7 +75,7 @@ pub struct SyncInput {
     folder: String,
     scan: ScanInput,
     /// The library's photos in the folder, each with how its sidecar is named.
-    photos: Vec<(Arc<Photo>, SidecarNaming)>,
+    photos: Vec<(Arc<Photo>, SidecarLookup)>,
     /// For the colour label names a sidecar may use.
     labels: Catalog,
 }
@@ -176,7 +176,7 @@ impl SyncInput {
         if !disk && (lightcraft_catalog::folders::is_disk_root(path) || crate::cmd::library::covers_other_disks(s, path, &ids)) {
             return Err(invalid(format!("{path} is a whole disk or holds disks: pass `disk: true` to synchronize it")));
         }
-        let namings = s.sidecar_namings(&ids);
+        let namings = s.sidecar_lookups(&ids);
         let photos = ids.iter().zip(namings).filter_map(|(id, naming)| s.catalog.photo(*id).map(|p| (Arc::clone(p), naming))).collect();
         let (scan, _) = ScanInput::new(s, &[path.to_string()]);
         Ok(SyncInput { folder: path.to_string(), scan, photos, labels: s.catalog.clone() })
@@ -327,7 +327,7 @@ enum Check {
     News,
 }
 
-fn check_photo(p: &Photo, naming: SidecarNaming, labels: &Catalog) -> Check {
+fn check_photo(p: &Photo, naming: SidecarLookup, labels: &Catalog) -> Check {
     let Some(file) = crate::cmd::missing::checked_path(p) else { return Check::Nothing };
     if !Path::new(file).exists() {
         Check::Missing
@@ -340,11 +340,11 @@ fn check_photo(p: &Photo, naming: SidecarNaming, labels: &Catalog) -> Check {
 
 /// [`check_photo`] for each photo, in order, on several threads (each file is a wait on the
 /// disk, not work for the CPU). Photos not reached before a cancel count as nothing found.
-fn check_photos(photos: &[(Arc<Photo>, SidecarNaming)], labels: &Catalog, progress: &SyncProgress) -> Vec<Check> {
+fn check_photos(photos: &[(Arc<Photo>, SidecarLookup)], labels: &Catalog, progress: &SyncProgress) -> Vec<Check> {
     use std::sync::atomic::Ordering::Relaxed;
     progress.to_check.store(photos.len(), Relaxed);
     let cancel = &progress.files.cancel;
-    let check = |p: &Photo, naming: SidecarNaming| {
+    let check = |p: &Photo, naming: SidecarLookup| {
         let c = check_photo(p, naming, labels);
         progress.checked.fetch_add(1, Relaxed);
         c
@@ -413,9 +413,9 @@ impl Session {
 
 /// Whether `p`'s XMP sidecar file was saved after the library last had its say about the photo
 /// (imported, or edited here) and says something the library doesn't.
-fn sidecar_has_news(labels: &Catalog, p: &Photo, naming: SidecarNaming) -> bool {
+fn sidecar_has_news(labels: &Catalog, p: &Photo, naming: SidecarLookup) -> bool {
     let Source::File { path } = &p.source else { return false };
-    let Some(file) = crate::sidecar::find_sidecar(path, naming) else { return false };
+    let Some(file) = crate::sidecar::find_sidecar_in(path, naming) else { return false };
     let Ok(meta) = std::fs::metadata(&file) else { return false };
     if meta.len() > MAX_SIDECAR_BYTES {
         return false;
@@ -464,7 +464,7 @@ pub struct SyncWork {
     moved: Vec<FolderMoved>,
     missing: Vec<FolderPhoto>,
     /// (photo, its file, how its sidecar is named)
-    sidecars: Vec<(PhotoId, String, SidecarNaming, crate::crs::Target)>,
+    sidecars: Vec<(PhotoId, String, SidecarLookup, crate::crs::Target)>,
 }
 
 /// The catalog half of a synchronize (see [`SyncJob`]).
@@ -512,7 +512,7 @@ impl SyncJob {
         };
         let now = import.as_ref().map_or_else(|| (s.clock)(), |(j, _)| j.now().to_string());
         let sidecars = if choice.read_metadata {
-            let namings = s.sidecar_namings(&metadata.iter().map(|m| PhotoId(m.id)).collect::<Vec<_>>());
+            let namings = s.sidecar_lookups(&metadata.iter().map(|m| PhotoId(m.id)).collect::<Vec<_>>());
             metadata
                 .into_iter()
                 .zip(namings)
@@ -604,8 +604,8 @@ impl SyncWork {
 }
 
 /// Read and parse photo file `path`'s XMP sidecar file.
-fn read_sidecar(path: &str, naming: SidecarNaming, target: crate::crs::Target) -> std::result::Result<crate::sidecar::SidecarData, String> {
-    let file = crate::sidecar::find_sidecar(path, naming).ok_or_else(|| "no XMP sidecar".to_string())?;
+fn read_sidecar(path: &str, naming: SidecarLookup, target: crate::crs::Target) -> std::result::Result<crate::sidecar::SidecarData, String> {
+    let file = crate::sidecar::find_sidecar_in(path, naming).ok_or_else(|| "no XMP sidecar".to_string())?;
     let len = std::fs::metadata(&file).map_err(|e| format!("{}: {e}", file.display()))?.len();
     if len > MAX_SIDECAR_BYTES {
         return Err(format!("{}: too large for an XMP sidecar", file.display()));

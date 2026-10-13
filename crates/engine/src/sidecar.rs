@@ -62,12 +62,27 @@ pub fn sidecar_path(original: &str, naming: SidecarNaming) -> PathBuf {
     }
 }
 
+/// Where to look for a catalogued photo's sidecar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SidecarLookup {
+    pub naming: SidecarNaming,
+    /// Whether a shared stem sidecar (`IMG_0001.xmp`) may be read for this photo. False when
+    /// another catalogued file with the same stem owns it (see [`Session::sidecar_naming`]).
+    pub stem_ok: bool,
+}
+
 /// An existing sidecar for `original`: the preferred naming first, then the other one (also
 /// accepting an upper-case `.XMP`).
 pub fn find_sidecar(original: &str, naming: SidecarNaming) -> Option<PathBuf> {
-    let other = if naming == SidecarNaming::Stem { SidecarNaming::Full } else { SidecarNaming::Stem };
-    [naming, other]
+    find_sidecar_in(original, SidecarLookup { naming, stem_ok: true })
+}
+
+/// [`find_sidecar`] for a catalogued photo: never a stem sidecar that a sibling owns.
+pub fn find_sidecar_in(original: &str, lookup: SidecarLookup) -> Option<PathBuf> {
+    let other = if lookup.naming == SidecarNaming::Stem { SidecarNaming::Full } else { SidecarNaming::Stem };
+    [lookup.naming, other]
         .into_iter()
+        .filter(|n| *n != SidecarNaming::Stem || lookup.stem_ok)
         .flat_map(|n| {
             let p = sidecar_path(original, n);
             let upper = p.with_extension("XMP");
@@ -458,8 +473,8 @@ fn file_path(p: &Photo) -> Option<&str> {
 }
 
 /// The XMP packet that describes a photo on disk: its sidecar, else (raw/DNG) the embedded XMP.
-pub fn read_packet(original: &str, kind: MediaKind, naming: SidecarNaming) -> Option<(String, PathBuf)> {
-    if let Some(sc) = find_sidecar(original, naming)
+pub fn read_packet(original: &str, kind: MediaKind, lookup: SidecarLookup) -> Option<(String, PathBuf)> {
+    if let Some(sc) = find_sidecar_in(original, lookup)
         && let Ok(s) = std::fs::read_to_string(&sc)
     {
         return Some((s, sc));
@@ -512,6 +527,12 @@ impl StemOwners {
             _ => naming,
         }
     }
+
+    /// [`StemOwners::naming`], plus whether the stem sidecar may be read for `p`.
+    fn lookup(&self, p: &Photo, naming: SidecarNaming) -> SidecarLookup {
+        let stem_ok = file_path(p).is_none_or(|path| self.0.get(&stem_key(path)).is_none_or(|owner| *owner == p.id));
+        SidecarLookup { naming: self.naming(p, naming), stem_ok }
+    }
 }
 
 impl Session {
@@ -529,6 +550,25 @@ impl Session {
                 _ => self.xmp.naming,
             })
             .collect()
+    }
+
+    /// [`Session::sidecar_naming`] and the stem-sidecar ownership, for reading `ids`' sidecars.
+    pub fn sidecar_lookups(&self, ids: &[PhotoId]) -> Vec<SidecarLookup> {
+        let owners = StemOwners::of(&self.catalog);
+        ids.iter()
+            .map(|id| match self.catalog.photo(*id) {
+                Some(p) => owners.lookup(p, self.xmp.naming),
+                None => SidecarLookup { naming: self.xmp.naming, stem_ok: true },
+            })
+            .collect()
+    }
+
+    pub fn sidecar_lookup(&self, id: PhotoId) -> SidecarLookup {
+        let owners = StemOwners::of(&self.catalog);
+        match self.catalog.photo(id) {
+            Some(p) => owners.lookup(p, self.xmp.naming),
+            None => SidecarLookup { naming: self.xmp.naming, stem_ok: true },
+        }
     }
 
     pub fn sidecar_naming(&self, id: PhotoId) -> SidecarNaming {
@@ -590,7 +630,7 @@ impl Session {
     pub fn read_sidecar_op_with_warnings(&self, id: PhotoId) -> Result<Option<(Op, PathBuf, Vec<crate::import::ImportWarning>)>> {
         let p = self.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?;
         let Some(orig) = file_path(p) else { return Ok(None) };
-        let Some((packet, from)) = read_packet(orig, p.kind, self.sidecar_naming(id)) else { return Ok(None) };
+        let Some((packet, from)) = read_packet(orig, p.kind, self.sidecar_lookup(id)) else { return Ok(None) };
         let sc = parse_sidecar(&packet, crate::crs::Target::for_photo(p)).map_err(|e| EngineError::Other(format!("{}: {e}", from.display())))?;
         let mut warnings = sc.warnings.clone();
         for warning in &mut warnings {
