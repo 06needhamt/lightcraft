@@ -93,7 +93,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, name: &str) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(PAD - 4.0);
-        let back = ui.button("‹ People");
+        let back = crate::widgets::arrow_button(ui, crate::i18n::tr("People"), crate::icons::Icon::ChevronLeft, true);
         register(ui.ctx(), "person:back", back.rect);
         if back.clicked() {
             let _ = app.run("view.people", json!({}));

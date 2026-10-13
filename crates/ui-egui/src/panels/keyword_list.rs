@@ -8,6 +8,7 @@ use lightcraft_catalog::{Catalog, PhotoId};
 use serde_json::json;
 
 use crate::LightcraftApp;
+use crate::icons::{Icon, paint};
 use crate::state::Dialog;
 use crate::theme::Tokens;
 use crate::widgets::register;
@@ -178,17 +179,12 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     // the triangle
     if r.has_children {
         let c = pos2(x + 6.0, cy);
-        let tri = Rect::from_center_size(c, vec2(14.0, 14.0));
+        let tri = Rect::from_center_size(c, vec2(16.0, 16.0));
         let tr = ui.interact(tri, egui::Id::new(("keyword-list-tri", r.path.to_lowercase())), Sense::click());
         register(ui.ctx(), format!("keywordRowToggle:{}", r.path), tri);
-        let pts = if r.open {
-            vec![c + vec2(-4.0, -2.0), c + vec2(4.0, -2.0), c + vec2(0.0, 3.0)]
-        } else {
-            vec![c + vec2(-2.0, -4.0), c + vec2(3.0, 0.0), c + vec2(-2.0, 4.0)]
-        };
         // while a filter opens the levels the triangle does nothing: it doesn't light up either
         let lit = tr.hovered() && can_fold;
-        ui.painter().add(egui::Shape::convex_polygon(pts, if lit { t.text } else { t.text_dim }, Stroke::NONE));
+        paint(ui.painter(), tri, if r.open { Icon::ChevronDown } else { Icon::ChevronRight }, if lit { t.text } else { t.text_dim });
         if tr.clicked() && can_fold {
             let key = r.path.to_lowercase();
             if r.open {
@@ -243,7 +239,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     let ar = ui.interact(arrow, egui::Id::new(("keyword-list-show", r.path.to_lowercase())), Sense::click());
     register(ui.ctx(), format!("keywordShow:{}", r.path), arrow);
     if resp.hovered() || ar.hovered() {
-        ui.painter().text(arrow.center(), Align2::CENTER_CENTER, "→", t.font(13.0), if ar.hovered() { t.text } else { t.text_dim });
+        paint(ui.painter(), arrow, Icon::ChevronRight, if ar.hovered() { t.text } else { t.text_dim });
     }
     if ar.on_hover_text(crate::i18n::tr("Show Photos with Keyword")).clicked() {
         super::left::browse_all_photos(app, true);

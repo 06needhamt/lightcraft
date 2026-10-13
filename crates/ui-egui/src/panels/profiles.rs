@@ -82,7 +82,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         register(ui.ctx(), if imported { format!("profileGroup:lut:{title}") } else { format!("profileGroup:{title}") }, r);
         paint(
             ui.painter(),
-            Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(12.0, 12.0)),
+            Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(16.0, 16.0)),
             if open { Icon::ChevronDown } else { Icon::ChevronRight },
             t.text_label,
         );

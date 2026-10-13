@@ -62,9 +62,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                                 }
                             }
                             ui.separator();
-                            ui.menu_button(crate::i18n::tr("Sort"), |ui| sort_menu(app, ui));
+                            crate::widgets::menu_button(ui, crate::i18n::tr("Sort"), |ui| sort_menu(app, ui));
                             if compact_zoom && matches!(app.ui.view, ViewMode::Detail | ViewMode::Compare) {
-                                ui.menu_button(crate::i18n::tr_format!("Click {}:1", app.ui.click_zoom / 100), |ui| click_zoom_menu(app, ui));
+                                crate::widgets::menu_button(ui, crate::i18n::tr_format!("Click {}:1", app.ui.click_zoom / 100), |ui| {
+                                    click_zoom_menu(app, ui)
+                                });
                             }
                         });
                     }

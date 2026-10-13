@@ -558,7 +558,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             egui::Grid::new("rename-preview").num_columns(3).spacing([8.0, 2.0]).show(ui, |ui| {
                                 for pl in rows {
                                     ui.label(egui::RichText::new(&pl.from).color(t.text_dim));
-                                    ui.label(egui::RichText::new("→").color(t.text_dim));
+                                    let (arrow, _) = ui.allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
+                                    crate::icons::paint(ui.painter(), arrow, crate::icons::Icon::ChevronRight, t.text_dim);
                                     ui.label(egui::RichText::new(&pl.to).color(t.text));
                                     ui.end_row();
                                 }
@@ -646,7 +647,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     let n = app.session.targets(&json!({})).len();
                     ui.label(format!("{n} selected photos · {} pages", n.div_ceil(options.columns * options.rows)));
                     field(ui, "Paper", |ui| {
-                        egui::ComboBox::from_id_salt("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
+                        crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
                             ui.selectable_value(&mut options.paper, "a4".into(), "A4");
                             ui.selectable_value(&mut options.paper, "letter".into(), "Letter");
                         });
@@ -665,7 +666,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     // Preset: load a built-in or saved set of options into the dialog
                     field(ui, "Preset", |ui| {
                         let mut chosen = None;
-                        let c = egui::ComboBox::from_id_salt("exportPreset").width(220.0).selected_text(crate::i18n::tr("Choose…")).show_ui(ui, |ui| {
+                        let c = crate::widgets::combo_box("exportPreset").width(220.0).selected_text(crate::i18n::tr("Choose…")).show_ui(ui, |ui| {
                             let mut builtin = true;
                             for (p, b) in app.session.all_export_presets() {
                                 if builtin && !b {
@@ -1821,7 +1822,7 @@ fn export_size(ui: &mut egui::Ui, full: &mut bool, r: &mut lightcraft_engine::ex
         field(ui, "Resize to", |ui| {
             let cur = MODES.iter().find(|m| m.0 == r.mode).map_or("Long Edge", |m| m.1);
             let before = r.mode;
-            let c = egui::ComboBox::from_id_salt("exportResizeMode").width(150.0).selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
+            let c = crate::widgets::combo_box("exportResizeMode").width(150.0).selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
                 for (m, l) in MODES {
                     ui.selectable_value(&mut r.mode, m, crate::i18n::tr(l));
                 }

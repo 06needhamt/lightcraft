@@ -659,14 +659,14 @@ fn component_row_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, mask: u32, k: 
     run(ui, "Invert", json!({"action": "invert"}));
     run(ui, &crate::i18n::tr_format!("Duplicate \"{label}\"", label = label), json!({"action": "duplicate"}));
     if k > 0 {
-        ui.menu_button(crate::i18n::tr("Mode"), |ui| {
+        crate::widgets::menu_button(ui, crate::i18n::tr("Mode"), |ui| {
             for (op, text) in [("add", "Add"), ("subtract", "Subtract"), ("intersect", "Intersect")] {
                 run(ui, text, json!({"action": "op", "op": op}));
             }
         });
     }
-    ui.menu_button(crate::i18n::tr("Intersect with"), |ui| component_menu(app, ui, "intersect"));
-    ui.menu_button(crate::i18n::tr("Subtract"), |ui| component_menu(app, ui, "subtract"));
+    crate::widgets::menu_button(ui, crate::i18n::tr("Intersect with"), |ui| component_menu(app, ui, "intersect"));
+    crate::widgets::menu_button(ui, crate::i18n::tr("Subtract"), |ui| component_menu(app, ui, "subtract"));
     ui.separator();
     if ui.button(crate::i18n::tr("Rename…")).clicked() {
         app.ui.renaming_component = Some((mask, k, label.to_string()));

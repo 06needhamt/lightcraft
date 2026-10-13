@@ -455,7 +455,7 @@ fn profile_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
         ui.separator();
     }
     for g in profile_groups() {
-        let r = ui.menu_button(crate::i18n::tr(g), |ui| {
+        let r = crate::widgets::menu_button(ui, crate::i18n::tr(g), |ui| {
             ui.set_min_width(170.0);
             for p in PROFILES.iter().filter(|p| p.group == g) {
                 item(ui, "group", p.id, p.name, &mut pick);
@@ -469,7 +469,7 @@ fn profile_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings)
     lut_groups.dedup();
     for g in &lut_groups {
         // a folder's name as it is, and its own widget id even when it matches a built-in group
-        let r = ui.menu_button(g.as_str(), |ui| {
+        let r = crate::widgets::menu_button(ui, g.as_str(), |ui| {
             ui.set_min_width(170.0);
             for p in app.session.lut_profiles.iter().filter(|p| &p.group == g) {
                 item(ui, "group", &p.id, &p.name, &mut pick);
@@ -620,6 +620,7 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             "Left: the standard (SDR) range up to SDR white. Right: the HDR range, one band per stop above SDR white (the orange line: the HDR headroom). With Visualize HDR range on, the bands take its colours.",
         ));
     }
+    let clipping = hist.as_ref().map(|h| h.clipping());
     if let Some(h) = hist {
         let smooth = |v: &[u32]| -> Vec<f32> {
             (0..256)
@@ -678,15 +679,58 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 p.add(egui::Shape::line(pts, Stroke::new(1.5, *c)));
             }
         }
-        let (lo, hi) = h.clipping();
-        for (on, x, active) in [(lo > 0.003, plot.left() + 12.0, app.ui.show_clipping), (hi > 0.003, plot.right() - 12.0, app.ui.show_clipping)] {
-            let tri = Rect::from_center_size(pos2(x, plot.top() + 10.0), vec2(14.0, 12.0));
-            p.rect_filled(tri, 2.0, if active { t.hover } else { Color32::from_gray(60) });
-            paint(p, tri.shrink(2.0), Icon::ChevronDown, if on { Color32::WHITE } else { Color32::from_gray(130) });
-        }
     }
-    if resp.clicked() {
-        app.ui.show_clipping = !app.ui.show_clipping;
+    let mut clicked = resp.clicked();
+    for (name, x, label, clipped) in [
+        ("shadows", plot.left() + 20.0, "Shadow clipping", clipping.map(|(lo, _)| lo > 0.003)),
+        ("highlights", plot.right() - 20.0, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
+    ] {
+        let rect = Rect::from_center_size(pos2(x, plot.top() + 14.0), vec2(24.0, 22.0));
+        let response = ui.interact(rect, ui.id().with(("histogram-clipping", name)), Sense::click());
+        register(ui.ctx(), format!("histogram:{name}"), rect);
+        response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), app.ui.show_clipping, crate::i18n::tr(label)));
+        clicked |= response.clicked();
+        let active = app.ui.show_clipping;
+        // Keep the hit target comfortable, with a smaller box and clear space to the plot edges.
+        let box_rect = rect.shrink2(vec2(2.0, 2.0));
+        p.rect_filled(
+            box_rect,
+            3.0,
+            if active {
+                t.pressed
+            } else if response.hovered() {
+                t.hover
+            } else {
+                Color32::from_gray(60)
+            },
+        );
+        if active {
+            p.rect_stroke(box_rect, 3.0, Stroke::new(1.0, t.text), egui::StrokeKind::Inside);
+        }
+        paint(
+            p,
+            Rect::from_center_size(rect.center(), vec2(16.0, 16.0)),
+            Icon::ChevronDown,
+            if clipped == Some(true) || active { t.text } else { t.text_dim },
+        );
+        let status = match clipped {
+            Some(true) => "Clipping detected in this preview.",
+            Some(false) => "No clipping detected in this preview.",
+            None => "Histogram not yet available.",
+        };
+        response.on_hover_text(format!(
+            "{}\n{}\n{}",
+            crate::i18n::tr(label),
+            crate::i18n::tr(if active {
+                "Click to hide clipping warnings for shadows and highlights."
+            } else {
+                "Click to show clipping warnings for shadows and highlights."
+            }),
+            crate::i18n::tr(status)
+        ));
+    }
+    if clicked {
+        let _ = app.run("view.clipping", json!({}));
     }
     // EXIF strip
     if let Some(ph) = app.session.catalog.photo(id) {
@@ -741,7 +785,7 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             let device = app.ui.proof_profile.as_ref().map(|(_, n)| n.clone());
             let shown = device.clone().unwrap_or_else(|| cur.label().to_string());
             let mut pick = false;
-            egui::ComboBox::from_id_salt("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
+            crate::widgets::combo_box("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
                 for s in OutputSpace::ALL {
                     if ui.selectable_label(device.is_none() && cur == s, s.label()).clicked() {
                         let _ = app.run("view.softProof", json!({"space": s}));
@@ -1666,8 +1710,21 @@ fn quick_develop(app: &mut LightcraftApp, ui: &mut egui::Ui, n: usize) {
         egui::Grid::new("quick-develop").num_columns(5).spacing([4.0, 3.0]).show(ui, |ui| {
             for (label, ctl, small, big) in rows {
                 ui.label(egui::RichText::new(crate::i18n::tr(label)).size(11.5).color(t.text_dim));
-                for (txt, d) in [("◀◀", -big), ("◀", -small), ("▶", small), ("▶▶", big)] {
-                    let r = ui.add(egui::Button::new(egui::RichText::new(txt).size(10.0)).min_size(egui::vec2(28.0, 18.0)));
+                // Keep the existing automation ids while drawing all step arrows as vectors.
+                for (txt, icon, d) in [
+                    ("◀◀", Icon::ChevronDoubleLeft, -big),
+                    ("◀", Icon::ChevronLeft, -small),
+                    ("▶", Icon::ChevronRight, small),
+                    ("▶▶", Icon::ChevronDoubleRight, big),
+                ] {
+                    let r = crate::widgets::arrow_button(ui, "", icon, false);
+                    r.widget_info(|| {
+                        egui::WidgetInfo::labeled(
+                            egui::WidgetType::Button,
+                            ui.is_enabled(),
+                            crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label)),
+                        )
+                    });
                     crate::widgets::register(ui.ctx(), format!("button:quick-{ctl}-{txt}"), r.rect);
                     if r.on_hover_text(crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label)))
                         .clicked()

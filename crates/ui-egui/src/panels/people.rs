@@ -69,10 +69,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ui.painter().text(pos2(head.left() + PAD, head.center().y), Align2::LEFT_CENTER, crate::i18n::tr("Named People"), t.semibold(15.0), t.text);
     // the person page last left (a face opened from it, or its back button): one click returns to it
     if let Some(last) = app.ui.last_person.clone().filter(|n| people.iter().any(|p| &p.name == n)) {
-        let label = fit(ui.painter(), &format!("{last} ›"), t.font(13.0), 240.0);
-        let width = ui.painter().layout_no_wrap(label.clone(), t.font(13.0), Color32::WHITE).size().x + 24.0;
+        let label = fit(ui.painter(), &last, t.font(13.0), 224.0);
+        let width = ui.painter().layout_no_wrap(label.clone(), t.font(13.0), Color32::WHITE).size().x + 44.0;
         let r = Rect::from_min_size(pos2(title.right() + 14.0, head.center().y - 12.0), vec2(width, 24.0));
-        let b = ui.put(r, egui::Button::new(RichText::new(label).font(t.font(13.0))).wrap_mode(egui::TextWrapMode::Extend));
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r));
+        let b = crate::widgets::arrow_button(&mut child, RichText::new(label).font(t.font(13.0)), crate::icons::Icon::ChevronRight, false);
         register(ui.ctx(), "people:last", b.rect);
         if b.on_hover_text(crate::i18n::tr("Back to this person")).clicked() {
             let _ = app.run("view.person", json!({"name": last}));

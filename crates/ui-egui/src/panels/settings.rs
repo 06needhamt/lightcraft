@@ -206,7 +206,7 @@ fn preset_combo(app: &LightcraftApp, ui: &mut egui::Ui, id: &str, current: Optio
     };
     let text = current.map(name).unwrap_or_else(|| crate::i18n::tr(none_label).to_string());
     let mut out = None;
-    let r = egui::ComboBox::from_id_salt(id).width(240.0).selected_text(text).show_ui(ui, |ui| {
+    let r = crate::widgets::combo_box(id).width(240.0).selected_text(text).show_ui(ui, |ui| {
         if ui.selectable_label(current.is_none(), crate::i18n::tr(none_label)).clicked() {
             out = Some(None);
         }
@@ -276,7 +276,7 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                             .unwrap_or_else(|| pid.to_string()),
                     };
                     let id = format!("settingsCamera-{i}");
-                    let r = egui::ComboBox::from_id_salt(&id).width(240.0).selected_text(label).show_ui(ui, |ui| {
+                    let r = crate::widgets::combo_box(&id).width(240.0).selected_text(label).show_ui(ui, |ui| {
                         if ui.selectable_label(current == Some(RAW_DEFAULT), crate::i18n::tr("Same as raw default")).clicked() {
                             pick = Some(json!({"camera": cam, "remove": true}));
                         }
@@ -325,7 +325,7 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         row(ui, t, crate::i18n::tr("Metadata preset"), |ui| {
             let cur = d.metadata_preset.clone();
             let mut pick = None;
-            let r = egui::ComboBox::from_id_salt("settingsMetaPreset")
+            let r = crate::widgets::combo_box("settingsMetaPreset")
                 .width(240.0)
                 .selected_text(cur.clone().unwrap_or_else(|| crate::i18n::tr("None").into()))
                 .show_ui(ui, |ui| {

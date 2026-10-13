@@ -800,7 +800,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         preview_only_pill(ui, canvas, why);
     }
     resp.context_menu(|ui| {
-        ui.menu_button(crate::i18n::tr("Zoom"), |ui| {
+        crate::widgets::menu_button(ui, crate::i18n::tr("Zoom"), |ui| {
             for (label, cmd) in [("Fit", "view.zoomFit"), ("100%", "view.zoom100"), ("Zoom In", "view.zoomIn"), ("Zoom Out", "view.zoomOut")] {
                 if ui.button(crate::i18n::tr(label)).clicked() {
                     let _ = app.run(cmd, json!({}));
