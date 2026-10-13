@@ -1386,6 +1386,8 @@ impl LightcraftApp {
     fn end_frame(&mut self, ctx: &egui::Context, t0: f64) {
         if self.ui.frame_rate {
             frame_rate::show(ctx, self);
+        } else {
+            frame_rate::forget(ctx);
         }
         ctx.output(|o| {
             for c in &o.commands {
