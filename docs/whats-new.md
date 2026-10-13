@@ -2,6 +2,10 @@
 
 ## 2026-10-13
 
+### Lightroom catalog import
+- A Lightroom Classic catalog whose changes are all still in its `.lrcat-wal` file (a new catalog Lightroom has
+  open and hasn't written back yet) imports instead of failing with "unsupported SQLite schema format".
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
