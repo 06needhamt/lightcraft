@@ -46,7 +46,7 @@ Hours are calibrated on this repo's PR history; see
 |---|---:|---:|---:|---|
 | Features | ~61% | ~77% (checklist 81.1%) | 600–1,100 h | [target-app-parity](docs/target-app-parity.md#features) |
 | ↳ RAW cameras, colour, lens profiles | ~60% | 81% of 1,446 Adobe models decode, 18% verified | 255–480 h | [raw-parity](docs/raw-parity.md) |
-| UI/UX fidelity | ~70% | ~85% | 40–70 h | [ui-parity](docs/ui-parity.md) |
+| UI/UX fidelity | ~70% | ~85% | 34–58 h | [ui-parity](docs/ui-parity.md) |
 | File formats (non-raw) | ~70% | ~85% | 30–55 h | [file-format-parity](docs/file-format-parity.md) |
 | Hardware | ~40% | ~50% | 40–80 h | [hardware-parity](docs/hardware-parity.md) |
 | Localization | ~52% of the 12 key languages | 7 of 12 present | 130–210 h (+145–255 h new scripts) | [localization-parity](docs/localization-parity.md) |
@@ -114,10 +114,12 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 ## Progress log
 
+- 2026-10-11: Leica Q3 verified by a recorded check of 38 private DNGs (all decode and develop at full
+  size; mean ΔE to the camera JPEG 6.3–13.9). 236 models verified; headline numbers unchanged.
 - 2026-10-12: 22 more Canon CR3 bodies verified (EOS R, RP, R3, R5, R6, R6 Mark II / III, R7, R10, R50,
   R50 V, 90D, 250D, 850D, M200, M50 Mark II, M6 Mark II, 1D X Mark III, PowerShot G5 X II, G7 X III, SX70,
   V1): one CC0 file each pinned and checked against the camera JPEG; all 110 CC0 CR3s on raw.pixls.us
-  decode. The EOS R6 Mark III gets its as-shot white balance (`ColorData` 66). 257 models verified; RAW
+  decode. The EOS R6 Mark III gets its as-shot white balance (`ColorData` 66). 259 models verified; RAW
   decoding 77% → 83%; mainstream ~49% → ~51%, essentials ~64% → ~65%, full ~61%.
 - 2026-10-11: Canon EOS R5 Mark II C-RAW decodes from sensor data (57% of its files opened as a
   preview): the CRX QP map's first-symbol literal and limited-length escape; four CC0 R5 Mark II files
@@ -166,6 +168,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
 | 2026-10-12 | minor | 22 more CR3 bodies verified, EOS R6 Mark III white balance: RAW decoding 77% → 83%, RAW ~56% → ~60%; mainstream 49% → 51%, essentials 64% → 65%; full unchanged at ~61% |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |

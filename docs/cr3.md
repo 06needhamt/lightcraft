@@ -5,6 +5,14 @@ The CR3 adapter reads the CRX Bayer track, `CMP1` compression descriptor,
 black/white levels and the default crop come from the file. A Dual Pixel delta
 track is never substituted for the primary Bayer track.
 
+The EOS R6 Mark III writes `ColorData` version 66, which keeps version 64's as-shot white balance (word 105) and
+black level (word 383) offsets. Measured on 33 files from 12 shoots (ISO 100–12800, 1/1250 s–25 s): the as-shot
+R, G, G, B quadruple is followed by its colour temperature (3271–7424 K across the shoots) and then the fixed
+preset table (Daylight 5200 K, Shade 7000 K, Cloudy 6000 K, Tungsten 3200 K, ...), and the black levels equal the
+masked-column levels in every file (512 at low ISO, 2047–2048 above). Word 661 holds 14351 or 13995, but it is not
+the clipping point: highlights pile up at 16383 and run smoothly through the range above 14351, so version 66
+takes its white level from the data.
+
 The in-camera aspect ratio (3:2, 4:3, 16:9, 1:1) is not applied to the sensor data. The maker note's
 `AspectInfo` (tag `0x009a`: aspect code, cropped width, height, left, top) gives the shot's rectangle inside the
 recommended crop, and the decoder uses it as the default crop, so the developed image has the shape the photographer
@@ -142,12 +150,13 @@ hashes pin LightCraft's own decode, and the check is black-box against the camer
   two R5 full-frame shots correlate at only 0.83, though each follows its own camera JPEG at r 0.98, so
   the shots differ, not the decodes. The shots differ in exposure, so the means are not compared.
 
-The EOS R6 Mark III writes `ColorData` version 66 (3,778 words, as version 65 of the R50 V and V1). Its
-as-shot white balance, per-channel black and white level sit at the version 64/65 offsets (105, 383,
-661): on the CC0 files they read R, G, G, B = 2330, 1024, 1024, 1454, black 512 and white 13995, and the
-render's white trim is neutral. Before, the unknown version left the R6 Mark III without as-shot white
-balance (renders were green) and with the bit-depth fallback for the white level. Render cache version
-62 redraws those thumbnails.
+The EOS R6 Mark III (`ColorData` version 66) reads its as-shot white balance and black level as described at
+the top of this page; its white level comes from the data.
+
+Not every C-RAW file of a verified body decodes: the decoder accepts adaptive QP values 131–168 only, and a
+user reports 3 of 40 EOS R6 Mark II C-RAW files with QP 172 or 175 ("Canon CRX adaptive QP value 172"), which
+open as their preview. EOS R7 C-RAW (the odd-height QP map above) has only been checked on six paired RAW /
+C-RAW captures; the pinned R7 file is lossless, so R7 C-RAW still has no black-box reference.
 
 ## Colour limits
 
