@@ -161,6 +161,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "view.maskOverlayMode",
             "view.maskOverlayColor",
             "view.maskPins",
+            "@Tool Overlay",
             "view.cropOverlay",
             "---",
             "@Sort",
@@ -505,6 +506,18 @@ fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
                     v.push(item("view.theme", json!({"theme": k.id()}), k.label(), None, true, Some(on)));
                 }
             }
+            v
+        }
+        "Tool Overlay" => {
+            // when the spot and mask pins show; the last item steps to the next mode (Shift+H)
+            use crate::state::ToolOverlay;
+            let mut v: Vec<MenuNode> = ToolOverlay::ALL
+                .into_iter()
+                .map(|m| item("view.toolOverlay", json!({"mode": m.name()}), m.label(), None, true, Some(app.ui.tool_overlay == m)))
+                .collect();
+            v.push(MenuNode::Separator);
+            let shortcut = crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.toolOverlay");
+            v.push(item("view.toolOverlay", Value::Null, "Cycle Tool Overlay", shortcut, true, None));
             v
         }
         "Grid Info" => ["filename", "exposure", "date"]

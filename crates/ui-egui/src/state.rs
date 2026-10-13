@@ -83,6 +83,70 @@ pub enum CropOverlay {
     None,
 }
 
+/// Tool Overlay: when the retouching tools' pins (Remove / Heal / Clone spots, mask pins) show on
+/// the photo. Shift+H steps through the modes in this order (`view.toolOverlay`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ToolOverlay {
+    /// While the pointer is over the photo (hidden while a new spot or brush stroke is painted).
+    #[default]
+    Auto,
+    Always,
+    /// Only the selected spot's or mask's.
+    Selected,
+    /// None; the tool still works (a click still adds a spot).
+    Never,
+}
+
+impl ToolOverlay {
+    pub const ALL: [ToolOverlay; 4] = [ToolOverlay::Auto, ToolOverlay::Always, ToolOverlay::Selected, ToolOverlay::Never];
+
+    /// The id used by `view.toolOverlay {mode}` and the saved settings.
+    pub fn name(self) -> &'static str {
+        match self {
+            ToolOverlay::Auto => "auto",
+            ToolOverlay::Always => "always",
+            ToolOverlay::Selected => "selected",
+            ToolOverlay::Never => "never",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<ToolOverlay> {
+        ToolOverlay::ALL.into_iter().find(|m| m.name().eq_ignore_ascii_case(s.trim()))
+    }
+
+    /// Menu label.
+    pub fn label(self) -> &'static str {
+        match self {
+            ToolOverlay::Auto => "Auto",
+            ToolOverlay::Always => "Always",
+            ToolOverlay::Selected => "Selected",
+            ToolOverlay::Never => "Never",
+        }
+    }
+
+    /// The mode Shift+H steps to.
+    pub fn next(self) -> ToolOverlay {
+        match self {
+            ToolOverlay::Auto => ToolOverlay::Always,
+            ToolOverlay::Always => ToolOverlay::Selected,
+            ToolOverlay::Selected => ToolOverlay::Never,
+            ToolOverlay::Never => ToolOverlay::Auto,
+        }
+    }
+
+    /// Whether a pin shows: `selected` = its spot or mask is the selected one, `live` = the pointer
+    /// is over the photo (or a pin is being dragged), which is what Auto waits for.
+    pub fn shows(self, selected: bool, live: bool) -> bool {
+        match self {
+            ToolOverlay::Auto => live,
+            ToolOverlay::Always => true,
+            ToolOverlay::Selected => selected,
+            ToolOverlay::Never => false,
+        }
+    }
+}
+
 /// Which view the app opens in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -544,6 +608,9 @@ pub struct UiState {
     pub mask_overlay_color: [u8; 3],
     pub mask_overlay_opacity: f32,
     pub mask_pins: bool,
+    /// When the Remove tool's spot pins and the mask pins show (Shift+H cycles). Mask pins also
+    /// need [`mask_pins`](Self::mask_pins).
+    pub tool_overlay: ToolOverlay,
     /// Masking: show every visible mask's region as one overlay at once (Ctrl+Shift+O / Cmd+Shift+O),
     /// instead of just the selected mask's ([`mask_overlay`]).
     pub mask_overlay_all: bool,
@@ -1062,6 +1129,7 @@ impl Default for UiState {
             mask_overlay_color: [230, 30, 40],
             mask_overlay_opacity: 50.0,
             mask_pins: true,
+            tool_overlay: ToolOverlay::Auto,
             mask_overlay_all: false,
             crop_overlay: CropOverlay::Thirds,
             crop_default_aspect: None,

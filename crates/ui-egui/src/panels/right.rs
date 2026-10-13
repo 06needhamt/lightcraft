@@ -454,11 +454,35 @@ fn remove(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         app.ui.spots_threshold = v as f32;
     }
     padded(ui, |ui| {
+        tool_overlay_options(app, ui);
+        ui.add_space(4.0);
         if !d.spots.is_empty() && text_button(ui, "removeClear", crate::i18n::tr("Delete all spots"), false).clicked() {
             for i in (0..d.spots.len()).rev() {
                 let _ = app.run("spot.delete", json!({"index": i}));
             }
         }
+    });
+}
+
+/// Tool Overlay: when the spot and mask pins show on the photo (Auto / Always / Selected / Never;
+/// Shift+H steps through them). Remove and Masking panels.
+pub(crate) fn tool_overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
+    use crate::state::ToolOverlay;
+    let t = Tokens::get(ui.ctx());
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(crate::i18n::tr("Tool Overlay")).color(t.text_dim));
+        let current = app.ui.tool_overlay;
+        let r = crate::widgets::dropdown(ui, "toolOverlay", crate::i18n::tr(current.label()), t.font(12.5), t.text_label)
+            .on_hover_text(crate::i18n::tr("When pins show on the photo (Shift+H cycles)"));
+        egui::Popup::menu(&r).show(|ui| {
+            for m in ToolOverlay::ALL {
+                let item = ui.selectable_label(m == current, crate::i18n::tr(m.label()));
+                register(ui.ctx(), format!("toolOverlay:{}", m.name()), item.rect);
+                if item.clicked() {
+                    let _ = app.run("view.toolOverlay", json!({"mode": m.name()}));
+                }
+            }
+        });
     });
 }
 
