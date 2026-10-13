@@ -183,6 +183,7 @@ impl MergeJob {
                         orientation: r.orientation,
                         metadata: r.metadata,
                         baseline_exposure: r.baseline_exposure,
+                        wb_multipliers: None,
                     };
                     f.orient();
                     merged.push(f);

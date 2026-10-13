@@ -194,6 +194,17 @@ as the fitted table does, and the chroma curve has no DNG tag, so it is left out
 HDR merge of three copies of the photo against the photo alone (200 px, CIE76): mean ΔE 1.07 and 0.47, 95th
 percentile 2.65 and 1.15 (26 and 23 before, with no colour tags; 1.47 and 0.66 with the table left out too).
 
+A raw whose white balance is only in its vendor multipliers (CR2, NEF, ARW…) has no `AsShotNeutral` of its own, so a
+frame carries the multipliers (`Frame::wb_multipliers`) next to its colour tags. A panorama takes its white balance
+from the frames that are in it: the median R/G and the median B/G of their multipliers (the mean of the middle two
+for an even count; frames without usable multipliers, or outside the panorama, do not vote), written as
+`AsShotNeutral`, the reciprocal, and any `AsShotWhiteXY` of the source dropped (a reader takes it first, and the
+DNG spec has the two exclude each other). So the panorama is balanced for what the camera measured for most of its
+frames, not for whichever frame came first. With no multipliers anywhere (DNG sources) the first frame's tags are kept
+as before. For frames balanced alike this is the neutral `starting_colour_tags` already wrote, so the merged DNG
+renders as before; it matters when the camera balanced the frames differently, and for a caller that loads frames
+without a colour hook (`load_frame`), whose raw frames carried no white balance at all (issue #1144).
+
 ## Nikon crop and preview colour metadata
 
 Nikon maker-note `CropArea` (0x0045) supplies the default `[left, top, width, height]` crop. The decoder validates the rectangle against the active sensor area and falls back to that area for missing or invalid values. The CFA origin is unchanged; cropping follows demosaicing.

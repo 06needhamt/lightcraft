@@ -4,8 +4,9 @@
 //! - Pixel values are scaled so the brightest pixel sits just below 1.0 (the white level); the
 //!   scale is carried in `BaselineExposure`, so a default rendering looks like the reference frame.
 //! - Raw sources: the reference frame's DNG colour tags (`ColorMatrix*`, `ForwardMatrix*`,
-//!   `CameraCalibration*`, `AsShotNeutral`, illuminants) are carried over unchanged — the data is
-//!   still camera RGB.
+//!   `CameraCalibration*`, `AsShotNeutral`, illuminants) are carried over — the data is still camera
+//!   RGB. A raw with its white balance only in vendor multipliers (CR2, NEF…) has none of its own: the
+//!   result's `AsShotNeutral` comes from the frames' multipliers ([`FrameColor::set_as_shot_multipliers`]).
 //! - Other sources: the "camera" is the file's linear RGB space; `ColorMatrix1` = XYZ(D65) → RGB,
 //!   `ForwardMatrix1` = RGB → XYZ(D50), `AsShotNeutral` = (1, 1, 1).
 

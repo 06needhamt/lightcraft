@@ -25,7 +25,7 @@ use serde::{Deserialize, Serialize};
 
 pub use project::Projection;
 
-use crate::frame::{Frame, FrameColor};
+use crate::frame::{Frame, FrameColor, consensus_multipliers};
 use crate::linalg;
 use crate::{MergeError, Progress, Result, check};
 use blend::{Blender, Buf, push_pull};
@@ -362,6 +362,11 @@ pub fn stitch(frames: Vec<Frame>, opts: &PanoOptions, progress: &Progress) -> Re
         image = finish::fill_edges(&image, &alpha);
     }
     let r = &frames[used[0]];
+    // the panorama's white balance is the median of the frames that are in it, not whichever frame came first
+    let mut color = r.color.clone();
+    if let Some(multipliers) = consensus_multipliers(used.iter().filter_map(|&i| frames.get(i))) {
+        color.set_as_shot_multipliers(multipliers);
+    }
     Ok(PanoResult {
         image,
         alpha,
@@ -375,7 +380,7 @@ pub fn stitch(frames: Vec<Frame>, opts: &PanoOptions, progress: &Progress) -> Re
         fov,
         focal: f_out,
         origin: (ox, oy),
-        color: r.color.clone(),
+        color,
         metadata: r.metadata.clone(),
         raw: r.raw,
         baseline_exposure: r.baseline_exposure,
