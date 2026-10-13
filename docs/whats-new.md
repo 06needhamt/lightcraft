@@ -69,6 +69,9 @@
   its embedded JPEG or a thumbnail to show, the loupe now says so at the bottom of the photo ("Original offline · no
   smart preview" or "This photo can't be opened", the reason on hover) instead of showing that preview as if it were
   the photo.
+### `--import <folder>` takes HEIC
+- `lightcraft-cli run --import <folder>` (and the MCP tools that take folders) now picks up HEIC, HEIF and Nikon NRW
+  files, the same files as `library.import` (issue #1080). They used to be skipped without a word.
 
 ### JPEG XL export
 - Export as JPEG XL (issue #247): Format ▸ JPEG XL in the Export dialog, `format: "jxl"` for agents and the CLI
