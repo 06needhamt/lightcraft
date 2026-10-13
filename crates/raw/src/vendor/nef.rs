@@ -45,6 +45,17 @@ fn nrw_black(mn: Option<&makernote::MakerNote>, bits: u32) -> Option<f32> {
     (u64::from(v) < (1u64 << bits.min(16)) / 4).then_some(v as f32)
 }
 
+/// As-shot white balance from the NRW data block, for bodies whose maker note has no `0x000c`: the first entry of the
+/// block's colour-temperature table (byte `0x34`) is five `u32`s, kelvin, R, G, G, B, in the same 1/256 units as
+/// `0x000c` (the same R and B values in the P950, B700, P1000 and P1100 files, which carry both).
+fn nrw_wb(mn: Option<&makernote::MakerNote>) -> Option<[f32; 3]> {
+    let (b, order) = nrw_data(mn)?;
+    let at = |i: usize| -> Option<u32> { Some(order.u32(b.get(0x34 + 4 * i..0x38 + 4 * i)?.try_into().ok()?)) };
+    let (kelvin, r, g1, g2, bl) = (at(0)?, at(1)?, at(2)?, at(3)?, at(4)?);
+    let sane = |v: u32| (64..=2560).contains(&v);
+    ((2000..=12000).contains(&kelvin) && g1 == 512 && g2.abs_diff(512) <= 8 && sane(r) && sane(bl)).then(|| [r as f32 / 256.0, 1.0, bl as f32 / 256.0])
+}
+
 /// Nikon CropArea is `[left, top, width, height]` in sensor pixels (maker-note tag documentation).
 /// Keep the active area/CFA origin unchanged: the default crop is applied after demosaicing.
 fn default_crop(mn: Option<&makernote::MakerNote>, w: usize, h: usize) -> Rect {
@@ -172,7 +183,8 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         .as_ref()
         .and_then(|m| m.ifd.f64s(WB_RB_LEVELS))
         .filter(|v| v.len() >= 2 && v[0] > 0.1 && v[1] > 0.1 && v[0] < 10.0 && v[1] < 10.0)
-        .map(|v| [v[0] as f32, 1.0, v[1] as f32]);
+        .map(|v| [v[0] as f32, 1.0, v[1] as f32])
+        .or_else(|| nrw_wb(mn.as_ref()));
     let cfa = match (raw.u64s(t::CFA_REPEAT_PATTERN_DIM).as_deref(), raw.bytes(t::CFA_PATTERN_EP)) {
         (Some([2, 2]), Some(p)) if p.len() == 4 && p.iter().all(|&c| c <= 2) => Cfa { width: 2, height: 2, pattern: p.to_vec() },
         _ => Cfa::bayer_static("RGGB"),
@@ -585,6 +597,26 @@ mod tests {
         packed.extend_from_slice(&[0u8; 6]);
         let r = crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![packed], w as u32, h as u32, h as u32, Some(nrw_note(0)))).unwrap();
         assert_eq!(r.data, RawData::U16(px));
+    }
+
+    #[test]
+    fn nrw_block_supplies_the_as_shot_white_balance_when_the_maker_note_has_none() {
+        let note = |kelvin: u32, r: u32, g1: u32, g2: u32, b: u32| {
+            let mut block = b"NRW 0101".to_vec();
+            block.resize(0x34, 0);
+            for v in [kelvin, r, g1, g2, b] {
+                block.extend_from_slice(&v.to_le_bytes());
+            }
+            block.resize(0x80, 0);
+            let mut mn = IfdBuilder::new();
+            mn.set(NRW_DATA, Value::Undefined(block));
+            mn
+        };
+        let wb = |mn| crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![vec![0; 144]], 16, 6, 6, Some(mn))).unwrap().wb_multipliers;
+        assert_eq!(wb(note(5236, 430, 512, 510, 567)), Some([430.0 / 256.0, 1.0, 567.0 / 256.0]));
+        // an implausible entry is not a white balance
+        assert_eq!(wb(note(0, 430, 512, 510, 567)), None);
+        assert_eq!(wb(note(5236, 430, 300, 510, 567)), None);
     }
 
     #[test]
