@@ -36,6 +36,44 @@ and only four bodies are verified, so a CR3 never fails to import or load
 where a preview exists. HEVC-only preview tracks are recognized but are not
 decoded.
 
+## Variant status
+
+The supported and rejected CRX coding variants. Every rejection is an explicit `RawError::Unsupported` whose
+text is part of the contract: `crates/raw/tests/cr3_variants.rs` rebuilds each variant as a synthetic CR3
+fixture and asserts the exact string, and that header probing (`probe_info`, the import path) and full
+decoding fail with the same error, because the engine shows that reason when it falls back to the embedded
+preview. The same tests decode a control fixture at both edges of each accepted range, so a rejection can
+only come from the gate named here.
+
+| Variant | Status | Gate | Exact rejection |
+|---|---|---|---|
+| Version `0x100`, four Bayer planes, encoding 0, wavelet levels 0 (lossless) or 3 (C-RAW, horizontal tiles) | Supported | `supports()` in `vendor/crx.rs` | none |
+| Version `0x200`: single-tile 14-bit three-level C-RAW with adaptive quantization, QP map of any height (an odd height leaves the last QP row without a partner and it is used on its own), QP values 131–168 | Supported | `supports()`, `qp_map()` | none |
+| Version other than `0x100`/`0x200`, or wavelet levels other than 0 and 3 | Rejected | `supports()` | `Canon CRX version {version:#x}, encoding {encoding}, {planes} planes, {levels} wavelet levels` |
+| Bit depth outside 8–16 (the `CMP1` parser only accepts 1–16, so 1–7 is what can arrive) | Rejected | `supports()` | `Canon CRX {bits}-bit samples` |
+| C-RAW with vertical tiles (tile height below the image height, three levels) | Rejected | `supports()` | `Canon CRX C-RAW with vertical tiles` |
+| Version `0x200` that is not a single-tile 14-bit C-RAW | Rejected | `supports()` | `Canon CRX version 0x200 requires a single-tile 14-bit Bayer C-RAW image` |
+| Extended `CMP1` header with a median bit depth (used by type-3 burst coding) | Rejected | `supports()` | `Canon CRX extended median-bit-depth header` |
+| Rounded-plane coding or unexpected plane flags | Rejected | `validate_planes()` | `Canon CRX plane coding flags` |
+| Partial-subband coding | Rejected | `validate_planes()` | `Canon CRX partial subband coding` |
+| Adaptive quantization gain on a low-frequency band (bands 0–3) | Rejected | `validate_planes()` | `Canon CRX adaptive quantization subband parameters` |
+| Uniform quantization value outside 4–44 | Rejected | `quant_step()`, called from `validate_planes()` | `Canon CRX quantization value {value}` |
+| Adaptive QP value outside 131–168 | Rejected | `qp_map()` | `Canon CRX adaptive QP value {value}` |
+| `ff11`/`ff12`/`ff13` markers in a `0x100` stream | Rejected | `layout()` | `Canon CRX ff11/ff12/ff13 marker family` |
+| Marker header of the wrong length (8 bytes expected for `ff01`, `ff02`, `ff03` and `ff12`, 16 for `ff11` and `ff13`) | Rejected | `layout()` | `Canon CRX marker {marker:#x} header length {size}` |
+| `0x200` tile header with a wrong magic, a nonzero reserved field, an empty QP map or QP padding above 7 | Rejected | `layout()` | `Canon CRX adaptive quantization tile header` |
+| `0x200` band header with a nonzero reserved field | Rejected | `layout()` | `Canon CRX adaptive subband reserved field` |
+| Container adapter: a track that is not four planes with encoding 0 | Rejected | `decode()` in `vendor/cr3.rs` | `Canon CR3 encoding {encoding} with {planes} planes` |
+
+`supports()` also rejects encoding other than 0, a plane count other than 4 and a CFA pattern above 3, but
+through a CR3 container the adapter rejects the first two before the CRX layer is reached, and the `CMP1`
+parser rejects the third for four-plane tracks. A descriptor the parser cannot accept at all (a zero
+dimension, a tile larger than the image, a bit depth outside 1–16, a plane count outside 1–4 or a zero
+header size) is reported as `Corrupt` (`CR3 raw track has an invalid CMP1 descriptor`), not as unsupported.
+A gain on a low-frequency band cannot reach `adaptive_step()`, which has its own rejection
+(`Canon CRX adaptive low-frequency quantization`): `validate_planes()` refuses it first. That gate is defence
+in depth and is not tested separately.
+
 ## Verified sensor decoding
 
 CRX version `0x100`, four Bayer planes and `ff01`/`ff02`/`ff03` marker headers
@@ -46,7 +84,7 @@ its adaptive quantization map. C-RAW is quantized, so next to clipped highlights
 its reconstruction can overshoot the sensor range by a few quantization steps
 (up to 36 codes above 16383 in 17 CC0 files); those samples are clamped to the
 CMP1 bit depth. A lossless sample outside the bit depth is still corrupt data.
-Other unverified coding variants return explicit unsupported errors. Header probing validates the same coding variants and
+Other unverified coding variants return explicit unsupported errors (the table above lists them all). Header probing validates the same coding variants and
 tile/plane layout as full decoding.
 
 `crates/raw/tests/cr3_corpus.rs` checks every full-sensor sample against a
@@ -84,8 +122,9 @@ files are reported as skipped by the tests.
 The version `0x200` QP predictor and entropy framing were checked independently.
 Controlled input mutations establish floor averaging of paired QP rows before
 the nonlinear integer table, then multiplication, division by eight, addition
-of the subband base and a minimum step of one. QP values 131–167 are verified;
-unmeasured values are rejected.
+of the subband base and a minimum step of one. QP values 131–167 are verified; 168 (quantization
+value 44, step 102, measured at about 100 on EOS R50 C-RAW files) continues the sequence and is
+accepted. Other values are rejected.
 
 The QP map is coded as follows (established on the EOS R5 Mark II). Its first symbol is a 32-bit
 big-endian literal, mapped like every other symbol and added to a prediction of zero. Every later
@@ -124,7 +163,7 @@ and 6400), whose developed images match visually and whose sensor means agree
 within 0.1% at ISO 6400. Files with even-height maps never reach this rule, so
 the six verified fixtures are unchanged. Partial-subband and
 rounded-plane coding, vertical C-RAW tiling and adaptive low-frequency gains
-remain unsupported. The decoder bounds image dimensions, sample count,
+remain unsupported (see the variant table above; `cr3_variants.rs` pins each rejection). The decoder bounds image dimensions, sample count,
 tile count, marker headers and temporary allocations. The full sensor buffer is
 allocated only after the first plane decodes, and plane buffers grow row by row,
 so a small crafted file fails before reserving memory for the image it claims.
