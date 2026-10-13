@@ -2,10 +2,13 @@
 
 The interface ships in the language it is written in (English) plus every language in the table in
 `crates/ui-egui/src/i18n.rs`. Today that is English, Simplified Chinese (`zh-hans`), Traditional
-Chinese (`zh-hant`, Taiwan), Japanese (`ja`), Brazilian Portuguese (`pt-br`), Spanish (`es`), German (`de`), Russian (`ru`) and French (`fr`). This file is the reference for **adding or maintaining a language**; the per-language notes
-are in [`localization-zh-hans.md`](localization-zh-hans.md), [`localization-zh-hant.md`](localization-zh-hant.md),
-[`localization-ja.md`](localization-ja.md), [`localization-pt-br.md`](localization-pt-br.md), [`localization-es.md`](localization-es.md),
-[`localization-de.md`](localization-de.md) and [`localization-ru.md`](localization-ru.md).
+Chinese (`zh-hant`, Taiwan), Japanese (`ja`), Brazilian Portuguese (`pt-br`), Spanish (`es`), German (`de`),
+Russian (`ru`), French (`fr`), Ukrainian (`uk`) and Vietnamese (`vi`). This file is the reference for
+**adding or maintaining a language**; the per-language notes are in
+[`localization-zh-hans.md`](localization-zh-hans.md), [`localization-zh-hant.md`](localization-zh-hant.md),
+[`localization-ja.md`](localization-ja.md), [`localization-pt-br.md`](localization-pt-br.md),
+[`localization-es.md`](localization-es.md), [`localization-de.md`](localization-de.md),
+[`localization-ru.md`](localization-ru.md) and [`localization-vi.md`](localization-vi.md).
 
 ## Adding a language
 
@@ -30,6 +33,7 @@ are in [`localization-zh-hans.md`](localization-zh-hans.md), [`localization-zh-h
        De, "de", "Deutsch", "Latn", include_str!("../locales/de.json");
        Ru, "ru", "Русский", "Cyrl", include_str!("../locales/ru.json");
        Uk, "uk", "Українська", "Cyrl", include_str!("../locales/uk.json");
+       Vi, "vi", "Tiếng Việt", "Latn", include_str!("../locales/vi.json");
    }
    ```
 
