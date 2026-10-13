@@ -48,7 +48,8 @@
   12–32 mm kit zoom was off by about 5 % of the image width at the corners before. Files shot with the correction off
   are unchanged; photos imported before this change get it when imported again.
 - Canon CR3 raws now develop from their sensor data: lossless RAW and C-RAW, checked sample for sample on the EOS
-  M50, R100 and R8. CR3 files the decoder can't read yet still open from their embedded JPEG, as before.
+  M50, R100, R8 and RP (on the RP also in 1.6× crop mode). CR3 files the decoder can't read yet still open
+  from their embedded JPEG, as before.
 - Canon CRW, Minolta MRW, Sigma X3F, Kodak KDC, Leaf MOS and Epson ERF files that LightCraft can't decode yet
   now import as "preview only" with their embedded JPEG instead of failing. A raw whose data is damaged but whose
   preview is intact does the same.

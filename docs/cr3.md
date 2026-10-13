@@ -12,7 +12,7 @@ are the public prose descriptions and patents cited in
 embedded-JPEG fallback and its visible warning when a JPEG is present. So does
 any other CR3 decode error (a corrupt file, or a body whose CRX stream the
 decoder misreads): every CR3 opened from its embedded JPEG before this decoder,
-and only three bodies are verified, so a CR3 never fails to import or load
+and only four bodies are verified, so a CR3 never fails to import or load
 where a preview exists. HEVC-only preview tracks are recognized but are not
 decoded.
 
@@ -42,12 +42,20 @@ control. The exact inputs and reference hashes are:
 | Canon R100 C-RAW, raw.pixls.us 7897 | `0b66842b2fe00329ebc05fe8ab9357ddbbe1a0a2d2e69a2893102de7fdf5c942` | `341c706b37c38bbf` |
 | Canon R8 RAW, raw.pixls.us 6585 | `7d5c6dbb11ff7e6ee58715d90a20f5d801e8b103f4711ff6ea329ceafcef254c` | `63c1c6d8d1eb2312` |
 | Canon R8 C-RAW, raw.pixls.us 6587 | `df33cf394573645ce03dea1b2e9f0b5cc2b7734e9e3391ee7114151414cf2812` | `f836a663a795a375` |
+| Canon RP RAW, raw.pixls.us 4674 | `dcbd0f6f9929de2e2331b0fd10a9d01e7cfd04c5a5e4038456de1647d714cdf2` | `5cb0f46404b8b663` |
+| Canon RP C-RAW, raw.pixls.us 4672 | `bd3270610593d37ff8a399908bb9406a4e32f9151d55bf19ac1cf8f10d787b46` | `f48df06ca1d67382` |
+| Canon RP RAW, 1.6× crop, raw.pixls.us 4673 | `7d4ba45dc9264d598336133593c677b09774bcdf13b602ee770e72415a652a16` | `46808a9de3b3dcc7` |
+| Canon RP C-RAW, 1.6× crop, raw.pixls.us 4671 | `4a859ab137f792aedaf3416b0aad1497ebaab02052a49453902e226699154aa7` | `39a60c4efed4e1f4` |
 
 Reference pixels were observed from the DNGLab 0.8.0 macOS arm64 release
 binary; no decoder source was read or copied, and it is not shipped or linked.
 The release ZIP SHA-256 was
 `ee70805cb60f18d5ed62548c4e595f6cee0a33407e15358eb1766a46afc1c16e`.
-All six sensor comparisons pass. R8 HEVC preview tracks are distinguished from
+The RP references came from the same release's Windows x64 binary (ZIP SHA-256
+`d3add6b71568bf5f7938468b0b40a0ee1eaec01e0057fe78dcc453188010be9a`), after it
+reproduced the M50 RAW hash above. The RP's 1.6× crop mode writes a single
+4032×2656 tile, where full frame (6384×4224) uses two 3192-wide horizontal
+tiles. All ten sensor comparisons pass. R8 HEVC preview tracks are distinguished from
 the primary Bayer RAW; the HEVC preview itself is not decoded. Missing corpus
 files are reported as skipped by the tests.
 
@@ -61,6 +69,15 @@ remain unsupported. The decoder bounds image dimensions, sample count,
 tile count, marker headers and temporary allocations. The full sensor buffer is
 allocated only after the first plane decodes, and plane buffers grow row by row,
 so a small crafted file fails before reserving memory for the image it claims.
+
+## White level
+
+The white level is Canon's specular white from `ColorData` (the word after the
+normal white level), not the sensor's saturation point. On the RP at ISO 100
+it is 14558 while samples clip at 16383. At the −⅓-stop ISOs, which pull a
+higher analog ISO down digitally, it drops further: 11062 at ISO 5000, where
+red saturates near 13668. Samples above the white level render as clipped.
+Whether Lightroom recovers them has not been measured.
 
 ## Colour limits
 

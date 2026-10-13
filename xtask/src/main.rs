@@ -341,6 +341,10 @@ const RAW_SAMPLES: &[(&str, &str)] = &[
     ("cr3-canon-r100-craw.cr3", "https://raw.pixls.us/getfile.php/7897/nice/Canon%20-%20EOS%20R100%20-%20CRAW%20%283:2%29.CR3"),
     ("cr3-canon-r8-raw.cr3", "https://raw.pixls.us/getfile.php/6585/nice/Canon%20-%20EOS%20R8%20-%203:2.CR3"),
     ("cr3-canon-r8-craw.cr3", "https://raw.pixls.us/getfile.php/6587/nice/Canon%20-%20EOS%20R8%20-%203:2.CR3"),
+    ("cr3-canon-rp-raw.cr3", "https://raw.pixls.us/getfile.php/4674/nice/Canon%20-%20EOS%20RP%20-%203:2.CR3"),
+    ("cr3-canon-rp-craw.cr3", "https://raw.pixls.us/getfile.php/4672/nice/Canon%20-%20EOS%20RP%20-%203:2.CR3"),
+    ("cr3-canon-rp-raw-crop.cr3", "https://raw.pixls.us/getfile.php/4673/nice/Canon%20-%20EOS%20RP%20-%203:2.CR3"),
+    ("cr3-canon-rp-craw-crop.cr3", "https://raw.pixls.us/getfile.php/4671/nice/Canon%20-%20EOS%20RP%20-%203:2.CR3"),
     (
         "dng-adobe-canon-5d3-linear-lj92.dng",
         "https://raw.pixls.us/getfile.php/1032/nice/Adobe%20DNG%20Converter%20-%20Canon%20EOS%205D%20Mark%20III%20-%20Lossless%20JPEG%20compression%2C%20rgb%20%283:2%29.DNG",
