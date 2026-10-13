@@ -703,18 +703,21 @@ mod tests {
     }
 
     // Given draft frames that took seconds (the window hidden or occluded mid-drag), they count as
-    // unknown: fast renders don't mark the drag slow because the window wasn't drawing
+    // unknown: fast renders don't mark the drag slow because the window wasn't drawing. Two such
+    // drags, since one slow drag only makes the pair suspect
     #[test]
     fn a_hidden_windows_frame_times_dont_mark_a_drag_slow() {
         use lightcraft_catalog::PhotoId;
         let mut d = DragScale::default();
         let drag = Some((PhotoId(1), "Exposure"));
-        d.scale(drag, true, None, 0.0);
-        for key in 1..=6 {
-            d.observe(key, 6.0, Some(4000.0));
+        for t in 0..2u32 {
+            assert_eq!(d.scale(drag, true, None, f64::from(t)), Some(1.0), "drag {}", t + 1);
+            for key in 1..=6 {
+                d.observe(u64::from(t) * 10 + key, 6.0, Some(4000.0));
+            }
+            d.scale(None, true, None, f64::from(t));
         }
-        d.scale(None, true, None, 0.0);
-        assert_eq!(d.scale(drag, true, None, 0.0), Some(1.0));
+        assert_eq!(d.scale(drag, true, None, 2.0), Some(1.0), "after two hidden-window drags: still full size");
     }
 
     // Given full-size drafts far over budget (a refined mask the CPU renders at 190 ms a step),
