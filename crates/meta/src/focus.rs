@@ -29,6 +29,7 @@
 //!   the wide area reports the centre when it picked no particular spot. A centred Spot, Zone or
 //!   Flexible Spot frame is a real choice and is kept.
 
+pub use crate::focus_read::{HEADER_PREFIX, HeaderRead, MAX_HEADER_BYTES, read_header};
 use crate::{Orientation, Rect};
 use lightcraft_tiff::{ByteOrder, Ifd, Tiff, makernote, tags as t};
 use serde::{Deserialize, Serialize};
@@ -79,6 +80,19 @@ impl FocusPoint {
 /// Sony bodies whose focus tags have been checked against real files. Another body may store the same
 /// tags differently (or not mean the same by them): it shows no focus point until its files are checked.
 pub const SONY_MODELS: &[&str] = &["ILCE-1", "ILCE-7SM3"];
+
+/// Whether a camera as the catalog names it (`"SONY ILCE-1"`: the Exif Make, a space, the Model) is
+/// one whose files can carry a focus point, so a photo from any other camera is never opened to look.
+pub fn camera_supported(camera: &str) -> bool {
+    let camera = camera.trim();
+    camera.get(..4).is_some_and(|m| m.eq_ignore_ascii_case("SONY")) && camera.rsplit(' ').next().is_some_and(|model| SONY_MODELS.contains(&model))
+}
+
+/// Names what [`read`] decodes (its bodies), so a record of "looked, found nothing" made by this
+/// decoder is not trusted by one that knows more bodies.
+pub fn decoder_tag() -> String {
+    format!("sony-v1:{}", SONY_MODELS.join(","))
+}
 
 const FOCUS_MODE: u16 = 0x201b;
 const AF_AREA_SETTING: u16 = 0x201c;
@@ -158,6 +172,54 @@ pub(crate) fn sony(ifd: &Ifd, order: ByteOrder, orientation: Orientation) -> Opt
     // Wide), else the tracking setting when it is on
     let tracking = used.filter(|u| Some(u) != area.as_ref() && u != "Multi").or_else(|| name(tracking, tracking_name).filter(|t| t != "Off"));
     FocusPoint { rect: orientation.map_norm_rect(sensor), mode: name(mode, focus_mode_name), area, tracking }.sanitized()
+}
+
+/// A minimal little-endian TIFF laid out as an α1 ARW's metadata is (IFD0 with Make `SONY` and Model `ILCE-1` →
+/// Exif IFD → a header-less maker note with the focus tags: AF-C or the given FocusMode byte, Wide, Face tracking,
+/// Animal Eye Tracking at (3226, 1980) of 8640 × 5760), followed by `samples` bytes standing in for sensor data. For
+/// tests of the readers and the backfill in other crates; not a real raw (it has no image).
+#[doc(hidden)]
+pub fn synthetic_arw(mode: u8, samples: usize) -> Vec<u8> {
+    fn entry(f: &mut Vec<u8>, tag: u16, typ: u16, count: u32, value: [u8; 4]) {
+        f.extend_from_slice(&tag.to_le_bytes());
+        f.extend_from_slice(&typ.to_le_bytes());
+        f.extend_from_slice(&count.to_le_bytes());
+        f.extend_from_slice(&value);
+    }
+    let encipher = |p: u8| if p >= 249 { p } else { (u32::from(p).pow(3) % 249) as u8 };
+    let mut f = b"II*\0".to_vec();
+    f.extend_from_slice(&8u32.to_le_bytes());
+    // IFD0 at 8: Make (at 62), Model (at 68), Orientation, the Exif IFD (at 76)
+    f.extend_from_slice(&4u16.to_le_bytes());
+    entry(&mut f, t::MAKE, 2, 5, 62u32.to_le_bytes());
+    entry(&mut f, t::MODEL, 2, 7, 68u32.to_le_bytes());
+    entry(&mut f, t::ORIENTATION, 3, 1, [1, 0, 0, 0]);
+    entry(&mut f, t::EXIF_IFD, 4, 1, 76u32.to_le_bytes());
+    f.extend_from_slice(&[0; 4]);
+    f.extend_from_slice(b"SONY\0\0ILCE-1\0\0");
+    // the Exif IFD: the maker note at 94, 156 bytes
+    f.extend_from_slice(&1u16.to_le_bytes());
+    entry(&mut f, t::MAKER_NOTE, 7, 156, 94u32.to_le_bytes());
+    f.extend_from_slice(&[0; 4]);
+    // the maker note's IFD, its values from 172
+    f.extend_from_slice(&6u16.to_le_bytes());
+    entry(&mut f, FOCUS_MODE, 1, 1, [mode, 0, 0, 0]);
+    entry(&mut f, AF_AREA_SETTING, 1, 1, [0, 0, 0, 0]);
+    entry(&mut f, AF_TRACKING, 1, 1, [1, 0, 0, 0]);
+    entry(&mut f, FOCUS_LOCATION, 3, 4, 172u32.to_le_bytes());
+    entry(&mut f, FOCUS_FRAME_SIZE, 7, 6, 180u32.to_le_bytes());
+    entry(&mut f, TAG_9402, 7, 64, 186u32.to_le_bytes());
+    f.extend_from_slice(&[0; 4]);
+    for v in [8640u16, 5760, 3226, 1980] {
+        f.extend_from_slice(&v.to_le_bytes());
+    }
+    f.extend_from_slice(&[0xaf, 0, 0xb4, 0, 1, 1]);
+    let mut block = [0u8; 64];
+    block[0x16] = encipher(0x80 | mode);
+    block[0x17] = encipher(20);
+    f.extend_from_slice(&block);
+    f.extend((0..samples).map(|i| (i % 251) as u8));
+    f
 }
 
 /// Undo the `0x94xx` byte substitution: the stored byte is `p³ mod 249` for `p < 249`.
@@ -415,13 +477,20 @@ mod tests {
 
     /// A whole TIFF with a `SONY DSC` maker note holding `ifd`'s entries, written for real.
     fn sony_file(make: &str, model: &str, orientation: u16, note_entries: &[(u16, Value)]) -> Vec<u8> {
+        sony_file_with(make, model, orientation, note_entries, None)
+    }
+
+    /// [`sony_file`], with the `0x9402` block's value placed `far` bytes past the end of the TIFF
+    /// (the gap filled with "sample data") when `far` is given.
+    fn sony_file_with(make: &str, model: &str, orientation: u16, note_entries: &[(u16, Value)], far: Option<usize>) -> Vec<u8> {
         let order = ByteOrder::Little;
         // the note: 12-byte header, then an IFD whose out-of-line values are offset from the TIFF header,
         // which we only know after writing; write once to learn where the note lands, then rebuild
-        let build = |note_at: u64| -> Vec<u8> {
+        let build = |note_at: u64, end: u64| -> (Vec<u8>, Vec<u8>) {
             let mut note = b"SONY DSC \0\0\0".to_vec();
             let ifd_len = 2 + note_entries.len() * 12 + 4;
             let mut tail: Vec<u8> = Vec::new();
+            let mut outside: Vec<u8> = Vec::new();
             order.put_u16(&mut note, note_entries.len() as u16);
             for (tag, v) in note_entries {
                 let raw = lightcraft_tiff::writer::encode(order, v);
@@ -432,6 +501,9 @@ mod tests {
                     let mut r = raw.clone();
                     r.resize(4, 0);
                     note.extend(r);
+                } else if let (Some(gap), TAG_9402) = (far, *tag) {
+                    order.put_u32(&mut note, (end + gap as u64) as u32);
+                    outside = raw;
                 } else {
                     order.put_u32(&mut note, (note_at + 12 + ifd_len as u64 + tail.len() as u64) as u32);
                     tail.extend(raw);
@@ -449,12 +521,17 @@ mod tests {
             ifd0.set(t::MODEL, Value::Ascii(model.into()));
             ifd0.set(t::ORIENTATION, Value::Short(vec![orientation]));
             ifd0.set_child(t::EXIF_IFD, exif);
-            TiffWriter { order, bigtiff: false }.write(&[ifd0]).unwrap()
+            (TiffWriter { order, bigtiff: false }.write(&[ifd0]).unwrap(), outside)
         };
-        let first = build(0);
+        let (first, _) = build(0, 0);
         let at = Tiff::parse(&first).unwrap().exif().unwrap().get(t::MAKER_NOTE).unwrap().offset;
-        let file = build(at);
+        let (mut file, outside) = build(at, first.len() as u64);
+        assert_eq!(file.len(), first.len());
         assert_eq!(Tiff::parse(&file).unwrap().exif().unwrap().get(t::MAKER_NOTE).unwrap().offset, at);
+        if let Some(gap) = far {
+            file.extend((0..gap).map(|i| (i * 13 % 241) as u8));
+            file.extend(outside);
+        }
         file
     }
 
@@ -496,6 +573,119 @@ mod tests {
             if let Some(fp) = crate::read_exif(&f).focus {
                 assert!(fp.rect.x0 >= 0.0 && fp.rect.x1 <= 1.0 && fp.rect.y0 >= 0.0 && fp.rect.y1 <= 1.0);
             }
+        }
+    }
+
+    /// A whole-file read and a header-only read of the same file agree, and the header read reads a
+    /// small part of it (the sample data after the metadata is never touched).
+    #[test]
+    fn header_read_matches_the_whole_file_and_reads_little() {
+        let read = |file: &[u8]| {
+            let mut asked = 0u64;
+            let r = read_header(file.len() as u64, &mut |off, buf: &mut [u8]| {
+                asked += buf.len() as u64;
+                let s = off as usize;
+                buf.copy_from_slice(&file[s..s + buf.len()]);
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(r.bytes_read, asked);
+            r
+        };
+        // a raw: the metadata, then 8 MB of "samples"
+        let mut file = sony_file("SONY", "ILCE-1", 8, &alpha1_entries());
+        let meta_len = file.len();
+        file.extend((0..8_000_000u32).map(|i| (i * 31 % 251) as u8));
+        let whole = crate::extract(&file).focus;
+        assert!(whole.is_some());
+        let r = read(&file);
+        assert_eq!(r.focus, whole);
+        assert!(r.bytes_read <= HEADER_PREFIX && r.bytes_read < file.len() as u64 / 100, "{} of {}", r.bytes_read, file.len());
+        assert!(meta_len < HEADER_PREFIX as usize);
+        // the area-mode block placed 3 MB further on: found in a further round, still a small part
+        let mut far = sony_file_with("SONY", "ILCE-1", 1, &alpha1_entries(), Some(3_000_000));
+        far.extend((0..4_000_000u32).map(|i| (i * 7 % 253) as u8));
+        let whole = crate::extract(&far).focus;
+        assert!(whole.is_some());
+        let r = read(&far);
+        assert_eq!(r.focus, whole);
+        assert!(r.bytes_read < 64 * 1024, "{}", r.bytes_read);
+        // a JPEG: the Exif segment after another segment
+        let exif = sony_file("SONY", "ILCE-1", 6, &alpha1_entries());
+        let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe0, 0, 16];
+        jpeg.extend_from_slice(b"JFIF\0\x01\x01\0\0\x01\0\x01\0\0");
+        jpeg.extend_from_slice(&[0xff, 0xe1]);
+        jpeg.extend_from_slice(&((exif.len() + 8) as u16).to_be_bytes());
+        jpeg.extend_from_slice(b"Exif\0\0");
+        jpeg.extend_from_slice(&exif);
+        jpeg.extend_from_slice(&[0xff, 0xda, 0, 2]);
+        jpeg.extend(std::iter::repeat_n(0x55u8, 3_000_000));
+        let whole = crate::extract(&jpeg).focus;
+        assert!(whole.is_some());
+        let r = read(&jpeg);
+        assert_eq!(r.focus, whole);
+        assert!(r.bytes_read <= HEADER_PREFIX);
+        // unsupported bodies agree too (no point either way)
+        let other = sony_file("SONY", "ILCE-7M4", 1, &alpha1_entries());
+        assert_eq!(read(&other).focus, None);
+    }
+
+    /// Every truncation and corruption of a file gives the header read the whole-file read's answer
+    /// (or an error when the file is shorter than it said), never a panic.
+    #[test]
+    fn header_read_of_damaged_files_agrees_or_fails_cleanly() {
+        let file = sony_file("SONY", "ILCE-1", 1, &alpha1_entries());
+        for cut in (0..file.len()).step_by(5) {
+            let part = &file[..cut];
+            let r = read_header(part.len() as u64, &mut |off, buf: &mut [u8]| {
+                let s = off as usize;
+                buf.copy_from_slice(part.get(s..s + buf.len()).ok_or_else(|| std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?);
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(r.focus, crate::extract(part).focus, "cut at {cut}");
+        }
+        let mut seed = 0x9e37_79b9_u32;
+        for _ in 0..400 {
+            let mut f = file.clone();
+            for _ in 0..6 {
+                seed ^= seed << 13;
+                seed ^= seed >> 17;
+                seed ^= seed << 5;
+                let i = seed as usize % f.len();
+                f[i] = (seed >> 8) as u8;
+            }
+            let r = read_header(f.len() as u64, &mut |off, buf: &mut [u8]| {
+                let s = off as usize;
+                buf.copy_from_slice(&f[s..s + buf.len()]);
+                Ok(())
+            })
+            .unwrap();
+            assert_eq!(r.focus, crate::extract(&f).focus);
+        }
+        // a reader told the file is longer than it is (replaced since it was measured): an error
+        let r = read_header(file.len() as u64 + 100_000, &mut |off, buf: &mut [u8]| {
+            let s = off as usize;
+            buf.copy_from_slice(file.get(s..s + buf.len()).ok_or_else(|| std::io::Error::from(std::io::ErrorKind::UnexpectedEof))?);
+            Ok(())
+        });
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn the_synthetic_arw_is_laid_out_as_described() {
+        let f = synthetic_arw(3, 10);
+        assert_eq!(f.len(), 260);
+        let p = crate::extract(&f).focus.expect("a point");
+        assert_eq!(p.words(), vec!["AF-C", "Wide", "Animal Eye Tracking"]);
+        assert!(crate::extract(&synthetic_arw(0, 0)).focus.is_none(), "manual focus");
+    }
+
+    #[test]
+    fn cameras_that_can_have_a_point() {
+        assert!(camera_supported("SONY ILCE-1") && camera_supported("Sony ILCE-7SM3 "));
+        for c in ["SONY ILCE-7M4", "Canon EOS R5", "", "SONY", "ILCE-1", "SON"] {
+            assert!(!camera_supported(c), "{c}");
         }
     }
 

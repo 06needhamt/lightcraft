@@ -156,3 +156,34 @@ fn compare_and_survey_draw_each_photos_focus_point() {
         assert!(widget(&h, &format!("compare:focusPoint:{}", other.0)).is_none(), "{view}: a box on a photo without one");
     }
 }
+
+/// A photo imported before focus points were read gets its point from the background reader the frame loop drives
+/// (`focus.pump`, started by itself once the library is open), and Photo ▸ Read Focus Points runs it on demand.
+#[test]
+fn the_frame_loop_reads_focus_points_for_photos_imported_earlier() {
+    let dir = std::env::temp_dir().join(format!("lc-ui-focus-scan-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let add = |app: &mut LightcraftApp, id: u64, name: &str| {
+        let path = dir.join(name);
+        std::fs::write(&path, lightcraft_meta::focus::synthetic_arw(3, 200_000)).expect("write");
+        let mut p = Photo::new(PhotoId(id), Source::File { path: path.to_string_lossy().into() }, name, "ARW", 8640, 5760, "2026-10-13T00:00:00");
+        p.meta.camera = "SONY ILCE-1".into();
+        app.session.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).expect("add");
+    };
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+    app.ui.settings.gpu = false;
+    add(&mut app, 9001, "old.ARW");
+    let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    let has_point = |h: &Headless, id: u64| h.app.session.catalog.photo(PhotoId(id)).is_some_and(|p| p.meta.focus.is_some());
+    assert!(h.step_until(SETTLE, |h| has_point(h, 9001)), "read by itself");
+    assert!(h.step_until(T, |h| h.app.session.activity.list().iter().all(|t| t.kind != "focus")), "its row goes when it is done");
+    // a photo added later is read when asked (the menu item runs the command)
+    add(&mut h.app, 9002, "later.ARW");
+    let spec = h.app.session.commands().into_iter().find(|c| c.id == "photo.readFocusPoints").expect("the command");
+    assert_eq!(spec.menu, vec!["Photo"]);
+    let r = run(&mut h, "photo.readFocusPoints", json!({}));
+    assert_eq!(r["queued"], 1, "{r}");
+    assert!(h.step_until(SETTLE, |h| has_point(h, 9002)));
+    let _ = std::fs::remove_dir_all(&dir);
+}

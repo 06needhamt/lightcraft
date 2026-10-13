@@ -2169,5 +2169,7 @@
   "Tracking": "Слежение",
   "Face Tracking": "Отслеживание лиц",
   "Animal Eye Tracking": "Слежение за глазами животных",
-  "Human Eye Tracking": "Слежение за глазами людей"
+  "Human Eye Tracking": "Слежение за глазами людей",
+  "Read Focus Points": "Прочитать точки фокусировки",
+  "Reading focus points": "Чтение точек фокусировки"
 }

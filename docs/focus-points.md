@@ -21,10 +21,45 @@ zooms to it, so checking whether the subject is sharp takes one key while cullin
   Photos without one have no `focus` key. `view.zoomToggle` replies `{focus: [x, y]}` (the pan it centred on) when it
   zoomed to one.
 
-The point is read when a photo is imported. Photos imported earlier get it with **Photo ▸ Reload from Disk**
-(`photo.reload`), which fills camera data the catalog lacks; it never replaces a point already stored. It is
+The point is read when a photo is imported. Photos imported earlier get it in the background (below). It is
 read-only camera data: never written to XMP, and absent from the catalog JSON when unknown, so older catalogs read
 unchanged (no catalog format change).
+
+## Photos imported earlier
+
+A library imported before focus points were read gets them by itself: when a library opens and some of its photos
+from a supported body have no point and haven't been looked at, LightCraft reads them in the background, with a
+**Reading focus points** row in the activity stack (n of N; ✕ stops it). **Photo ▸ Read Focus Points**
+(`photo.readFocusPoints`) starts the same job by hand. Photo ▸ Reload from Disk still fills a missing point too, but it
+re-reads and hashes whole files and runs while you wait, so it is for a few photos, not a library.
+
+- **What is opened**: only photos whose stored camera is a supported body (`SONY ILCE-1`, `SONY ILCE-7SM3`), whose
+  file is an ARW or JPEG, that are in the library and have no point yet. Nothing else is opened.
+- **What is read**: the few kilobytes that hold the focus data, not the file
+  (`lightcraft_meta::focus::read_header`). It walks the file's structure as the decoder does — the TIFF header and
+  IFD0 (Make, Model), the Exif IFD (the MakerNote entry), the maker note's IFD and the values of the focus tags; in a
+  JPEG, the segments up to the Exif one — asking only for the ranges the bytes read so far point at, and decodes them
+  with the same code as a whole-file read. On the α1 and the A7S III everything sits in the first 16 KB, so one 32 KB
+  read per photo does it (instead of 50–120 MB). Rounds (12), bytes (2 MB) and the file size are bounded; a file that
+  wants more is treated as having no point. On 109 real α1 / A7S III ARWs (83 with a point) the header read gave the
+  same point as the whole-file read for every file.
+- **Pace**: one file at a time on one worker thread (the drive may be a spinning disk), in path order so neighbouring
+  files are read together. Nothing new is read while you drag, type or scroll, and it rests briefly between files
+  while you are around, so your own previews come first. Measured on a 5400 rpm USB drive, cold cache, 200 α1 / A7S III
+  ARWs: 1.9 s (about 100 photos a second, 32 KB each), so a library of 58,796 raws takes about ten minutes at full
+  pace instead of re-reading 2.25 TB.
+- **Saving**: what was read is committed every 200 photos (or every 3 seconds) as LightCraft's own bookkeeping: no
+  undo step, no sidecar written, and only `meta.focus` changes, on a photo that still has none and still points at the
+  file that was read (a photo deleted, moved or relinked meanwhile is left for another run). Photos that turned out to
+  have no point (manual focus, a centre-only Wide report) are listed in `focus-scanned.bin` beside the library, so they
+  are not read again at every launch. The list is headed by the decoder's tag (the bodies it knows): when a body is
+  added, the list starts afresh and those photos are looked at again. A file that can't be read (an offline drive, a
+  file gone or replaced during the read) is not listed, and is tried again the next time the library opens.
+- **Resuming**: quitting mid-run keeps what was committed; the next launch reads the rest.
+- **Agents**: `photo.readFocusPoints {ids?, wait?}` — without `ids`, every photo not looked at yet; with `ids`, those
+  photos, looked at again even if listed. `wait: true` returns when done with `{last: {total, done, found, none,
+  unavailable, bytesRead, seconds, cancelled}}` (`lightcraft-cli run --library DIR photo.readFocusPoints wait=true`).
+  The app's frame loop calls `focus.pump {pace}`, which also starts the job once per library opening.
 
 ## Cameras
 
@@ -75,5 +110,10 @@ DMF (AF, then manual touch-up) keeps its point.
 
 - `crates/meta/src/focus.rs`: the decoder (bounded; hostile values give no point, never a panic) and its tests,
   including an opt-in test over real files (`LIGHTCRAFT_FOCUS_SAMPLES=<photo folder>`).
+- `crates/meta/src/focus_read.rs`: the header-only read; its tests check it against the whole-file read on intact,
+  truncated and corrupted files and count what it reads.
+- `crates/engine/src/focus_scan.rs`: the background job (`photo.readFocusPoints`, `focus.pump`) and
+  `crates/engine/src/tests_focus_scan.rs`, with an opt-in comparison over real files
+  (`LIGHTCRAFT_FOCUS_FILES=<a list of paths>`); `crates/ui-egui/src/focus_scan.rs` drives it from the frame loop.
 - `crates/ui-egui/src/panels/detail.rs` (`focus_box`, `focus_pan`, `draw_focus_point`): mapping through the user's
   rotation and crop, the overlay, and the zoom target; `crates/ui-egui/src/tests_focus_point.rs`.

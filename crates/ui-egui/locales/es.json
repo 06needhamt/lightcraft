@@ -2013,5 +2013,7 @@
   "Tracking": "Seguimiento",
   "Face Tracking": "Seguimiento de caras",
   "Animal Eye Tracking": "Seguimiento de ojos de animales",
-  "Human Eye Tracking": "Seguimiento de ojos humanos"
+  "Human Eye Tracking": "Seguimiento de ojos humanos",
+  "Read Focus Points": "Leer puntos de enfoque",
+  "Reading focus points": "Leyendo puntos de enfoque"
 }

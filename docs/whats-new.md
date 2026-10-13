@@ -9,8 +9,10 @@
 - **Z zooms to it**: Toggle Zoom centres on the focus point, so checking that the subject is sharp is one key
   (View ▸ Zoom to Focus Point turns this off). Photos without a point zoom as before.
 - Sony α1 (ILCE-1) and A7S III (ILCE-7SM3) raws for now; manual-focus shots and Wide shots that only report the frame
-  centre show nothing. Photos imported earlier get their point with Photo ▸ Reload from Disk. More cameras will
-  follow. Details: [focus-points.md](focus-points.md).
+  centre show nothing. More cameras will follow. Details: [focus-points.md](focus-points.md).
+- **Photos already in your library get theirs in the background**: LightCraft reads just the few kilobytes of each
+  file that hold the focus point (about 100 photos a second from a spinning disk), with a *Reading focus points* row
+  in the activity stack you can stop. Photo ▸ Read Focus Points runs it by hand.
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you

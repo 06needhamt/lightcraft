@@ -2136,5 +2136,7 @@
   "Tracking": "Tracking",
   "Face Tracking": "Gesichtsverfolgung",
   "Animal Eye Tracking": "Tieraugen-Tracking",
-  "Human Eye Tracking": "Augen-Tracking (Mensch)"
+  "Human Eye Tracking": "Augen-Tracking (Mensch)",
+  "Read Focus Points": "Fokuspunkte lesen",
+  "Reading focus points": "Fokuspunkte werden gelesen"
 }

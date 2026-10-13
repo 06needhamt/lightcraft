@@ -1975,5 +1975,7 @@
   "Tracking": "Suivi",
   "Face Tracking": "Suivi des visages",
   "Animal Eye Tracking": "Suivi des yeux d’animaux",
-  "Human Eye Tracking": "Suivi des yeux humains"
+  "Human Eye Tracking": "Suivi des yeux humains",
+  "Read Focus Points": "Lire les points de mise au point",
+  "Reading focus points": "Lecture des points de mise au point"
 }

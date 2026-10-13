@@ -27,6 +27,13 @@ fn scan_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64) -> (&'static st
     (pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, watching), focused && !minimized)
 }
 
+/// The pace for other background work that reads the library's files (the focus-point reader): the face scan's, without
+/// the "watching" speed-up.
+pub(crate) fn background_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64) -> &'static str {
+    let (focused, minimized) = ctx.input(|i| (i.focused, i.raw.viewports.get(&i.raw.viewport_id).and_then(|v| v.minimized).unwrap_or(false)));
+    pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, false)
+}
+
 /// The pace for a window that has the keyboard (or not) and is minimized (or not), `worked` seconds after the user last
 /// dragged, typed or scrolled and `moved` seconds after they last moved the pointer, while they are (or are not) looking
 /// at the scan's progress.

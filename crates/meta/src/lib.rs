@@ -16,6 +16,7 @@ pub mod cr3;
 mod datetime;
 mod exif;
 pub mod focus;
+mod focus_read;
 mod gpx;
 mod iptc;
 pub mod tags;
