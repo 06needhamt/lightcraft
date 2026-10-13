@@ -54,6 +54,10 @@
 ### Older raw cameras
 - Olympus E-10 raws open with the camera's white balance (White Balance ▸ As Shot) and without the grey haze in
   the shadows: the black level recorded in the file is now subtracted.
+### Told when there is no GPU
+- When GPU rendering is on but no graphics processor can be found, LightCraft now says so once at start-up instead
+  of quietly rendering everything on the CPU, much more slowly. Help ▸ System Info says why. On NixOS this happens
+  when a `cargo` build runs outside `nix develop` (no Vulkan loader); start it from there.
 
 ## 2026-10-11
 

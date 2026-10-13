@@ -409,6 +409,9 @@ nix build github:storytold/lightcraft                  # → ./result/bin/{light
 nix develop github:storytold/lightcraft                # rust toolchain + native deps + fonts
 ```
 
+On NixOS, run a `cargo` build from `nix develop`: outside it the app can't find `libvulkan.so.1`, finds no GPU and
+renders on the CPU, much more slowly (it says so once at start-up). `nix run` and `nix build` set the path themselves.
+
 In a flake configuration (NixOS, home-manager, nix-darwin):
 
 ```nix
