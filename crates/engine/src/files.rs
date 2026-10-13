@@ -18,7 +18,8 @@ fn meta_of(m: &lightcraft_meta::Metadata) -> (Meta, Option<String>) {
     let camera = [m.make.clone().unwrap_or_default(), m.model.clone().unwrap_or_default()].join(" ").trim().to_string();
     let meta = Meta {
         camera,
-        lens: m.lens_model.clone().unwrap_or_default(),
+        // (a camera that writes no lens name, like Nikon's DSLRs, still says what range the lens covers)
+        lens: m.lens_model.clone().or_else(|| m.lens_spec.and_then(lightcraft_meta::lens_spec_name)).unwrap_or_default(),
         focal_mm: m.focal_length.map(|f| f as f32),
         aperture: m.f_number.map(|f| f as f32),
         shutter,
@@ -1052,6 +1053,20 @@ mod tests {
     /// Keywords from a file keep their hierarchy: the paths of `lr:hierarchicalSubject`, not the
     /// flat names of `dc:subject` that LightCraft's exports (and Lightroom Classic) write besides
     /// them; an exported `travel|Italy|Rome` comes back as itself.
+    #[test]
+    fn a_lens_without_a_name_is_shown_by_its_range() {
+        // a Nikon DSLR raw: no LensModel, the range from the maker note
+        let m = lightcraft_meta::Metadata { lens_spec: Some([18.0, 135.0, 3.5, 5.6]), ..Default::default() };
+        assert_eq!(super::meta_of(&m).0.lens, "18.0-135.0 mm f/3.5-5.6");
+        let named = lightcraft_meta::Metadata {
+            lens_model: Some("NIKKOR Z 24-70mm f/4 S".into()),
+            lens_spec: Some([24.0, 70.0, 4.0, 4.0]),
+            ..Default::default()
+        };
+        assert_eq!(super::meta_of(&named).0.lens, "NIKKOR Z 24-70mm f/4 S");
+        assert_eq!(super::meta_of(&lightcraft_meta::Metadata::default()).0.lens, "");
+    }
+
     #[test]
     fn imported_keywords_keep_their_hierarchy() {
         let m = lightcraft_meta::Metadata {
