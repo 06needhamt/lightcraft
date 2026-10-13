@@ -2,6 +2,10 @@
 
 ## 2026-10-13
 
+### Reliability
+- A demo photo whose stored size was damaged (a width of 4294967295) is rendered at its own size instead of
+  one that overflows.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
