@@ -239,13 +239,14 @@ fn right_side(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, compact_zo
         let p = child.painter();
         let y = r.center().y;
         p.line_segment([pos2(r.left(), y), pos2(r.right(), y)], egui::Stroke::new(2.0, t.track));
-        let f = (app.ui.thumb_size - 90.0) / (480.0 - 90.0);
+        let (min, max) = (crate::state::THUMB_SIZE_MIN, crate::state::THUMB_SIZE_MAX);
+        let f = (app.ui.thumb_size - min) / (max - min);
         let x = r.left() + f * r.width();
         p.rect_filled(Rect::from_center_size(pos2(x, y), vec2(3.0, 14.0)), 1.0, t.thumb_hover);
         if let Some(pp) = resp.interact_pointer_pos()
             && (resp.dragged() || resp.clicked())
         {
-            app.ui.thumb_size = 90.0 + ((pp.x - r.left()) / r.width()).clamp(0.0, 1.0) * (480.0 - 90.0);
+            app.ui.thumb_size = min + ((pp.x - r.left()) / r.width()).clamp(0.0, 1.0) * (max - min);
         }
     }
     if child.min_rect().width() > 0.0 { child.min_rect().left() } else { full.right() }

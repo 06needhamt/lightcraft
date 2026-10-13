@@ -449,6 +449,12 @@ impl AppSettings {
 /// Click-zoom ratios offered (percent): 1:1, 2:1, 3:1, 4:1, 8:1.
 pub const CLICK_ZOOMS: [u32; 5] = [100, 200, 300, 400, 800];
 
+/// Grid thumbnail size (points): the bottom-bar slider's range, and the `=` / `-` keys' step
+/// (`view.thumbSizeUp` / `view.thumbSizeDown`), about a thirteenth of the range.
+pub const THUMB_SIZE_MIN: f32 = 90.0;
+pub const THUMB_SIZE_MAX: f32 = 480.0;
+pub const THUMB_SIZE_STEP: f32 = 30.0;
+
 /// Width limits of a side panel the user resizes (points).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PanelWidth {
@@ -1193,7 +1199,7 @@ impl UiState {
     }
     /// Clamp values restored from disk.
     pub fn sanitized(mut self) -> Self {
-        self.thumb_size = self.thumb_size.clamp(90.0, 480.0);
+        self.thumb_size = self.thumb_size.clamp(THUMB_SIZE_MIN, THUMB_SIZE_MAX);
         self.left_width = LEFT_WIDTH.clamp(self.left_width);
         self.right_width = RIGHT_WIDTH.clamp(self.right_width);
         self.brush_size = self.brush_size.clamp(0.002, 0.5);
