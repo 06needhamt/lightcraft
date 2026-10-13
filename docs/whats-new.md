@@ -8,6 +8,15 @@
 
 ## 2026-10-13
 
+### A view can hold its photos until you refresh it
+- View ▸ Hold View Until Refreshed (off unless you turn it on; kept with the library). With it on, an edit that makes
+  a photo stop matching the view keeps it in the view: a keyword given in a smart album of photos without keywords,
+  a flag taken off in Picks, a rating that falls under the filter bar's. With it off, as before, the photo leaves the
+  grid at once and every photo after it moves up. View ▸ Refresh View (also in the sort menu while the hold is on),
+  Reshuffle, another source, filter or sort, or new rules for the smart album shows what matches now.
+- Photos that start matching still appear at once, and deleting a photo or taking it out of the album or folder
+  shown still takes it out of the view.
+
 ### HDR merges keep the lens correction
 - An HDR made with Photo ▸ Photo Merge ▸ HDR now keeps the lens correction the photos carry (Sony's, Panasonic's
   and Leica's, and the one some DNGs carry, e.g. from drones): Optics ▸ Enable Lens Corrections straightens it as it

@@ -511,6 +511,44 @@ pub fn specs() -> Vec<CommandSpec> {
             }
         ),
         cmd!(
+            "library.refresh",
+            "Refresh View",
+            ["View"],
+            None,
+            "{} — show what matches now: a view that holds its photos (`library.holdView`) lets go of the ones that stopped matching a smart album's rules, Picks or the filter bar since it was opened, sorted or last refreshed",
+            always,
+            |s, _| {
+                s.refresh_view();
+                ok()
+            }
+        ),
+        cmd!(
+            "library.holdView",
+            "Hold View Until Refreshed",
+            ["View"],
+            None,
+            "{on?: bool (toggles when omitted)} → {hold} — when on, an edit that makes a photo stop matching the view (a keyword given in a smart album of photos without keywords, a flag taken off in Picks, a rating under the filter bar's) keeps it in the view until `library.refresh`, Reshuffle, or another source, filter or sort; photos that start matching still appear at once, and deleting a photo or taking it out of the album or folder shown still takes it out of the view. Changing a smart album's rules is another view too. Off (the default): the view follows every edit. Kept with the library's preferences; asking for the state it already has changes nothing",
+            always,
+            |s, p| {
+                let on = match p.get("on") {
+                    None | Some(Value::Null) => !s.hold_view,
+                    Some(Value::Bool(on)) => *on,
+                    Some(_) => return Err(bad("library.holdView", "on must be true or false")),
+                };
+                if on != s.hold_view {
+                    let was = s.hold_view;
+                    s.hold_view = on;
+                    if let Err(e) = s.save_prefs() {
+                        // not kept: not changed either, so asking again does what was asked
+                        s.hold_view = was;
+                        return Err(e);
+                    }
+                    s.refresh_view();
+                }
+                Ok(json!({"hold": s.hold_view}))
+            }
+        ),
+        cmd!(
             "library.shuffle",
             "Reshuffle",
             ["View", "Sort"],

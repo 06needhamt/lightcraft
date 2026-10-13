@@ -190,6 +190,13 @@ pub struct Session {
     /// Shared, so frontends can hold it across frames without copying ([`Session::visible_shared`]).
     visible: Arc<[PhotoId]>,
     visible_key: Option<(u64, String)>,
+    /// A view holds the photos it shows until it is refreshed (`library.holdView`): an edit that makes a photo stop
+    /// matching a smart album's rules, Picks or the filter bar leaves it where it is. Off: the photo goes at once.
+    pub hold_view: bool,
+    /// The view that is held and the photos in it, before stacks are arranged ([`Session::hold_view`]). Another
+    /// source, filter or sort is another view, and starts from what matches; so does a smart album whose rules
+    /// were changed. `None` for a view that nothing can stop matching (a source with no filter over it).
+    held: Option<(String, Vec<PhotoId>)>,
     /// Identifies the current `visible` list: a new value (unique in the process) every time it
     /// is recomputed, so frontends can key their per-view caches on it instead of hashing the ids.
     visible_gen: u64,
@@ -345,6 +352,8 @@ impl Session {
             selection: Selection::default(),
             visible: Vec::new().into(),
             visible_key: None,
+            hold_view: false,
+            held: None,
             visible_gen: 0,
             total: None,
             undo: Vec::new(),
@@ -853,6 +862,16 @@ impl Session {
     pub fn visible(&mut self) -> &[PhotoId] {
         let mut key =
             (self.catalog.revision, format!("{:?}|{:?}|{:?}|{:?}|{:?}", self.source, self.filter, self.sort, self.browse, self.library_folder));
+        // What a held view is told apart by: what is shown and how, and for a smart album its rules (rules that were
+        // changed ask something else). Not the checks of Missing Photos below: they fill the view in, they are
+        // no other view.
+        let asks = matches!(self.source, LibrarySource::Picks)
+            || matches!(self.source, LibrarySource::Album(a) if self.catalog.album(a).is_some_and(|al| al.is_smart()));
+        let rules = match self.source {
+            LibrarySource::Album(a) if asks => self.catalog.album(a).map(|al| format!("{:?}", al.smart)).unwrap_or_default(),
+            _ => String::new(),
+        };
+        let view = format!("{}|{rules}", key.1);
         if self.source == LibrarySource::Missing && self.media.availability.is_background() {
             // the view fills in as the background checks find files gone
             key.1.push_str(&format!("|{}", self.media.availability.generation()));
@@ -860,18 +879,33 @@ impl Session {
         if self.visible_key.as_ref() != Some(&key) {
             // "in the last N days" rules count back from the session's clock
             lightcraft_catalog::rules::set_now(Some((self.clock)()));
-            let mut f = self.source.to_filter(&self.filter, &self.catalog);
-            if self.source == LibrarySource::Folder {
-                // no folder chosen: nothing (an empty path matches nothing)
-                let b = self.browse.clone().unwrap_or_default();
-                f.folder = Some(b.path);
-                f.subfolders = b.subfolders;
-            }
-            if self.source == LibrarySource::LibraryFolder {
-                // no folder chosen: nothing (`.` names no folder)
-                f.library_folder = Some(self.library_folder.clone().unwrap_or_else(|| ".".into()));
-            }
-            let mut visible = self.catalog.query(&f, &self.sort);
+            let f = self.view_filter(self.source, &self.filter);
+            // A held view keeps the photos it shows that stopped matching what is asked of them (a smart album's
+            // rules, a flag, the filter bar), as long as they are still where the view looks: in the library for
+            // a view that is only a question, else in the album or folder shown. Taking a photo out of an album
+            // or the library takes it out of the view at once, held or not.
+            // (only a view that asks something can lose a photo to an edit: the others are queried as ever, at no
+            // cost for the hold)
+            let holds = self.hold_view && (asks || self.filter != Filter::default());
+            let held = self.held.as_ref().filter(|(held, _)| holds && *held == view).map(|(_, ids)| ids);
+            let mut visible = match held {
+                Some(ids) => {
+                    let keep: std::collections::HashSet<PhotoId> = ids.iter().copied().collect();
+                    let within = if asks {
+                        self.view_filter(LibrarySource::All, &Filter::default())
+                    } else if self.source == LibrarySource::RecentlyAdded {
+                        // (how far back it reaches was worked out for `f`: not a second pass over the library)
+                        Filter { imported_from: f.imported_from.clone(), ..Default::default() }
+                    } else {
+                        self.view_filter(self.source, &Filter::default())
+                    };
+                    self.catalog.query_keeping(&f, &self.sort, &keep, &within)
+                }
+                None => self.catalog.query(&f, &self.sort),
+            };
+            // what the view shows now is what it holds until it is refreshed (taken before stacks are arranged, so
+            // a photo folded into a stack is held with it)
+            self.held = holds.then(|| (view, visible.clone()));
             if visible.is_empty() && self.source == LibrarySource::LibraryFolder && !self.folder_holds_photos() {
                 // the shown folder lost its last photo (deleted, moved, removed): everything, not
                 // an empty grid under the name of a folder that is gone from the sidebar
@@ -919,6 +953,28 @@ impl Session {
             self.visible_key = Some(key);
         }
         &self.visible
+    }
+
+    /// `source` as a filter over `base` (the filter bar's, or none), with the folder it shows.
+    fn view_filter(&self, source: LibrarySource, base: &Filter) -> Filter {
+        let mut f = source.to_filter(base, &self.catalog);
+        if source == LibrarySource::Folder {
+            // no folder chosen: nothing (an empty path matches nothing)
+            let b = self.browse.clone().unwrap_or_default();
+            f.folder = Some(b.path);
+            f.subfolders = b.subfolders;
+        }
+        if source == LibrarySource::LibraryFolder {
+            // no folder chosen: nothing (`.` names no folder)
+            f.library_folder = Some(self.library_folder.clone().unwrap_or_else(|| ".".into()));
+        }
+        f
+    }
+
+    /// Let go of what a held view kept: the view shows what matches now ([`Session::hold_view`]).
+    pub fn refresh_view(&mut self) {
+        self.held = None;
+        self.visible_key = None;
     }
 
     /// Whether the library still holds a photo imported from the folder a `LibraryFolder` source
@@ -1021,6 +1077,8 @@ mod tests_folders;
 mod tests_forget_local;
 #[cfg(test)]
 mod tests_history_cursor;
+#[cfg(test)]
+mod tests_hold_view;
 #[cfg(test)]
 mod tests_import;
 #[cfg(test)]

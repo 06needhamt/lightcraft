@@ -272,6 +272,14 @@ fn sort_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if cur.key == Random && ui.button(crate::i18n::tr("Reshuffle")).clicked() {
         let _ = app.run("library.shuffle", json!({}));
     }
+    // a view that holds its photos shows what matches now when asked to
+    if app.session.hold_view {
+        let r = ui.button(crate::i18n::tr("Refresh View"));
+        crate::widgets::register(ui.ctx(), "button:refreshView", r.rect);
+        if r.clicked() {
+            let _ = app.run("library.refresh", json!({}));
+        }
+    }
     ui.separator();
     // a shuffle has no direction worth choosing
     ui.add_enabled_ui(cur.key != Random, |ui| {

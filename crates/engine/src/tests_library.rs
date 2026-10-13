@@ -675,3 +675,27 @@ fn an_album_filter_loop_is_refused() {
     assert!(r.is_err_and(|e| e.to_string().contains("include itself")), "refused");
     assert_eq!(s.catalog.album(lightcraft_catalog::AlbumId(a)).unwrap().smart.as_ref().and_then(|f| f.album), None);
 }
+
+#[test]
+fn the_hold_of_the_view_is_kept_with_the_library_and_holds_nothing_over_from_another() {
+    let dir = temp_dir("holdview");
+    let mut s = open(&dir, true);
+    assert!(!s.hold_view, "off in a library that never asked for it");
+    s.execute("library.holdView", &json!({"on": true})).unwrap();
+    // a filter over the demo photos, and one of them edited out from under it: held
+    s.execute("library.filter", &json!({"rating": 0, "flag": "none"})).unwrap();
+    let shown = s.visible_cloned();
+    let id = *shown.first().expect("the seeded library has unflagged photos");
+    s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+    s.execute("photo.flag", &json!({"flag": "pick"})).unwrap();
+    assert!(s.visible_cloned().contains(&id));
+    s.close_library().unwrap();
+    drop(s);
+    // opened again: the hold is on, and what was held is not (a library opens on what matches)
+    let mut s = open(&dir, false);
+    assert!(s.hold_view);
+    s.execute("library.filter", &json!({"rating": 0, "flag": "none"})).unwrap();
+    assert!(!s.visible_cloned().contains(&id));
+    s.close_library().unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
