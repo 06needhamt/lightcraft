@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (KEYC-SELECTONLYACTIVE: Select Only Active Photo, ⌘⇧D; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -51,11 +51,11 @@ cited here still exists. Formerly docs/parity.md.
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
 | X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
-| Z. Keyboard shortcuts (desktop) | 76 | 3 | 3 | 1 | 49/52 (94%) | 23/24 (96%) |
+| Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
 | Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 408 | 52 | 72 | 35 | 193/201 (96%) | 145/157 (92%) |
+| **Total** | 408 | 53 | 72 | 35 | 193/201 (96%) | 145/158 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 532 in-scope rows — P0 98.0% of 201 · P1 95.2% of 157 · P2 50.0% of 173.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 533 in-scope rows — P0 98.0% of 201 · P1 94.9% of 158 · P2 50.0% of 173.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -610,6 +610,7 @@ From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained 
 | KEY-ZOOM | Zoom in / out — ⌘= / ⌘− | P0 | ✅ | `cmd:view.zoomIn`, `cmd:view.zoomOut`, `crates/ui-egui/src/tests_zoom_keys.rs` | the keys zoom the photo only: egui's own interface zoom on ⌘= / ⌘− / ⌘0 (Ctrl on Windows and Linux, where no native menu bar took the keys first) is off (issue #566) |
 | KEY-SELECTALL | Select all — ⌘A | P0 | ✅ | `cmd:library.selectAll` | |
 | KEY-SELECTNONE | Select none — ⌘D | P0 | ✅ | `cmd:library.selectNone` | secondary binding (primary ⌘⇧A) |
+| KEYC-SELECTONLYACTIVE | Select only active photo — ⌘⇧D / Ctrl+Shift+D | P1 | 🟡 | `cmd:library.selectOnlyActive`, `crates/ui-egui/src/shortcuts.rs` (`select_only_active_*` tests) | Edit → Select Only Active Photo; keeps the active photo, narrows the selection to it and leaves the edit Undo step alone; works in any view that has an active photo; rebindable in Help → Keyboard Shortcuts; text fields and dialogs keep their keys; covered by headless key tests, the macOS native-menu path is not verified |
 | KEY-PASTESELECTED | Paste selected — ⇧⌘V | P0 | ✅ | `cmd:dialog.pasteSettings` | |
 | KEY-PREFS | Settings — ⌘, | P0 | ✅ | `cmd:app.settings` | |
 | KEY-SEARCH | Search — ⌘F | P0 | ✅ | `cmd:view.focusSearch` | |
@@ -790,6 +791,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
+| 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-11 | minor | LR-MERGE-HDR: HDR and panorama merges of raws without colour matrices (CR2, NEF, ARW…) write the colour they open with as DNG tags (issue #965); status unchanged |
 | 2026-10-12 | minor | LR-META-XMP: Read Metadata from File no longer auto-writes the sidecar it has just read, which added `lc:settings` and hid another app's later `crs:` edits (#934); status unchanged (✅) |
 | 2026-10-12 | patch | LR-IMP-CAMERA-COVERAGE: CR2 white level from the active area, not the saturated masked rows above it (issue #1272); status unchanged (🟡) |
