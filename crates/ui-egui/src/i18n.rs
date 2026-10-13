@@ -1354,4 +1354,134 @@ mod tests {
         assert_eq!(history_label("Preset: Warm Glow", &app.session.presets), "預設集：Warm Glow");
         set_language(Locale::En);
     }
+
+    /// English values that Vietnamese intentionally keeps unchanged (product names, standards,
+    /// acronyms). Every other required display label must differ from its English source.
+    const VI_INTENTIONAL_ENGLISH: &[&str] = &[
+        "OK", "ISO", "RGB", "HDR", "JPEG", "PNG", "TIFF", "WebP", "AVIF", "HEIF", "HEIC", "DNG", "ICC", "EXIF", "XMP",
+        "GPU", "MCP", "SAM", "RAW", "Raw", "raw", "B&W", "LUT", "LightCraft", "ArtCraft", "GitHub", "Discord", "English",
+        "日本語", "繁體中文（台灣）", "Display P3", "Bleach Bypass", "Cross Process", "HDR…", "video", "Video", "true",
+        "false", "Album", "Vintage", "publicDomain", "denoiseModel.accept", "Panorama", "Panorama…",
+    ];
+
+    /// Vietnamese covers every current catalog message and every required display label.
+    #[test]
+    fn vietnamese_covers_catalogs_commands_controls_and_rules() {
+        let catalog = Locale::Vi.catalog();
+        assert!(!catalog.is_empty());
+        let keys: std::collections::BTreeSet<&String> = Locale::ALL.iter().flat_map(|language| language.catalog().keys()).collect();
+        let lacking: Vec<_> = keys.into_iter().filter(|key| !catalog.contains_key(key.as_str())).collect();
+        assert!(lacking.is_empty(), "vi lacks {} catalog message(s): {lacking:?}", lacking.len());
+
+        let mut labels: Vec<&str> = lightcraft_engine::command_specs().iter().map(|spec| spec.label).collect();
+        labels.extend(crate::menus::ui_commands().map(|command| command.1).filter(|label| !Locale::ALL.iter().any(|locale| locale.name() == *label)));
+        labels.extend(lightcraft_develop::CONTROLS.iter().map(|control| control.label));
+        labels.extend(crate::panels::settings::TABS.iter().map(|(_, label)| *label));
+        for (_, label, kind) in lightcraft_catalog::rules::FIELDS {
+            labels.push(label);
+            labels.extend(lightcraft_catalog::rules::ops_for(*kind).iter().map(|(_, label)| *label));
+        }
+        labels.extend(lightcraft_catalog::rules::FIELD_GROUPS.iter().map(|group| group.0));
+        labels.extend(lightcraft_engine::rename::TOKENS.iter().map(|token| token.meaning));
+        labels.extend(lightcraft_engine::rename::TEMPLATE_NOTES);
+        for word in crate::date_picker::WEEKDAY_SHORT.iter().chain(&["Pick a date", "Year", "Month", "Day"]) {
+            labels.push(*word);
+        }
+        for day in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] {
+            labels.push(day);
+        }
+        let missing: Vec<_> = labels.into_iter().filter(|label| !catalog.contains_key(*label)).collect();
+        assert!(missing.is_empty(), "vi lacks {} display label(s): {missing:?}", missing.len());
+
+        for (key, value) in catalog {
+            if key.contains('|') {
+                continue;
+            }
+            if VI_INTENTIONAL_ENGLISH.contains(&key.as_str()) {
+                continue;
+            }
+            assert!(!value.is_empty(), "vi empty for {key:?}");
+            // Identical values outside the allowlist are accidental English fallbacks.
+            if value == key && key.chars().any(|ch| ch.is_ascii_alphabetic()) && key.len() > 1 {
+                // Single-letter ops / symbols may match; longer shared English must be listed.
+                assert!(
+                    key.len() <= 2 || key.chars().all(|ch| !ch.is_ascii_alphabetic()),
+                    "vi keeps English for {key:?}; add it to VI_INTENTIONAL_ENGLISH if intentional"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn vietnamese_switches_persists_formats_dates_and_preserves_values() {
+        use crate::control::{ControlRequest, Outcome};
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.run("app.language.vietnamese", serde_json::json!({})).unwrap();
+        assert_eq!(app.ui.language, Locale::Vi);
+        assert_eq!(crate::menubar::checked(&app, "app.language.vietnamese"), Some(true));
+        assert_eq!(tr("Light"), "Ánh sáng");
+        assert_eq!(tr("Exposure"), "Phơi sáng");
+        assert_eq!(Locale::Vi.name(), "Tiếng Việt");
+        assert_eq!(tr("Settings"), "Cài đặt");
+        assert_eq!(tr("Appearance"), "Giao diện");
+        assert_eq!(tr("My Photos"), "Ảnh của tôi");
+        assert_eq!(tr("Candidate"), "Ảnh ứng viên");
+        assert_eq!(tr("Subject"), "Chủ thể");
+        assert_eq!(date_group_label("2026-09-20", false), "Chủ Nhật, 20/9/2026");
+        assert_eq!(date_group_label("2026-09", false), "Tháng 9 năm 2026");
+        assert_eq!(date_group_label("2026-09", true), "Tháng 9");
+        assert_eq!(display_time("2026-09-20T16:04:05"), "Chủ Nhật, 20/9/2026 16:04:05");
+        for n in [0, 1, 2, 5, 22] {
+            let text = tr_format!("Imported {} photo{}", n, if n == 1 { "" } else { "s" });
+            assert!(text.contains(&n.to_string()) && text.contains("ảnh"), "{n}: {text}");
+            assert!(!text.contains("photos") && !text.contains("photo"), "{n}: {text}");
+        }
+        let name = "Color {title} 日本語";
+        assert_eq!(tr_format!("Added {n} photo{} to “{}”", "s", name, n = 22), format!("Đã thêm 22 ảnh vào «{name}»"));
+        assert_eq!(builtin_label("Warm Glow", false), "Warm Glow");
+        assert_ne!(builtin_label("Warm Glow", true), "Warm Glow");
+        assert_eq!(tr("photo-{title}.jpg"), "photo-{title}.jpg");
+        assert_eq!(tr("develop.set"), "develop.set");
+        let saved = serde_json::to_string(&app.ui).unwrap();
+        assert!(saved.contains(r#""language":"vi""#), "{saved}");
+        assert_eq!(serde_json::from_str::<crate::state::UiState>(&saved).unwrap().language, Locale::Vi);
+        let ctx = egui::Context::default();
+        for code in ["vi", "vi-VN", "vi_VN", "vi_VN.UTF-8"] {
+            assert_eq!(Locale::parse_tag(code), Some(Locale::Vi));
+            let (request, _) = ControlRequest::new("ui.set", serde_json::json!({"language": code}));
+            let Outcome::Done(reply) = crate::control::handle(&mut app, &ctx, &request) else { panic!("expected reply") };
+            assert_eq!(reply["ok"], true);
+            assert_eq!(language(), Locale::Vi);
+        }
+        set_language(Locale::En);
+    }
+
+    #[test]
+    fn vietnamese_panels_dialogs_and_diacritics_paint_with_bundled_fonts() {
+        let ctx = fonts_ctx(&[]);
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.ui.left_panel = true;
+        let text = painted_text(&ctx, &mut app, Locale::Vi);
+        assert!(text.contains("Ảnh của tôi") && text.contains("Tất cả ảnh"), "{text}");
+        for (command, title) in [("app.about", "Giới thiệu LightCraft"), ("app.shortcuts", "Phím tắt"), ("app.settings", "Cài đặt")] {
+            app.ui.dialog = None;
+            app.run(command, serde_json::json!({})).unwrap();
+            let text = painted_text(&ctx, &mut app, Locale::Vi);
+            assert!(text.contains(title), "{command}: {text}");
+        }
+        ctx.fonts_mut(|fonts| {
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into())] {
+                let font = egui::FontId::new(13.0, family);
+                for ch in "ĂăÂâÊêÔôƠơƯưĐđáàảãạéèẻẽẹíìỉĩịóòỏõọúùủũụýỳỷỹỵ"
+                    .chars()
+                    .chain(Locale::Vi.catalog().values().flat_map(|text| text.chars()).filter(|ch| {
+                        ('\u{00c0}'..='\u{024f}').contains(ch) || ('\u{1ea0}'..='\u{1ef9}').contains(ch)
+                    }))
+                {
+                    assert!(fonts.has_glyph(&font, ch), "missing Vietnamese glyph {ch}");
+                }
+            }
+        });
+        set_language(Locale::En);
+    }
 }
