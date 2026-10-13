@@ -996,6 +996,16 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             if ui.button(crate::i18n::tr("Edit in Other Editor")).clicked() {
                 let _ = app.run("photo.editInExternal", json!({}));
             }
+            // the raw itself, unrendered: for a raw developer set as the other editor
+            if ui
+                .add_enabled(
+                    crate::menus::ui_enabled(app, "photo.openOriginalInExternal"),
+                    egui::Button::new(crate::i18n::tr("Open Original in Other Editor (RAW, no copy)")),
+                )
+                .clicked()
+            {
+                let _ = app.run("photo.openOriginalInExternal", json!({}));
+            }
         });
     });
     if ui.button(crate::i18n::tr("Find Similar Photos")).clicked() {

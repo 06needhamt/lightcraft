@@ -166,6 +166,9 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("app.contactSheet", "Export Contact Sheet PDF", None, ""),
     ("photo.editInPhotoCraft", "Edit in PhotoCraft", Some("Cmd+Shift+E"), "Photo>Edit In"),
     ("photo.editInExternal", "Edit in Other Editor", Some("Cmd+Alt+E"), "Photo>Edit In"),
+    // {ids?, app?}: the original files themselves (a raw stays a raw: no render, no copy), opened
+    // in the other editor, e.g. a raw developer
+    ("photo.openOriginalInExternal", "Open Original in Other Editor (RAW, no copy)", None, "Photo>Edit In"),
     ("dialog.mergeHdr", "HDR…", Some("Ctrl+H"), "Photo>Photo Merge"),
     ("dialog.mergePanorama", "Panorama…", Some("Ctrl+M"), "Photo>Photo Merge"),
     ("dialog.mergeHdrPanorama", "HDR Panorama…", None, "Photo>Photo Merge"),
@@ -1240,6 +1243,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         }
         "photo.editInPhotoCraft" => edit_in(app, &ctx, p, true),
         "photo.editInExternal" => edit_in(app, &ctx, p, false),
+        "photo.openOriginalInExternal" => open_original_in(app, &ctx, p),
         "dialog.cull" => {
             app.ui.dialog = Some(Dialog::Cull { reject_below: 0.0, pick_best: true });
             Ok(Value::Null)
@@ -1842,6 +1846,14 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
         "photo.editInPhotoCraft" | "photo.editInExternal" => app.session.active().is_some() && app.services.open_with.is_some(),
         "app.exportPrevious" => app.session.active().is_some() && app.session.last_export.is_some(),
         "dialog.pasteSettings" => app.session.active().is_some() && app.session.clipboard.is_some(),
+        "photo.openOriginalInExternal" => {
+            app.services.open_with.is_some()
+                && app
+                    .session
+                    .active()
+                    .and_then(|id| app.session.catalog.photo(id))
+                    .is_some_and(|p| matches!(p.source, lightcraft_engine::catalog::Source::File { .. }))
+        }
         "app.showInFinder" => {
             app.services.reveal.is_some()
                 && app
@@ -1997,4 +2009,88 @@ fn edit_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value, photocraft: 
         _ => app.toast(ctx, crate::i18n::tr_format!("{n} photos opened for editing; each is stacked with its original", n = copies.len())),
     }
     Ok(r)
+}
+
+/// Most originals one Open Original hands the editor (each starts it once).
+const MAX_ORIGINALS: usize = 50;
+
+/// Photo ▸ Edit In ▸ Open Original in Other Editor: hand each selected photo's original file
+/// itself (a raw stays a raw: nothing is rendered, copied or added to the library) to the editor
+/// set in Settings ▸ External Editing, e.g. a raw developer. `p` may give `ids` and the editor
+/// (`app`). Demo photos and missing files are skipped and listed; when no photo has a file to
+/// open, it fails saying why.
+fn open_original_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value) -> Result<Value, String> {
+    let r = open_originals(app, p);
+    if let Err(e) = &r {
+        app.toast(ctx, e.clone());
+    }
+    let r = r?;
+    let opened = r["opened"].as_array().map_or(0, Vec::len);
+    match (r["failed"].as_str(), r["opened"][0]["path"].as_str()) {
+        (Some(e), _) => app.toast(ctx, crate::i18n::tr_format!("Couldn't open the editor: {e}", e = e)),
+        (None, Some(path)) if opened == 1 => {
+            let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            app.toast(ctx, crate::i18n::tr_format!("{name} opened in the other editor", name = name));
+        }
+        _ => app.toast(ctx, crate::i18n::tr_format!("{n} originals opened in the other editor", n = opened)),
+    }
+    Ok(r)
+}
+
+fn open_originals(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    let mut ids = app.session.targets(p);
+    ids.dedup();
+    if ids.is_empty() {
+        return Err("no photo selected".into());
+    }
+    if ids.len() > MAX_ORIGINALS {
+        return Err(format!("{} photos selected: open at most {MAX_ORIGINALS} originals at a time", ids.len()));
+    }
+    let mut files = Vec::new();
+    let mut skipped = Vec::new();
+    for id in ids {
+        match app.session.catalog.photo(id).map(|ph| &ph.source) {
+            Some(lightcraft_engine::catalog::Source::File { path }) if std::path::Path::new(path).is_file() => files.push((id, path.clone())),
+            Some(lightcraft_engine::catalog::Source::File { path }) => {
+                skipped.push(json!({"id": id.0, "reason": format!("the original is missing: {path}")}))
+            }
+            Some(_) => skipped.push(json!({"id": id.0, "reason": "a demo photo has no original file"})),
+            None => skipped.push(json!({"id": id.0, "reason": "no such photo"})),
+        }
+    }
+    if files.is_empty() {
+        let why = skipped.first().and_then(|s| s["reason"].as_str()).unwrap_or("no original file");
+        return Err(if skipped.len() == 1 {
+            format!("nothing to open: {why}")
+        } else {
+            format!("nothing to open: none of these photos has its original file ({why})")
+        });
+    }
+    let editor = p.get("app").and_then(Value::as_str).map_or_else(|| app.ui.settings.external_editor.clone(), str::to_string);
+    if let Some(check) = app.services.check_editor.as_ref() {
+        check(&editor)?;
+    }
+    // all at once where the host can: an editor that keeps one window (DxO PhotoLab) loses the
+    // files that arrive while it is still starting
+    if let Some(open_all) = app.services.open_all_with.as_mut() {
+        let paths: Vec<String> = files.iter().map(|(_, path)| path.clone()).collect();
+        open_all(&paths, &editor).map_err(|e| format!("Couldn't open the editor: {e}"))?;
+        let opened: Vec<Value> = files.iter().map(|(id, path)| json!({"id": id.0, "path": path})).collect();
+        return Ok(json!({"opened": opened, "skipped": skipped, "app": editor, "failed": null}));
+    }
+    let open = app.services.open_with.as_mut().ok_or("opening another application isn't available here")?;
+    let mut opened = Vec::new();
+    let mut failed = None;
+    for (id, path) in files {
+        match open(&path, &editor) {
+            Ok(()) => opened.push(json!({"id": id.0, "path": path})),
+            Err(e) => failed = Some(e),
+        }
+    }
+    if opened.is_empty()
+        && let Some(e) = failed
+    {
+        return Err(format!("Couldn't open the editor: {e}"));
+    }
+    Ok(json!({"opened": opened, "skipped": skipped, "app": editor, "failed": failed}))
 }

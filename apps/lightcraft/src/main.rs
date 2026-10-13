@@ -463,6 +463,7 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
             file_dialog().set_title(lightcraft_ui_egui::i18n::tr("Open Library")).pick_folder().map(|p| p.to_string_lossy().to_string())
         })),
         open_with: Some(Box::new(editors::open_with)),
+        open_all_with: Some(Box::new(editors::open_all_with)),
         check_editor: Some(Box::new(editors::check)),
         open_url: Some(Box::new(|url: &str| {
             if !url.starts_with("https://") {
