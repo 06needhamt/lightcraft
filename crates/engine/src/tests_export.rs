@@ -236,6 +236,69 @@ fn library_with_jpeg(tag: &str) -> (Session, lightcraft_catalog::PhotoId, std::p
     (s, id, dir, src, bytes)
 }
 
+fn preset_export_preserves_originals(command: &str, selection: serde_json::Value, tag: &str) {
+    let (mut s, _, dir, src, original) = library_with_jpeg(tag);
+    let sidecar = src.with_extension("xmp");
+    let appended_sidecar = dir.join("IMG_1.jpg.xmp");
+    std::fs::write(&sidecar, b"existing sidecar").unwrap();
+    std::fs::write(&appended_sidecar, b"appended sidecar").unwrap();
+    std::fs::create_dir_all(dir.join("sub")).unwrap();
+    let mut targets = vec![src.clone(), dir.join("sub/../IMG_1.jpg"), sidecar.clone()];
+    targets.push(appended_sidecar.clone());
+    #[cfg(unix)]
+    {
+        let alias = dir.join("alias.jpg");
+        std::os::unix::fs::symlink(&src, &alias).unwrap();
+        targets.push(alias);
+        let alias = dir.join("alias.xmp");
+        std::os::unix::fs::symlink(&sidecar, &alias).unwrap();
+        targets.push(alias);
+    }
+    for path in targets {
+        let mut params = selection.clone();
+        params["path"] = json!(path.to_string_lossy());
+        let error = s.execute(command, &params).unwrap_err().to_string();
+        assert!(error.contains("never writes over an original"), "{error}");
+        assert_eq!(std::fs::read(&src).unwrap(), original);
+        assert_eq!(std::fs::read(&sidecar).unwrap(), b"existing sidecar");
+        assert_eq!(std::fs::read(&appended_sidecar).unwrap(), b"appended sidecar");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn preset_export_never_overwrites_originals_or_sidecars() {
+    preset_export_preserves_originals("preset.export", json!({"ids": ["lc.warm-glow"]}), "preset-export-guard");
+}
+
+#[test]
+fn curve_preset_export_never_overwrites_originals_or_sidecars() {
+    preset_export_preserves_originals("curve.exportPresets", json!({"names": ["Linear"]}), "curve-export-guard");
+}
+
+#[test]
+fn preset_exports_preserve_previous_files_on_write_failure() {
+    let dir = temp_dir("preset-export-failure");
+    let mut s = Session::new();
+    for (command, selection, file) in
+        [("preset.export", json!({"ids": ["lc.warm-glow"]}), "look.lcpreset"), ("curve.exportPresets", json!({"names": ["Linear"]}), "curve.lccurve")]
+    {
+        let path = dir.join(file);
+        let mut params = selection;
+        params["path"] = json!(path.to_string_lossy());
+        s.execute(command, &params).unwrap();
+        let previous = std::fs::read(&path).unwrap();
+        {
+            let _fault = lightcraft_catalog::safe_file::fail_writes_after(4);
+            assert!(s.execute(command, &params).is_err(), "{command} must report the failed write");
+        }
+        assert_eq!(std::fs::read(&path).unwrap(), previous, "{command} preserves the prior export");
+        assert_eq!(s.execute(command, &params).unwrap()["count"], 1, "replacement still succeeds");
+    }
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2, "no temporary files remain");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 fn disk_batch(
     s: &mut Session,
     id: lightcraft_catalog::PhotoId,
