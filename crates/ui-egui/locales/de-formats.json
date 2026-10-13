@@ -36,6 +36,7 @@
   "Build Standard-Sized Previews ({scope})": "Standardvorschauen erstellen ({scope})",
   "Building previews for {} photos…": "Vorschauen für {} Fotos werden erstellt…",
   "Click {}:1": "Klick {}:1",
+  "Color space: Rec. 2020 {curve} (HDR AVIF)": "Farbraum: Rec. 2020 {curve} (HDR-AVIF)",
   "Couldn't open the editor: {e}": "Editor konnte nicht geöffnet werden: {e}",
   "Create {n} Virtual Copies": "{n} virtuelle Kopien erstellen",
   "Creates {} stacks from {} of {scope}": "Erstellt {} Stapel aus {} von {scope}",
@@ -161,6 +162,7 @@
   "{n} photo{}": "{n} Foto{}",
   "{n} photo{} match · updates automatically as photos change": "Passende Fotos: {n}{:.0} · wird bei Änderungen an Fotos automatisch aktualisiert",
   "{n} photo{} now · updates automatically as photos change": "Aktuelle Fotos: {n}{:.0} · wird bei Änderungen an Fotos automatisch aktualisiert",
+  "{n} selected photos · {pages} pages": "{n} ausgewählte Fotos · {pages} Seiten",
   "{pid} (missing)": "{pid} (fehlt)",
   "{sel_n} selected · {counted}": "{sel_n} ausgewählt · {counted}",
   "{stage}… {:.0}%": "{stage}… {:.0}%",
@@ -245,5 +247,7 @@
   "{n} added to Apple Photos album “{album}”": "{n} zum Apple-Fotos-Album „{album}“ hinzugefügt",
   "{n} added to Apple Photos": "{n} zu Apple Fotos hinzugefügt",
   "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt",
-  "{n} selected photos · {pages} pages": "{n} ausgewählte Fotos · {pages} Seiten"
+  "{name} opened in the other editor": "{name} im anderen Editor geöffnet",
+  "{n} originals opened in the other editor": "{n} Originale im anderen Editor geöffnet",
+  "· {in_source} identical copies": "· {in_source} identische Kopien"
 }

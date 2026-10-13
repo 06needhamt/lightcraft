@@ -21,6 +21,7 @@
   "Build Smart Previews ({scope})": "建立智慧型預覽（{scope}）",
   "Build Standard-Sized Previews ({scope})": "建立標準尺寸預覽（{scope}）",
   "Click {}:1": "點擊時 {}:1",
+  "Color space: Rec. 2020 {curve} (HDR AVIF)": "色彩空間：Rec. 2020 {curve}（HDR AVIF）",
   "Create {n} Virtual Copies": "建立 {n} 張虛擬副本",
   "Decoder: {reason}": "解碼器：{reason}",
   "Delete \"{label}\"": "刪除「{label}」",
@@ -113,6 +114,7 @@
   "{n} photo{}": "{n} 張照片{:.0}",
   "{n} photo{} match · updates automatically as photos change": "{n} 張照片符合{:.0} · 隨照片變更自動更新",
   "{n} photo{} now · updates automatically as photos change": "目前 {n} 張照片{:.0} · 隨照片變更自動更新",
+  "{n} selected photos · {pages} pages": "已選取 {n} 張照片 · {pages} 頁",
   "{sel_n} selected · {counted}": "已選取 {sel_n} 張 · {counted}",
   "{stage}… {:.0}%": "{stage}… {:.0}%",
   "{verb} {n} Photo{}": "{verb} {n} 張照片{:.0}",
@@ -245,5 +247,7 @@
   "{n} added to Apple Photos album “{album}”": "已將 {n} 個加入 Apple 照片相簿「{album}」",
   "{n} added to Apple Photos": "已將 {n} 個加入 Apple 照片",
   "{n} photos opened for editing; each is stacked with its original": "已開啟 {n} 張相片進行編輯；每張都與其原始相片堆疊在一起",
-  "{n} selected photos · {pages} pages": "已選取 {n} 張照片 · {pages} 頁"
+  "{name} opened in the other editor": "已在其他編輯器中開啟 {name}",
+  "{n} originals opened in the other editor": "已在其他編輯器中開啟 {n} 個原始檔案",
+  "· {in_source} identical copies": "· {in_source} 個相同副本"
 }

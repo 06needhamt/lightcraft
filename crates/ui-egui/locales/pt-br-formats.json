@@ -24,6 +24,7 @@
   "Build Smart Previews ({scope})": "Gerar pré-visualizações inteligentes ({scope})",
   "Build Standard-Sized Previews ({scope})": "Gerar pré-visualizações em tamanho padrão ({scope})",
   "Click {}:1": "Clique em {}:1",
+  "Color space: Rec. 2020 {curve} (HDR AVIF)": "Espaço de cor: Rec. 2020 {curve} (AVIF HDR)",
   "Create {n} Virtual Copies": "Criar {n} cópias virtuais",
   "Decoder: {reason}": "Decodificador: {reason}",
   "Delete \"{label}\"": "Excluir \"{label}\"",
@@ -117,6 +118,7 @@
   "{n} photo{}": "{n} foto{:.0}",
   "{n} photo{} match · updates automatically as photos change": "{n} foto{:.0} correspondente(s) · atualiza automaticamente conforme as fotos mudam",
   "{n} photo{} now · updates automatically as photos change": "{n} foto{:.0} agora · atualiza automaticamente conforme as fotos mudam",
+  "{n} selected photos · {pages} pages": "{n} fotos selecionadas · {pages} páginas",
   "{sel_n} selected · {counted}": "{sel_n} selecionadas · {counted}",
   "{stage}… {:.0}%": "{stage}… {:.0}%",
   "{verb} {n} Photo{}": "{verb} {n} foto{:.0}",
@@ -245,5 +247,7 @@
   "{n} added to Apple Photos album “{album}”": "{n} adicionadas ao álbum “{album}” do Fotos da Apple",
   "{n} added to Apple Photos": "{n} adicionadas ao Fotos da Apple",
   "{n} photos opened for editing; each is stacked with its original": "{n} fotos abertas para edição; cada uma está empilhada com a original",
-  "{n} selected photos · {pages} pages": "{n} fotos selecionadas · {pages} páginas"
+  "{name} opened in the other editor": "{name} aberto no outro editor",
+  "{n} originals opened in the other editor": "{n} originais abertos no outro editor",
+  "· {in_source} identical copies": "· {in_source} cópias idênticas"
 }
