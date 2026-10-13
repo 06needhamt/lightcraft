@@ -28,6 +28,10 @@
 - The starting look fitted from a raw's camera JPEG now uses its darkest tones too (issue #1307).
   Photos with deep shadows no longer have to extend the first measured tone in a straight line to black.
   Existing smart previews are refreshed when their originals are online, and cached renders are redrawn.
+### Slider drags follow the pointer more closely
+- With a GPU, a slider drag's preview is drawn in the same frame as the slider moves instead of one frame later,
+  when the preview renders in a few milliseconds (it waits at most 40 % of a frame for it; slower renders, such as
+  on the CPU, are not waited for).
 
 ## 2026-10-11
 

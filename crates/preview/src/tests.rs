@@ -351,3 +351,16 @@ fn disk_cache_never_touches_foreign_files() {
     assert!(!disk::is_cache_file("01", "0123456789abcdef0123456789abcdef.jpg.bak"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// [`JobPool::wait`] returns once a job finishes, which [`JobPool::try_recv`] then hands out, or
+/// after the timeout.
+#[test]
+fn pool_wait_keeps_the_finished_job_for_try_recv() {
+    let mut p: JobPool<u8, u8> = JobPool::new(1);
+    assert!(!p.wait(std::time::Duration::from_millis(10)), "nothing runs");
+    p.submit(1, 0, 1, Box::new(|| 7));
+    assert!(p.wait(std::time::Duration::from_secs(10)));
+    assert!(p.wait(std::time::Duration::ZERO), "kept until taken");
+    assert_eq!(p.try_recv().map(|d| d.result), Some(7));
+    assert!(p.try_recv().is_none());
+}
