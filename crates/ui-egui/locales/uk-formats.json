@@ -247,5 +247,7 @@
   "{n} photos opened for editing; each is stacked with its original": "Відкрито для редагування фото: {n}; кожне об’єднано в стос з оригіналом",
   "{name} opened in the other editor": "{name} відкрито в іншому редакторі",
   "{n} originals opened in the other editor": "Відкрито оригіналів в іншому редакторі: {n}",
-  "· {in_source} identical copies": "· ідентичних копій: {in_source}"
+  "· {in_source} identical copies": "· ідентичних копій: {in_source}",
+  "Renames {n} face{} across the library. The files are not changed.": "Перейменовує {n} облич у бібліотеці. Файли не змінюються.{:.0}",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "«{to}» уже є серед людей. Об’єднання лишає одну людину; скасування знову розділяє їх."
 }

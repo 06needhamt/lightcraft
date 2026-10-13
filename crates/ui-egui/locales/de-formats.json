@@ -247,5 +247,7 @@
   "{n} photos opened for editing; each is stacked with its original": "{n} Fotos zur Bearbeitung geöffnet; jedes ist mit seinem Original gestapelt",
   "{name} opened in the other editor": "{name} im anderen Editor geöffnet",
   "{n} originals opened in the other editor": "{n} Originale im anderen Editor geöffnet",
-  "· {in_source} identical copies": "· {in_source} identische Kopien"
+  "· {in_source} identical copies": "· {in_source} identische Kopien",
+  "Renames {n} face{} across the library. The files are not changed.": "Benennt {n} Gesichter in der Bibliothek um. Die Dateien werden nicht geändert.{:.0}",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "„{to}“ ist bereits eine Person. Zusammenführen ergibt eine Person; Rückgängig trennt sie wieder."
 }

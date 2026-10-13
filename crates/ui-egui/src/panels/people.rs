@@ -181,9 +181,23 @@ fn card(app: &mut LightcraftApp, ui: &mut egui::Ui, person: &Person, r: Rect, ed
     p.text(pos2(r.left() + 2.0, face.bottom() + 14.0), Align2::LEFT_CENTER, name, t.semibold(13.0), t.text);
     let photos = crate::i18n::tr_format!("{n} photo{}", if person.count == 1 { "" } else { "s" }, n = person.count);
     p.text(pos2(r.left() + 2.0, face.bottom() + 32.0), Align2::LEFT_CENTER, photos, t.font(12.0), t.text_dim);
-    if resp.on_hover_text(crate::i18n::tr_format!("{} — show their photos", person.name)).clicked() {
+    let resp = resp.on_hover_text(crate::i18n::tr_format!("{} — show their photos", person.name));
+    let full = person.name.clone();
+    resp.context_menu(|ui| {
+        let r = ui.button(crate::i18n::tr("Rename Person…"));
+        register(ui.ctx(), "personMenu:rename", r.rect);
+        if r.clicked() {
+            open_rename(app, &full);
+        }
+    });
+    if resp.clicked() {
         let _ = app.run("view.person", json!({"name": person.name}));
     }
+}
+
+/// The Rename Person dialog, prefilled with the name the card shows.
+pub(crate) fn open_rename(app: &mut LightcraftApp, name: &str) {
+    app.ui.dialog = Some(crate::state::Dialog::RenamePerson { from: name.to_string(), to: name.to_string(), merge: false });
 }
 
 #[cfg(test)]

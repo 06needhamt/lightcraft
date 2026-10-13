@@ -229,6 +229,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::LabelNames { .. } => "Edit Color Label Names",
         Dialog::CaptureTime { .. } => "Edit Capture Time",
         Dialog::RenameKeyword { .. } => "Rename Keyword",
+        Dialog::RenamePerson { .. } => "Rename Person",
         Dialog::KeywordTag { editing: None, .. } => "Create Keyword Tag",
         Dialog::KeywordTag { .. } => "Edit Keyword Tag",
         Dialog::DeleteKeyword { .. } => "Delete Keyword",
@@ -571,6 +572,36 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     let more = total.saturating_sub(RENAME_PREVIEW_ROWS);
                     if more > 0 {
                         ui.label(egui::RichText::new(crate::i18n::tr_format!("… and {more} more", more = more)).color(t.text_dim));
+                    }
+                }
+                Dialog::RenamePerson { from, to, merge } => {
+                    let submitted = dialog_field(ui, "field:personName", to, "Name");
+                    let plan = person_rename_plan(&app.session.catalog, from, to);
+                    if !plan.needs_merge {
+                        *merge = false;
+                    }
+                    if submitted && plan.block.is_none() && (!plan.needs_merge || *merge) {
+                        confirm = true;
+                    }
+                    if let Some(why) = plan.block {
+                        ui.label(egui::RichText::new(crate::i18n::tr(why)).color(t.caution));
+                    } else {
+                        ui.label(
+                            egui::RichText::new(crate::i18n::tr_format!(
+                                "Renames {n} face{} across the library. The files are not changed.",
+                                if plan.faces == 1 { "" } else { "s" },
+                                n = plan.faces
+                            ))
+                            .color(t.text_dim),
+                        );
+                    }
+                    if plan.needs_merge {
+                        ui.label(
+                            egui::RichText::new(crate::i18n::tr_format!("“{to}” is already a person. Combining them makes one person; Undo separates them again.", to = to.trim()))
+                                .color(t.caution),
+                        );
+                        let r = ui.checkbox(merge, crate::i18n::tr("Combine with the existing person"));
+                        crate::widgets::register(ui.ctx(), "check:personMerge", r.rect);
                     }
                 }
                 Dialog::RenameKeyword { from, to } => {
@@ -1246,18 +1277,27 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::SamModel { .. } if sam_installed || sam_running || sam_nowhere => "",
                     Dialog::SamModel { error, .. } if error.is_some() || sam_failed => "Try Again",
                     Dialog::SamModel { .. } => "Download",
+                    Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
                     _ if informational => "Close",
                     _ => "OK",
                 };
                 // installing waits for the licence to be accepted
                 // (and Synchronize waits for the scan)
-                let can_confirm = informational
-                    || !matches!(
-                        &dlg,
-                        Dialog::DenoiseModel { accepted: false, .. } | Dialog::FaceModel { accepted: false, .. } | Dialog::SynchronizeFolder { counts: None, .. }
-                    )
-                        // smart-album rules that can't mean anything wait to be fixed
-                        && !matches!(&dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty());
+                let rename_blocked = match &dlg {
+                    Dialog::RenamePerson { from, to, merge } => {
+                        let plan = person_rename_plan(&app.session.catalog, from, to);
+                        plan.block.is_some() || (plan.needs_merge && !*merge)
+                    }
+                    _ => false,
+                };
+                let can_confirm = !rename_blocked
+                    && (informational
+                        || !matches!(
+                            &dlg,
+                            Dialog::DenoiseModel { accepted: false, .. } | Dialog::FaceModel { accepted: false, .. } | Dialog::SynchronizeFolder { counts: None, .. }
+                        )
+                            // smart-album rules that can't mean anything wait to be fixed
+                            && !matches!(&dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty()));
                 let r = (!ok.is_empty()).then(|| ui.add_enabled(can_confirm, egui::Button::new(crate::i18n::tr(ok))));
                 if let Some(r) = &r {
                     crate::widgets::register(ui.ctx(), "button:dialogOk", r.rect);
@@ -1575,6 +1615,7 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         }
         Dialog::Rename { template, start } => app.run("photo.rename", json!({"template": template, "start": start})),
         Dialog::RenameKeyword { from, to } => app.run("keyword.rename", json!({"from": from, "to": to})),
+        Dialog::RenamePerson { from, to, merge } => app.run("faces.renamePerson", json!({"from": from, "to": to.trim(), "merge": merge})),
         Dialog::KeywordTag {
             editing,
             name,
@@ -1906,6 +1947,54 @@ fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, label: &str, id: &str, option
 /// field: `dialog_field`).
 fn return_confirms(dlg: &Dialog) -> bool {
     matches!(dlg, Dialog::CopySettings { .. } | Dialog::PasteSettings { .. })
+}
+
+struct PersonRenamePlan {
+    faces: usize,
+    needs_merge: bool,
+    /// Why Rename stays disabled. `None` when the typed name can be applied.
+    block: Option<&'static str>,
+}
+
+/// What renaming `from` to `to` would do, using the same rules as `faces.renamePerson`.
+fn person_rename_plan(cat: &lightcraft_catalog::Catalog, from: &str, to: &str) -> PersonRenamePlan {
+    let to_trim = to.trim();
+    if to_trim.is_empty() {
+        return PersonRenamePlan { faces: 0, needs_merge: false, block: Some("Type a name") };
+    }
+    if to_trim.chars().count() > 200 || to_trim.chars().any(char::is_control) {
+        return PersonRenamePlan { faces: 0, needs_merge: false, block: Some("A name is at most 200 characters, without control characters") };
+    }
+    let from_key = from.trim().to_lowercase();
+    let to_key = to_trim.to_lowercase();
+    let mut matched = 0usize;
+    let mut faces = 0usize;
+    let mut needs_merge = false;
+    if !from_key.is_empty() {
+        for photo in cat.photos().filter(|p| p.in_library()) {
+            for region in photo.meta.regions.iter().filter(|r| r.kind == lightcraft_meta::RegionKind::Face) {
+                let Some(name) = region.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) else { continue };
+                let key = name.to_lowercase();
+                if key == from_key {
+                    matched += 1;
+                    if region.name.as_deref() != Some(to_trim) {
+                        faces += 1;
+                    }
+                } else if key == to_key {
+                    needs_merge = true;
+                }
+            }
+        }
+    }
+    let block = if matched == 0 {
+        Some("No person by that name")
+    } else if faces == 0 {
+        Some("That is already their name")
+    } else {
+        None
+    };
+    // a case-only change is the same person, not a merge
+    PersonRenamePlan { faces, needs_merge: needs_merge && from_key != to_key, block }
 }
 
 /// A dialog's one text field: it keeps the focus (except while its own menu has it) and opens

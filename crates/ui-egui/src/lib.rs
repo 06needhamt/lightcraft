@@ -108,6 +108,8 @@ mod tests_preview_limit;
 #[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]
+mod tests_rename_person;
+#[cfg(test)]
 mod tests_scroll;
 #[cfg(test)]
 mod tests_switch_library;
@@ -498,6 +500,22 @@ impl LightcraftApp {
         self
     }
 
+    /// The open person page, the way back to it, and the photo it was opened from follow a rename.
+    fn follow_renamed_person(&mut self, from: &str, to: &str) {
+        let same = |n: &str| n.trim().to_lowercase() == from.trim().to_lowercase();
+        if self.ui.person_page.as_deref().is_some_and(same) {
+            self.ui.person_page = Some(to.to_string());
+        }
+        if self.ui.last_person.as_deref().is_some_and(same) {
+            self.ui.last_person = Some(to.to_string());
+        }
+        if let Some((name, photo)) = self.ui.person_from.clone()
+            && same(&name)
+        {
+            self.ui.person_from = Some((to.to_string(), photo));
+        }
+    }
+
     /// Run a UI or engine command by id. The single entry point for every frontend path.
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
         if let Some(result) = model_setup::intercept(self, id, &params) {
@@ -573,6 +591,13 @@ impl LightcraftApp {
                 }
             }
             Ok(v) if id == "faces.detect" => self.ui.status = detect_summary(v),
+            Ok(v) if id == "faces.renamePerson" => {
+                let to = v["to"].as_str().unwrap_or("").to_string();
+                let from = params.get("from").and_then(Value::as_str).unwrap_or("");
+                if !to.is_empty() {
+                    self.follow_renamed_person(from, &to);
+                }
+            }
             Ok(_) => {}
         }
         r

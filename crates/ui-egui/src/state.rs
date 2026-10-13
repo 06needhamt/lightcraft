@@ -825,6 +825,13 @@ pub enum Dialog {
         from: String,
         to: String,
     },
+    /// Rename every face of `from` to `to`. `merge` is the user's yes to combining with the person
+    /// `to` already names.
+    RenamePerson {
+        from: String,
+        to: String,
+        merge: bool,
+    },
     /// Create a keyword, or edit one (`editing`): Lightroom Classic's Create / Edit Keyword Tag.
     KeywordTag {
         /// The keyword being edited; `None`: a new one.
