@@ -246,6 +246,7 @@
   "new, inside {parent}": "新關鍵字，位於 {parent} 內",
   "Keywords of {n} selected photos": "選取的 {n} 張照片的關鍵字",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "已從 {n} 張照片移除「{name}」。編輯 → 復原可恢復。",
+  "Inside: {names}": "其中：{names}",
   "1 task is still running: {names}. Quitting stops it.": "仍有 1 個工作在執行：{names}。結束將停止它。",
   "{n} tasks are still running: {names}. Quitting stops them.": "仍有 {n} 個工作在執行：{names}。結束將停止它們。",
   "{what} merge cancelled": "已取消{what}合併",

@@ -242,6 +242,7 @@
   "new, inside {parent}": "нове, всередині {parent}",
   "Keywords of {n} selected photos": "Ключові слова вибраних фото: {n}",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "«{name}» вилучено з фото: {n}. Редагування → Скасувати поверне його.",
+  "Inside: {names}": "Усередині: {names}",
   "1 task is still running: {names}. Quitting stops it.": "1 завдання ще виконується: {names}. Вихід зупинить його.",
   "{n} tasks are still running: {names}. Quitting stops them.": "Ще виконуються завдання ({n}): {names}. Вихід зупинить їх.",
   "{what} merge cancelled": "Об’єднання {what} скасовано",

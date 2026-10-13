@@ -285,6 +285,7 @@
   "new, inside {parent}": "nowe, wewnątrz {parent}",
   "Keywords of {n} selected photos": "Słowa kluczowe zaznaczonych zdjęć ({n})",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "Usunięto „{name}” z {n} zdjęć. Edytuj → Cofnij przywraca je.",
+  "Inside: {names}": "Wewnątrz: {names}",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft nieoczekiwanie zakończył działanie: {e}\n\nSzczegóły są w pliku dziennika: {path}",
   "LightCraft stopped unexpectedly: {e}": "LightCraft nieoczekiwanie zakończył działanie: {e}",
   "Renames {n} face{} across the library. The files are not changed.": "Zmienia nazwę twarzy w całej bibliotece (liczba twarzy: {n}).{:.0} Pliki nie są zmieniane.",

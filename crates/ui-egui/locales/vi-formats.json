@@ -102,6 +102,7 @@
   "Imported {} photo{}": "Đã nhập {} ảnh{:.0}",
   "In line for AI Denoise ({ahead} ahead)…": "Đang xếp hàng Khử nhiễu AI (trước bạn: {ahead})…",
   "Insert at the cursor (also written {})": "Chèn tại con trỏ (cũng ghi là {})",
+  "Inside: {names}": "Bên trong: {names}",
   "It is taken off {count} photo{}, with the keywords below it. Undo brings it back.": "Sẽ gỡ khỏi {count} ảnh{:.0}, kèm từ khóa con. Hoàn tác sẽ khôi phục.",
   "Keywords of {n} selected photos": "Keywords of {n} selected photos",
   "Label Set: {name}": "Bộ nhãn: {name}",

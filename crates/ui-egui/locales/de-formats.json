@@ -242,6 +242,7 @@
   "new, inside {parent}": "neu, in {parent}",
   "Keywords of {n} selected photos": "Stichwörter von {n} ausgewählten Fotos",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "„{name}“ von {n} Fotos entfernt. Bearbeiten → Rückgängig stellt es wieder her.",
+  "Inside: {names}": "Darin: {names}",
   "1 task is still running: {names}. Quitting stops it.": "1 Aufgabe läuft noch: {names}. Beenden bricht sie ab.",
   "{n} tasks are still running: {names}. Quitting stops them.": "{n} Aufgaben laufen noch: {names}. Beenden bricht sie ab.",
   "{what} merge cancelled": "{what}-Zusammenfügung abgebrochen",
