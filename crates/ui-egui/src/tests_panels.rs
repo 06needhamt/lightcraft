@@ -729,7 +729,7 @@ fn the_header_of_a_long_section_stays_in_sight() {
 }
 
 /// Scroll the sidebar (the pointer over it) by `dy`.
-fn scroll_sidebar(h: &mut Headless, dy: f32) {
+pub(crate) fn scroll_sidebar(h: &mut Headless, dy: f32) {
     h.request("ui.move", json!({"x": 120.0, "y": 400.0}), T);
     let r = h.request("ui.scroll", json!({"dy": dy}), T);
     assert_eq!(r["ok"], true, "{r}");
@@ -889,6 +889,10 @@ fn the_keywords_header_creates_a_keyword() {
     h.step();
     h.step();
     assert!(has(&h, "source:keyword:zebra crossing"), "the new keyword is listed");
+    // the sidebar scrolls to it: it is listed last, below what the panel shows
+    h.settle(SETTLE);
+    let (row, panel) = (widget(&h, "source:keyword:zebra crossing"), widget(&h, "panel:left_panel"));
+    assert!(panel.contains_rect(row), "the new keyword is in sight: {row:?} in {panel:?}");
 }
 
 /// A folded section's row count sits to the left of its header button; a section without a button
