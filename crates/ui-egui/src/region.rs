@@ -183,11 +183,13 @@ pub fn window_clip(mode: crate::state::BeforeAfter, before_side: bool, pane: egu
     clip.intersect(canvas)
 }
 
-/// Whether the Before window waits for the After's. Both are cut from the same decoded original;
-/// asked for together while it isn't held yet, each worker decodes its own copy (two full-size
-/// decodes, two uploads, one thrown away). The Before follows once the original is in.
-pub fn defer_before_window(before_side: bool, after_pending: bool, original_held: bool) -> bool {
-    before_side && after_pending && !original_held
+/// Whether a window waits for the one already being rendered. All windows are cut from the same
+/// decoded original; asked for while it isn't held yet (the Before and After together, in either
+/// order, or a new window while the first is still decoding), each worker decodes its own copy
+/// (two or three full-size decodes and uploads, all but one thrown away). The waiting window
+/// follows once the original is in.
+pub fn defer_window(window_pending: bool, original_held: bool) -> bool {
+    window_pending && !original_held
 }
 
 /// Whether the picture on screen has the frame's aspect (to the one pixel a texture's whole-pixel
@@ -440,14 +442,13 @@ mod tests {
         assert_eq!(window_clip(Original, true, canvas, canvas, img), canvas);
     }
 
-    // Given Before and After windows asked for at once at first open, only the After's goes: the
-    // Before's waits for the decoded original instead of decoding another copy
+    // Given a window asked for while another is rendering and the original isn't decoded yet, it
+    // waits for the decoded original instead of decoding another copy
     #[test]
-    fn the_before_window_waits_for_the_original_the_after_is_decoding() {
-        assert!(defer_before_window(true, true, false));
-        assert!(!defer_before_window(true, true, true), "the original is in");
-        assert!(!defer_before_window(true, false, false), "nothing is decoding it");
-        assert!(!defer_before_window(false, true, false), "the After never waits");
+    fn a_window_waits_for_the_original_another_is_decoding() {
+        assert!(defer_window(true, false));
+        assert!(!defer_window(true, true), "the original is in");
+        assert!(!defer_window(false, false), "nothing is decoding it");
     }
 
     // Hostile numbers give a plan, never a panic

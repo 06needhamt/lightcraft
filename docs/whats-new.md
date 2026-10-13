@@ -65,6 +65,22 @@
   instead of opening as their embedded preview. Photos imported earlier switch over with Photo ▸ Reload from Disk.
 - An uncompressed Leaf Aptus 22 MOS no longer opens as a dark, colourless picture of its sensor mosaic: it imports
   as a raw and shows its embedded preview (preview only, with the reason), as the compressed MOS files do.
+## 2026-10-12
+
+### Zoomed 64 MP raws stay decoded
+- Panning a photo zoomed to 1:1, or moving a slider while zoomed, no longer decodes the whole raw again each time on
+  high-resolution cameras such as the Sony A7R VI (64 MP). Their decoded original (~800 MB) is bigger than the
+  default cache share (768 MB), so it was evicted as soon as it was stored. The original of the photo shown in Detail
+  now stays, like its preview, until another photo or view is shown.
+- Zooming in with Before/After side by side decodes the original once: the Before side used to decode its own copy
+  beside the After's, and a window asked for again while the first was still decoding (a pan, the layout settling)
+  started yet another decode.
+- A zoomed view keeps the GPU copy of the original while it is on screen: pausing for a few seconds between pans no
+  longer frees it, which cost a re-upload of about a second on the next pan (800 MB for a 64 MP raw). It is freed
+  once you zoom out or move on.
+- The kept original no longer pushes everything else out of the cache: on a 64 MP raw it filled the cache share
+  alone, so the photo's preview and thumbnail sources and its neighbours' were decoded from the raw again on every
+  edit at 1:1, every zoom out and every step to the next photo.
 
 ## 2026-10-11
 

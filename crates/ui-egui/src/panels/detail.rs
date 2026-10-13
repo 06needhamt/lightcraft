@@ -309,10 +309,11 @@ fn request_window(app: &mut LightcraftApp, c: &WindowCtx, v: &WindowView) -> Opt
         to_px * (v.visible.bottom() - v.target.top()),
     );
     let win = crate::region::window_for(fw, fh, visible, crate::region::max_span(c.texture_side))?;
-    // the Before side waits for the original the After is decoding (see `defer_before_window`)
+    // a window waits for the original another window job is decoding (see `defer_window`)
     let original_held = app.session.media.has_source(c.id, lightcraft_engine::SourceLevel::for_size(fw.max(fh)));
-    if crate::region::defer_before_window(v.before, app.renderer.is_pending(Slot::Region), original_held) {
-        return app.region_before_view.filter(|w| w.photo == c.id);
+    let window_pending = app.renderer.is_pending(Slot::Region) || app.renderer.is_pending(Slot::RegionBefore);
+    if crate::region::defer_window(window_pending, original_held) {
+        return if v.before { app.region_before_view } else { app.region_view }.filter(|w| w.photo == c.id);
     }
     let job = if v.before {
         app.session.region_job_before(c.id, fw, fh, win, !c.crop_tool)

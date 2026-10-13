@@ -335,6 +335,21 @@ mod in_the_loupe {
         assert_eq!(h.app.region_view, None);
     }
 
+    // Given a zoomed view with a window render, when I go to the grid, then its windows are freed
+    // too (while one is held the app never counts as idle and keeps the GPU copy of the original)
+    #[test]
+    fn leaving_a_zoomed_detail_view_frees_its_windows() {
+        let (mut h, _) = detail();
+        h.app.ui.before_after = crate::state::BeforeAfter::SideBySide;
+        h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+        h.settle(SETTLE);
+        assert!(tile(&h, Slot::Region).is_some() && tile(&h, Slot::RegionBefore).is_some());
+        h.request("ui.set", json!({"view": "photoGrid"}), T);
+        h.step();
+        assert_eq!((tile(&h, Slot::Region), tile(&h, Slot::RegionBefore)), (None, None));
+        assert_eq!((h.app.region_view, h.app.region_before_view), (None, None));
+    }
+
     // Given a zoomed view, when the photo is edited, then the old window (made with the old look)
     // is no longer current and is replaced by one for the new look
     #[test]
@@ -450,6 +465,28 @@ mod in_the_loupe {
         let main = h.app.renderer.textures.get(&Slot::Main).unwrap();
         let before_main = h.app.renderer.textures.get(&Slot::Before).unwrap();
         assert_eq!(main.size, before_main.size, "and the same whole-frame size under them");
+    }
+
+    // Given Before/After side by side, when I zoom to 1:1, then one window job decodes the original
+    // and the other side waits for it (the Before, asked for first, used to start a second decode
+    // beside the After's); both windows still arrive
+    #[test]
+    fn side_by_side_at_one_to_one_decodes_the_original_once() {
+        let (mut h, _) = detail();
+        let id = h.app.session.active().expect("a photo is open");
+        h.app.ui.before_after = crate::state::BeforeAfter::SideBySide;
+        h.app.ui.zoom = crate::state::Zoom::Percent(100.0);
+        let pending = |h: &Headless| [Slot::Region, Slot::RegionBefore].into_iter().filter(|s| h.app.renderer.is_pending(*s)).count();
+        for _ in 0..100 {
+            h.step();
+            if pending(&h) > 0 {
+                break;
+            }
+        }
+        assert!(!h.app.session.media.has_source(id, lightcraft_engine::SourceLevel::Full), "the original is still decoding");
+        assert_eq!(pending(&h), 1, "one window job decodes it");
+        h.settle(SETTLE);
+        assert!(tile(&h, Slot::Region).is_some() && tile(&h, Slot::RegionBefore).is_some(), "both windows arrived");
     }
 
     // Given the Before view alone (\), only the Before gets a window
@@ -594,6 +631,21 @@ mod in_the_loupe {
         }
         assert!(h.app.renderer.textures.contains_key(&Slot::Region), "a window arrived");
         assert!(h.app.session.memory_report().full_source.bytes > 0, "the original stayed in the cache while the drag went on");
+    }
+
+    // Given an original bigger than the cache budget (a 64 MP raw's 797 MB exceeds the default
+    // share), zoomed to 1:1 it stays decoded, so a pan does not decode the raw again; back in the
+    // grid it is let go
+    #[test]
+    fn a_zoomed_original_over_the_budget_stays_until_the_view_changes() {
+        let (mut h, _) = detail();
+        h.app.session.media.set_budget(16 << 20);
+        h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+        h.settle(SETTLE);
+        assert!(h.app.session.memory_report().full_source.bytes > 16 << 20, "the original stayed over budget");
+        h.request("ui.set", json!({"view": "photoGrid"}), T);
+        h.step();
+        assert_eq!(h.app.session.memory_report().full_source.bytes, 0, "the grid needs no original");
     }
 
     /// The meshes the last frame drew with `slot`'s texture: (paint order, clip rect, bounds).
