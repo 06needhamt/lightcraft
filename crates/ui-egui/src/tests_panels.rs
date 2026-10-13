@@ -2129,7 +2129,7 @@ fn right_click_add_to_album_offers_a_new_album_when_there_is_none() {
     h.step();
     h.step();
     match &mut h.app.ui.dialog {
-        Some(crate::state::Dialog::NewAlbum { name, folder: false, parent: None }) => *name = "Trip".into(),
+        Some(crate::state::Dialog::NewAlbum { name, folder: false, parent: None, .. }) => *name = "Trip".into(),
         other => panic!("New Album dialog expected, got {other:?}"),
     }
     h.step();
@@ -2140,4 +2140,53 @@ fn right_click_add_to_album_offers_a_new_album_when_there_is_none() {
     let trip = h.app.session.catalog.albums().find(|a| a.name == "Trip").expect("the album was created");
     assert!(trip.photos.contains(&photo), "the right-clicked photo is in it: {:?}", trip.photos);
     assert!(h.app.ui.dialog.is_none(), "{:?}", h.app.ui.dialog);
+}
+
+/// New Album's "Include selected photos" (as in Lightroom): on by default; unticked, the new album
+/// starts empty; with nothing selected the option isn't shown, and a folder never has it.
+#[test]
+fn new_album_can_leave_the_selected_photos_out() {
+    let mut h = demo([1400.0, 900.0], json!({"view": "photoGrid", "leftPanel": true}));
+    let has = |h: &Headless, id: &str| h.app.widgets.iter().any(|(w, _)| w == id);
+    let photo = lightcraft_catalog::PhotoId(h.app.session.visible_cloned()[1].0);
+    h.app.session.execute("library.select", &json!({"ids": [photo.0]})).unwrap();
+    let create = |h: &mut Headless, command: &str, name: &str| {
+        h.app.run(command, json!({"name": name})).unwrap();
+        h.step();
+        h.step();
+    };
+    let confirm = |h: &mut Headless| {
+        let r = h.request("ui.clickWidget", json!({"id": "button:dialogOk"}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step();
+        h.step();
+        assert!(h.app.ui.dialog.is_none(), "{:?}", h.app.ui.dialog);
+    };
+    let photos = |h: &Headless, name: &str| h.app.session.catalog.albums().find(|a| a.name == name).expect("the album was created").photos.clone();
+
+    // ticked by default: the selection goes in, as before
+    create(&mut h, "dialog.newAlbum", "With");
+    assert!(has(&h, "check:albumIncludeSelected"), "the option is offered with a selection");
+    confirm(&mut h);
+    assert_eq!(photos(&h, "With"), vec![photo]);
+
+    // unticked: an empty album
+    create(&mut h, "dialog.newAlbum", "Without");
+    let r = h.request("ui.clickWidget", json!({"id": "check:albumIncludeSelected"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    confirm(&mut h);
+    assert!(photos(&h, "Without").is_empty(), "nothing was added");
+
+    // a folder never offers it
+    create(&mut h, "dialog.newFolder", "Folder");
+    assert!(!has(&h, "check:albumIncludeSelected"), "folders hold no photos");
+    confirm(&mut h);
+
+    // nothing selected: no option, an empty album
+    h.app.session.selection = lightcraft_engine::Selection { ids: vec![], active: None };
+    create(&mut h, "dialog.newAlbum", "Nothing");
+    assert!(!has(&h, "check:albumIncludeSelected"), "no selection, no option");
+    confirm(&mut h);
+    assert!(photos(&h, "Nothing").is_empty());
 }
