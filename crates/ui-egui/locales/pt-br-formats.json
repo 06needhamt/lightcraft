@@ -247,5 +247,7 @@
   "{n} photos opened for editing; each is stacked with its original": "{n} fotos abertas para edição; cada uma está empilhada com a original",
   "{name} opened in the other editor": "{name} aberto no outro editor",
   "{n} originals opened in the other editor": "{n} originais abertos no outro editor",
-  "· {in_source} identical copies": "· {in_source} cópias idênticas"
+  "· {in_source} identical copies": "· {in_source} cópias idênticas",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "O LightCraft parou inesperadamente: {e}\n\nO arquivo de log tem os detalhes: {path}",
+  "LightCraft stopped unexpectedly: {e}": "O LightCraft parou inesperadamente: {e}"
 }

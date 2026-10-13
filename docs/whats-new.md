@@ -2,6 +2,10 @@
 
 ## 2026-10-14
 
+### Reliability
+- A photo whose Defringe amount was stored far past the sliders' 20 (in a damaged catalog or sidecar) no longer
+  crashes LightCraft each time it renders: the amount acts as 20.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
@@ -17,10 +21,6 @@
 - A file named `portable.txt` next to the LightCraft program makes it keep its settings, logs and downloaded
   models in a `LightCraftData` folder beside it instead of the per-user settings folder (issue #1200), as
   PhotoCraft does. If that folder can't be written, the usual folder is used and the log says why.
-
-### Reliability
-- A photo whose Defringe amount was stored far past the sliders' 20 (in a damaged catalog or sidecar) no longer
-  crashes LightCraft each time it renders: the amount acts as 20.
 
 ### Reliability
 - Importing a preset zip that unpacks to far more than any preset (a "zip bomb") is refused with a message naming
@@ -108,6 +108,10 @@
 - An export enlarged far past the photo's size (20000 typed for 2000 with Don't Enlarge off) no longer ends
   LightCraft: an enlargement stops at 512 megapixels, as in Lightroom, and one that needs more memory than the
   computer has is refused with the size it would take, before it starts.
+- When the graphics driver resets the GPU while LightCraft is exporting or rendering (issue #1337, seen on Windows
+  with NVIDIA), LightCraft still stops, because its window can't keep drawing on the lost device, but it now says
+  "LightCraft stopped unexpectedly" and why, instead of "could not open its window", and the next start renders
+  on the CPU and explains how to turn the GPU back on.
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you

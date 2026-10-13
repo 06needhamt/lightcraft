@@ -247,5 +247,7 @@
   "{n} photos opened for editing; each is stacked with its original": "Відкрито для редагування фото: {n}; кожне об’єднано в стос з оригіналом",
   "{name} opened in the other editor": "{name} відкрито в іншому редакторі",
   "{n} originals opened in the other editor": "Відкрито оригіналів в іншому редакторі: {n}",
-  "· {in_source} identical copies": "· ідентичних копій: {in_source}"
+  "· {in_source} identical copies": "· ідентичних копій: {in_source}",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft несподівано зупинився: {e}\n\nПодробиці у файлі журналу: {path}",
+  "LightCraft stopped unexpectedly: {e}": "LightCraft несподівано зупинився: {e}"
 }
