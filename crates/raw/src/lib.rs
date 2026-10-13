@@ -415,13 +415,27 @@ pub struct RawInfo {
     pub wb_multipliers: Option<[f32; 3]>,
     pub opcodes: OpcodeLists,
     pub metadata: Metadata,
+    /// See [`RawImage::pixel_aspect`].
+    #[serde(default = "square_pixels")]
+    pub pixel_aspect: f32,
+}
+
+fn square_pixels() -> f32 {
+    1.0
+}
+
+/// Rows of a picture `height` rows tall once its pixels (taller than wide by `aspect`) are made square.
+pub fn stretched_height(height: usize, aspect: f32) -> usize {
+    if (aspect - 1.0).abs() < 0.01 { height } else { ((height as f32 * aspect).round() as usize).max(1) }
 }
 
 impl RawInfo {
-    /// Size of the developed image before orientation: the default crop, else the active area.
+    /// Size of the developed image before orientation: the default crop, else the active area, with the rows
+    /// stretched for non-square pixels.
     pub fn developed_size(&self) -> (usize, usize) {
         let c = self.crop.clipped(self.active_area.width, self.active_area.height);
-        if c.width > 1 && c.height > 1 { (c.width, c.height) } else { (self.active_area.width, self.active_area.height) }
+        let (w, h) = if c.width > 1 && c.height > 1 { (c.width, c.height) } else { (self.active_area.width, self.active_area.height) };
+        (w, stretched_height(h, self.pixel_aspect))
     }
 }
 
@@ -646,6 +660,10 @@ pub struct RawImage {
     pub wb_multipliers: Option<[f32; 3]>,
     /// Whether a `LinearizationTable` was applied to `data`.
     pub linearized: bool,
+    /// Height of a sensor pixel over its width (1.0 for square pixels). The D1X and D1H write 2.0: their frame is
+    /// 4028 x 1324 and the picture is 3:2 only once the rows are doubled. [`Self::develop`] stretches the rows by
+    /// this factor.
+    pub pixel_aspect: f32,
     pub opcodes: OpcodeLists,
     pub metadata: Metadata,
 }
@@ -679,6 +697,7 @@ impl RawImage {
             wb_multipliers: self.wb_multipliers,
             opcodes: self.opcodes.clone(),
             metadata: self.metadata.clone(),
+            pixel_aspect: self.pixel_aspect,
         }
     }
 
@@ -698,6 +717,7 @@ impl RawImage {
             wb_multipliers: self.wb_multipliers,
             opcodes: self.opcodes,
             metadata: self.metadata,
+            pixel_aspect: self.pixel_aspect,
         }
     }
 
@@ -791,10 +811,16 @@ impl RawImage {
     pub fn finish_demosaiced(&self, mut rgb: Rgb32f) -> Rgb32f {
         opcodes::apply_list3(&self.opcodes.list3, &mut rgb);
         let c = self.develop_crop(rgb.width, rgb.height);
-        if c.x == 0 && c.y == 0 && c.width == rgb.width && c.height == rgb.height {
+        let rgb = if c.x == 0 && c.y == 0 && c.width == rgb.width && c.height == rgb.height {
+            rgb
+        } else {
+            rgb.into_crop(c.x, c.y, c.width, c.height)
+        };
+        let h = stretched_height(rgb.height, self.pixel_aspect);
+        if h == rgb.height {
             return rgb;
         }
-        rgb.into_crop(c.x, c.y, c.width, c.height)
+        lightcraft_raster::resample::resize(&rgb, rgb.width, h, lightcraft_raster::resample::Filter::Mitchell)
     }
 
     /// The part of a `width × height` demosaiced picture (the active area) that [`Self::develop`] keeps: the default
@@ -853,6 +879,7 @@ mod tests {
             color: ColorData::default(),
             wb_multipliers: None,
             linearized: false,
+            pixel_aspect: 1.0,
             opcodes: OpcodeLists::default(),
             metadata: Metadata::default(),
         };
@@ -869,6 +896,17 @@ mod tests {
         // a crop that pokes out is clipped to the picture
         whole.crop = Rect::new(6, 4, 10, 10);
         assert_eq!(whole.develop_crop(8, 6), Rect::new(6, 4, 2, 2));
+
+        // tall pixels (D1X: 2.0) are stretched to square ones: the rows double, `developed_size` says so
+        let mut tall = raw.clone();
+        tall.pixel_aspect = 2.0;
+        let d = tall.develop(Method::Bilinear).unwrap();
+        assert_eq!((d.width, d.height), (5, 8));
+        assert_eq!(tall.info().developed_size(), (5, 8));
+        assert_eq!(raw.info().developed_size(), (5, 4));
+        assert!(!tall.can_bin(2));
+        assert_eq!(stretched_height(1324, 2.0), 2648);
+        assert_eq!(stretched_height(1324, 1.0), 1324);
     }
 
     #[test]

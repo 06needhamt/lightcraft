@@ -158,10 +158,8 @@ pub fn probe_bytes(name: &str, bytes: &[u8]) -> Result<ProbeInfo, String> {
             }
             Err(Err(e)) => return Err(e),
         };
-        let (mut w, mut h) = (raw.crop.width.max(1) as u32, raw.crop.height.max(1) as u32);
-        if w <= 1 || h <= 1 {
-            (w, h) = (raw.active_area.width as u32, raw.active_area.height as u32);
-        }
+        let (w, h) = raw.developed_size();
+        let (mut w, mut h) = (w.max(1) as u32, h.max(1) as u32);
         if raw.orientation.swaps_axes() {
             std::mem::swap(&mut w, &mut h);
         }

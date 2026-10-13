@@ -767,6 +767,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         // makes a neutral surface magenta. WB edits remain relative to this as-shot RGB.
         wb_multipliers: if linear_rgb { Some([1.0; 3]) } else { wb },
         linearized: false,
+        pixel_aspect: 1.0,
         // The distortion table is centred on the DNG-style default crop when the file has one: on the ILCE-7RM4A
         // it starts at x = 32 where Sony's crop tags (the image crop, unchanged) start at 0, and the warp was
         // validated against Sony's exports with that centre. The opcode's centre is in active-area coordinates, so
