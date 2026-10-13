@@ -10,13 +10,6 @@ use serde_json::{Value, json};
 
 use crate::backend::{Backend, ProgressHook};
 
-/// File extensions recognised as photos when expanding folders.
-pub const PHOTO_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "tif", "tiff", "webp", "dng", "cr2", "cr3", "nef", "arw", "raf", "orf", "rw2", "rwl", "raw", "pef", "srw", "psd", "jxl",
-    "gif", "bmp", "avif", "heic", "heif", "nrw", // avif is preview-only; heic/heif/nrw match the engine list (#1080)
-    "iiq", "crw", "mrw", "x3f", "kdc", "mos", "erf", "3fr", "fff",
-];
-
 /// Headless backend: a [`Session`] with filesystem hooks.
 pub struct Headless {
     pub session: Session,
@@ -175,15 +168,16 @@ impl Backend for Headless {
 }
 
 /// Expand folders (recursively, sorted; bounded, see `lightcraft_engine::walk`) into photo files
-/// and make paths absolute.
+/// and make paths absolute. Folders take the extensions `library.import` takes
+/// (`lightcraft_engine::import::EXTENSIONS`), so the two can't drift apart (issue #1080).
 pub fn expand_paths(paths: &[String]) -> Vec<String> {
     let absolute = |p: &Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()).to_string_lossy().to_string();
-    let photo = |p: &Path| p.extension().is_some_and(|e| PHOTO_EXTENSIONS.contains(&e.to_string_lossy().to_lowercase().as_str()));
     let mut out = Vec::new();
     for p in paths {
         let path = Path::new(p);
         if path.is_dir() {
-            let w = lightcraft_engine::walk::files_in(path, None, lightcraft_engine::walk::Limits::default(), photo);
+            let w =
+                lightcraft_engine::walk::files_in(path, None, lightcraft_engine::walk::Limits::default(), lightcraft_engine::import::is_supported);
             out.extend(w.files.iter().map(|f| absolute(f)));
         } else {
             // Explicit files are kept even with unknown extensions (the probe decides).
@@ -191,29 +185,6 @@ pub fn expand_paths(paths: &[String]) -> Vec<String> {
         }
     }
     out
-}
-
-#[cfg(test)]
-mod expand_tests {
-    use super::expand_paths;
-
-    #[test]
-    fn a_folder_import_includes_heic_heif_and_nrw() {
-        let dir = std::env::temp_dir().join(format!("lightcraft-ext-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        for name in ["a.heic", "b.HEIF", "c.nrw", "d.png", "note.txt"] {
-            std::fs::write(dir.join(name), b"x").unwrap();
-        }
-        let got = expand_paths(&[dir.to_string_lossy().to_string()]);
-        let names: Vec<String> = got.iter().map(|p| std::path::Path::new(p).file_name().unwrap().to_string_lossy().to_lowercase()).collect();
-        assert!(names.contains(&"a.heic".into()), "{names:?}");
-        assert!(names.contains(&"b.heif".into()), "{names:?}");
-        assert!(names.contains(&"c.nrw".into()), "{names:?}");
-        assert!(names.contains(&"d.png".into()), "{names:?}");
-        assert!(!names.iter().any(|n| n == "note.txt"), "{names:?}");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }
 
 /// Encode by extension: `.png` (default), `.jpg`/`.jpeg` (quality), `.tif`/`.tiff`, `.webp` (lossless),
@@ -247,6 +218,27 @@ mod tests {
         let mut h = Headless::new(session);
         let r = h.call("engine.execute", json!({"command": "segment.model.status", "params": {}})).unwrap();
         assert_eq!(r["dir"], json!(dir.display().to_string()), "{r}");
+    }
+
+    /// `--import <folder>` picks up every extension `library.import` takes, HEIC included (issue #1080).
+    #[test]
+    fn expand_paths_takes_the_engine_extensions() {
+        let dir = std::env::temp_dir().join(format!("lc-mcp-expand-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for e in lightcraft_engine::import::EXTENSIONS {
+            std::fs::write(dir.join(format!("a.{e}")), b"x").unwrap();
+        }
+        std::fs::write(dir.join("B.HEIC"), b"x").unwrap();
+        std::fs::write(dir.join("notes.txt"), b"x").unwrap();
+        let found = expand_paths(&[dir.to_string_lossy().to_string()]);
+        let _ = std::fs::remove_dir_all(&dir);
+        let ext = |f: &String| Path::new(f).extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+        let mut got: Vec<String> = found.iter().map(ext).collect();
+        got.sort();
+        let mut want: Vec<String> = lightcraft_engine::import::EXTENSIONS.iter().map(|e| e.to_string()).chain(["HEIC".to_string()]).collect();
+        want.sort();
+        assert_eq!(got, want);
     }
 
     /// A headless session stamps imports and edits with the system clock, not the engine's fixed test clock.
