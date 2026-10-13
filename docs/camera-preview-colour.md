@@ -184,10 +184,22 @@ A merge (HDR, panorama, HDR panorama) writes a linear DNG of the sources' camera
 tags. A raw without colour matrices of its own has none to give, so its merge used to render with no camera colour: an
 HDR merge of CR2s came out green and dark (issue #965). Each source now goes through `starting_colour` as when it is
 opened alone, and `starting_colour_tags` writes the result as DNG tags: one forward matrix (from the look's matrix on
-top of the camera transform) with a colour matrix and `AsShotNeutral` that agree with it at the as-shot white, the
-look's brightness of white as baseline exposure, its hue/saturation table as `ProfileHueSatMap` and its tone curve as
-`ProfileToneCurve`. Raws with their own matrices (DNG) keep their tags. Without a look the tags give the colour the raw
-falls back to (spectral matrices or the neutral fallback).
+top of the camera transform) with `AsShotNeutral`, the look's brightness of white as baseline exposure, its
+hue/saturation table as `ProfileHueSatMap` and its tone curve as `ProfileToneCurve`. Raws with their own matrices (DNG)
+keep their tags. Without a look the tags give the colour the raw falls back to (spectral matrices or the neutral
+fallback).
+
+The colour matrices declare the white balance the source shows (`files::WbScaleOf::dng_white`), so the DNG opens at the
+source's As Shot temperature and tint and a white-balance edit starts from there: the camera's measured matrices
+(`lightcraft_raw::spectral`) when they give the source's scale, which reads every white as the source does; else a
+matrix under which the as-shot neutral is the white the source's scale shows (Sony's presets' reading, 6500 K / 0 on
+the relative scale, the file's own white otherwise). The forward matrix is used only with the as-shot neutral, so the
+render at As Shot doesn't depend on them. A colour matrix derived from the forward matrix, as first written, declared
+wherever the look and the generic camera model put the white: merges of real ILCE-7M3 brackets opened at 6113–7307 K /
++115 where the ARWs show 3932–5268 K / +7, and any white-balance edit turned them green (CIEDE2000 11–13 against the
+ARW at the same Temp/Tint). With the measured matrices they open at the ARWs' As Shot, and the same Temp/Tint renders
+within CIEDE2000 0.8–1.7 of the ARW for most changes, about 5 for the largest (5268 → 3200 K, 3932 → 6500 K): the ARW
+adapts its fitted look with Bradford, the DNG rebalances in camera space.
 
 The DNG renders close to, not exactly like, the source: a DNG hue/saturation table doesn't keep each pixel's luminance
 as the fitted table does, and the chroma curve has no DNG tag, so it is left out. On two CC0 CR2s (EOS 550D, 40D), an

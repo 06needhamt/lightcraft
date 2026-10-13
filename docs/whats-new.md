@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### HDR merges keep the white balance
+- An HDR merged from raws that LightCraft colours from the camera's JPEG (CR2, NEF, ARW…) now opens at the same
+  As Shot temperature and tint as its photos, and changing the white balance no longer turns it green. Sony ARW
+  merges used to open at about 7000 K / +115 where the photos show 4000–5300 K / +8. HDRs merged before this keep
+  their old white balance; merge them again.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's

@@ -119,8 +119,11 @@ pub(crate) fn starting_colour_tags(raw: &mut RawImage, bytes: &[u8]) -> Option<C
     if lightcraft_raw::color::has_matrix(&raw.color) {
         return None;
     }
+    // the white the source shows, decided before `starting_colour` may fill in measured matrices
+    let scale = crate::files::WbScaleOf::new(raw.format, &raw.color, raw.wb_multipliers, &raw.metadata);
+    let white = scale.dng_white(&raw.color, lightcraft_raw::color::as_shot_white_xy(raw));
     let (_, t, look) = starting_colour(raw, bytes);
-    dng_colour(&raw.color, &t, look.as_ref())
+    dng_colour(&raw.color, &white, &t, look.as_ref())
 }
 
 /// DNG tags that render white-balanced camera RGB at its as-shot white as `t` with `look` on top does: one forward
@@ -129,8 +132,13 @@ pub(crate) fn starting_colour_tags(raw: &mut RawImage, bytes: &[u8]) -> Option<C
 /// doesn't keep each pixel's luminance as the fitted one does ([`HueSat`]), and the chroma curve has no tag; on two
 /// CC0 CR2s (EOS 550D, 40D) an HDR merge of three copies renders within mean CIE76 ΔE 1.07 and 0.47 of the photo
 /// (1.47 and 0.66 without the table; 26 and 23 with no colour tags at all).
+/// The colour matrices declare `declared`, the white balance the source shows ([`crate::files::WbScaleOf::dng_white`]),
+/// so the DNG opens at the source's As Shot temperature and tint and a white-balance edit starts from it. Matrices
+/// derived from `forward` put the declared white wherever the look and the generic camera model took it: ARW merges
+/// opened at about 7000 K / +115 where the ARWs show 4800 K / +8, and any white-balance edit turned them green.
+/// `forward` is used only with the as-shot neutral, so the render at As Shot doesn't depend on them.
 /// `None` when the white balance or the matrix can't give tags.
-fn dng_colour(tags: &ColorData, t: &CameraTransform, look: Option<&CameraLook>) -> Option<ColorData> {
+pub(crate) fn dng_colour(tags: &ColorData, declared: &crate::files::DngWhite, t: &CameraTransform, look: Option<&CameraLook>) -> Option<ColorData> {
     let m = look.map_or(t.matrix, |l| l.matrix.mul(&t.matrix));
     // the DNG model renders the camera's white at unit brightness: what a look does to white's brightness goes
     // into the baseline exposure
@@ -143,11 +151,19 @@ fn dng_colour(tags: &ColorData, t: &CameraTransform, look: Option<&CameraLook>) 
     let forward = bradford(D65, D50).mul(&REC2020.to_xyz()).mul(&m);
     let wb = t.wb.map(f64::from);
     let neutral = wb.map(|w| wb.iter().cloned().fold(f64::MAX, f64::min) / w);
-    let camera_to_xyz = bradford(D50, t.white_xy).mul(&forward).mul(&Mat3::diag(1.0 / neutral[0], 1.0 / neutral[1], 1.0 / neutral[2]));
+    let (illuminant, color_matrix) = match declared {
+        crate::files::DngWhite::Matrices(c) if lightcraft_raw::color::has_matrix(c) => (c.illuminant, c.color_matrix),
+        crate::files::DngWhite::Matrices(_) => ([21, 0], [Some(declaring(t.white_xy, neutral)?), None]),
+        crate::files::DngWhite::At(xy) => ([21, 0], [Some(declaring(*xy, neutral)?), None]),
+    };
+    if !color_matrix.iter().flatten().all(|m| m.0.iter().flatten().all(|v| v.is_finite())) {
+        return None;
+    }
     Some(ColorData {
-        illuminant: [21, 0],
-        color_matrix: [Some(camera_to_xyz.inverse()?), None],
-        forward_matrix: [Some(forward), None],
+        illuminant,
+        color_matrix,
+        // a second colour matrix comes with a second forward matrix (DNG spec): the same one, fitted at one white
+        forward_matrix: [Some(forward), color_matrix[1].map(|_| forward)],
         camera_calibration: [None, None],
         analog_balance: None,
         as_shot_neutral: Some(neutral),
@@ -161,6 +177,17 @@ fn dng_colour(tags: &ColorData, t: &CameraTransform, look: Option<&CameraLook>) 
             ..Default::default()
         },
     })
+}
+
+/// An XYZ → camera colour matrix under which camera `neutral` is white `xy`: the generic camera model, scaled per
+/// channel. `None` when the model gives no positive neutral there.
+fn declaring(xy: Xy, neutral: [f64; 3]) -> Option<Mat3> {
+    let g = lightcraft_raw::color::xyz_to_camera(&ColorData::default(), xy);
+    let n = g.apply(xy.to_xyz());
+    if !n.iter().all(|v| v.is_finite() && *v > 1e-9) {
+        return None;
+    }
+    Some(Mat3::diag(neutral[0] / n[0], neutral[1] / n[1], neutral[2] / n[2]).mul(&g))
 }
 
 /// A camera tone curve as a DNG `ProfileToneCurve` (linear in, linear out, 1 = white): sampled densely over the
@@ -2379,7 +2406,7 @@ mod tests {
         let samples = [[0.2, 0.3, 0.1], [0.05, 0.02, 0.4], [0.6, 0.6, 0.6], [0.01, 0.5, 0.03]];
         let render = |m: &Mat3, wb: [f32; 3], ev: f64, c: [f64; 3]| m.apply(std::array::from_fn(|i| c[i] * wb[i] as f64)).map(|v| v * ev.exp2());
         for look in [Some(&look), None] {
-            let dng = dng_colour(&ColorData::default(), &t, look).unwrap();
+            let dng = dng_colour(&ColorData::default(), &crate::files::DngWhite::At(t.white_xy), &t, look).unwrap();
             let back = camera_transform_of(&dng, as_shot_white_of(&dng, None));
             for i in 0..3 {
                 assert!((back.wb[i] - t.wb[i]).abs() < 1e-4 * t.wb[i], "{:?} vs {:?}", back.wb, t.wb);
@@ -2402,6 +2429,52 @@ mod tests {
                 None => assert!(tone.is_none()),
             }
         }
+    }
+
+    /// The merged DNG declares the white balance its source shows, also when the look's matrix doesn't keep white
+    /// neutral, as fitted looks often don't, and renders at As Shot as the source does. Real ARW merges declared their
+    /// colour matrix from the look: As Shot about 7000 K / +115 where the ARWs show 4800 K / +8.
+    #[test]
+    fn dng_colour_declares_the_white_balance_the_source_shows() {
+        use crate::files::DngWhite;
+        use lightcraft_raw::color::{as_shot_white_of, camera_transform_of, wb_multipliers};
+        let tags = ColorData::default();
+        let as_shot = [2.5039f32, 1.0, 1.5078];
+        let t = camera_transform_of(&tags, as_shot_white_of(&tags, Some(as_shot)));
+        let mut look = dro_test_look(&std::array::from_fn(|i| 0.005 * 1.2f32.powi(i as i32)), &|x| 0.95 * x / (x + 0.1));
+        look.matrix = Mat3([[1.75, -0.4, -0.2], [-0.2, 1.35, -0.2], [0.05, -0.3, 1.3]]);
+        let tint = look.matrix.apply([1.0; 3]);
+        assert!((tint[0] - tint[1]).abs() > 0.1, "a look that tints white: {tint:?}");
+        let renders_as_shot = |dng: &ColorData| {
+            let r = camera_transform_of(dng, as_shot_white_of(dng, None));
+            assert!(r.wb.iter().zip(t.wb).all(|(a, b)| (a - b).abs() < 1e-4 * b), "{:?} vs {:?}", r.wb, t.wb);
+            let m = look.matrix.mul(&t.matrix);
+            for c in [[0.2, 0.3, 0.1], [0.05, 0.02, 0.4], [0.6, 0.6, 0.6]] {
+                let want = m.apply(std::array::from_fn(|i| c[i] * t.wb[i] as f64)).map(|v| v * t.baseline_exposure.exp2());
+                let got = r.matrix.apply(std::array::from_fn(|i| c[i] * r.wb[i] as f64)).map(|v| v * dng.baseline_exposure.exp2());
+                assert!(want.iter().zip(got).all(|(a, b)| (a - b).abs() < 1e-4), "{c:?}: {want:?} vs {got:?}");
+            }
+        };
+        // a white the source's scale shows (Sony's presets, the relative scale's 6500 K / 0)
+        for xy in [lightcraft_color::cct::temp_tint_to_xy(5600.0, 3.0), lightcraft_color::cct::temp_tint_to_xy(6500.0, 0.0)] {
+            let dng = dng_colour(&tags, &DngWhite::At(xy), &t, Some(&look)).unwrap();
+            let back = as_shot_white_of(&dng, None);
+            assert!((back.x - xy.x).abs() < 1e-6 && (back.y - xy.y).abs() < 1e-6, "as shot {back:?}, shown {xy:?}");
+            renders_as_shot(&dng);
+        }
+        // a camera with measured matrices (the ILCE-7M3): every white read through them, as for the source
+        let camera = lightcraft_raw::spectral::find(Some("SONY"), "ILCE-7M3").expect("a covered camera");
+        let mut model = tags.clone();
+        assert!(camera.fill(&mut model));
+        let shown = lightcraft_raw::spectral::as_shot_white_through(camera, &tags, Some(as_shot)).unwrap();
+        let dng = dng_colour(&tags, &DngWhite::Matrices(Box::new(model.clone())), &t, Some(&look)).unwrap();
+        let back = as_shot_white_of(&dng, None);
+        assert!((back.x - shown.x).abs() < 1e-5 && (back.y - shown.y).abs() < 1e-5, "as shot {back:?}, shown {shown:?}");
+        for w in [Xy::new(0.3127, 0.329), Xy::new(0.4476, 0.4074), Xy::new(0.3457, 0.3585)] {
+            let (a, b) = (wb_multipliers(&model, w), wb_multipliers(&dng, w));
+            assert!(a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-6 * a), "{w:?}: {a:?} vs {b:?}");
+        }
+        renders_as_shot(&dng);
     }
 
     /// A look with tone curve `f` at knots `xs` and a colour model and chroma curve to keep.
