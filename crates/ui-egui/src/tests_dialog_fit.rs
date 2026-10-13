@@ -93,9 +93,11 @@ fn export_dialog_is_unchanged_in_a_tall_window() {
     let h = export_dialog([1600.0, 1000.0]);
     assert_fits(&h, "Export at 1600×1000");
     let dialog = rect(&h, "dialog:window");
-    // (the whole dialog, nothing scrolled away: 846 tall as before #781, plus the Export to row
-    // since #956; 615 wide since the format row gained JPEG XL, #780)
-    assert!((dialog.height() - 878.0).abs() <= 1.0, "{dialog:?}");
+    // (846 tall as before #781: the whole dialog, nothing scrolled away, plus the Export to row
+    // since #956; 615 wide since the format row gained JPEG XL, #780. On macOS the dialog has one
+    // more row, "Add to Apple Photos" (#236), so it is 30 taller there)
+    let height = if cfg!(target_os = "macos") { 908.0 } else { 878.0 };
+    assert!((dialog.height() - height).abs() <= 1.0, "{dialog:?}");
     assert!((dialog.width() - 615.2).abs() <= 1.0, "{dialog:?}");
 }
 
