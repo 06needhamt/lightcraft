@@ -38,6 +38,8 @@ Hours are Opus 5.5 agent wall-clock hours (see [target-app-parity.md](target-app
 | 21 | **Localization**: 9 of 15 shipped languages partial (74–99% of catalog messages), lower-layer errors English; Hindi, Arabic, Indonesian, Korean, Vietnamese absent; no RTL or complex shaping | measured from catalogs | non-English users see mixed English | 55–90 (shipped to full); 145–255 (five new) | [localization-parity](localization-parity.md) |
 | 22 | **Pen pressure**, OS monitor profiles, follow-window colour | hardware-parity.md | brush users with tablets; multi-monitor setups | 11–22 | [hardware-parity](hardware-parity.md) |
 | 23 | **Accessibility**: AccessKit tree audited by a test (every control named, sliders with range); left: canvas handles, spot and mask placement by keyboard, a session with a real screen reader | LR-BEHAV-ACCESS 🟡 | blind and low-vision users | 4–8 | [ui-parity](ui-parity.md) |
+| 22 | **Pen pressure**, OS monitor profiles on Windows (Linux reads colord's, macOS the screen's), follow-window colour on Linux / Windows | hardware-parity.md | brush users with tablets; multi-monitor setups | 11–22 | [hardware-parity](hardware-parity.md) |
+| 23 | **Accessibility** audit with screen readers; canvas tools keyboard-reachable | LR-BEHAV-ACCESS 🟡 | blind and low-vision users | 10–20 | [ui-parity](ui-parity.md) |
 | 24 | **Brush live preview and masking feel** (#517, #518); Feather / Edge mask refinement (15.5) | issues | masking feels slower than Lightroom | 8–12 | [ui-parity](ui-parity.md) |
 | 25 | **File writes**: lossy DNG, Render to DNG; AVIF import (PSD export landed with Edit in PhotoCraft, #953) | file-format-parity.md | interchange edge cases | 21–37 | [file-format-parity](file-format-parity.md) |
 | 26 | **Performance at scale**: 85k-photo library opens in 1.7–4.7 s; 100k grid test pending; colour NR at half resolution | ROADMAP log, gpu-pipeline.md | large-catalog users | 15–30 | [target-app-parity](target-app-parity.md#by-dimension) |
@@ -75,6 +77,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-11 | minor | Gap 10 shrinks: Leica Q3 verified by a recorded check of 38 private DNGs (236 models verified; Leica 14); gap not closed |
 | 2026-10-12 | minor | Camera-look deep shadows follow the JPEG toe (#1307); camera calibration remains partial |
 | 2026-10-12 | minor | Gap 23 (accessibility): the AccessKit tree audit and its fixes landed; what is left is canvas placement by keyboard and a real screen-reader session; 10–20 h → 4–8 h; gap not closed |
+| 2026-10-12 | minor | Gap 22: Linux previews use the display profile from colord |
 | 2026-10-11 | minor | Reviewed against main after 0.6.0: CR3 entry names the CRX variants `crx.rs` still refuses and the R7 / R6 Mark II C-RAW state (decoding, not verified, so the measured numbers don't move); CI and Windows / Linux entries note the riscv64 release build (#844); R7 fix added to Closed recently. Panel docking (UI.9, #869) closes no listed gap |
 | 2026-10-11 | minor | Camera colour entry: raws with a black-and-white camera JPEG take its tone curve (#577); gap not closed |
 | 2026-10-11 | minor | Gap 4: Compare and Reference views get zoom windows per pane (1:1 was a 2,560 px render magnified); overlays and soft proofing remain, 8–15 h → 4–8 h |
