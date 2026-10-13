@@ -833,6 +833,31 @@ fn g_toggles_grids_and_shift_g_starts_guided_upright() {
 }
 
 #[test]
+fn luminance_range_drag_keeps_the_grabbed_handle() {
+    let mut h = detail("panel.masking");
+    exec(&mut h, "mask.add", json!({"kind": "luminanceRange", "lo": 0.2, "hi": 0.8}));
+    h.settle(SETTLE);
+    let original = develop(&h);
+    for (start, dx, steps) in [(0.2, 180.0, 10), (0.8, -180.0, 10), (0.2, 120.0, 1), (0.8, -120.0, 1)] {
+        let undo0 = h.app.session.undo.len();
+        let r = h.request("ui.dragWidget", json!({"id": "lumRange:0", "fx": start, "fy": 0.5, "dx": dx, "steps": steps}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        let d = develop(&h);
+        let MaskShape::LuminanceRange { lo, hi, .. } = &d.masks[0].components[0].shape else { panic!() };
+        if start < 0.5 {
+            assert_eq!(*hi, 0.8, "dragging low must leave high fixed, including past high");
+            assert!(*lo > 0.6 && *lo < *hi, "{lo}..{hi}");
+        } else {
+            assert_eq!(*lo, 0.2, "dragging high must leave low fixed, including past low");
+            assert!(*hi < 0.4 && *hi > *lo, "{lo}..{hi}");
+        }
+        assert_eq!(h.app.session.undo.len(), undo0 + 1);
+        exec(&mut h, "edit.undo", json!({}));
+        assert_eq!(develop(&h), original);
+    }
+}
+
+#[test]
 fn luminance_range_controls_and_map() {
     let mut h = detail("panel.masking");
     exec(&mut h, "mask.add", json!({"kind": "luminanceRange", "lo": 0.6, "hi": 1.0}));
