@@ -26,17 +26,19 @@ các ngôn ngữ khác.
 | Import / Export | Nhập / Xuất |
 | Exposure / Contrast | Phơi sáng / Tương phản |
 | Highlights / Shadows / Whites / Blacks | Vùng sáng / Vùng tối / Vùng trắng / Vùng đen |
-| White Balance / Temperature / Tint | Cân bằng trắng / Nhiệt độ / Tint |
+| White Balance / Temperature / Tint | Cân bằng trắng / Nhiệt độ / Tông |
 | Vibrance / Saturation | Độ rực rỡ / Độ bão hòa |
 | Texture / Clarity / Dehaze / Grain / Vignette | Kết cấu / Độ rõ / Khử sương mù / Hạt / Tối góc |
 | Tone Curve | Đường cong tông màu |
-| Sharpening / Noise Reduction / Denoise | Làm nét / Giảm nhiễu / Khử nhiễu |
-| Mask / Brush / Gradient | Mặt nạ / Cọ / Chuyển sắc |
+| Sharpening / Noise Reduction / AI Denoise | Làm nét / Giảm nhiễu / Khử nhiễu AI |
+| Masking / Brush / Linear Gradient | Mặt nạ / Cọ / Chuyển sắc tuyến tính |
 | Preset / Profile / History / Version | Thiết lập sẵn / Hồ sơ / Lịch sử / Phiên bản |
-| Appearance (giao diện) | Giao diện |
+| Appearance (theme) | Giao diện |
 | Subject (AI) | Chủ thể |
-| Candidate / the Select | Ảnh ứng viên / Ảnh được chọn |
+| Candidate / Select | Ảnh ứng viên / Chọn |
 | Flag / Picked / Rejected / Unflagged | Gắn cờ / Đã chọn / Đã loại / Không gắn cờ |
+| Shutter Speed | Tốc độ màn trập |
+| Smart Previews | Xem trước thông minh |
 
 Tên sản phẩm và chuẩn giữ nguyên khi là định danh: LightCraft, ArtCraft, GitHub, Discord,
 JPEG, PNG, TIFF, WebP, AVIF, HEIF, HEIC, RAW, DNG, RGB, HDR, ICC, EXIF, XMP, GPU, MCP, SAM, ISO, OK.

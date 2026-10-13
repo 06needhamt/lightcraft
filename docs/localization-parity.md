@@ -56,7 +56,7 @@ that is promising but is not recorded as review, so the column says `no (communi
 | 9 | Japanese | `ja` | 2,097 / 2,471 (85%) | as zh-hans; vertical export watermarks | Jpan via craft-fonts (BIZ UDPGothic / UDMincho); IME through winit | no (community edits) | partial | 6–10 h |
 | 10 | German | `de` | 2,210 / 2,471 (89%) | as zh-hans; What's New translated line by line | Latin | no (community edits) | partial | 4–8 h |
 | 11 | Korean | `ko` | 0 (0%) | none | **no Korean (Hangul) face**: needs a non-Adobe OFL face in craft-fonts (Noto CJK is allowed only for Chinese) | no | none | 14–22 h |
-| 12 | Vietnamese | `vi` | 2,471 / 2,471 (100% key coverage of current union; intentional English like `ISO`/`OK` kept) | menus, panels, dialogs, presets, profiles, dates, formats; lower-layer errors English | Latin with stacked diacritics (Inter) | no (community contribution) | **full** (current localizable surface) | 0 h |
+| 12 | Vietnamese | `vi` | 2,471 / 2,471 (100% key coverage of current union; intentional English like `ISO`/`OK` kept) | menus, panels, dialogs, presets, profiles, dates, formats; lower-layer errors English | Latin with stacked diacritics (Inter) | no (community contribution) | partial (catalog complete; lower-layer errors English) | 1–3 h |
 
 ## Other languages LightCraft ships (3)
 
@@ -89,5 +89,5 @@ Target languages LightCraft lacks: Italian, Korean, Dutch, Polish, Swedish, Norw
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-13 | minor | Remeasured denominator (2,222 plain + 249 formats = 2,471); Vietnamese shipped at full current localizable coverage |
+| 2026-10-13 | minor | Remeasured denominator (2,222 plain + 249 formats = 2,471); Vietnamese catalog complete at 2,471/2,471 (status partial: lower-layer errors still English) |
 | 2026-10-10 | major | Created: per-language counts measured from the catalogs, the twelve key languages, script support, estimates |
