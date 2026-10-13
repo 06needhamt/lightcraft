@@ -197,6 +197,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 if icon_button(ui, "maskOverlay", Icon::Eye, vec2(24.0, 24.0), on, true, "Show overlay (O)").clicked() {
                     app.ui.mask_overlay = !on;
                 }
+                let all = app.ui.mask_overlay_all;
+                let all_mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+                let all_base = crate::i18n::tr("Show all overlays");
+                let all_tip = match crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.maskOverlayAll") {
+                    Some(sc) => format!("{all_base} ({})", crate::menubar::shortcut_text(sc, all_mac)),
+                    None => all_base.to_string(),
+                };
+                if icon_button(ui, "maskOverlayAll", Icon::Stack, vec2(24.0, 24.0), all, true, &all_tip).clicked() {
+                    app.ui.mask_overlay_all = !all;
+                }
             });
         });
         if d.masks.is_empty() {
