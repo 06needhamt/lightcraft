@@ -96,7 +96,9 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
         .order(egui::Order::Foreground)
         .movable(false)
         .pivot(Align2::CENTER_CENTER)
-        .fixed_pos(pos2(canvas.center().x, canvas.bottom() - 60.0))
+        // a slideshow's playback controls (and the template buttons) sit at the bottom: the toast,
+        // which takes the pointer (its text can be selected), goes to the top there
+        .fixed_pos(pos2(canvas.center().x, if app.ui.slideshow.is_some() { canvas.top() + 60.0 } else { canvas.bottom() - 60.0 }))
         .show(ctx, |ui| {
             ui.set_max_width(wrap);
             egui::Frame::NONE.fill(background).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::symmetric(20, 11)).show(
