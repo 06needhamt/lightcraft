@@ -1355,13 +1355,61 @@ mod tests {
         set_language(Locale::En);
     }
 
-    /// English values that Vietnamese intentionally keeps unchanged (product names, standards,
-    /// acronyms). Every other required display label must differ from its English source.
+    /// English catalog values Vietnamese keeps on purpose. Grouped by reason:
+    /// standards/acronyms (`ISO`, `HDR`, …), product names (`LightCraft`, `PhotoCraft`),
+    /// file-type tokens (`Raw`/`raw`, `video`), look names left as established labels
+    /// (`Bleach Bypass`, `Vintage`), and machine ids that must stay byte-identical
+    /// (`publicDomain`, `denoiseModel.accept`). `Album` stays as the common loanword.
+    /// Every other required label must differ from its English source.
     const VI_INTENTIONAL_ENGLISH: &[&str] = &[
-        "OK", "ISO", "RGB", "HDR", "JPEG", "PNG", "TIFF", "WebP", "AVIF", "HEIF", "HEIC", "DNG", "ICC", "EXIF", "XMP",
-        "GPU", "MCP", "SAM", "RAW", "Raw", "raw", "B&W", "LUT", "LightCraft", "ArtCraft", "GitHub", "Discord", "English",
-        "日本語", "繁體中文（台灣）", "Display P3", "Bleach Bypass", "Cross Process", "HDR…", "video", "Video", "true",
-        "false", "Album", "Vintage", "publicDomain", "denoiseModel.accept", "Panorama", "Panorama…",
+        "OK",
+        "ISO",
+        "RGB",
+        "HDR",
+        "JPEG",
+        "PNG",
+        "TIFF",
+        "WebP",
+        "AVIF",
+        "HEIF",
+        "HEIC",
+        "DNG",
+        "ICC",
+        "EXIF",
+        "XMP",
+        "GPU",
+        "MCP",
+        "SAM",
+        "RAW",
+        "Raw",
+        "raw",
+        "B&W",
+        "LUT",
+        "LightCraft",
+        "ArtCraft",
+        "GitHub",
+        "Discord",
+        "English",
+        "日本語",
+        "繁體中文（台灣）",
+        "Display P3",
+        "Bleach Bypass",
+        "Cross Process",
+        "HDR…",
+        "video",
+        "Video",
+        "true",
+        "false",
+        "Album",
+        "Vintage",
+        "publicDomain",
+        "denoiseModel.accept",
+        "Panorama",
+        "Panorama…",
+        "PhotoCraft",
+        "SDR",
+        "Matrix/TRC",
+        "LUT-based",
     ];
 
     /// Vietnamese covers every current catalog message and every required display label.
@@ -1472,12 +1520,13 @@ mod tests {
         ctx.fonts_mut(|fonts| {
             for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into())] {
                 let font = egui::FontId::new(13.0, family);
-                for ch in "ĂăÂâÊêÔôƠơƯưĐđáàảãạéèẻẽẹíìỉĩịóòỏõọúùủũụýỳỷỹỵ"
-                    .chars()
-                    .chain(Locale::Vi.catalog().values().flat_map(|text| text.chars()).filter(|ch| {
-                        ('\u{00c0}'..='\u{024f}').contains(ch) || ('\u{1ea0}'..='\u{1ef9}').contains(ch)
-                    }))
-                {
+                for ch in "ĂăÂâÊêÔôƠơƯưĐđáàảãạéèẻẽẹíìỉĩịóòỏõọúùủũụýỳỷỹỵ".chars().chain(
+                    Locale::Vi
+                        .catalog()
+                        .values()
+                        .flat_map(|text| text.chars())
+                        .filter(|ch| ('\u{00c0}'..='\u{024f}').contains(ch) || ('\u{1ea0}'..='\u{1ef9}').contains(ch)),
+                ) {
                     assert!(fonts.has_glyph(&font, ch), "missing Vietnamese glyph {ch}");
                 }
             }
