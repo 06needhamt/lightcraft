@@ -609,6 +609,8 @@ mod edited_tests {
             ("SONY ILCE-7RM4A", "ARW", false),
             ("NIKON CORPORATION NIKON D850", "NEF", false),
             ("Canon Canon EOS 5D Mark III", "CR2", false),
+            ("Canon Canon EOS R6m2", "CR3", false),
+            ("Canon Canon EOS R7", "CR3", true),
             ("FUJIFILM X-T4", "RAF", false),
             ("ILCE-7M3", "ARW", false),
             ("SONY ILCE-7M2", "ARW", true),
@@ -624,7 +626,11 @@ mod edited_tests {
             p.as_shot_wb = Some((4986.0, -2.0));
             assert_eq!(p.relative_wb(), relative, "{camera} {format}");
             assert_eq!(relative_wb_camera(format, camera), relative, "{camera} {format}");
-            assert_eq!(p.fitted_look(), format == "ARW" || format == "NEF" || format == "CR2" || format == "RAF", "{camera} {format}");
+            assert_eq!(
+                p.fitted_look(),
+                format == "ARW" || format == "NEF" || format == "CR2" || format == "CR3" || format == "RAF",
+                "{camera} {format}"
+            );
             let wb = p.camera_defaults().wb;
             assert_eq!((wb.temp, wb.tint), if relative { (6500.0, 0.0) } else { (4986.0, -2.0) }, "{camera} {format}");
             assert_eq!(wb.scale, if relative { WbScale::Legacy } else { WbScale::Kelvin }, "{camera} {format}");
