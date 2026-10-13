@@ -17,6 +17,8 @@ ranked in [gaps.md](gaps.md). Details per format: [cr3.md](cr3.md),
 | Decoded from sensor data and **verified** on a real file | **236** (16%) | measured: [raw/evidence.tsv](raw/evidence.tsv) |
 | Decoder path should handle it, **unverified** | **941** (65%) | measured from the format rules (631 of them DNG, mostly phones) |
 | **Preview-only** (embedded JPEG) | **233** (16%) | measured |
+| Decoder path should handle it, **unverified** | **942** (65%) | measured from the format rules (632 of them DNG, mostly phones) |
+| **Preview-only** (embedded JPEG) | **232** (16%) | measured |
 | **Unsupported** (not imported, refused or decodes wrongly) | **36** (2%) | measured |
 | Models added since 2017 (Camera Raw 10+): verified / unverified / preview / unsupported | 83 / 639 / 24 / 8 of 754 | measured |
 | **Share of photographers whose camera fully works** (decodes from sensor data), use-weighted | **~85%** | estimated: measured classes × written usage weights × per-format confidence |
@@ -77,7 +79,7 @@ committed table is stale.
 | Leica | 61 | 14 | 47 | 0 | 0 | — |
 | Xiaomi, Oppo, LG, Huawei, OnePlus, Motorola, Nokia | 139 | 0 | 139 | 0 | 0 | — (DNG) |
 | Pentax / Ricoh | 60 | 4 | 56 | 0 | 0 | — |
-| Hasselblad | 34 | 0 | 2 | 32 | 0 | Hasselblad-compressed 3FR / FFF |
+| Hasselblad | 34 | 1 | 2 | 31 | 0 | Hasselblad-compressed 3FR / FFF |
 | Phase One / Leaf / Mamiya | 59 | 0 | 0 | 43 | 16 | IIQ, MOS preview; TIFF raws and MEF not imported |
 | Casio | 26 | 0 | 26 | 0 | 0 | — (DNG) |
 | DJI | 21 | 0 | 21 | 0 | 0 | — (DNG) |
@@ -99,7 +101,7 @@ committed table is stale.
 | Pentax / Ricoh | 1.5% | 94% | 14% | |
 | Leica | 1% | 96% | 21% | the Q3 verified |
 | DJI | 1% | 95% | 0% | |
-| Medium format and others | 0.5% | 23% | 0% | IIQ, 3FR, X3F |
+| Medium format and others | 0.5% | 23% | 1% | IIQ, 3FR, X3F |
 | **Weighted** | 100% | **85%** | **42%** | |
 
 About 5 in 6 raw photographers' cameras decode, but only about 2 in 5 use a body we have actually
@@ -123,7 +125,7 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | NEF | uncompressed, lossless, lossy type 1 / 2, lossy after split | ✅ | D5100, D7000, D7500, Z f corpus; ~60 NEFs by hand; #633; D4 and D90 image area and white level measured against the camera JPEG |
 | NEF | packed 14-bit stored under a compressed tag (Z 6II uncompressed) | ⬜ | #769; fix in PR #671 (not merged) |
 | NEF | High Efficiency / HE★ (JPEG XS) | ⬜ | named, preview (#193); needs a JPEG XS decoder |
-| ARW | uncompressed, cRAW (ARW2), lossless LJ92 (L / M / S) | ✅ | 86 bodies (#535); M/S black level 1024 |
+| ARW | uncompressed, cRAW (ARW2), lossless LJ92 (L / M / S) | ✅ | 86 bodies (#535); M/S black level 1024; the Hasselblad Lunar, a NEX-7 under Make HASSELBLAD, routed by Sony's raw coding (#1275) |
 | ARW | packed 12-bit (A900) | ✅ | one CC0 file; A850 unmeasured |
 | ARW | ARW6 Compressed / HQ (compression 32766; ILCE-7RM6) | ✅ | 8 CC0 files; 12-bit mode unsupported; `docs/arw6-compression.md` |
 | ARW | 12-bit compressed of DSLR-A200…A390 | ⬜ | preview (#535) |
@@ -146,7 +148,7 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | DNG | GoPro GPR (VC-5) | ⬜ | refused |
 | 3FR / FFF | DNG-like layouts | 🟡 | decoded when uncompressed or LJ92 |
 | 3FR / FFF | Hasselblad compression | ⬜ | preview |
-| IIQ, MOS, MRW, ERF, KDC, X3F | all | ⬜ | preview |
+| IIQ, MOS, MRW, ERF, KDC, X3F | all | ⬜ | preview; an uncompressed MOS, whose IFD0 is the mosaic itself with no Make tag, is recognised by Leaf's data block `0x8606` (#1275) |
 | DCR, MEF, MFW, DXO, GPR, TIFF raws | all | ⬜ | not imported |
 
 ### Compressed ORF: a clean-room starting point
@@ -275,6 +277,7 @@ Beyond decoding:
 | 2026-10-12 | minor | Canon PowerShot G9: as-shot white balance from WBInfo (`0x0029`, the row of the preset in ShotInfo), issue #1273; render unchanged (the camera-look fit already absorbed it), As Shot now the camera's; counts unchanged |
 | 2026-10-12 | minor | Olympus E-10: as-shot white balance (`0x1017`/`0x1018`) and black level (`0x1012` in `0x102c` ValidBits units) from the main maker note, issue #1273; ΔE76 against its thumbnail 18.5 → 11.5, camera-look fit now accepted; counts unchanged |
 | 2026-10-13 | minor | Nikon D90 image area (4288 × 2848 at 10, 10) and white level (3830) measured on 10 of 550 NEFs from one body: its 42 filler columns no longer develop as a pink band |
+| 2026-10-12 | minor | Hasselblad Lunar verified (a Sony NEX-7 ARW under Make HASSELBLAD, now decoded): 236 verified, 232 preview; an uncompressed Leaf MOS is recognised as a raw (preview only) instead of opening as a greyscale image of its mosaic (#1275) |
 | 2026-10-10 | minor | Compressed ORF: pointer to the two Olympus patents that describe the method, as a clean-room starting point |
 | 2026-10-12 | minor | PEF without area tags: masked border rows and columns trimmed against the BlackPoint (issue #1271; KP, KF, K-3 Mark III, K-70, K-1, K-1 Mark II, K-S1, K-S2, 645Z); counts unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II verified (CRX QP-map first literal and limited-length escape, odd-height Bayer planes; 4 CC0 files pinned, QP maps of 33,665 private files): 235 verified, 942 unverified; use-weighted 85% (42% on verified bodies); decoding 77%, RAW readiness unchanged at ~56% |
