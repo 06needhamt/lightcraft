@@ -167,7 +167,15 @@ Compress-Archive -Path $Portable -DestinationPath $Zip
 
 # Smoke-test the CLI when this machine can run it. An ARM64 build made on an x64 runner can't run
 # here; .github/workflows/windows-arm64.yml installs and runs it on ARM64 instead.
-$HostArch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+# Windows PowerShell 5.1 can expose OSArchitecture as null. Use Windows' environment
+# variables instead; PROCESSOR_ARCHITEW6432 identifies the OS when the shell is emulated.
+$nativeArchitecture = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$HostArch = switch ($nativeArchitecture) {
+  'AMD64' { 'x64' }
+  'x86' { 'x86' }
+  'ARM64' { 'arm64' }
+  default { 'unknown' }
+}
 if ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
   Invoke-Native 'lightcraft-cli --version' { & (Join-Path $Stage 'lightcraft-cli.exe') --version }
 } else {
