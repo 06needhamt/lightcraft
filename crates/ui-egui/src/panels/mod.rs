@@ -90,6 +90,8 @@ pub fn toast(app: &mut LightcraftApp, ctx: &egui::Context) {
     egui::Area::new(egui::Id::new("toast"))
         .order(egui::Order::Foreground)
         .movable(false)
+        // (the toast fades by its own clock)
+        .fade_in(false)
         .pivot(Align2::CENTER_CENTER)
         .fixed_pos(pos2(canvas.center().x, canvas.bottom() - 60.0))
         .show(ctx, |ui| {
