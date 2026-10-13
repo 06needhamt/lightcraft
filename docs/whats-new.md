@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### Nikon lens corrections
+- Raws from the Nikon Z 6II, Z 8 and Z f now open with the camera's own distortion correction, as Lightroom applies a
+  built-in profile: straight lines near the edges stay straight and the framing matches the camera's JPEG. It works
+  with Z lenses and with F-mount lenses on the FTZ adapter, follows the in-body stabilisation's shift of the optical
+  centre, and can be turned off under Lens Corrections. Vignetting correction from the file comes later.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
