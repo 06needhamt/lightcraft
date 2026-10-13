@@ -623,7 +623,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     } else {
         shown = draw(Slot::Main, img_rect, canvas);
         if shown == "none" {
-            match app.renderer.failure(Slot::Main) {
+            match app.renderer.failure_of(Slot::Main, id) {
                 Some(e) => {
                     p.text(
                         canvas.center() - vec2(0.0, 10.0),
@@ -749,7 +749,40 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
     }
     // drawn and hit-tested above the loupe and its tools: clicks on it pan
-    navigator(app, ui, canvas, img_rect, id);
+    let nav = navigator(app, ui, canvas, img_rect, id);
+    // what is on screen isn't the render on its way (a stand-in, the last render after an edit,
+    // a magnified frame under its window): say so once that has lasted a moment
+    let whole: &[Slot] = if show_before && !split {
+        &[Slot::Before]
+    } else if split || split_view {
+        &[Slot::Main, Slot::Before]
+    } else {
+        &[Slot::Main]
+    };
+    let coming = !matches!(shown, "none" | "hover")
+        && whole.iter().chain(windows.iter().map(|(v, _)| &v.slot)).any(|s| app.renderer.is_pending(*s) && !app.renderer.retrying(*s));
+    let keys =
+        [Slot::Main, Slot::Before, Slot::Region, Slot::RegionBefore].map(|s| app.renderer.textures.get(&s).filter(|t| t.photo == id).map(|t| t.key));
+    let rendering = ui.ctx().data_mut(|d| rendering_overdue(d.get_temp_mut_or(egui::Id::new("loupe-rendering"), None), keys, coming, now));
+    // the render failed while a stand-in is up: what is on screen is all there will be (also while
+    // a library change retries it)
+    let failed = (!rendering
+        && !(show_before && !split)
+        && !matches!(shown, "render" | "none" | "hover")
+        && (!app.renderer.is_pending(Slot::Main) || app.renderer.retrying(Slot::Main)))
+    .then(|| app.renderer.failure_of(Slot::Main, id))
+    .flatten();
+    if rendering || failed.is_some() {
+        // over the photo (the After in two views); in the crop tool's wide margin, under it
+        let over = if crop_tool { canvas } else { img_rect.intersect(if split { main_area } else { canvas }) };
+        let over = if over.is_positive() { over } else { canvas };
+        match failed {
+            Some(e) => failed_pill(ui, app, &photo, canvas, over, nav, "loupe:renderFailed", e),
+            None => {
+                loupe_pill(ui, canvas, over, nav, "loupe:rendering", crate::i18n::tr("Rendering…"), false);
+            }
+        }
+    }
     if let Some(why) = photo.preview_only.as_deref().filter(|_| !fullscreen) {
         preview_only_pill(ui, canvas, why);
     }
@@ -1039,11 +1072,11 @@ fn pretty_date(iso: &str) -> String {
 const NAV_W: f32 = 180.0;
 
 /// The Navigator: while zoomed in, a mini map of the photo at the canvas' bottom right with the
-/// visible region outlined; click or drag on it to pan.
-fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, img: Rect, id: PhotoId) {
+/// visible region outlined; click or drag on it to pan. Returns the area it covers.
+fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, img: Rect, id: PhotoId) -> Option<Rect> {
     let zoomed = img.width() > canvas.width() + 1.0 || img.height() > canvas.height() + 1.0;
     if !app.ui.navigator || !zoomed || app.ui.fullscreen {
-        return;
+        return None;
     }
     let tex = app.renderer.thumb(id).or_else(|| app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id));
     let aspect = img.width() / img.height().max(1.0);
@@ -1073,10 +1106,81 @@ fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, img: Rect
         let v = ((q.y - frame.top()) / frame.height()).clamp(0.0, 1.0);
         app.ui.pan = (u, v);
     }
+    Some(frame.expand(5.0))
 }
 
 /// Neighbour prefetch: below on-screen thumbnails, above background thumbnail refreshes.
 const PREFETCH_PRIORITY: u32 = 4;
+
+/// How long a render may be on its way, with nothing new on screen, before the loupe says
+/// "Rendering…" (s): as long as the activity stack waits before it shows a task.
+const RENDERING_AFTER_SECS: f64 = 0.5;
+
+/// What [`rendering_overdue`] keeps between frames while a render is coming: the texture keys on
+/// screen, since when, and whether the pill is up.
+type RenderingWait = Option<([Option<u64>; 4], f64, bool)>;
+
+/// Whether the loupe says "Rendering…": a render has been `coming` for [`RENDERING_AFTER_SECS`] with
+/// no new texture `keys` on screen. The wait starts when the render starts coming (an idle app draws
+/// no frames, so the last one may be long ago), and once up the pill stays until nothing is coming:
+/// drafts slower than the wait don't make it blink.
+fn rendering_overdue(wait: &mut RenderingWait, keys: [Option<u64>; 4], coming: bool, now: f64) -> bool {
+    if !coming {
+        *wait = None;
+        return false;
+    }
+    let (seen, since, up) = wait.get_or_insert((keys, now, false));
+    if !*up && *seen != keys {
+        (*seen, *since) = (keys, now);
+    }
+    *up |= now - *since > RENDERING_AFTER_SECS;
+    *up
+}
+
+/// A pill over the photo, 12 pt above the bottom of `over` or just above the Navigator when that
+/// is in the way, registered as `id`; `caution` adds the preview-only pill's caution icon. The
+/// loupe's "Rendering…" says the pixels on screen aren't final, so it isn't an activity row (see
+/// docs/background-tasks.md); "This photo can't be opened" says the stand-in on screen is all
+/// there will be.
+fn loupe_pill(ui: &egui::Ui, canvas: Rect, over: Rect, navigator: Option<Rect>, id: &str, text: &str, caution: bool) -> Rect {
+    let t = Tokens::get(ui.ctx());
+    let p = ui.painter_at(canvas);
+    let g = p.layout_no_wrap(text.to_string(), t.font(12.0), Color32::from_gray(225));
+    let inset = if caution { 29.0 } else { 10.0 };
+    let size = vec2(g.size().x + inset + 10.0, 20.0);
+    let mut r = Rect::from_center_size(pos2(over.center().x, over.bottom() - 12.0 - size.y / 2.0), size);
+    if let Some(nav) = navigator.filter(|n| n.expand(8.0).intersects(r)) {
+        r = Rect::from_min_size(pos2(nav.right() - size.x, nav.top() - 8.0 - size.y), size);
+    }
+    p.rect_filled(r, 10.0, Color32::from_black_alpha(185));
+    if caution {
+        crate::icons::paint(&p, Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(13.0, 13.0)), crate::icons::Icon::Info, t.caution);
+    }
+    p.galley(pos2(r.left() + inset, r.center().y - g.size().y / 2.0), g, Color32::from_gray(225));
+    register(ui.ctx(), id, r);
+    r
+}
+
+/// The caution pill saying a render failed behind the stand-in on screen (see [`loupe_pill`]):
+/// "Original offline · no smart preview" when that is why, else "This photo can't be opened", with
+/// the error on hover and for screen readers.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn failed_pill(
+    ui: &egui::Ui,
+    app: &LightcraftApp,
+    photo: &lightcraft_catalog::Photo,
+    canvas: Rect,
+    over: Rect,
+    navigator: Option<Rect>,
+    id: &str,
+    error: &str,
+) {
+    let offline = matches!(&photo.source, lightcraft_catalog::Source::File { path } if app.session.media.availability.is_offline(path));
+    let text = crate::i18n::tr(if offline { "Original offline · no smart preview" } else { "This photo can't be opened" });
+    let r = loupe_pill(ui, canvas, over, navigator, id, text, true);
+    let resp = ui.interact(r, egui::Id::new(("render-failed", id)), Sense::hover()).on_hover_text(error);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, format!("{text}: {error}")));
+}
 
 fn quick_name(q: lightcraft_engine::media::QuickSource) -> &'static str {
     use lightcraft_engine::media::QuickSource;
@@ -2446,6 +2550,27 @@ mod tests {
             assert!(outside_crop_mesh(img, &quad, Color32::BLACK).indices.is_empty(), "{quad:?}");
         }
         assert!(outside_crop_mesh(Rect::NAN, &box_at(pos2(50.0, 50.0), 20.0, 20.0, 10.0), Color32::BLACK).indices.is_empty());
+    }
+
+    /// A raw's embedded JPEG shown while the raw decodes, or the last render while an edit renders,
+    /// looked like the finished photo: the loupe says "Rendering…" once a render has been coming for
+    /// a moment with nothing new on screen, and doesn't blink while slow drafts arrive.
+    #[test]
+    fn the_loupe_says_rendering_when_the_screen_falls_behind() {
+        use super::{RENDERING_AFTER_SECS as WAIT, rendering_overdue};
+        let key = |k| [Some(k), None, None, None];
+        let mut wait = None;
+        assert!(!rendering_overdue(&mut wait, key(1), false, 0.0), "nothing coming");
+        // an edit after an idle spell: the wait starts now, not at the last frame drawn
+        assert!(!rendering_overdue(&mut wait, key(1), true, 30.0), "a render just asked for");
+        assert!(!rendering_overdue(&mut wait, key(1), true, 30.0 + WAIT * 0.8), "a quick render never shows it");
+        assert!(rendering_overdue(&mut wait, key(1), true, 30.0 + WAIT * 1.2), "nothing new for the wait");
+        assert!(rendering_overdue(&mut wait, key(2), true, 31.0 + WAIT), "once up, a slow draft doesn't blink it");
+        assert!(!rendering_overdue(&mut wait, key(3), false, 32.0), "done");
+        // a drag whose drafts keep up: always something coming, a new draft every 0.1 s
+        for i in 1..30u32 {
+            assert!(!rendering_overdue(&mut wait, key(u64::from(i)), true, 40.0 + f64::from(i) * 0.1), "draft {i}");
+        }
     }
 
     /// Issue #652: a native host reports the GPU's texture limit in the first frame's input only.
