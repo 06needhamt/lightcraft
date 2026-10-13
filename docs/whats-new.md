@@ -2,6 +2,12 @@
 
 ## 2026-10-13
 
+### Reliability
+- A library whose catalog file was damaged (or edited by hand) in a way that still reads no longer crashes
+  LightCraft when it shows a stack, or hangs it when a folder is moved: on opening, records are put back under
+  their own ids, stacks keep only photos that exist (at least two), folders inside themselves move to the top,
+  and new photos never reuse an id in use. What was repaired is written to the log.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
