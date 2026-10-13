@@ -21,6 +21,13 @@
   show a black (or, on the 645Z, white) band along one or more edges (issue #1271). The sensor's masked border is
   left out, so these photos come out a little smaller, closer to the camera's own JPEG. Crops and masks on photos
   edited earlier may shift by a few pixels.
+## 2026-10-12
+
+### Camera-look deep shadows
+
+- The starting look fitted from a raw's camera JPEG now uses its darkest tones too (issue #1307).
+  Photos with deep shadows no longer have to extend the first measured tone in a straight line to black.
+  Existing smart previews are refreshed when their originals are online, and cached renders are redrawn.
 
 ## 2026-10-11
 
