@@ -39,6 +39,11 @@
   read from the white-balance presets the camera stores in every ARW: a photo shot at 3400 K on the camera reads
   3396 K, one on the Shade preset 7493 K. As for #730, only the numbers change: edits made on the old relative
   scale keep their look, and As Shot shows the real temperature once the file is opened.
+## 2026-10-12
+
+### Bold text in other scripts
+- Arabic names and other Arabic text in headings, chosen tabs and other bold places are now drawn bold, as Latin text
+  beside them is; they used to stay at regular weight.
 
 ## 2026-10-11
 
