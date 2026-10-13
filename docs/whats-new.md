@@ -2,6 +2,16 @@
 
 ## 2026-10-13
 
+### Where the camera focused
+- **View ▸ Show Focus Point** (⌥F) draws the autofocus frame the camera recorded over the photo, in Detail, Compare
+  and Survey, following rotation and crops; the Info panel says how it focused (`AF-C · Wide · Animal Eye Tracking`).
+  Lightroom has no such view.
+- **Z zooms to it**: Toggle Zoom centres on the focus point, so checking that the subject is sharp is one key
+  (View ▸ Zoom to Focus Point turns this off). Photos without a point zoom as before.
+- Sony α1 (ILCE-1) and A7S III (ILCE-7SM3) raws for now; manual-focus shots and Wide shots that only report the frame
+  centre show nothing. Photos imported earlier get their point with Photo ▸ Reload from Disk. More cameras will
+  follow. Details: [focus-points.md](focus-points.md).
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's

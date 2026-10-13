@@ -275,6 +275,11 @@ pub struct AppSettings {
     /// The monitor's ICC profile previews are shown through (`app.displayProfile`; "" = none:
     /// the display is treated as sRGB).
     pub display_profile: String,
+    /// View ▸ Show Focus Point: draw the box the camera focused on (`view.focusPoint`).
+    pub focus_point: bool,
+    /// View ▸ Zoom to Focus Point: Toggle Zoom (Z) centres the zoomed view on the camera's focus point
+    /// when the photo has one (`view.zoomToFocus`).
+    pub zoom_to_focus: bool,
 }
 
 impl Default for AppSettings {
@@ -300,6 +305,8 @@ impl Default for AppSettings {
             light_theme: LightTheme::Silver,
             favorite_themes: Vec::new(),
             display_profile: String::new(),
+            focus_point: false,
+            zoom_to_focus: true,
         }
     }
 }

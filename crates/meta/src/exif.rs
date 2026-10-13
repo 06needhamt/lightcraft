@@ -16,8 +16,12 @@ pub fn read_exif(bytes: &[u8]) -> Metadata {
 
 /// Like [`read_exif`] but reports a structurally invalid TIFF header / IFD0.
 pub fn try_read_exif(bytes: &[u8]) -> Result<Metadata, TiffError> {
-    let tiff = Tiff::parse(strip_exif_header(bytes))?;
-    Ok(from_tiff(&tiff))
+    let data = strip_exif_header(bytes);
+    let tiff = Tiff::parse(data)?;
+    let mut m = from_tiff(&tiff);
+    // the maker note's values are offsets into the stream, which `from_tiff` doesn't have
+    m.focus = crate::focus::read(data, &tiff, m.make.as_deref(), m.model.as_deref(), m.orientation);
+    Ok(m)
 }
 
 fn text(ifd: Option<&Ifd>, tag: u16) -> Option<String> {
