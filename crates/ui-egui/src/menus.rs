@@ -92,6 +92,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.softProof", "Soft Proofing", Some("S"), "View"),
     ("view.histogram", "Histogram", Some("Cmd+Shift+H"), "View"),
     ("view.maskOverlay", "Show Mask Overlay", Some("O"), "View"),
+    // Ctrl+Shift+O / Cmd+Shift+O: every mask's region at once, not just the selected one
+    ("view.maskOverlayAll", "Show All Mask Overlays", Some("Cmd+Shift+O"), "View"),
     // Shift+O in the Masking panel (elsewhere it cycles the crop overlay)
     ("view.maskOverlayMode", "Cycle Mask Overlay Mode", None, "View"),
     ("view.maskOverlayColor", "Cycle Mask Overlay Color", None, "View"),
@@ -837,6 +839,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.maskOverlay" => {
             app.ui.mask_overlay = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.mask_overlay);
             Ok(json!({"maskOverlay": app.ui.mask_overlay}))
+        }
+        "view.maskOverlayAll" => {
+            app.ui.mask_overlay_all = !app.ui.mask_overlay_all;
+            Ok(json!({"maskOverlayAll": app.ui.mask_overlay_all}))
         }
         "view.maskOverlayMode" => {
             use lightcraft_engine::pipeline::MaskView;

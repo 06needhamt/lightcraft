@@ -712,6 +712,27 @@ pub fn render(
             _ => Err(m),
         }
     });
+    // every visible mask's alpha, for `Overlay::AllMasks` (one tint over all masks at once).
+    // The masks buffer holds each visible mask's alpha back-to-back in the same `list` order the
+    // single-mask overlay uses, so read the whole buffer back in ONE GPU->CPU transfer and split it
+    // on the CPU, instead of one synchronous readback per mask (which stalls the pipeline N times).
+    let all_overlay_alphas: Option<Vec<Plane>> = if matches!(req.overlay, lightcraft_pipeline::Overlay::AllMasks { .. }) {
+        masks.as_ref().map(|all| {
+            let list: Vec<_> = s.masks.iter().filter(|m| m.visible && !m.components.is_empty()).collect();
+            if list.is_empty() {
+                return Vec::new();
+            }
+            let raw: Vec<f32> = cx.read(all, n * list.len());
+            let mut alphas = Vec::with_capacity(list.len());
+            for mi in 0..list.len() {
+                let s = mi * n;
+                alphas.push(Plane { width: w, height: h, data: raw[s..s + n].to_vec() });
+            }
+            alphas
+        })
+    } else {
+        None
+    };
     let data: Vec<[u8; 4]> = cx.read(&out, n);
     let image = Rgba8 { width: w, height: h, data };
     lap("finish + readback", &mut t, &mut cx);
@@ -747,7 +768,7 @@ pub fn render(
             lightcraft_pipeline::masks::evaluate_one(m, &plan.frame, w, h, &img, &l, s.light.exposure as f32, plan.mattes.as_deref())
         }
     });
-    lightcraft_pipeline::visualize::apply(&mut image, req.overlay, &plan, overlay_mask.as_ref());
+    lightcraft_pipeline::visualize::apply(&mut image, req.overlay, &plan, overlay_mask.as_ref(), all_overlay_alphas.as_deref());
     // spots grew the window the render worked on: cut it back to the request
     if let Some(k) = plan.keep {
         image = image.crop(k.x, k.y, k.w, k.h);

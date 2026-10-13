@@ -600,7 +600,8 @@ fn render_impl(src: Src<'_>, info: &SourceInfo, s: &DevelopSettings, req: &Rende
     lap("histogram", &mut t);
     let mut image = image;
     let mask = overlay_alpha(req.overlay, &plan, &prep);
-    visualize::apply(&mut image, req.overlay, &plan, mask.as_ref());
+    let masks = overlay_alphas_all(req.overlay, &plan, &prep);
+    visualize::apply(&mut image, req.overlay, &plan, mask.as_ref(), masks.as_deref());
     let mut image = if plan.keep.is_some() { cut(&image) } else { image };
     if req.overlay == Overlay::HdrRange && edit.hdr.enabled {
         // the HDR rendition of the same request says how far above SDR white each pixel goes
@@ -650,6 +651,24 @@ fn overlay_alpha(o: Overlay, plan: &Plan<'_>, prep: &Prepared) -> Option<Plane> 
     }
     let ev = plan.settings.light.exposure as f32;
     Some(masks::evaluate_one(m, &plan.frame, plan.w, plan.h, &prep.img, &prep.log_l, ev, plan.mattes.as_deref()))
+}
+
+/// The alpha planes an `Overlay::AllMasks` shows: one per visible mask that has components,
+/// reusing the render's own evaluation where available (a fresh evaluation otherwise).
+fn overlay_alphas_all(o: Overlay, plan: &Plan<'_>, prep: &Prepared) -> Option<Vec<Plane>> {
+    if !matches!(o, Overlay::AllMasks { .. }) {
+        return None;
+    }
+    let ev = plan.settings.light.exposure as f32;
+    let mut out = Vec::new();
+    for m in plan.settings.masks.iter().filter(|m| m.visible && !m.components.is_empty()) {
+        if let Some(e) = prep.masks.iter().find(|e| e.id == m.id) {
+            out.push(e.alpha.clone());
+        } else {
+            out.push(masks::evaluate_one(m, &plan.frame, plan.w, plan.h, &prep.img, &prep.log_l, ev, plan.mattes.as_deref()));
+        }
+    }
+    Some(out)
 }
 
 /// Convenience: render a before/after pair side by side is up to the UI; this renders "before"
