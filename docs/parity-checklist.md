@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-MERGE-PANO: panoramas at full resolution, held to memory (#1455); integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -348,7 +348,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
 | LR-MERGE-HDR | HDR merge | P2 | ✅ | `cmd:merge.hdr`, `cmd:dialog.mergeHdr`, `crates/merge/src/frame.rs` (`Frame::lens`) | auto align, deghost None–High + overlay, auto settings, float DNG, Create Stack; the DNG keeps the reference frame's embedded lens corrections (tested by `hdr_merge_keeps_the_reference_frames_lens_corrections`); JPEG brackets treated as linear; raws without colour matrices of their own (CR2, NEF, ARW…) keep the colour they open with, written as DNG tags (`starting_colour_tags`; the look's chroma curve has no tag; panoramas too), issue #965 |
-| LR-MERGE-PANO | Panorama | P2 | ✅ | `cmd:merge.panorama`, `cmd:dialog.mergePanorama` | spherical/cylindrical/perspective + auto, boundary warp, auto crop, fill edges (diffusion), DNG; no lens model / 360° wrap |
+| LR-MERGE-PANO | Panorama | P2 | ✅ | `cmd:merge.panorama`, `cmd:dialog.mergePanorama` | spherical/cylindrical/perspective + auto, boundary warp, auto crop, fill edges (diffusion), DNG at the photos' own resolution up to 512 MP / 65,000 px, held to what fits in memory (issue #1455; was a fixed 40 MP); no lens model / 360° wrap |
 | LR-MERGE-HDRPANO | HDR panorama | P2 | ✅ | `cmd:merge.hdrPanorama`, `cmd:dialog.mergeHdrPanorama` | brackets grouped by EXIF |
 | LR-MERGE-HEADLESS | Merge with last settings | P2 | ✅ | `cmd:merge.hdrLast`, `cmd:merge.panoramaLast`, `cmd:merge.hdrPanoramaLast` | no dialog; the options of the last merge of that kind (defaults the first time) |
 
@@ -815,6 +815,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-13 | patch | LR-BEHAV-AUTOSAVE: a damaged snapshot that still parses is repaired on open (ids, stacks, folder loops, id counters) instead of panicking or hanging; status unchanged |
 | 2026-10-13 | minor | LR-EDIT-OPTICS-PROFILE: Nikon Z 6II / Z 8 / Z f NEFs use the camera's in-file distortion correction (NikonNEFInfo); status unchanged (🟡) |
 | 2026-10-11 | minor | Model setup folder action, opener error and retry (LR-MASK-OBJECTS). |
+| 2026-10-13 | minor | LR-MERGE-PANO: a panorama keeps its photos' resolution (up to 512 MP / 65,000 px) instead of a fixed 40 MP, held to what fits in memory (issue #1455); status unchanged |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |
