@@ -29,6 +29,14 @@ step. AutoWrite uses the normal rating metadata path. In Detail, including Maski
 remapping and disabling the default brush bindings take precedence over their grid bracket actions.
 The separate Decrease Rating / Increase Rating commands can also be assigned in Help → Keyboard Shortcuts.
 
+`Home` and `End` make the first or last photo of the view the active, selected one. `Shift` + `←` /
+`→` add the previous or next photo of the view to the selection and make the added photo active; the
+key never removes a photo from the selection, and at either end of the view it does nothing. These
+four keys work in Photo Grid and Square Grid only. They wait in Detail, Compare and Survey, in the
+full-screen preview (which covers the grid), while a text field or a dialog has the keyboard, and
+when you gave the same key to a command in Help → Keyboard Shortcuts, where they are listed under
+Fixed keys.
+
 Grid actions apply to all selected photos and support Undo / Redo. In Compare and Survey, culling
 actions apply to the active photo. Auto Advance moves forward after an action; holding Shift with
 Auto Advance on still advances only once. The last photo stays selected. Text fields keep their
