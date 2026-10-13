@@ -7,6 +7,26 @@ use lightcraft_catalog::{ColorLabel, Flag, PhotoId};
 use serde_json::json;
 
 use crate::Session;
+use crate::rename::{MoveFs, RealFs};
+
+/// Whether `dir` is on a case-insensitive volume (the default on macOS and Windows): its path in upper case still resolves.
+pub(crate) fn case_insensitive(dir: &Path) -> bool {
+    Path::new(&dir.to_string_lossy().to_uppercase()).exists()
+}
+
+/// The same path, or the same file under another spelling (`a.XMP` and `a.xmp` on a case-insensitive volume). Fault
+/// injectors match this way, so an injected failure fires whichever spelling the code under test uses for a file; on a
+/// case-sensitive volume only identical paths match.
+pub(crate) fn same_path_or_file(a: &Path, b: &Path) -> bool {
+    a == b || RealFs.same_file(a, b)
+}
+
+/// The same path, or on a case-insensitive volume a path that differs only in ASCII case: the code under test may spell
+/// a sidecar `.XMP` for a file stored as `.xmp` there, while on a case-sensitive volume it offers only the spelling that
+/// exists.
+pub(crate) fn same_path_for_volume(a: &Path, b: &Path) -> bool {
+    a == b || (a.parent().is_some_and(case_insensitive) && a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy()))
+}
 
 pub(crate) fn temp_dir(tag: &str) -> PathBuf {
     let d = std::env::temp_dir().join(format!("lc-xmp-{tag}-{}", std::process::id()));
