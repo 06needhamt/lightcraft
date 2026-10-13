@@ -33,10 +33,20 @@ fn import(s: &mut Session, p: &Value) -> Result<Value> {
                         if let Some(g) = &group {
                             it.preset.group = g.clone();
                         }
+                        // the profile it names (issue #1001): one the user imported, or ours for a basic one
+                        let mut profile = Value::Null;
+                        if let Some((r, _)) = crate::profile_refs::apply(&mut it.preset.settings, &s.lut_profiles) {
+                            let look = it.preset.settings["profile"]["look"].clone();
+                            it.unmapped.retain(|u| u != "Look");
+                            it.unmapped.extend(crate::profile_refs::report(&look, &r));
+                            profile = json!({"name": look["name"], "id": it.preset.settings["profile"].get("id")});
+                        }
                         let (name, grp) = (it.preset.name.clone(), it.preset.group.clone());
                         let id = if dry { Some(it.preset.id.clone()) } else { s.add_presets(vec![it.preset]).pop() };
                         match id {
-                            Some(id) => imported.push(json!({"id": id, "name": name, "group": grp, "file": f, "unmapped": it.unmapped})),
+                            Some(id) => {
+                                imported.push(json!({"id": id, "name": name, "group": grp, "file": f, "unmapped": it.unmapped, "profile": profile}))
+                            }
                             None => skipped += 1,
                         }
                     }
@@ -83,7 +93,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Import Presets",
             [],
             None,
-            "{paths: [file or folder], group?, dryRun?} — .lcpreset, XMP presets, .lrtemplate, photos carrying edits (DNG/JPEG/TIFF \"DNG presets\"), Luminar looks (.lmp, .mplumpack collections) and .zip bundles of these; folders give their name as group; crs: fields mapped per docs/xmp-interop.md → {imported: [{id,name,group,file,unmapped}], skipped, failed}",
+            "{paths: [file or folder], group?, dryRun?} — .lcpreset, XMP presets, .lrtemplate, photos carrying edits (DNG/JPEG/TIFF \"DNG presets\"), Luminar looks (.lmp, .mplumpack collections) and .zip bundles of these; folders give their name as group; crs: fields mapped per docs/xmp-interop.md; a profile the preset names applies when it was imported with profile.import (before or after) → {imported: [{id,name,group,file,unmapped,profile: {name, id}|null}], skipped, failed}",
             always,
             import
         ),
