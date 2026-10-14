@@ -462,14 +462,15 @@ mod tests {
         }
     }
 
-    /// #736: a Thai folder name drew boxes because only CJK craft-fonts faces were fallbacks. With a
-    /// craft-fonts build that carries a Thai face, an English UI offers it in every family.
+    /// #736: the release input must carry Thai, not silently skip the check with an older pin.
+    /// Exercise the Thai characters of the reported folder name through every egui family.
     #[test]
-    fn thai_face_is_a_fallback_in_every_ui_family_when_craft_fonts_carry_one() {
-        let Some(thai) = lightcraft_engine::CRAFT_FONTS.iter().find(|f| f.covers("Thai")) else {
-            eprintln!("no Thai face in craft-fonts: nothing to check");
+    fn thai_folder_name_has_glyphs_in_every_ui_family() {
+        if lightcraft_engine::CRAFT_FONTS.is_empty() {
+            eprintln!("built without CRAFT_FONTS_DIR: no craft-fonts to check");
             return;
-        };
+        }
+        let thai = lightcraft_engine::CRAFT_FONTS.iter().find(|f| f.covers("Thai")).expect("font input includes Thai");
         set_language(Locale::En);
         let definitions = font_definitions(lightcraft_engine::CRAFT_FONTS);
         let name = craft_font_name(thai);
@@ -480,6 +481,20 @@ mod tests {
             let names = definitions.families.get(&family).expect("UI font family");
             assert!(names.contains(&name) || (family == semibold_family() && names.contains(&strong)), "{family:?} falls back on {name}");
         }
+        let ctx = egui::Context::default();
+        ctx.set_fonts(definitions);
+        let mut frame = ctx.run_ui(egui::RawInput::default(), |_| {});
+        frame.textures_delta.clear();
+        ctx.fonts_mut(|fonts| {
+            for family in [FontFamily::Proportional, FontFamily::Name(FONT_SEMIBOLD.into()), FontFamily::Monospace] {
+                let id = FontId::new(13.0, family);
+                // Check the Thai portion; egui 0.36's has_glyph reports false for characters
+                // in the replacement glyph's own face (including normal monospace Latin).
+                for ch in "Studio34 ถ่ายภาพงานแต่งงาน".chars().filter(|ch| !ch.is_ascii()) {
+                    assert!(fonts.has_glyph(&id, ch), "{id:?} has {ch}");
+                }
+            }
+        });
     }
 
     #[test]
