@@ -60,6 +60,15 @@ fn browse(s: &mut Session, p: &Value) -> Result<Value> {
     }))
 }
 
+impl Session {
+    /// Forget the untouched Local records of files gone from the folder `dir` (with its subfolders when
+    /// `subfolders`) that a browse just listed as `files`: what `library.browse` does after reading a folder, for a
+    /// UI that reads it on a worker thread instead. Returns how many went.
+    pub fn forget_gone_from(&mut self, dir: &str, subfolders: bool, files: &[String]) -> usize {
+        forget_gone(self, dir, subfolders, files)
+    }
+}
+
 /// Local records in the browsed folder whose files are no longer on disk (deleted or moved by
 /// another app) and that nothing was changed on are forgotten, as `library.forgetLocal` forgets
 /// them: the folder shows what is on disk, not photos that fail to load (and log an error) on

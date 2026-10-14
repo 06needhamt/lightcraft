@@ -2983,6 +2983,43 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Browsing a folder again from the sidebar forgets the untouched Local records of files deleted from it by
+    /// another app, as `library.browse` does (issue #1392).
+    #[test]
+    fn browsing_again_from_the_ui_forgets_deleted_files() {
+        let mut h = demo([1200.0, 900.0]);
+        let t = Duration::from_secs(10);
+        let dir = std::env::temp_dir().join(format!("lc-browse-gone-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = lightcraft_raster::Rgba8::from_fn(8, 8, |x, y| [(x * 9) as u8, (y * 12) as u8, 80, 255]);
+        let o = lightcraft_engine::export::ExportOptions { format: lightcraft_engine::export::ExportFormat::Png, ..Default::default() };
+        let png = lightcraft_engine::export::encode_image(&img, &o).unwrap();
+        std::fs::write(dir.join("a.png"), &png).unwrap();
+        std::fs::write(dir.join("b.png"), &png).unwrap();
+        let path = dir.to_string_lossy().to_string();
+        let browse = |h: &mut Headless| {
+            let r = h.request("engine.execute", json!({"command": "library.browse", "params": {"path": path}}), t);
+            assert_eq!(r["result"]["scanning"], true, "{r}");
+            h.settle(SETTLE);
+        };
+        browse(&mut h);
+        assert_eq!(h.app.session.visible_cloned().len(), 2);
+        // another app deletes the photo that isn't selected (a selected or open one stays, shown as missing)
+        let held: Vec<lightcraft_catalog::PhotoId> =
+            h.app.session.selection.ids.iter().copied().chain(h.app.session.selection.active).chain(h.app.session.previous_active).collect();
+        let name = |id: &lightcraft_catalog::PhotoId| h.app.session.catalog.photo(*id).map(|p| p.file_name.clone()).unwrap_or_default();
+        let gone = if held.iter().any(|id| name(id) == "b.png") { "a.png" } else { "b.png" };
+        std::fs::remove_file(dir.join(gone)).unwrap();
+        // a later session: the browse's "Add 2 Photos" step is no longer in the undo history (photos it refers to
+        // are kept, like selected ones)
+        h.app.session.undo.clear();
+        h.app.session.redo.clear();
+        // the folder clicked again in the sidebar
+        browse(&mut h);
+        assert_eq!(h.app.session.visible_cloned().len(), 1, "the deleted file's record is forgotten");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn add_folder_scans_in_the_background() {
         let mut h = demo([1200.0, 900.0]);

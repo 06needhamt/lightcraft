@@ -4,7 +4,7 @@
 
 ### Local folders
 - Photos deleted (or moved) by another app no longer stay in a Local folder, failing to load and logging an error
-  each time you look (issue #1392): browsing the folder again leaves them out. A photo you had rated, flagged or
+  each time you look (issue #1392): the next time you browse the folder, in a later session, they're left out. A photo you had rated, flagged or
   edited stays, marked missing, so its changes aren't lost; photos in My Photos are unchanged.
 
 ### Hard-edged Heal and Clone spots
