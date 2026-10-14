@@ -4,6 +4,7 @@ Select photos in Photo Grid or Square Grid, then use:
 
 | Key | Action |
 |---|---|
+| `Enter` | Open the active photo in Detail from Photo Grid or Square Grid |
 | `Cmd+Shift+D` (macOS) / `Ctrl+Shift+D` (Windows/Linux) | Select only the active photo |
 | `0` | Clear the star rating |
 | `1`–`5` | Set the star rating |
@@ -13,6 +14,8 @@ Select photos in Photo Grid or Square Grid, then use:
 | `X` | Flag as rejected |
 | `U` | Clear the flag |
 | `Shift` + `0`–`9`, `P`, `X` or `U` | Apply the action and select the next photo |
+
+Enter opens the active photo without changing the selection. Text fields, dialogs and open popups keep the key; a custom Enter binding takes precedence. Enter has no additional action in Detail.
 
 Select Only Active Photo (Edit menu) narrows the selection to the active photo. It does not change
 the photo, its edits or the last edit Undo step, and it works in any view that has an active photo.
