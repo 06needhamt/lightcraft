@@ -60,8 +60,8 @@ fn shifted_plane(plane: &[f32], width: usize, ky: usize, kx: usize, pt: usize, p
     Ok(())
 }
 /// The checked geometry of a convolution node, for an accelerator.
-pub(super) fn conv_job<'a>(layer: usize, n: &Node, x: &'a Tensor, g: &'a Graph) -> Result<ConvJob<'a>> {
-    let (cin, h, w) = chw(x)?;
+pub(super) fn conv_job<'a>(layer: usize, n: &Node, shape: &[usize], input: &'a [f32], g: &'a Graph) -> Result<ConvJob<'a>> {
+    let (cin, h, w) = program::chw_of(shape)?;
     let wt = shape::weight(n, g, 1)?;
     let weights = shape::floats(n, g, 1)?;
     let [cout, cg, kh, kw] = wt.dims.as_slice() else {
@@ -84,7 +84,7 @@ pub(super) fn conv_job<'a>(layer: usize, n: &Node, x: &'a Tensor, g: &'a Graph) 
         return shape_err("the convolution bias does not match");
     }
     let (oh, ow) = ((ph - kh) / sh + 1, (pw - kw) / sw + 1);
-    Ok(ConvJob { layer, cin, h, w, cout, groups, kh, kw, sh, sw, pt, pl, oh, ow, weights, bias, input: &x.data })
+    Ok(ConvJob { layer, cin, h, w, cout, groups, kh, kw, sh, sw, pt, pl, oh, ow, weights, bias, input })
 }
 pub(super) fn conv(n: &Node, x: &Tensor, g: &Graph, scratch: &mut Scratch) -> Result<Tensor> {
     let (cin, h, w) = chw(x)?;
@@ -208,7 +208,7 @@ pub(super) fn conv(n: &Node, x: &Tensor, g: &Graph, scratch: &mut Scratch) -> Re
     Ok(out)
 }
 /// Flat offset under ONNX's trailing-dimension broadcasting; shapes are checked before execution.
-fn broadcast_offset(mut at: usize, out: &[usize], input: &[usize]) -> usize {
+pub(super) fn broadcast_offset(mut at: usize, out: &[usize], input: &[usize]) -> usize {
     let mut offset = 0;
     let mut stride = 1;
     for (axis, &size) in out.iter().enumerate().rev() {

@@ -1997,5 +1997,13 @@
   "Adding to Apple Photos": "正在添加到 Apple 照片",
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "未找到图形处理器：LightCraft 改用 CPU 渲染，速度会慢很多。详情见“帮助 → 系统信息”。",
   "On NixOS, start it from `nix develop`.": "在 NixOS 上，请从 `nix develop` 启动。",
-  "Files with the same content as another file in this import: only the first is imported.": "与本次导入中另一个文件内容相同的文件：只导入第一个。"
+  "Files with the same content as another file in this import: only the first is imported.": "与本次导入中另一个文件内容相同的文件：只导入第一个。",
+  "Run face models on the CPU only": "仅在 CPU 上运行人脸模型",
+  "Detection": "检测",
+  "Recognition": "识别",
+  "Not loaded yet": "尚未加载",
+  "Checking the GPU…": "正在检查 GPU…",
+  "CPU": "CPU",
+  "A face model uses the GPU only when a check shows it gives the same results faster.": "只有检查表明 GPU 能更快给出相同结果时，人脸模型才会使用 GPU。",
+  "Checking the GPU for faces": "正在检查用于人脸的 GPU"
 }

@@ -2151,5 +2151,13 @@
   "Adding to Apple Photos": "Добавление в Apple Фото",
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "Графический процессор не найден: LightCraft выполняет рендеринг на CPU, а это намного медленнее. Подробности: Справка → Сведения о системе.",
   "On NixOS, start it from `nix develop`.": "В NixOS запускайте его из `nix develop`.",
-  "Files with the same content as another file in this import: only the first is imported.": "Файлы с тем же содержимым, что и другой файл этого импорта: импортируется только первый."
+  "Files with the same content as another file in this import: only the first is imported.": "Файлы с тем же содержимым, что и другой файл этого импорта: импортируется только первый.",
+  "Run face models on the CPU only": "Запускать модели лиц только на ЦП",
+  "Detection": "Обнаружение",
+  "Recognition": "Распознавание",
+  "Not loaded yet": "Ещё не загружена",
+  "Checking the GPU…": "Проверка ГП…",
+  "CPU": "ЦП",
+  "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель лиц использует ГП, только если проверка показала, что он даёт те же результаты быстрее.",
+  "Checking the GPU for faces": "Проверка ГП для лиц"
 }
