@@ -568,11 +568,11 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             } else if matches!(app.ui.view, ViewMode::Compare | ViewMode::Survey) {
                 app.ui.view = ViewMode::Detail;
             } else if app.ui.view == ViewMode::Detail {
-                // a photo opened from a person's page goes back to that page, any other to the grid
+                // a photo opened from a person's page (or the unnamed faces) goes back there, any other to the grid
                 match app.ui.person_from.take() {
                     Some((name, photo)) if app.session.active().is_some_and(|a| a.0 == photo) => {
                         app.ui.view = ViewMode::People;
-                        app.ui.person_page = Some(name);
+                        app.ui.person_page = name;
                     }
                     _ => app.ui.view = ViewMode::PhotoGrid,
                 }
