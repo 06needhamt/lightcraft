@@ -29,7 +29,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 return;
             }
             let r = ui.max_rect();
-            super::empty_message(ui, r, "No photo selected", "Select a photo to edit");
+            // every tab (Edit, Info, Versions…) says it: nothing to show until photos come in
+            if super::empty_library::shown(&app.session) {
+                super::empty_message(ui, r, "No photos yet", "Import photos to get started");
+            } else {
+                super::empty_message(ui, r, "No photo selected", "Select a photo to edit");
+            }
             return;
         };
         egui::ScrollArea::vertical().id_salt("right-scroll").auto_shrink([false, false]).show(ui, |ui| {

@@ -370,7 +370,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         filmstrip(app, ui, Rect::from_min_max(pos2(full.left(), canvas.bottom()), full.max));
     }
     let Some(id) = app.session.active() else {
-        super::empty_message(ui, canvas, "No photo selected", "Choose a photo in the grid or filmstrip");
+        if super::empty_library::shown(&app.session) {
+            super::empty_library::show(app, ui, canvas);
+        } else {
+            super::empty_message(ui, canvas, "No photo selected", "Choose a photo in the grid or filmstrip");
+        }
         return;
     };
     let Some(photo) = app.session.catalog.photo(id).cloned() else { return };
