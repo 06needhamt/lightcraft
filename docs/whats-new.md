@@ -85,6 +85,11 @@
 - A demo photo whose stored size was damaged (a width of 4294967295) is rendered at its own size instead of
   one that overflows.
 
+### DNG camera identity
+- DNG export and Convert to DNG no longer duplicate the camera make when the model already
+  contains it: `Canon EOS R6` stays `Canon EOS R6`, rather than `Canon Canon EOS R6` (the camera
+  identity subissue in #840). The separate Make and Model tags keep their original values.
+  This does not change colour matrices, camera calibration or RAW noise rendering.
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
