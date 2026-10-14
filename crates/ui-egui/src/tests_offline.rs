@@ -1,11 +1,11 @@
 //! Slow or offline drives never stall a frame (issue #104): with an injected file-system probe
 //! that does not answer at all until the test lets it (a sleeping NAS), the grid, the Info panel,
-//! the Rename dialog and the Missing Photos view keep drawing frames, the probe never runs on the
-//! UI thread, and the background answers arrive once the drive wakes up.
+//! the Rename dialog, the Missing Photos view and an import keep drawing frames, the probe never
+//! runs on the UI thread, and the background answers arrive once the drive wakes up.
 //!
 //! The NAS is a gate, not a sleep: a frame that waited for the drive would wait for good (until a
-//! watchdog gives up and records it), so the test needs no frame-time budget and holds on a slow
-//! or loaded machine (the FreeBSD CI VM) as it does on a fast one.
+//! watchdog gives up and records it), so the tests need no frame-time budget and hold on a slow
+//! or loaded machine (the FreeBSD CI VM) as they do on a fast one.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -20,8 +20,6 @@ use crate::headless::Headless;
 use crate::state::{RightPanel, ViewMode};
 use crate::{LightcraftApp, Services};
 
-/// The import test's frame budget (its files take 150 ms each to read).
-const FRAME_LIMIT: Duration = Duration::from_millis(300);
 const N: u64 = 12;
 /// How long the drive stays asleep at most: only a frame stuck waiting for it gets this far.
 const WATCHDOG: Duration = Duration::from_secs(120);
@@ -43,11 +41,13 @@ impl Calls {
     }
 }
 
-/// The sleeping drive: every file-system call waits until [`Nas::wake`]. A watchdog wakes it
-/// after [`WATCHDOG`] and records that it had to (some frame was waiting for the drive).
+/// The sleeping drive: every file-system call waits until [`Nas::wake`] (or takes one of the
+/// calls [`Nas::let_through`] allows). A watchdog wakes it after [`WATCHDOG`] and records that it
+/// had to (some frame was waiting for the drive).
 #[derive(Default)]
 struct Nas {
-    awake: Mutex<bool>,
+    /// (awake, calls let through while asleep)
+    state: Mutex<(bool, usize)>,
     changed: Condvar,
     forced: AtomicBool,
 }
@@ -57,22 +57,30 @@ impl Nas {
         let nas = Arc::new(Nas::default());
         let dog = nas.clone();
         std::thread::spawn(move || {
-            let awake = dog.awake.lock().unwrap();
-            let (mut awake, _) = dog.changed.wait_timeout_while(awake, WATCHDOG, |a| !*a).unwrap();
-            if !*awake {
+            let state = dog.state.lock().unwrap();
+            let (mut state, _) = dog.changed.wait_timeout_while(state, WATCHDOG, |s| !s.0).unwrap();
+            if !state.0 {
                 dog.forced.store(true, Ordering::SeqCst);
-                *awake = true;
+                state.0 = true;
                 dog.changed.notify_all();
             }
         });
         nas
     }
     fn wait(&self) {
-        let awake = self.awake.lock().unwrap();
-        drop(self.changed.wait_while(awake, |a| !*a).unwrap());
+        let state = self.state.lock().unwrap();
+        let mut state = self.changed.wait_while(state, |s| !s.0 && s.1 == 0).unwrap();
+        if !state.0 {
+            state.1 -= 1;
+        }
+    }
+    /// Answer `n` more calls, then sleep again.
+    fn let_through(&self, n: usize) {
+        self.state.lock().unwrap().1 += n;
+        self.changed.notify_all();
     }
     fn wake(&self) {
-        *self.awake.lock().unwrap() = true;
+        self.state.lock().unwrap().0 = true;
         self.changed.notify_all();
     }
     /// The watchdog had to wake the drive: a frame waited for it.
@@ -162,24 +170,27 @@ fn offline_originals_never_block_a_frame() {
 }
 
 /// An import whose files take long to read (probe: decoding headers and hashing on a slow drive)
-/// runs on a worker thread: frames stay quick, the probe never runs on the UI thread, and Cancel
-/// stops it with what was read so far added.
+/// runs on a worker thread: frames go on while the drive holds every read, the probe never runs
+/// on the UI thread, and Cancel stops it with what was read so far added.
 #[test]
 fn import_reads_files_off_the_ui_thread_and_can_be_cancelled() {
     let dir = std::env::temp_dir().join(format!("lc-ui-slow-import-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    // enough files that the import is still running when its activity row shows (after 0.5 s)
     let n = 120;
     for i in 0..n {
         std::fs::write(dir.join(format!("IMG_{i:03}.jpg")), format!("not really a jpeg {i}")).unwrap();
     }
     let calls = Calls::default();
+    let nas = Nas::asleep();
     let mut s = Session::new();
-    let c = calls.clone();
+    let (c, drive, ui_thread) = (calls.clone(), nas.clone(), std::thread::current().id());
     s.media.file_probe = Some(Arc::new(move |p: &str| {
         c.record();
-        std::thread::sleep(Duration::from_millis(150));
+        // on the UI thread: answered at once, so a regression fails the thread check, not by hanging
+        if std::thread::current().id() != ui_thread {
+            drive.wait();
+        }
         Ok(lightcraft_engine::media::ProbeInfo {
             width: 60,
             height: 40,
@@ -190,32 +201,35 @@ fn import_reads_files_off_the_ui_thread_and_can_be_cancelled() {
     }));
     let app = LightcraftApp::new(s, Services { png: None, ..Default::default() });
     let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
-    let ui_thread = std::thread::current().id();
     h.step();
-    // The first frame installs fonts; finish the first layout before timing the import.
+    // The first frame installs fonts; finish the first layout before the drive matters.
     h.step();
-    assert!(h.app.fonts_ready, "the UI is initialized before import timing starts");
+    assert!(h.app.fonts_ready, "the UI is initialized");
     let undo0 = h.app.session.undo.len();
     crate::import::start_paths(&mut h.app, vec![dir.to_string_lossy().to_string()]).unwrap();
-    // some batches arrive; meanwhile every frame is quick
-    let t0 = Instant::now();
-    let mut worst = Duration::ZERO;
-    while h.app.import.as_ref().is_some_and(|t| t.imported < 8) && t0.elapsed() < Duration::from_secs(60) {
-        let f = Instant::now();
-        h.step();
-        worst = worst.max(f.elapsed());
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(worst < FRAME_LIMIT, "import frame took {worst:?}");
-    assert!(h.app.import.is_some(), "still importing");
-    let status = h.app.import.as_ref().map(crate::import::ImportTask::status).unwrap_or_default();
-    assert!(status["total"].as_u64().unwrap_or(0) >= 8, "{status}");
-    // Cancel (the ✕ of its row in the activity stack): the files being read finish, nothing new starts
+    // every read is held: frames go on, and the import's row shows (after 0.5 s) with its ✕
+    frames_while_asleep(&mut h, &nas, 20, "import");
+    assert!(h.app.import.is_some(), "importing");
     let id = h.app.session.activity.list().first().map(|t| t.id).expect("an import row");
     let cross = format!("activity:cancel:{id}");
-    assert!(h.step_until(Duration::from_secs(10), |h| h.app.widgets.iter().any(|(w, _)| *w == cross)), "the row shows");
+    assert!(h.step_until(Duration::from_secs(60), |h| h.app.widgets.iter().any(|(w, _)| *w == cross)), "the row shows");
+    assert!(!nas.forced(), "an import frame waited for the sleeping drive");
+    // the drive answers one batch of reads: it joins the catalog while the next batch waits
+    let batch = lightcraft_engine::import::batch_size();
+    nas.let_through(batch);
+    let t0 = Instant::now();
+    while h.app.import.as_ref().is_some_and(|t| t.imported < batch) && t0.elapsed() < Duration::from_secs(60) {
+        h.step();
+        assert!(!nas.forced(), "an import frame waited for the sleeping drive");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(h.app.import.is_some(), "still importing");
+    let status = h.app.import.as_ref().map(crate::import::ImportTask::status).unwrap_or_default();
+    assert!(status["imported"].as_u64().unwrap_or(0) >= 8 && status["total"].as_u64().unwrap_or(0) >= 8, "{status}");
+    // Cancel (the ✕ of its row in the activity stack): the files being read finish, nothing new starts
     let r = h.request("ui.clickWidget", json!({"id": cross}), Duration::from_secs(10));
     assert_eq!(r["ok"], true, "{r}");
+    nas.wake();
     let t0 = Instant::now();
     while h.app.import.is_some() && t0.elapsed() < Duration::from_secs(60) {
         h.step();

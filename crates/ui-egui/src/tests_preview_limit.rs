@@ -881,9 +881,18 @@ mod in_the_loupe {
         assert!(window[0].0 > whole[0].0, "over the whole-frame render");
     }
 
+    /// The engine caches' share of the default memory budget (1.5 GiB) on a machine with 6 GiB of
+    /// RAM or more: room for both panes' 24 MP originals (288 MB each as linear float).
+    const COMPARE_CACHE: usize = 768 << 20;
+
     /// Compare view of the demo library at `zoom`, settled.
+    ///
+    /// The session's cache budget is set here rather than taken from the process-wide memory
+    /// budget, which other tests change while they run (Settings ▸ Performance ▸ 1 GB leaves a
+    /// 512 MiB share, too small for two originals, so one pane's was evicted).
     fn compare_at(zoom: crate::state::Zoom) -> Headless {
         let (mut h, _) = detail();
+        h.app.session.media.set_budget(COMPARE_CACHE);
         let r = h.request("engine.execute", json!({"command": "view.compare"}), T);
         assert_eq!(r["ok"], true, "{r}");
         assert_eq!(h.app.ui.view, crate::state::ViewMode::Compare);
