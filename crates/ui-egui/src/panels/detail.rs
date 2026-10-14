@@ -250,10 +250,12 @@ fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
 }
 
 /// Whether an overlay can be rendered on a region tile without changing what the tile means.
-/// Mask overlays are evaluated from the same mask alpha as the full render; the other diagnostic
-/// overlays either need whole-frame context or deliberately replace the loupe.
+/// Mask overlays (one mask, or every visible mask at once) are evaluated from the same mask
+/// alphas as the full render; the other diagnostic overlays either need whole-frame context or
+/// deliberately replace the loupe.
 pub(crate) fn overlay_supports_window(overlay: lightcraft_pipeline::Overlay) -> bool {
-    matches!(overlay, lightcraft_pipeline::Overlay::None | lightcraft_pipeline::Overlay::Mask { .. })
+    use lightcraft_pipeline::Overlay;
+    matches!(overlay, Overlay::None | Overlay::Mask { .. } | Overlay::AllMasks { .. })
 }
 
 /// What a window render of the loupe needs to know about the view it belongs to.

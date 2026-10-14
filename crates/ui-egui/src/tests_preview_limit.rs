@@ -227,6 +227,40 @@ mod in_the_loupe {
         assert_eq!(h.app.region_view.map(|r| r.settings), Some(plain.settings), "back to the plain window");
     }
 
+    // Given the Show All Masks view (issue #1712) at 1:1, the zoomed loupe is a canvas-sized frame
+    // plus a native window carrying the overlay, as a selected mask's is: the union is evaluated
+    // from the same mask alphas, so it must not fall back to a whole-frame render at the zoomed
+    // size (slower, and its detail stops at the frame render's resolution)
+    #[test]
+    fn an_all_masks_overlay_at_one_to_one_is_a_window() {
+        let (mut h, native) = detail();
+        for (command, params) in [
+            ("panel.masking", json!({})),
+            ("mask.add", json!({"kind": "radial", "center": [0.4, 0.5], "rx": 0.2, "ry": 0.2})),
+            ("mask.add", json!({"kind": "linear", "start": [0.2, 0.3], "end": [0.8, 0.7]})),
+        ] {
+            let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
+            assert_eq!(r["ok"], true, "{command}: {r}");
+        }
+        let r = h.request("engine.execute", json!({"command": "view.maskOverlayAll", "params": {}}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        assert!(h.app.ui.mask_overlay_all, "the all-masks overlay is on");
+        h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+        h.settle(SETTLE);
+        let id = h.app.session.active().expect("a photo");
+        let d = h.app.session.develop_of(id).expect("settings");
+        assert!(
+            matches!(crate::panels::detail::view_overlay(&h.app, &d), lightcraft_pipeline::Overlay::AllMasks { .. }),
+            "the all-masks overlay is shown"
+        );
+        let main = rendered_long_edge(&h);
+        assert!(main <= 2560 && main < native, "native {native}: the whole-frame render is {main}");
+        let region = h.app.region_view.expect("a window render with the all-masks overlay");
+        assert_eq!(region.full.0.max(region.full.1), native, "cut from the photo's own pixels");
+        let (w, hh) = region_tile(&h).expect("its texture");
+        assert!(w >= 1300 && hh >= 700, "it covers the canvas: {w}×{hh}");
+    }
+
     // Given the user capped the preview at 1600 px, then 1:1 is rendered no larger than that
     #[test]
     fn an_explicit_limit_still_caps_one_to_one() {
