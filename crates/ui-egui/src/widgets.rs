@@ -178,7 +178,7 @@ pub(crate) fn shown_value(spec: &ControlSpec, v: f64) -> String {
 
 /// A Lightroom slider row (label + value above a track with a hollow ring thumb).
 /// Double-click the label or thumb to reset. Shift-drag = fine adjustment. Click the value to
-/// type one: Return or clicking away applies it, Esc keeps the old one.
+/// type one: Return or clicking away applies it, Esc keeps the old one. Drag the value sideways to scrub it.
 pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_override: Option<&str>) -> SliderOut {
     let t = Tokens::get(ui.ctx());
     let w = ui.available_width();
@@ -218,7 +218,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     register(ui.ctx(), format!("slider:{}", spec.id), track_rect);
     // the value: click it to type an exact one (over the label, so it takes the click)
     let value_rect = Rect::from_min_max(pos2(label_rect.right() - 64.0, label_rect.top()), label_rect.max);
-    let value_resp = ui.interact(value_rect, id.with("value"), if enabled { Sense::click() } else { Sense::hover() });
+    // a click types a value, a sideways drag scrubs it (Lightroom Classic's value readout)
+    let value_resp = ui.interact(value_rect, id.with("value"), if enabled { Sense::click_and_drag() } else { Sense::hover() });
     register(ui.ctx(), format!("sliderValue:{}", spec.id), value_rect);
     // say that an exact value can be typed here (issue #534: an exact crop angle was hard to find)
     let value_resp = if enabled { value_resp.on_hover_text(crate::i18n::tr("Click to type a value")) } else { value_resp };
@@ -231,18 +232,52 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         typing = Some((shown_value(spec, value).trim_start_matches('+').to_string(), 0, value_pressed));
     }
     let value_released = ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary));
-    // The opening press must complete the readout's original click before the edit continues.
-    if value_released && typing.as_ref().is_some_and(|(_, _, pressed)| *pressed) && !value_resp.clicked() {
-        typing = None;
-        ui.data_mut(|m| m.remove::<(String, u8, bool)>(typing_id));
-        ui.memory_mut(|m| m.surrender_focus(crate::text_field::id(&format!("sliderField:{}", spec.id))));
+    // A press on the value that moves sideways is a scrub, not a click: the field it opened closes
+    // and the value follows the pointer. Any other release keeps the field open, however long the
+    // button was held (issue #59, upstream #1435 / #1669: a press held past egui's click time used to
+    // close the field on release).
+    let scrub_id = id.with("scrub");
+    let mut scrub: Option<f64> = ui.data(|m| m.get_temp(scrub_id));
+    let moved_away = ui.input(|i| match (i.pointer.press_origin(), i.pointer.interact_pos()) {
+        (Some(a), Some(b)) => (b.x - a.x).abs() > SCRUB_THRESHOLD,
+        _ => false,
+    });
+    if enabled && scrub.is_none() && value_resp.dragged() && moved_away {
+        scrub = Some(spec.position(value));
+        if typing.take().is_some() {
+            ui.data_mut(|m| m.remove::<(String, u8, bool)>(typing_id));
+            ui.memory_mut(|m| m.surrender_focus(crate::text_field::id(&format!("sliderField:{}", spec.id))));
+        }
     }
     let mut out = SliderOut::default();
     // value ↔ track position: linear, except for the Kelvin temperature (`ControlSpec::position`)
     let to_x = |v: f64| track_rect.left() + spec.position(v) as f32 * track_rect.width();
     let from_x = |x: f32| spec.value_at(f64::from((x - track_rect.left()) / track_rect.width()));
     let mut v = value;
-    if let Some((mut text, frames, pressed)) = typing.take() {
+    if let Some(pos) = scrub {
+        // the value moves as it would along the track, a tenth as far with Shift; the unrounded
+        // position is kept so slow movement adds up
+        let started = !ui.data(|m| m.get_temp::<f64>(scrub_id).is_some());
+        let dx = f64::from(ui.input(|i| i.pointer.delta().x) / track_rect.width().max(1.0));
+        let dx = if ui.input(|i| i.modifiers.shift) { dx * 0.1 } else { dx };
+        let pos = (pos + if started { 0.0 } else { dx }).clamp(0.0, 1.0);
+        out.drag_started = started;
+        let step = spec.step.max(1e-9);
+        let nv = ((spec.value_at(pos) / step).round() * step).clamp(spec.min, spec.max);
+        if (nv - value).abs() > 1e-12 {
+            out.value = Some(nv);
+            v = nv;
+        }
+        if value_resp.dragged() {
+            ui.data_mut(|m| m.insert_temp(scrub_id, pos));
+        } else {
+            out.drag_stopped = true;
+            ui.data_mut(|m| m.remove::<f64>(scrub_id));
+        }
+        if enabled {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+    } else if let Some((mut text, frames, pressed)) = typing.take() {
         // Keep the owned opening release focused without restarting its draft or selection.
         // egui gives that release's click to the readout, so the field under it gives up the focus
         // whatever frame it lands on (issue #1362): the field takes it back after drawing too.
@@ -409,6 +444,9 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     }
     out
 }
+
+/// How far (points) a press on a slider's value moves sideways before it scrubs instead of typing.
+const SCRUB_THRESHOLD: f32 = 4.0;
 
 /// Convert vertical wheel movement to bounded slider steps, keeping sub-notch
 /// trackpad movement between frames without amplifying a single large event. One mouse-wheel

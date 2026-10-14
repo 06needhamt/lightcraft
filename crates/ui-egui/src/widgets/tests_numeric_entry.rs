@@ -94,3 +94,47 @@ fn typing_after_a_released_click_still_edits() {
     h.frame(vec![Event::Text("2".into())]);
     assert_eq!(h.key(Key::Enter).value, Some(2.0));
 }
+
+#[test]
+fn dragging_the_value_sideways_scrubs_it() {
+    // Issue #59: as in Lightroom Classic, a sideways drag on the value moves it (one undo step:
+    // started once, stopped once) and opens no field.
+    let mut h = Harness::new();
+    let pos = h.rect.center();
+    let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let (mut started, mut stopped) = (0, 0);
+    let mut count = |out: SliderOut| {
+        started += usize::from(out.drag_started);
+        stopped += usize::from(out.drag_stopped);
+    };
+    h.frame(vec![Event::PointerMoved(pos)]);
+    count(h.frame(vec![button(pos, true)]));
+    for i in 1..=8 {
+        count(h.frame(vec![Event::PointerMoved(pos + vec2(5.0 * i as f32, 0.0))]));
+    }
+    let end = pos + vec2(40.0, 0.0);
+    count(h.frame(vec![button(end, false)]));
+    h.frame(vec![]);
+    assert!(h.value > 0.71, "scrubbing right raised the value: {}", h.value);
+    assert_eq!((started, stopped), (1, 1));
+    assert!(!h.view.ctx.egui_wants_keyboard_input(), "a scrub opens no field");
+}
+
+#[test]
+fn a_long_click_keeps_the_field_open() {
+    // Issue #59: a press held past egui's click time (here a second and a half) used to close
+    // the field on release; it stays open for typing.
+    let mut h = Harness::new();
+    let pos = h.rect.center();
+    let button = |pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.frame(vec![Event::PointerMoved(pos)]);
+    h.frame(vec![button(true)]);
+    for _ in 0..75 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.frame(vec![button(false)]).value, None);
+    h.frame(vec![]);
+    assert!(h.view.ctx.egui_wants_keyboard_input(), "the field keeps the keyboard after a long click");
+    h.frame(vec![Event::Text("2".into())]);
+    assert_eq!(h.key(Key::Enter).value, Some(2.0));
+}
