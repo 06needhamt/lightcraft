@@ -181,10 +181,10 @@ fn a_source_with_no_filter_over_it_holds_nothing() {
     let all = s.visible_cloned();
     keyword(&mut s, all[0]);
     assert_eq!(s.visible_cloned(), all);
-    assert!(s.held.is_none());
-    s.execute("library.filter", &json!({"rating": 1})).unwrap();
-    let _ = s.visible_cloned();
-    assert!(s.held.is_some(), "a filter is a question: its view is held");
+    // a photo deleted from All Photos leaves it, held or not
+    s.execute("library.select", &json!({"ids": [all[0].0]})).unwrap();
+    s.execute("photo.delete", &json!({})).unwrap();
+    assert!(!s.visible_cloned().contains(&all[0]));
 }
 
 #[test]

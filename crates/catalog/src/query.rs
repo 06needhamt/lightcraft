@@ -94,6 +94,27 @@ pub struct Sort {
     pub seed: u64,
 }
 
+impl Sort {
+    /// Which of two photos comes first in this order (never `Equal` for two photos: the id decides last).
+    pub fn order(&self, a: &Photo, b: &Photo) -> std::cmp::Ordering {
+        let o = match self.key {
+            SortKey::CaptureDate => a.captured.cmp(&b.captured).then_with(|| a.imported.cmp(&b.imported)),
+            SortKey::ImportDate => a.imported.cmp(&b.imported),
+            SortKey::EditDate => a.edited.cmp(&b.edited),
+            SortKey::FileName => cmp_name(&a.file_name, &b.file_name),
+            SortKey::Rating => a.rating.cmp(&b.rating),
+            SortKey::FileSize => a.file_size.cmp(&b.file_size),
+            SortKey::Random => shuffle_rank(self.seed, a.id).cmp(&shuffle_rank(self.seed, b.id)),
+        }
+        // Ties (one import batch, a burst within a second, equal ratings) sort by file name, the
+        // order cameras number frames, so the order doesn't depend on how ids were allocated;
+        // the id only keeps it stable.
+        .then_with(|| if self.key == SortKey::FileName { Equal } else { cmp_name(&a.file_name, &b.file_name) })
+        .then(a.id.cmp(&b.id));
+        if self.ascending { o } else { o.reverse() }
+    }
+}
+
 impl Default for Sort {
     fn default() -> Self {
         Sort { key: SortKey::CaptureDate, ascending: false, group: crate::GroupBy::Auto, seed: 0 }
@@ -384,24 +405,35 @@ impl Catalog {
             .map(|p| p.as_ref())
             .filter(|p| filter.matches_in(p, self, root.as_deref()) || (keep.contains(&p.id) && within.matches_in(p, self, within_root.as_deref())))
             .collect();
-        v.sort_by(|a, b| {
-            let o = match sort.key {
-                SortKey::CaptureDate => a.captured.cmp(&b.captured).then_with(|| a.imported.cmp(&b.imported)),
-                SortKey::ImportDate => a.imported.cmp(&b.imported),
-                SortKey::EditDate => a.edited.cmp(&b.edited),
-                SortKey::FileName => cmp_name(&a.file_name, &b.file_name),
-                SortKey::Rating => a.rating.cmp(&b.rating),
-                SortKey::FileSize => a.file_size.cmp(&b.file_size),
-                SortKey::Random => shuffle_rank(sort.seed, a.id).cmp(&shuffle_rank(sort.seed, b.id)),
-            }
-            // Ties (one import batch, a burst within a second, equal ratings) sort by file name, the
-            // order cameras number frames, so the order doesn't depend on how ids were allocated;
-            // the id only keeps it stable.
-            .then_with(|| if sort.key == SortKey::FileName { Equal } else { cmp_name(&a.file_name, &b.file_name) })
-            .then(a.id.cmp(&b.id));
-            if sort.ascending { o } else { o.reverse() }
-        });
+        v.sort_by(|a, b| sort.order(a, b));
         v.into_iter().map(|p| p.id).collect()
+    }
+
+    /// The list `was` (a [`Catalog::query`] of `filter` in `sort` order, or a [`Catalog::query_keeping`]), after ops
+    /// that touched only the photos `touched` (sorted by id, each once: [`Catalog::touched_since`]): those photos
+    /// taken out, and the ones that match `filter` now put back at their place in the order. With `within`, a
+    /// touched photo that was in the list and still matches `within` stays, as `query_keeping` would keep it. What
+    /// the query would give, without asking every photo again.
+    pub fn follow(&self, was: &[PhotoId], touched: &[PhotoId], filter: &Filter, sort: &Sort, within: Option<&Filter>) -> Vec<PhotoId> {
+        let listed: std::collections::HashSet<PhotoId> = was.iter().copied().filter(|id| touched.binary_search(id).is_ok()).collect();
+        let mut ids: Vec<PhotoId> = was.iter().copied().filter(|id| !listed.contains(id)).collect();
+        let (root, within_root) = (filter.library_root(), within.and_then(Filter::library_root));
+        for id in touched {
+            let Some(p) = self.photo(*id) else { continue };
+            let kept = within.is_some_and(|w| listed.contains(id) && w.matches_in(p, self, within_root.as_deref()));
+            if filter.matches_in(p, self, root.as_deref()) || kept {
+                // (the list is in order without the touched photos, and stays so as each is put back)
+                let at = ids.partition_point(|other| self.photo(*other).is_some_and(|o| sort.order(o, p).is_lt()));
+                ids.insert(at, *id);
+            }
+        }
+        ids
+    }
+
+    /// How many photos match `filter`: [`Catalog::query`]'s length without its sorting.
+    pub fn count(&self, filter: &Filter) -> usize {
+        let root = filter.library_root();
+        self.photos().filter(|p| filter.matches_in(p, self, root.as_deref())).count()
     }
 
     /// Year → month → day counts for the "By Date" section (newest first).

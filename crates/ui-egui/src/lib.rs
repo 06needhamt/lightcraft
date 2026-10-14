@@ -119,11 +119,15 @@ mod tests_switch_library;
 #[cfg(test)]
 mod tests_sync;
 #[cfg(test)]
+mod tests_tallies;
+#[cfg(test)]
 mod tests_temp_slider;
 #[cfg(test)]
 mod tests_titlebar;
 #[cfg(test)]
 mod tests_unsaved;
+#[cfg(test)]
+mod tests_view_cost;
 #[cfg(test)]
 mod tests_wb_selector;
 #[cfg(test)]
@@ -1592,28 +1596,35 @@ pub(crate) fn key_of(parts: impl std::hash::Hash) -> u64 {
     BuildHasherDefault::<DefaultHasher>::default().hash_one(parts)
 }
 
+/// Whether a tally of the library made when the catalog was at `revision` is still right, given that it reads only
+/// `reads` of a photo: nothing changed since, or only other things of some photos did (a rating changes no folder's
+/// count, a slider changes none at all). Each of these tallies asks every photo, so one kept is a pass over the
+/// library saved on every edit.
+fn still_right(cat: &lightcraft_catalog::Catalog, revision: u64, reads: lightcraft_catalog::Aspects) -> bool {
+    revision == cat.revision || cat.aspects_since(revision).is_some_and(|changed| !changed.any_of(reads))
+}
+
+/// What the tallies below read of a photo, besides whether it is in the library.
+const READS_FILE: lightcraft_catalog::Aspects = lightcraft_catalog::Aspects::PRESENCE.with(lightcraft_catalog::Aspects::FILE);
+const READS_META: lightcraft_catalog::Aspects = lightcraft_catalog::Aspects::PRESENCE.with(lightcraft_catalog::Aspects::META);
+const READS_PEOPLE: lightcraft_catalog::Aspects = READS_META.with(lightcraft_catalog::Aspects::ANALYSIS);
+const READS_CAPTURED: lightcraft_catalog::Aspects = lightcraft_catalog::Aspects::PRESENCE.with(lightcraft_catalog::Aspects::CAPTURED);
+const READS_FLAG: lightcraft_catalog::Aspects = lightcraft_catalog::Aspects::PRESENCE.with(lightcraft_catalog::Aspects::FLAG);
+
 impl Caches {
     /// The folders the library's photos were imported from.
     pub fn folder_tree(&mut self, cat: &lightcraft_catalog::Catalog) -> std::sync::Arc<Vec<lightcraft_catalog::FolderNode>> {
-        match &self.folder_tree {
-            Some((r, t)) if *r == cat.revision => t.clone(),
-            _ => {
-                let t = std::sync::Arc::new(cat.folder_tree());
-                self.folder_tree = Some((cat.revision, t.clone()));
-                t
-            }
-        }
+        let kept = self.folder_tree.take().filter(|(r, _)| still_right(cat, *r, READS_FILE)).map(|(_, t)| t);
+        let t = kept.unwrap_or_else(|| std::sync::Arc::new(cat.folder_tree()));
+        self.folder_tree = Some((cat.revision, t.clone()));
+        t
     }
     /// The library's keyword tree.
     pub fn keyword_tree(&mut self, cat: &lightcraft_catalog::Catalog) -> std::sync::Arc<Vec<lightcraft_catalog::KeywordNode>> {
-        match &self.keyword_tree {
-            Some((r, t)) if *r == cat.revision => t.clone(),
-            _ => {
-                let t = std::sync::Arc::new(cat.keyword_tree());
-                self.keyword_tree = Some((cat.revision, t.clone()));
-                t
-            }
-        }
+        let kept = self.keyword_tree.take().filter(|(r, _)| still_right(cat, *r, READS_META)).map(|(_, t)| t);
+        let t = kept.unwrap_or_else(|| std::sync::Arc::new(cat.keyword_tree()));
+        self.keyword_tree = Some((cat.revision, t.clone()));
+        t
     }
     /// The Keywording box's read-only names for the selection: what exported files carry
     /// (`export`), or the keywords with those containing them.
@@ -1689,8 +1700,9 @@ impl Caches {
     /// All Photos / Picks / Recently Deleted counts.
     pub fn counts(&mut self, cat: &lightcraft_catalog::Catalog) -> LibraryCounts {
         if let Some((r, c)) = self.counts
-            && r == cat.revision
+            && still_right(cat, r, READS_FLAG)
         {
+            self.counts = Some((cat.revision, c));
             return c;
         }
         let mut c = LibraryCounts::default();
@@ -1709,25 +1721,17 @@ impl Caches {
     }
     /// Everyone named on a face in the library (for completing a name as it is typed).
     pub fn person_names(&mut self, cat: &lightcraft_catalog::Catalog) -> std::sync::Arc<Vec<String>> {
-        match &self.person_names {
-            Some((r, v)) if *r == cat.revision => v.clone(),
-            _ => {
-                let v = std::sync::Arc::new(cat.people().into_iter().map(|p| p.name).collect::<Vec<_>>());
-                self.person_names = Some((cat.revision, v.clone()));
-                v
-            }
-        }
+        let kept = self.person_names.take().filter(|(r, _)| still_right(cat, *r, READS_PEOPLE)).map(|(_, v)| v);
+        let v = kept.unwrap_or_else(|| std::sync::Arc::new(cat.people().into_iter().map(|p| p.name).collect::<Vec<_>>()));
+        self.person_names = Some((cat.revision, v.clone()));
+        v
     }
     /// The By Date tree.
     pub fn date_groups(&mut self, cat: &lightcraft_catalog::Catalog) -> std::sync::Arc<Vec<lightcraft_catalog::DateGroup>> {
-        match &self.date_groups {
-            Some((r, g)) if *r == cat.revision => g.clone(),
-            _ => {
-                let g = std::sync::Arc::new(cat.date_groups());
-                self.date_groups = Some((cat.revision, g.clone()));
-                g
-            }
-        }
+        let kept = self.date_groups.take().filter(|(r, _)| still_right(cat, *r, READS_CAPTURED)).map(|(_, g)| g);
+        let g = kept.unwrap_or_else(|| std::sync::Arc::new(cat.date_groups()));
+        self.date_groups = Some((cat.revision, g.clone()));
+        g
     }
     /// Cameras, lenses and keywords in the library (filter bar pickers).
     pub fn filter_values(&mut self, cat: &lightcraft_catalog::Catalog) -> std::sync::Arc<FilterValues> {
