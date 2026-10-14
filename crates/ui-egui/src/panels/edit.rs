@@ -679,8 +679,15 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             }
         }
         let (lo, hi) = h.clipping();
-        for (on, x, active) in [(lo > 0.003, plot.left() + 12.0, app.ui.show_clipping), (hi > 0.003, plot.right() - 12.0, app.ui.show_clipping)] {
+        // the panel's floating scroll bar widens over the right edge when hovered: both buttons keep
+        // clear of it, the left one too so they stay symmetric (#1640)
+        let scroll = ui.spacing().scroll;
+        let inset = 12.0 + scroll.bar_width + scroll.bar_outer_margin;
+        for (name, on, x, active) in
+            [("low", lo > 0.003, plot.left() + inset, app.ui.show_clipping), ("high", hi > 0.003, plot.right() - inset, app.ui.show_clipping)]
+        {
             let tri = Rect::from_center_size(pos2(x, plot.top() + 10.0), vec2(14.0, 12.0));
+            register(ui.ctx(), format!("histogramClip:{name}"), tri);
             p.rect_filled(tri, 2.0, if active { t.hover } else { Color32::from_gray(60) });
             paint(p, tri.shrink(2.0), Icon::ChevronDown, if on { Color32::WHITE } else { Color32::from_gray(130) });
         }
