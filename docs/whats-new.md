@@ -2,6 +2,10 @@
 
 ## 2026-10-14
 
+### Settings stays put when you change tabs
+- The Settings window keeps its top edge and width when you switch tabs, so the tab row no longer jumps around
+  under the pointer. It used to be centred, so every tab of a different height moved it.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
