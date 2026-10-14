@@ -95,6 +95,10 @@
   profile overrides for memory-constrained builders (issue #1196), including why packaging
   recipes can override inherited settings. Default release profiles and application behavior
   are unchanged; the guidance does not guarantee a build will fit every 16 GB machine.
+### Lightroom catalog import
+- A Lightroom Classic catalog whose changes are all still in its `.lrcat-wal` file (a new catalog Lightroom has
+  open and hasn't written back yet) imports instead of failing with "unsupported SQLite schema format".
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
