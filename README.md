@@ -370,6 +370,31 @@ per CPU, otherwise exhaust RAM before any test runs. GPU coverage is unchanged. 
 `CARGO_PROFILE_DEV_DEBUG`, `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` settings
 override these defaults. Ordinary development commands keep their own settings.
 
+**Release builds on memory-constrained machines:** [#1196](https://github.com/storytold/lightcraft/issues/1196)
+reports Arch/AUR release-link OOM kills on a 16 GB machine when the desktop and CLI build concurrently
+with full debug information, thin LTO and one codegen unit. The CI defaults above do not apply to
+ordinary `cargo build --release`. Start with one job; two may be suitable if enough memory is available:
+
+```sh
+CARGO_BUILD_JOBS=1 cargo build --release -p lightcraft -p lightcraft-cli
+# Alternatively: CARGO_BUILD_JOBS=2 cargo build --release -p lightcraft -p lightcraft-cli
+```
+
+If a packaging environment enables full debug information or memory-heavy LTO settings, use
+command-local overrides for a lower-memory source build:
+
+```sh
+CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 cargo build --release -p lightcraft -p lightcraft-cli
+```
+
+These POSIX-shell assignments affect only this command, not global Cargo configuration or the
+repository's release profiles. Disabling LTO may change performance and binary size; disabling debug
+information reduces debugging detail. This is build guidance, not a guarantee that any machine has
+enough memory. Downstream packagers should serialize large binary builds and avoid full debug
+information combined with LTO and one codegen unit on low-memory builders. A PKGBUILD that exports
+its own profile settings can override inherited variables; adjust the packaging recipe locally or
+contact its maintainer rather than assuming an environment prefix on `makepkg` will take precedence.
+
 **Chinese and Japanese text** need the shared font repo, an optional build input (official releases always include it):
 
 ```sh

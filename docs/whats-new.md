@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-13
+
+### Building from source
+- The English and Simplified Chinese build guides now describe command-local job and release
+  profile overrides for memory-constrained builders (issue #1196), including why packaging
+  recipes can override inherited settings. Default release profiles and application behavior
+  are unchanged; the guidance does not guarantee a build will fit every 16 GB machine.
+
 ## 2026-10-11
 
 ### JPEG XL export
