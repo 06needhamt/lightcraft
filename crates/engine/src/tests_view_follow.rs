@@ -219,3 +219,77 @@ fn an_edit_to_many_photos_or_to_more_than_photos_is_worked_out_whole() {
     let _ = s.visible_cloned();
     assert_eq!((s.view_followed, s.view_worked_out), (followed + 1, whole + 2));
 }
+
+#[test]
+fn the_albums_counts_followed_through_edits_are_the_counts_made_from_every_photo() {
+    use lightcraft_catalog::tally::AlbumTally;
+    let (mut s, mut ids, album, smart) = library(240);
+    // more smart albums: picks, well rated or keyworded ones, one that looks into an album of chosen photos
+    for rules in [
+        json!({"ruleSet": {"match": "all", "rules": [{"field": "flag", "op": "is", "value": "pick"}]}}),
+        json!({"ruleSet": {"match": "any", "rules": [{"field": "rating", "op": "gte", "value": 4}, {"field": "keywords", "op": "contains", "value": "pets"}]}}),
+        json!({"album": album, "rating": 3}),
+        // what the edits below change besides: a label, a slider, when a photo was taken, what its file is called
+        json!({"label": "red"}),
+        json!({"edited": true}),
+        json!({"dateFrom": "2025-06-01"}),
+        json!({"text": "REN"}),
+    ] {
+        let made = s.execute("album.createSmart", &json!({"name": "More", "rules": rules}));
+        assert!(made.is_ok(), "{rules}: {made:?}");
+    }
+    assert!(s.catalog.album(lightcraft_catalog::AlbumId(smart)).is_some_and(|a| a.is_smart()));
+    let fresh = |s: &Session| -> Vec<(u64, usize)> {
+        let mut v: Vec<(u64, usize)> = s.catalog.albums().map(|a| (a.id.0, s.catalog.album_count(a.id))).collect();
+        v.sort_unstable();
+        v
+    };
+    let shown = |tally: &AlbumTally| -> Vec<(u64, usize)> {
+        let mut v: Vec<(u64, usize)> = tally.counts().iter().map(|(id, n)| (id.0, *n)).collect();
+        v.sort_unstable();
+        v
+    };
+    let mut tally = AlbumTally::of(&s.catalog);
+    assert_eq!(shown(&tally), fresh(&s));
+    let mut dice = Dice(23);
+    let (mut followed, mut whole) = (0, 0);
+    for step in 0..900 {
+        edit(&mut s, &mut dice, &mut ids, album);
+        // (not every frame draws the albums: sometimes several edits pass between two looks)
+        if dice.roll(4) == 0 {
+            continue;
+        }
+        let moved = tally.revision() != s.catalog.revision;
+        match (moved, tally.update(&s.catalog)) {
+            (true, true) => followed += 1,
+            (true, false) => whole += 1,
+            // (an edit that was refused changed nothing: nothing to follow)
+            (false, _) => {}
+        }
+        assert_eq!(shown(&tally), fresh(&s), "after edit {step}");
+    }
+    assert!(followed > 300 && whole > 20, "followed {followed} times, counted whole {whole} times");
+    // a photo deleted: the album of chosen photos it is in counts one less, without every photo being asked
+    let in_album = s
+        .catalog
+        .album(lightcraft_catalog::AlbumId(album))
+        .and_then(|a| a.photos.iter().copied().find(|id| s.catalog.photo(*id).is_some_and(|p| !p.deleted)));
+    if let Some(id) = in_album {
+        let before = tally.counts()[&lightcraft_catalog::AlbumId(album)];
+        s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+        s.execute("photo.delete", &json!({})).unwrap();
+        assert!(tally.update(&s.catalog), "followed");
+        assert_eq!(tally.counts()[&lightcraft_catalog::AlbumId(album)], before - 1);
+    }
+    // three hundred photos rated at once: counted from every photo, and right
+    let many: Vec<u64> = s.visible_cloned().iter().take(300).map(|id| id.0).collect();
+    s.execute("library.source", &json!({"kind": "all"})).unwrap();
+    s.execute("library.filter", &json!({"rating": 0, "text": ""})).unwrap();
+    let many: Vec<u64> = if many.len() >= 300 { many } else { s.visible_cloned().iter().take(300).map(|id| id.0).collect() };
+    if many.len() > 256 {
+        s.execute("library.select", &json!({"ids": many})).unwrap();
+        s.execute("photo.rate", &json!({"rating": 5})).unwrap();
+        assert!(!tally.update(&s.catalog), "more photos than are followed one by one");
+        assert_eq!(shown(&tally), fresh(&s));
+    }
+}
