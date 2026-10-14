@@ -510,7 +510,12 @@ impl Session {
         let mut pending = vec![&op];
         while let Some(op) = pending.pop() {
             match op {
-                Op::SetFile { id, .. } | Op::Relink { id, .. } | Op::SetContent { id, .. } | Op::RemovePhoto { id } => self.media.forget(*id),
+                Op::SetContent { id, .. } => {
+                    self.media.forget(*id);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    self.faces.content_replaced(*id);
+                }
+                Op::SetFile { id, .. } | Op::Relink { id, .. } | Op::RemovePhoto { id } => self.media.forget(*id),
                 Op::AddPhoto { photo } => self.media.forget(photo.id),
                 Op::Batch { ops } => pending.extend(ops),
                 _ => {}

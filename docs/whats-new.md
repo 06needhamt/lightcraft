@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+### Reliability
+- A photo whose file was replaced (Reload Changed Files after an outside edit) no longer keeps the faces recognition
+  made from the old pixels: they are made again from the new file, and a scan still busy with the old file when it
+  changed doesn't put its faces on the new one (issue #1524).
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
