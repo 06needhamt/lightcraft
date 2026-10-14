@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-15
+
+### Lightroom radial masks on the right side
+- Radial masks brought over from Lightroom Classic (catalog import, XMP sidecars, edits inside DNGs and presets) now
+  apply their effect inside the circle, as Lightroom does, instead of outside it (issue #1815). A mask inverted in
+  Lightroom stays inverted, and older Radial Filters keep their Effect Outside / Invert Mask setting. Photos imported
+  before this keep the masks they got: Photo ▸ Read Metadata from File reads a sidecar's again.
+
 ## 2026-10-14
 
 ### Hard-edged Heal and Clone spots
