@@ -2,6 +2,11 @@
 
 ## 2026-10-14
 
+### Reliability
+- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
+  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
+  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
