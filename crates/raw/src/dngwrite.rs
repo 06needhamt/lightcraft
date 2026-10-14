@@ -29,6 +29,10 @@ pub enum DngCompression {
 /// the sensor origin instead of the ActiveArea (the reader keeps their original reading).
 pub const SOFTWARE: &str = "LightCraft DNG 2";
 
+/// zlib level of Deflate tiles. On a 67 MP focus-stack merge (half floats) level 6 took 7× as long as level 1
+/// (3.9 s vs 0.55 s on 4 cores) to save 3 % of the file (266 vs 275 MB); 5–12 % on raw and rendered DNGs.
+const DEFLATE_LEVEL: u8 = 1;
+
 /// IEEE 754 binary32 → binary16 (round to nearest even; overflow → ±inf, NaN kept).
 pub fn f32_to_f16(v: f32) -> u16 {
     let b = v.to_bits();
@@ -274,7 +278,7 @@ pub fn write_dng(raw: &RawImage, opts: &DngWriteOptions) -> Result<Vec<u8>> {
                         }
                         buf.extend_from_slice(&float_predict(&row, tile * cpp, bp, cpp));
                     }
-                    miniz_oxide::deflate::compress_to_vec_zlib(&buf, 6)
+                    miniz_oxide::deflate::compress_to_vec_zlib(&buf, DEFLATE_LEVEL)
                 })
                 .collect();
             ifd.set_image(ImageData::Tiles { tile_width: tile as u32, tile_height: tile as u32, tiles });
@@ -337,7 +341,7 @@ pub fn write_dng(raw: &RawImage, opts: &DngWriteOptions) -> Result<Vec<u8>> {
                                 }
                                 row.iter().for_each(|&x| opts.order.put_u16(&mut buf, x));
                             }
-                            miniz_oxide::deflate::compress_to_vec_zlib(&buf, 6)
+                            miniz_oxide::deflate::compress_to_vec_zlib(&buf, DEFLATE_LEVEL)
                         })
                         .collect();
                     ifd.set_image(ImageData::Tiles { tile_width: tile as u32, tile_height: tile as u32, tiles });
