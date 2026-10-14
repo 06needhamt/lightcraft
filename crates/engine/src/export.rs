@@ -1785,7 +1785,8 @@ impl PreparedExport {
                 if lightcraft_raw::probe(&bytes).is_none() {
                     return Err(format!("{label}: DNG export needs a raw photo"));
                 }
-                let raw = lightcraft_raw::decode(&bytes).map_err(|e| format!("{label}: {e}"))?;
+                let mut raw = lightcraft_raw::decode(&bytes).map_err(|e| format!("{label}: {e}"))?;
+                crate::camera_preview::with_starting_colour(&mut raw, &bytes);
                 drop(bytes);
                 let compression = match dng {
                     DngCompression::Lossless => lightcraft_raw::DngCompression::Lj92 { tile: 256 },
