@@ -21,7 +21,7 @@ pub fn try_read_exif(bytes: &[u8]) -> Result<Metadata, TiffError> {
     let mut m = from_tiff(&tiff);
     // Panasonic writes no LensModel, only the name in its maker note (and in a RW2 that note is not in the raw's own Exif)
     if m.lens_model.is_none() {
-        m.lens_model = panasonic_lens(data, &tiff).or_else(|| panasonic_jpg_from_raw_lens(&tiff));
+        m.lens_model = panasonic_maker_note_lens(data, &tiff);
     }
     Ok(m)
 }
@@ -149,6 +149,12 @@ const PANASONIC_LENS_TYPE: u16 = 0x0051;
 /// RW2/RWL IFD0 tag `0x002E` (JpgFromRaw): a JPEG whose APP1 holds the full Exif, maker note included.
 const PANASONIC_JPG_FROM_RAW: u16 = 0x002E;
 
+/// The lens name in the Panasonic maker note (tag `0x0051`) of this Exif or RW2 stream (`data` starts at its
+/// TIFF header): the note of its own Exif IFD, else, for a raw, the note in its JpgFromRaw's Exif.
+pub(crate) fn panasonic_maker_note_lens(data: &[u8], tiff: &Tiff) -> Option<String> {
+    panasonic_lens(data, tiff).or_else(|| panasonic_jpg_from_raw_lens(tiff))
+}
+
 /// The lens name in a `Panasonic\0` maker note of this Exif stream (`data` starts at its TIFF header).
 fn panasonic_lens(data: &[u8], tiff: &Tiff) -> Option<String> {
     let exif = tiff.exif()?;
@@ -176,7 +182,7 @@ pub(crate) mod tests {
 
     /// An Exif block from a Panasonic body: no LensModel, the lens name in maker note tag 0x0051, whose value
     /// lies outside the note's IFD at an offset relative to the Exif TIFF header (as Panasonic writes it).
-    fn panasonic_exif(order: ByteOrder, lens: Option<&str>, lens_model: Option<&str>) -> Vec<u8> {
+    pub(crate) fn panasonic_exif(order: ByteOrder, lens: Option<&str>, lens_model: Option<&str>) -> Vec<u8> {
         let note = |at: u32| {
             let mut v = b"Panasonic\0\0\0".to_vec();
             order.put_u16(&mut v, 1);
@@ -220,12 +226,11 @@ pub(crate) mod tests {
         assert_eq!(read_exif(&panasonic_exif(ByteOrder::Little, None, None)).lens_model, None);
     }
 
-    #[test]
-    fn rw2_reads_the_lens_from_its_jpg_from_raw() {
-        // a RW2 has the full Exif only in the APP1 of its JpgFromRaw (IFD0 0x002E), not in its own Exif IFD
+    /// A RW2 has the full Exif only in the APP1 of its JpgFromRaw (IFD0 0x002E), not in its own Exif IFD.
+    pub(crate) fn panasonic_rw2(lens: &str) -> Vec<u8> {
         let mut jpg = vec![0xff, 0xd8, 0xff, 0xe1];
         let mut app1 = b"Exif\0\0".to_vec();
-        app1.extend(panasonic_exif(ByteOrder::Little, Some("LUMIX S 85/F1.8"), None));
+        app1.extend(panasonic_exif(ByteOrder::Little, Some(lens), None));
         jpg.extend_from_slice(&((app1.len() + 2) as u16).to_be_bytes());
         jpg.extend(app1);
         jpg.extend_from_slice(&[0xff, 0xda, 0, 2, 0xff, 0xd9]);
@@ -235,7 +240,12 @@ pub(crate) mod tests {
         ifd0.set(t::MAKE, Value::Ascii("Panasonic".into()));
         ifd0.set(PANASONIC_JPG_FROM_RAW, Value::Undefined(jpg));
         ifd0.set_child(t::EXIF_IFD, exif);
-        let rw2 = TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap();
+        TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap()
+    }
+
+    #[test]
+    fn rw2_reads_the_lens_from_its_jpg_from_raw() {
+        let rw2 = panasonic_rw2("LUMIX S 85/F1.8");
         let m = read_exif(&rw2);
         assert_eq!(m.lens_model.as_deref(), Some("LUMIX S 85/F1.8"));
         assert_eq!(m.focal_length, Some(85.0));
