@@ -20,6 +20,10 @@ use serde_json::{Value, json};
 
 use crate::{EngineError, Result, Session};
 
+/// Why `merge.hdrBatch` found nothing to merge.
+pub const NO_BRACKET_SETS: &str =
+    "no bracket sets among these photos: select stacks, or photos taken less than a second apart at different exposures";
+
 /// Long edge of the frames of a preview merge.
 pub const PREVIEW_EDGE: usize = 1024;
 

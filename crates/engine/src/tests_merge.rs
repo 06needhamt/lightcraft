@@ -168,3 +168,34 @@ fn panorama_command_with_auto_crop() {
     assert!(s.execute("merge.panorama", &json!({"ids": [ids[0]]})).is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// HDR for Each Bracket Set: two stacks of brackets → two merged DNGs, each next to its first photo; photos that form
+/// no set are refused.
+#[test]
+fn hdr_batch_merges_each_stack() {
+    let dir = temp_dir("hdr-batch");
+    let mut paths = Vec::new();
+    // different exposures, or the import would take set B for duplicates of set A
+    for (set, evs) in [("A", [-2.0, 0.0, 2.0]), ("B", [-1.5, 0.5, 2.5])] {
+        for (i, b) in lightcraft_merge::synth::bracket_dngs(240, 160, &evs).unwrap().into_iter().enumerate() {
+            let p = dir.join(format!("{set}_{i}.dng"));
+            std::fs::write(&p, b).unwrap();
+            paths.push(p.to_string_lossy().to_string());
+        }
+    }
+    let mut s = Session::new().with_fs();
+    let ids = import(&mut s, paths);
+    assert_eq!(ids.len(), 6);
+    let err = s.execute("merge.hdrBatch", &json!({"ids": [ids[0]]})).unwrap_err().to_string();
+    assert!(err.contains("no bracket sets"), "{err}");
+    s.execute("stack.group", &json!({"ids": ids[..3]})).unwrap();
+    s.execute("stack.group", &json!({"ids": ids[3..]})).unwrap();
+    let r = s.execute("merge.hdrBatch", &json!({"ids": [ids[0], ids[3]], "autoSettings": false})).unwrap();
+    let merged = r["merged"].as_array().unwrap();
+    assert_eq!(merged.len(), 2, "{r}");
+    assert!(r["failed"].as_array().unwrap().is_empty(), "{r}");
+    let names: Vec<&str> = merged.iter().map(|m| m["path"].as_str().unwrap()).collect();
+    assert!(names[0].ends_with("A_0-HDR.dng") && names[1].ends_with("B_0-HDR.dng"), "{names:?}");
+    assert_eq!(s.catalog.photos().count(), 8);
+    let _ = std::fs::remove_dir_all(&dir);
+}

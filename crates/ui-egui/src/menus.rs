@@ -1238,6 +1238,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "merge.hdrLast" => crate::merge::start_last(app, "merge.hdr"),
+        "merge.hdrBatch" => crate::merge::start_batch(app, p),
         "merge.panoramaLast" => crate::merge::start_last(app, "merge.panorama"),
         "merge.hdrPanoramaLast" => crate::merge::start_last(app, "merge.hdrPanorama"),
         "dialog.mergeHdr" => crate::merge::open(app, "merge.hdr"),

@@ -5,7 +5,7 @@
 //! lightcraft-cli mcp [--connect [ADDR]] [--demo] [--compact] [FILES/FOLDERS…]
 //! lightcraft-cli render <in> -o <out> [--set control=value]… [--settings FILE.json] [--preset ID] [--size N] [--quality Q]
 //! lightcraft-cli snapshot [--library DIR | --demo] [--script FILE.jsonl] [-o OUT.png] [--size WxH] [--scale S] [FILES…]
-//! lightcraft-cli merge hdr|panorama|hdr-panorama [OPTIONS] FILES…
+//! lightcraft-cli merge hdr|panorama|hdr-panorama|hdr-batch [OPTIONS] FILES…
 //! lightcraft-cli synth-merge hdr|panorama -o DIR
 //! lightcraft-cli denoise-serve [--model ID] [--models DIR] [--listen ADDR] [--token-env VAR] [--run-on auto|gpu|cpu]
 //! lightcraft-cli commands [--json]
@@ -79,9 +79,10 @@ USAGE:
         -o, --output OUT  PNG path (a final screenshot is written here if the script took none)
         --size WxH        window size in points (default 1600x1000)
         --scale S         pixels per point (default 1)
-  lightcraft-cli merge hdr|panorama|hdr-panorama [OPTIONS] FILES…
+  lightcraft-cli merge hdr|panorama|hdr-panorama|hdr-batch [OPTIONS] FILES…
       Photo Merge: writes <first>-HDR.dng / -Pano.dng / -HDR-Pano.dng next to the first file and
-      prints the result as JSON. Options:
+      prints the result as JSON. hdr-batch merges each bracket set among the files (photos taken
+      less than a second apart at different exposures), e.g. a whole folder. Options:
         --deghost none|low|medium|high   --no-align   --bracket N (HDR panorama)
         --projection auto|spherical|cylindrical|perspective   --boundary-warp 0..100
         --auto-crop   --fill-edges   --no-auto-settings
@@ -373,7 +374,8 @@ fn merge(args: &[String]) -> Result<(), String> {
         Some("hdr") => "merge.hdr",
         Some("panorama" | "pano") => "merge.panorama",
         Some("hdr-panorama") => "merge.hdrPanorama",
-        _ => return Err("merge: expected hdr, panorama or hdr-panorama".into()),
+        Some("hdr-batch") => "merge.hdrBatch",
+        _ => return Err("merge: expected hdr, panorama, hdr-panorama or hdr-batch".into()),
     };
     let mut p = serde_json::Map::new();
     let mut files = Vec::new();

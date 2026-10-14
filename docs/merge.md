@@ -10,12 +10,17 @@ All algorithms are our own implementations from published papers (cited in the m
   *HDR Panorama…* from the photo context menu (or the `dialog.merge*` commands). The dialog previews
   the merge at ≤ 1024 px and re-runs the preview when an option changes; *Merge* runs the full merge
   in the background (a row in the activity stack shows its progress, with ✕ to stop it). The result is written next to the first photo as
-  `<name>-HDR.dng`, `-Pano.dng` or `-HDR-Pano.dng`, imported and selected.
+  `<name>-HDR.dng`, `-Pano.dng` or `-HDR-Pano.dng`, imported and selected. *Photo Merge ▸ HDR for Each Bracket Set*
+  merges many brackets in one go with the last HDR options: one HDR per stack among the selected photos, then per
+  bracket (photos taken less than a second apart, after the shutter time, at exposures at least ½ EV apart; a burst at
+  one exposure is skipped), one after the other in the activity stack.
 - **Commands** (CLI, MCP, control channel):
   - `merge.hdr {ids?, align=true, deghost=none|low|medium|high, autoSettings=true, stack=false, preview=false, showOverlay=false, previewPath?}`
   - `merge.panorama {ids?, projection=auto|spherical|cylindrical|perspective, boundaryWarp=0..100, autoCrop=false, fillEdges=false, autoSettings=true, maxMegapixels=40, preview, previewPath?}`
   - `merge.hdrPanorama {ids?, bracket=0 (from EXIF), …both sets of options}`
-- **CLI:** `lightcraft-cli merge hdr|panorama|hdr-panorama [options] FILES…`;
+  - `merge.hdrBatch {ids?, align, deghost, autoSettings, stack}` → `{merged: [{id, path, …}], failed: [{photos, error}]}`
+- **CLI:** `lightcraft-cli merge hdr|panorama|hdr-panorama|hdr-batch [options] FILES…` (`hdr-batch` finds the brackets
+  among the files, e.g. a whole folder);
   `lightcraft-cli synth-merge hdr|panorama -o DIR` writes synthetic inputs (procedural scene).
 
 ## What it does
