@@ -1958,5 +1958,5 @@
   "No graphics processor found: LightCraft renders on the CPU, which is much slower. Details in Help → System Info.": "Aucun processeur graphique trouvé : LightCraft effectue le rendu sur le processeur, ce qui est beaucoup plus lent. Détails dans Aide → Informations système.",
   "On NixOS, start it from `nix develop`.": "Sous NixOS, lancez-le depuis `nix develop`.",
   "Files with the same content as another file in this import: only the first is imported.": "Fichiers au contenu identique à un autre fichier de cette importation : seul le premier est importé.",
-  "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo": "Les albums intelligents se mettent à jour d'eux-mêmes : modifiez leurs règles ou utilisez Photo ▸ Supprimer la photo"
+  "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo": "Les albums intelligents se mettent à jour d'eux-mêmes : modifiez leurs règles ou utilisez Photo → Supprimer la photo"
 }
