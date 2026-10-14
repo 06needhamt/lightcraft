@@ -74,6 +74,7 @@ scale in `BaselineExposure`; raw sources keep their DNG colour tags (camera RGB)
   panoramas carry no lens corrections, nor does an HDR whose frames don't share an orientation (they are turned
   before merging).
 - No camera response calibration for JPEG brackets (sRGB decoding is taken as linear light).
+- AI Denoise doesn't run on merged DNGs (they are linear RGB; the denoiser takes Bayer raws), unlike Lightroom's.
 - Boundary Warp is a separable stretch, not a content-preserving mesh warp; Fill Edges is diffusion,
   not patch synthesis.
 - *Create Stack*: the result goes on top of a collapsed stack of its sources (`Catalog::stack_with_ops`); its

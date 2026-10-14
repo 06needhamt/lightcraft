@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-MERGE-HDR ✅ → 🟡 after testing on real 67 MP brackets: moving clipped highlights fixed, gaps remain; LR-MERGE-HEADLESS: HDR for Each Bracket Set) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -40,7 +40,7 @@ cited here still exists. Formerly docs/parity.md.
 | L. Presets (PRE) | 6 | 0 | 1 | 1 | 2/2 (100%) | 2/2 (100%) |
 | M. Versions & history (VER) | 5 | 0 | 0 | 0 | 1/1 (100%) | 3/3 (100%) |
 | N. Copy / paste / sync (SYNC) | 5 | 0 | 0 | 0 | 3/3 (100%) | 1/1 (100%) |
-| O. Merge (MERGE) | 4 | 0 | 0 | 0 | — | — |
+| O. Merge (MERGE) | 3 | 1 | 0 | 0 | — | — |
 | P. Enhance (ENH) | 0 | 0 | 2 | 0 | — | — |
 | Q. HDR (HDR) | 2 | 3 | 0 | 0 | — | — |
 | R. Video (VID) | 0 | 0 | 5 | 1 | — | 0/2 (0%) |
@@ -53,9 +53,9 @@ cited here still exists. Formerly docs/parity.md.
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
 | Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 409 | 53 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
+| **Total** | 408 | 54 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 173.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 49.7% of 173.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -347,7 +347,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
-| LR-MERGE-HDR | HDR merge | P2 | ✅ | `cmd:merge.hdr`, `cmd:dialog.mergeHdr`, `crates/merge/src/frame.rs` (`Frame::lens`) | auto align, deghost None–High + overlay, auto settings, float DNG, Create Stack; the DNG keeps the reference frame's embedded lens corrections (tested by `hdr_merge_keeps_the_reference_frames_lens_corrections`); JPEG brackets treated as linear; raws without colour matrices of their own (CR2, NEF, ARW…) keep the colour they open with, written as DNG tags (`starting_colour_tags`; the look's chroma curve has no tag; panoramas too), issue #965 |
+| LR-MERGE-HDR | HDR merge | P2 | 🟡 | `cmd:merge.hdr`, `cmd:dialog.mergeHdr`, `crates/merge/src/frame.rs` (`Frame::lens`), `crates/merge/src/hdr.rs` | auto align, deghost None–High + overlay, auto settings, float DNG, Create Stack; the DNG keeps the reference frame's embedded lens corrections (tested by `hdr_merge_keeps_the_reference_frames_lens_corrections`); raws without colour matrices of their own (CR2, NEF, ARW…) keep the colour they open with, written as DNG tags (`starting_colour_tags`; the look's chroma curve has no tag; panoramas too), issue #965. Tested on real Sony A7R VI brackets (67 MP, 2026-10-14): frames agree with the merged radiance within ~1 % in all channels, exposure steps match EXIF within 0.03 EV. A clipped highlight of the reference that moved in other frames (a star at 200 mm) stays instead of becoming a black hole, and deghost (≤ 2048 px maps) catches a brighter frame's ghost in a dark sky (`a_clipped_star_of_the_reference_is_not_erased_by_frames_where_it_moved`, `deghost_removes_a_bright_frames_ghost_in_a_dark_sky`). 🟡 because: AI Denoise doesn't run on merged DNGs (Bayer only; Lightroom's does), JPEG brackets are treated as linear (no camera response curve), and every frame is held as 32-bit float (~0.86 GB per 67 MP frame, so 7 frames need ~7 GB); gap 29 |
 | LR-MERGE-PANO | Panorama | P2 | ✅ | `cmd:merge.panorama`, `cmd:dialog.mergePanorama` | spherical/cylindrical/perspective + auto, boundary warp, auto crop, fill edges (diffusion), DNG; no lens model / 360° wrap |
 | LR-MERGE-HDRPANO | HDR panorama | P2 | ✅ | `cmd:merge.hdrPanorama`, `cmd:dialog.mergeHdrPanorama` | brackets grouped by EXIF |
 | LR-MERGE-HEADLESS | Merge with last settings | P2 | ✅ | `cmd:merge.hdrLast`, `cmd:merge.panoramaLast`, `cmd:merge.hdrPanoramaLast`, `cmd:merge.hdrBatch`, `crates/catalog/src/stacks.rs` (`bracket_sets`) | no dialog; the options of the last merge of that kind (defaults the first time). HDR for Each Bracket Set merges a batch like Lightroom's merge of stacks: one HDR per stack among the photos, then per bracket (photos taken less than a second apart, after the shutter time, at exposures ≥ ½ EV apart; bursts at one exposure are skipped), one after the other in the activity stack (cancelling one stops the rest; a failed set doesn't); CLI `merge hdr-batch FILES…` |
@@ -790,7 +790,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-14 | minor | LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set (`merge.hdrBatch`): one HDR per stack or bracket among the photos, one after the other |
+| 2026-10-14 | minor | LR-MERGE-HDR ✅ → 🟡: tested on real 67 MP Sony brackets; moving clipped highlights (black-hole stars) and dark-sky ghosts fixed, merge memory cut ~25 %; AI Denoise on merged DNGs, JPEG response curves and per-frame memory remain (gap 29). LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set (`merge.hdrBatch`) |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |
