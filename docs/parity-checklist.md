@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-META-XMP: failed automatic sidecar writes are retried; integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -790,6 +790,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-14 | patch | LR-META-XMP: automatic sidecar writes that fail (folder offline or read-only) wait and are written again once the files are reachable, with a notice (`cmd:library.retrySidecars`); status unchanged |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |

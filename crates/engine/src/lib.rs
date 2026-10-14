@@ -206,6 +206,9 @@ pub struct Session {
     /// Set by a command whose change must not rewrite the photo's XMP sidecar even with auto-write on
     /// (a catalog-only edit of data the sidecar writer does not emit); consumed when the command ends.
     pub(crate) skip_auto_write: bool,
+    /// Photos whose automatic XMP sidecar write failed (their folder offline, read-only or full), written again by
+    /// [`Session::retry_unsaved_sidecars`] once their file is reachable.
+    pub(crate) unsaved_sidecars: std::collections::BTreeSet<PhotoId>,
     /// AI denoise: the model in use, the photos that have their picture and the work in progress.
     pub(crate) denoise: denoise::State,
     /// Where the host keeps face models (one folder each); `None` where there is no file system (the web).
@@ -353,6 +356,7 @@ impl Session {
             pending_sidecar_repairs: Vec::new(),
             interaction: None,
             skip_auto_write: false,
+            unsaved_sidecars: Default::default(),
             denoise: Default::default(),
             face_models_dir: None,
             face_downloads: Default::default(),
