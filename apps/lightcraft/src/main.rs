@@ -24,9 +24,12 @@
 
 mod alloc_release;
 mod appearance;
+#[cfg(target_os = "linux")]
+mod colord;
 mod control_server;
 mod dialog_filter;
 mod editors;
+mod hdr_display;
 mod logging;
 #[cfg(target_os = "macos")]
 mod native_menu;
@@ -64,7 +67,7 @@ impl eframe::App for App {
             // Quit from the menu bar: save exactly what closing the window saves (settings and
             // library, after the unsaved-changes check; otherwise its prompt shows), then end the
             // process instead of closing the viewport while AppKit is terminating (PR #444).
-            eframe::App::on_exit(self);
+            eframe::App::on_exit(self, None);
             std::process::exit(0);
         }
         self.0.logic(ctx);
@@ -88,6 +91,16 @@ impl eframe::App for App {
         if !self.0.shutdown(EXIT_WAIT) {
             log::warn!("quit: background work was still running after {EXIT_WAIT:?}");
         }
+        // macOS (#1331): end the process here, before eframe tears the window down, as Quit from
+        // the menu bar already does (PR #444). AccessKit's macOS adapter subclasses the window's
+        // content view and restores its class on teardown; AppKit's Touch Bar support observes
+        // that view (KVO), so in the next display cycle `-[_NSTouchBarFinderObservation
+        // invalidate]` throws "not registered" and closing the window ends in a crash report.
+        // Nothing after this is needed: settings and library are saved, background work has
+        // stopped and the log file is unbuffered. `on_exit` only runs once the app exists, so a
+        // renderer that fails to start still relaunches on the next one (`window_gpu`).
+        #[cfg(target_os = "macos")]
+        std::process::exit(0);
     }
 }
 
@@ -450,7 +463,16 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
         pick_folder: Some(Box::new(|| {
             file_dialog().set_title(lightcraft_ui_egui::i18n::tr("Open Library")).pick_folder().map(|p| p.to_string_lossy().to_string())
         })),
+        #[cfg(target_os = "linux")]
+        open_model_folder: Some(std::sync::Arc::new(|path: &str| {
+            std::process::Command::new("xdg-open")
+                .arg(path)
+                .status()
+                .map_err(|e| e.to_string())
+                .and_then(|s| if s.success() { Ok(()) } else { Err(format!("opening folder failed: {s}")) })
+        })),
         open_with: Some(Box::new(editors::open_with)),
+        open_all_with: Some(Box::new(editors::open_all_with)),
         check_editor: Some(Box::new(editors::check)),
         open_url: Some(Box::new(|url: &str| {
             if !url.starts_with("https://") {
@@ -526,7 +548,10 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
         // macOS doesn't colour-manage the window: previews follow the screen's profile (#787)
         #[cfg(target_os = "macos")]
         screen_profile: Some(Box::new(screen_profile::icc)),
-        #[cfg(not(target_os = "macos"))]
+        // Linux: the profile the desktop assigns in colord, read off the UI thread
+        #[cfg(target_os = "linux")]
+        screen_profile: Some(colord::service()),
+        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
         screen_profile: None,
         pick_display_profile: Some(Box::new(|| {
             let mut d = file_dialog()
@@ -650,7 +675,8 @@ OPTIONS:
   --version, --help
 
 ENVIRONMENT:
-  LIGHTCRAFT_CONFIG_DIR=DIR   use this settings folder instead of the platform default (empty = no settings folder)
+  LIGHTCRAFT_CONFIG_DIR=DIR   use this settings folder instead of the platform default (empty = no settings folder).
+                   Without it, a portable.txt file next to the program puts the folder beside it (LightCraftData)
   LIGHTCRAFT_GPU_BACKEND=dx12|vulkan|metal|auto|off   graphics backend (default: DX12 on Windows, Metal on macOS,
                    Vulkan on Linux; off = render on the CPU); else WGPU_BACKEND. LIGHTCRAFT_GPU=0: CPU rendering.
   LIGHTCRAFT_SAM3_DIR=DIR   the SAM 3 model for Object / Describe masks (default: <settings folder>/models/sam3;
@@ -834,6 +860,8 @@ fn main() -> eframe::Result {
                 // (never required: without it, AI masks offer to download it; see docs/ai-masks.md)
                 // and the user's own download locations, one base URL per line (LIGHTCRAFT_SAM3_MIRRORS too)
                 session = session.with_default_sam3_model();
+                // HDR display: SDR unless the surface, platform and display all allow HDR
+                hdr_display::report(cc.wgpu_render_state.as_ref().map(|r| r.target_format));
                 let mut app = LightcraftApp::new(session, services(cc, app_log_file.as_deref()));
                 if let Some(ui) = prefs {
                     app.ui = ui;
@@ -843,6 +871,7 @@ fn main() -> eframe::Result {
                 app.notices.extend(prefs_warning);
                 app.notices.extend(launch_notices);
                 app.notices.extend(window_notice);
+                app.gpu_notice = true;
                 // what's on disk now: only changes are written
                 let writer = PrefsWriter {
                     path: if in_memory { None } else { prefs_path() },
@@ -1207,6 +1236,35 @@ mod tests {
         let (loaded, warning, _) = load_prefs_at(&path, true);
         assert!(loaded.is_some() && warning.is_none());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// #1331: on macOS the process ends inside `on_exit`, before eframe would tear the window down.
+    /// The check runs in a child (this test binary again), since on macOS it ends the process.
+    #[test]
+    fn on_exit_ends_the_process_on_macos() {
+        if std::env::var_os("LIGHTCRAFT_TEST_ON_EXIT").is_some() {
+            let app = LightcraftApp::new(lightcraft_engine::Session::new(), Services::default());
+            let mut app = App(
+                app,
+                PrefsWriter::default(),
+                #[cfg(target_os = "macos")]
+                None,
+            );
+            println!("calling on_exit");
+            eframe::App::on_exit(&mut app, None);
+            println!("on_exit returned");
+            return;
+        }
+        let out = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "tests::on_exit_ends_the_process_on_macos", "--nocapture"])
+            .env("LIGHTCRAFT_TEST_ON_EXIT", "1")
+            .env("LIGHTCRAFT_NO_PREFS", "1")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "{stdout}");
+        assert!(stdout.contains("calling on_exit"), "the child didn't run the test: {stdout}");
+        assert_eq!(stdout.contains("on_exit returned"), !cfg!(target_os = "macos"), "{stdout}");
     }
 }
 
