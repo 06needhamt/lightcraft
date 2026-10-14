@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-13
+
+### DNG camera identity
+- DNG export and Convert to DNG no longer duplicate the camera make when the model already
+  contains it: `Canon EOS R6` stays `Canon EOS R6`, rather than `Canon Canon EOS R6` (the camera
+  identity subissue in #840). The separate Make and Model tags keep their original values.
+  This does not change colour matrices, camera calibration or RAW noise rendering.
+
 ## 2026-10-11
 
 ### JPEG XL export
