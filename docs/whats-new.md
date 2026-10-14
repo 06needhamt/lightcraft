@@ -72,6 +72,10 @@
 - A raw file whose black level is stored as "not a number" (or infinity), or a floating-point DNG with such
   samples, no longer crashes LightCraft at 1:1 or on export: the bad values read as black.
 
+### Reliability
+- Exporting a photo more than 65,535 times as long as it is wide (a one-pixel strip), or opening the Export dialog's
+  watermark preview for it, no longer crashes LightCraft; the export is capped at the encoders' 65,535 pixels.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
