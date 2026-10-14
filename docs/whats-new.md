@@ -90,6 +90,11 @@
   contains it: `Canon EOS R6` stays `Canon EOS R6`, rather than `Canon Canon EOS R6` (the camera
   identity subissue in #840). The separate Make and Model tags keep their original values.
   This does not change colour matrices, camera calibration or RAW noise rendering.
+### Building from source
+- The English and Simplified Chinese build guides now describe command-local job and release
+  profile overrides for memory-constrained builders (issue #1196), including why packaging
+  recipes can override inherited settings. Default release profiles and application behavior
+  are unchanged; the guidance does not guarantee a build will fit every 16 GB machine.
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
