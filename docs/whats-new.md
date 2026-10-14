@@ -2,6 +2,12 @@
 
 ## 2026-10-14
 
+### Reliability
+- Thumbnails and previews are written to the cache on disk by one background writer instead of a new thread for
+  each image (issue #1522). When renders come in faster than the disk takes them, at most 128 MB of images wait;
+  past that a write is skipped (the image stays in memory and is written by a later render), so a slow disk can't
+  pile up threads and memory.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
