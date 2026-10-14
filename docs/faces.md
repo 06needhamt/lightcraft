@@ -143,6 +143,34 @@ SFace's builtin speed metadata now uses the measured 6.9× ratio. User `catalog.
 Older published tables for MobileFaceNet/R50/R100 came from a different runtime and are not measurements of this runner; architecture
 names alone do not guarantee the same speed, and those additional model files were not verified in this task.
 
+### On the GPU
+
+On a machine with a usable GPU, the convolutions of the detector and the recogniser (most of their time) run on it
+through wgpu (`crates/gpu/src/faces.rs`, `wgsl/faces_conv.wgsl`: an implicit matrix product that gathers the input
+straight into workgroup memory, cuts K into slices when a layer's map is small, and a direct kernel for depthwise
+layers). Everything else in the graph stays on the CPU interpreter, which remains the reference. After a model loads,
+a background check runs it once on the CPU and twice through the GPU on a fixed test input: the GPU is used only when
+every output is within 1e-3 of the CPU's (relative to the output's largest value) **and** it was faster; until then,
+and whenever the GPU is switched off (`LIGHTCRAFT_GPU=0`, `LIGHTCRAFT_GPU_BACKEND=off`, the GPU preference), missing,
+wrong or slower, the model runs on the CPU. The first GPU error drops it for that model. The weights stay on a device of
+the scan's own (separate from the editor's) while the model is loaded, at most 768 MB per model. The log says which
+device each model runs on.
+
+Measured on Linux with a Radeon (Vulkan) and a 32-thread CPU, one call at a time, machine under heavy load from other
+jobs (so the absolute numbers are noisy; the ratios held across three runs):
+
+| Model | CPU | GPU |
+| --- | ---: | ---: |
+| YuNet (640², one photo) | 33–34 ms | 35–39 ms |
+| SFace 2021dec | 25–28 ms | 22–27 ms |
+| AuraFace v1 | 204–208 ms | 81–103 ms |
+
+Each layer still goes to the GPU and back: for YuNet and SFace that round trip costs about what the layer saves, so on
+most machines they stay on the CPU by the speed check, while AuraFace runs 2–2.5× faster. Keeping activations on the GPU
+between layers (the remaining operators as kernels) and batching faces per dispatch are the next steps.
+`LC_FACE_MODELS=<folder> cargo test --release -p lightcraft-gpu faces::tests -- --include-ignored --nocapture` checks
+agreement on the real models and prints these timings.
+
 ### Agreement and regression coverage
 
 The public-crop embeddings match the reference runtime's outputs:

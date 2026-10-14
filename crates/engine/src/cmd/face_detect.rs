@@ -56,8 +56,36 @@ pub(crate) fn detector(s: &Session) -> std::result::Result<Arc<Detector>, String
     }
     let bytes = std::fs::read(&path).map_err(|e| format!("could not read the detector: {e}"))?;
     let d = Arc::new(Detector::new(&bytes).map_err(|e| format!("{e}: remove the detector in Settings > Faces and download it again"))?);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let net = d.clone();
+        offer_gpu("detection", move |gpu| net.accelerate(gpu, true));
+    }
     *loaded = Some((path, d.clone()));
     Ok(d)
+}
+
+/// Check in the background whether the GPU runs a face model faster than the CPU and gives its results; the model
+/// runs on the CPU meanwhile, and stays there when the GPU is off, missing, wrong or slower.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn offer_gpu(
+    what: &'static str,
+    attach: impl FnOnce(Arc<dyn lightcraft_faces::net::Accelerator>) -> std::result::Result<(), String> + Send + 'static,
+) {
+    let spawned = std::thread::Builder::new().name(format!("faces-gpu-{what}")).spawn(move || {
+        let gpu = match lightcraft_gpu::faces::accelerator() {
+            Ok(gpu) => gpu,
+            Err(why) => return log::info!("faces: {what} runs on the CPU ({why})"),
+        };
+        let device = lightcraft_faces::net::Accelerator::device(&*gpu);
+        match attach(gpu) {
+            Ok(()) => log::info!("faces: {what} runs on {device}"),
+            Err(why) => log::info!("faces: {what} stays on the CPU: {why}"),
+        }
+    });
+    if let Err(e) = spawned {
+        log::warn!("faces: could not check the GPU for {what}: {e}");
+    }
 }
 
 fn face_json(f: &Face) -> Value {

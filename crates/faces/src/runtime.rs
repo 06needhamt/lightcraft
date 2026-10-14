@@ -99,6 +99,31 @@ impl Embedder {
         })
     }
 
+    /// The network, e.g. to see which device it runs on.
+    pub fn net(&self) -> &Net {
+        &self.plan
+    }
+
+    /// Run the model's convolutions on `accelerator` if it gives the CPU's embedding on a test face (and, with
+    /// `require_faster`, runs it faster than the CPU); otherwise (or on
+    /// its first error) recognition stays on the CPU. Returns why it was not used.
+    pub fn accelerate(&self, accelerator: Arc<dyn crate::net::Accelerator>, require_faster: bool) -> Result<(), RuntimeError> {
+        let (mean, std) = (self.manifest.input.mean, self.manifest.input.std);
+        let plane = self.width * self.height;
+        let data: Vec<f32> = crate::yunet::probe_pixels(3 * plane)
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| {
+                let c = (i / plane.max(1)).min(2);
+                (v - mean.get(c).copied().unwrap_or(0.0)) / std.get(c).copied().filter(|s| *s != 0.0).unwrap_or(1.0)
+            })
+            .collect();
+        let probe = Tensor::new(vec![1, 3, self.height, self.width], data).map_err(|e| RuntimeError::Input(e.to_string()))?;
+        guarded("checking the device", || {
+            self.plan.attach_checked(accelerator, &probe, crate::yunet::ACCELERATOR_TOLERANCE, require_faster).map_err(RuntimeError::Run)
+        })
+    }
+
     /// The size of the aligned face picture the model wants (width, height).
     pub fn input_size(&self) -> (usize, usize) {
         (self.width, self.height)

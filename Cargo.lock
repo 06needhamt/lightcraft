@@ -3299,6 +3299,7 @@ dependencies = [
  "lightcraft-color",
  "lightcraft-denoise",
  "lightcraft-develop",
+ "lightcraft-faces",
  "lightcraft-geom",
  "lightcraft-pipeline",
  "lightcraft-raster",
