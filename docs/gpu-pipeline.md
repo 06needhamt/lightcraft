@@ -232,6 +232,12 @@ from outside the window: the vignette geometry arrives as the `VIG_VIEW` paramet
 noise-reduction size come from the whole frame, and a window that spots or Auto Mask strokes grew is
 cut back after the readback. The tests skip (pass with a note) when no adapter exists.
 
+**AMD Radeon 8060S (RADV STRIX_HALO, Vulkan 1.4, Mesa 26.2.4, Linux 7.2), 2026-10-12**, the first
+non-Apple GPU verified: all 16 tests pass, 135 compared cases. 124 differ by max 1 LSB, 10 are
+bit-identical, and one (the point colour range overlay) has max 2 LSB on 0.0002% of pixels. Worst
+mean 0.0003 LSB. That is the same picture as on Metal, inside the bounds
+(`cargo test -p lightcraft-gpu --release --test equivalence -- --nocapture`).
+
 Remaining differences come from f32 vs f64 coordinate math, fast-math transcendental functions on
 Metal and running-sum order in the box filters — all far below one 8-bit step.
 
@@ -267,7 +273,7 @@ the device on their first GPU render. `lightcraft_gpu::ready()` asks without blo
   developed image in ~50 ms.
 
 ## Memory (M5.6)
-A view's stages keep an uploaded source only up to 96 MB (a Preview-level source); a bigger one (the original a zoom window is cut from) is kept once, outside the views' stages, for all views of the photo (the Before and After windows and every pan share it; the Before window of a Before/After waits at first open until the After's job has handed the original over, or each would decode and upload its own copy) and given back when the app idles (issue #323: kept per view it counted against the stage budget on every tick of a drag, and not kept every new window uploaded 288 MB again).
+A view's stages keep an uploaded source only up to 96 MB (a Preview-level source); a bigger one (the original a zoom window is cut from) is kept once, outside the views' stages, for all views of the photo (the Before and After windows and every pan share it; the Before window of a Before/After waits at first open until the After's job has handed the original over, or each would decode and upload its own copy) and given back when the app idles with no zoom window on screen (a zoomed view keeps it for its next pan: a 64 MP original is 800 MB to upload again; issue #323: kept per view it counted against the stage budget on every tick of a drag, and not kept every new window uploaded 288 MB again).
 - `library.memory` reports what the engine's caches hold (decoded thumbnail / preview / full-size
   sources, rendered previews) and the GPU renderer's device buffers (allocated, of which pooled
   and retired); `ui.inspect` → `memory` adds the loupe's stage caches (CPU images, GPU buffers)
