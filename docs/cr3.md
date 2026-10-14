@@ -62,6 +62,10 @@ control. The exact inputs and reference hashes are:
 | Canon R100 C-RAW, raw.pixls.us 7897 | `0b66842b2fe00329ebc05fe8ab9357ddbbe1a0a2d2e69a2893102de7fdf5c942` | `341c706b37c38bbf` |
 | Canon R8 RAW, raw.pixls.us 6585 | `7d5c6dbb11ff7e6ee58715d90a20f5d801e8b103f4711ff6ea329ceafcef254c` | `63c1c6d8d1eb2312` |
 | Canon R8 C-RAW, raw.pixls.us 6587 | `df33cf394573645ce03dea1b2e9f0b5cc2b7734e9e3391ee7114151414cf2812` | `f836a663a795a375` |
+| Canon RP RAW, raw.pixls.us 4674 | `dcbd0f6f9929de2e2331b0fd10a9d01e7cfd04c5a5e4038456de1647d714cdf2` | `5cb0f46404b8b663` |
+| Canon RP C-RAW, raw.pixls.us 4672 | `bd3270610593d37ff8a399908bb9406a4e32f9151d55bf19ac1cf8f10d787b46` | `f48df06ca1d67382` |
+| Canon RP RAW, 1.6× crop, raw.pixls.us 4673 | `7d4ba45dc9264d598336133593c677b09774bcdf13b602ee770e72415a652a16` | `46808a9de3b3dcc7` |
+| Canon RP C-RAW, 1.6× crop, raw.pixls.us 4671 | `4a859ab137f792aedaf3416b0aad1497ebaab02052a49453902e226699154aa7` | `39a60c4efed4e1f4` |
 
 The EOS R5 Mark II files (raw.pixls.us 7881–7884, CC0) are pinned to LightCraft's own decode; no external
 decoder was run on them:
@@ -77,7 +81,11 @@ Reference pixels were observed from the DNGLab 0.8.0 macOS arm64 release
 binary; no decoder source was read or copied, and it is not shipped or linked.
 The release ZIP SHA-256 was
 `ee70805cb60f18d5ed62548c4e595f6cee0a33407e15358eb1766a46afc1c16e`.
-All six sensor comparisons pass. R8 HEVC preview tracks are distinguished from
+The RP references came from the same release's Windows x64 binary (ZIP SHA-256
+`d3add6b71568bf5f7938468b0b40a0ee1eaec01e0057fe78dcc453188010be9a`), after it
+reproduced the M50 RAW hash above. The RP's 1.6× crop mode writes a single
+4032×2656 tile, where full frame (6384×4224) uses two 3192-wide horizontal
+tiles. All ten sensor comparisons pass. R8 HEVC preview tracks are distinguished from
 the primary Bayer RAW; the HEVC preview itself is not decoded. Missing corpus
 files are reported as skipped by the tests.
 
@@ -157,6 +165,15 @@ Not every C-RAW file of a verified body decodes: the decoder accepts adaptive QP
 user reports 3 of 40 EOS R6 Mark II C-RAW files with QP 172 or 175 ("Canon CRX adaptive QP value 172"), which
 open as their preview. EOS R7 C-RAW (the odd-height QP map above) has only been checked on six paired RAW /
 C-RAW captures; the pinned R7 file is lossless, so R7 C-RAW still has no black-box reference.
+
+## White level
+
+The white level is Canon's specular white from `ColorData` (the word after the
+normal white level), not the sensor's saturation point. On the RP at ISO 100
+it is 14558 while samples clip at 16383. At the −⅓-stop ISOs, which pull a
+higher analog ISO down digitally, it drops further: 11062 at ISO 5000, where
+red saturates near 13668. Samples above the white level render as clipped.
+Whether Lightroom recovers them has not been measured.
 
 ## Colour limits
 
