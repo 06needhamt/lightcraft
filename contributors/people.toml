@@ -31,3 +31,6 @@ display_name = "sanyamsingh001"
 [people.ArekatlaNishanthchowdary]
 real_name = "Arekatla Nishanth Chowdary"
 sync_github_name = true
+
+[people.FooVoo]
+sync_github_name = true
