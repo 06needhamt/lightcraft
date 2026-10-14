@@ -2,6 +2,12 @@
 
 ## 2026-10-14
 
+### Reliability
+- A damaged or crafted raw can no longer make LightCraft set aside gigabytes of memory before finding out the file is
+  bad (issue #1512): a compressed PEF whose data is too short for the size it declares, an uncompressed TIFF-based
+  raw whose tile claims far more samples than it holds, and an ARW6 with a broken tile are refused first. All 74
+  files in the test corpus still decode.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
