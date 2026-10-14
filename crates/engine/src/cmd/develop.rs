@@ -588,14 +588,14 @@ pub fn specs() -> Vec<CommandSpec> {
             "Straighten",
             [],
             None,
-            "{angle: degrees -45..45} — keeps the largest crop of the current aspect",
+            "{angle: degrees -45..45} — keeps the crop if it still fits, else shrinks it about its centre (the largest crop of its aspect stays the largest)",
             has_active,
             |s, p| {
                 let id = active(s, "crop.straighten")?;
                 let (w, h) = crop_dims(s, id);
                 let angle = f64_req(p, "angle", "crop.straighten")?.clamp(-45.0, 45.0);
                 edit(s, "crop.straighten", "Straighten", |d| {
-                    // keep the current crop if it still fits, else the largest of its aspect that does
+                    // keep the current crop if it still fits, else shrink it about its centre until it does
                     d.crop.geometry = d.crop.geometry.with_angle(angle, w, h);
                     Ok(())
                 })
