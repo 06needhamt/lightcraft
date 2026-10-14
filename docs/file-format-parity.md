@@ -69,7 +69,7 @@ import and export formats. Ours come from `crates/codecs/src/sniff.rs`, `crates/
 | HDR, print, video output | 15% | ~35% | estimated |
 | **Non-raw file formats** | 100% | **~70%** | estimated; raw is in [raw-parity.md](raw-parity.md) (~50%) |
 
-Remaining: **20–34 h** (AVIF decode 8–15 h if a permissive decoder is written or found; Render to DNG in the catalog 1–2 h; HLG 3–5 h; catalog import depth 8–12 h).
+Remaining: **26–47 h** (AVIF decode 8–15 h if a permissive decoder is written or found; PSD write 4–8 h; lossy DNG and Render to DNG 4–8 h; HLG 3–5 h; catalog import depth 8–12 h).
 
 ## Revision history
 
