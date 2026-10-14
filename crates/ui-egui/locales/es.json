@@ -1212,7 +1212,7 @@
   "Reset Section": "Restablecer sección",
   "Reset Tone Curve": "Restablecer curva de tonos",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "Restablecer todas las curvas: curvas de puntos (todos los canales) y paramétrica (doble clic en un canal para restablecer solo ese)",
-  "Reset all edits (Cmd+Shift+R)": "Restablecer todas las ediciones (Cmd+Mayús+R)",
+  "Reset all edits": "Restablecer todas las ediciones",
   "Reshuffle": "Volver a mezclar",
   "Resize Face Box": "Cambiar tamaño del recuadro de cara",
   "Resize panel window": "Cambiar tamaño de la ventana del panel",

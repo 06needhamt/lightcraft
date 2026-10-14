@@ -1181,7 +1181,7 @@
   "Reset Section": "Réinitialiser la section",
   "Reset Tone Curve": "Réinitialiser la courbe des tonalités",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "Réinitialiser toutes les courbes : courbes de points (tous les canaux) et paramétrique (double-cliquez sur un canal pour réinitialiser uniquement celui-ci)",
-  "Reset all edits (Cmd+Shift+R)": "Réinitialiser toutes les retouches (Cmd+Maj+R)",
+  "Reset all edits": "Réinitialiser toutes les retouches",
   "Reshuffle": "Mélanger à nouveau",
   "Resize Face Box": "Redimensionner le cadre de visage",
   "Resize to": "Redimensionner à",
