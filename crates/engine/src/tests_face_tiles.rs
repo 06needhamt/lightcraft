@@ -146,7 +146,7 @@ fn mean_abs_diff(a: &Rgba8, b: &Rgba8) -> f64 {
 fn an_unedited_raws_face_comes_from_its_largest_preview() {
     let (dir, mut s, id, file) = setup("preview");
     // (the preview loader's planned read: the header and the preview, not the sensor strip)
-    let (_, _, read) = crate::files::preview_window(&file.to_string_lossy()).unwrap().unwrap();
+    let (_, _, read) = crate::files::preview_window(&file.to_string_lossy(), usize::MAX).unwrap().unwrap();
     assert!(read.fraction() < 0.5, "{read:?}");
     let loads = count_loads(&mut s);
     let from_preview = tile(&mut s, id, FACE, 64).unwrap();
