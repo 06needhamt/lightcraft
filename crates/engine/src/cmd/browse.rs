@@ -45,6 +45,7 @@ fn browse(s: &mut Session, p: &Value) -> Result<Value> {
     stamp_browsed(s, &dir_s, &files);
     s.browse = Some(Browse { path: dir_s.clone(), subfolders });
     s.source = LibrarySource::Folder;
+    s.keep_active_in_view();
     let shown = s.visible().len();
     Ok(json!({"path": dir_s, "subfolders": subfolders, "photos": shown, "new": report.imported.len(), "failed": report.failed.len()}))
 }
