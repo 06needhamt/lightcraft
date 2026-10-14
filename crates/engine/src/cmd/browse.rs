@@ -49,6 +49,16 @@ fn browse(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"path": dir_s, "subfolders": subfolders, "photos": shown, "new": report.imported.len(), "failed": report.failed.len()}))
 }
 
+impl Session {
+    /// Record that the folder `root` was browsed now, with the folders of `files` (the photos it showed): what
+    /// `library.browse` does after reading a folder, for a UI that reads it on a worker thread instead. Untouched
+    /// Local photos are forgotten only from folders not browsed for the set number of days, so a browse that
+    /// isn't recorded lets a folder in daily use be forgotten.
+    pub fn note_browsed(&mut self, root: &str, files: &[String]) {
+        stamp_browsed(self, root, files);
+    }
+}
+
 /// Folders whose browse time is refreshed at most this often (keeps repeated browsing from
 /// growing the log; far finer than the days the eviction counts in).
 const RESTAMP_SECS: i64 = 3600;
