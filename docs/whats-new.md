@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-14
+
+### Hard-edged Heal and Clone spots
+- A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
+  changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
+
 ## 2026-10-13
 
 ### HDR merges keep the lens correction
