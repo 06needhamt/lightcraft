@@ -1,6 +1,6 @@
 # Gaps: where LightCraft falls short of Lightroom
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-14 · **Change:** minor (gap 4 closed: soft proofing gets zoom windows) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-14 · **Change:** minor (gap 4 closed: soft proofing gets zoom windows; gap 8: Nikon Z 6II / Z 8 / Z f in-file distortion; gaps 10, 22 and 23 listed once again: merges had left two copies of each, and `cargo xtask parity` now fails on a gap listed twice) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 Every known shortfall, one entry each, ranked by user impact (how many Lightroom users hit it, and
 how hard it blocks them), then by effort. **Agents pick work from the top** (the first entry nobody is
