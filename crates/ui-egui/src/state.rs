@@ -70,6 +70,14 @@ pub enum BeforeAfter {
     SplitTopBottom,
 }
 
+impl BeforeAfter {
+    /// One of the Before / After layouts (two views or a split line), which the bottom bar's
+    /// Before/After (Y) button stands for. Show Original (`\`) is a view of its own, not a layout.
+    pub fn is_layout(self) -> bool {
+        !matches!(self, BeforeAfter::Off | BeforeAfter::Original)
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CropOverlay {
@@ -234,7 +242,9 @@ pub struct AppSettings {
     /// [`RECENT_LIBRARIES`]).
     pub recent_libraries: Vec<String>,
     pub startup_view: StartupView,
-    /// Ask before moving photos to Recently Deleted (keyboard and menu).
+    /// Ask before moving photos to Recently Deleted. Saved under a new key: earlier versions saved
+    /// `confirmDelete: false` by default (#1239).
+    #[serde(rename = "askBeforeDelete")]
     pub confirm_delete: bool,
     /// GPU rendering allowed (`app.gpu`).
     pub gpu: bool,
@@ -281,7 +291,7 @@ impl Default for AppSettings {
             library_path: String::new(),
             recent_libraries: Vec::new(),
             startup_view: StartupView::Last,
-            confirm_delete: false,
+            confirm_delete: true,
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),
@@ -542,6 +552,9 @@ pub struct UiState {
     pub mask_overlay_color: [u8; 3],
     pub mask_overlay_opacity: f32,
     pub mask_pins: bool,
+    /// Masking: show every visible mask's region as one overlay at once (Ctrl+Shift+O / Cmd+Shift+O),
+    /// instead of just the selected mask's ([`mask_overlay`]).
+    pub mask_overlay_all: bool,
     /// The overlay (on, mode) to go back to when Show Luminance Map is turned off.
     #[serde(skip)]
     pub luminance_map_restore: Option<(bool, String)>,
@@ -731,6 +744,13 @@ pub struct UiState {
     /// The result of the last Find Missing Photos (it searches in the background).
     #[serde(skip)]
     pub last_find_missing: Option<serde_json::Value>,
+    /// The outcome (success or error) of the last Find Missing Photos task.
+    #[serde(skip)]
+    pub last_find_missing_result: Option<Result<serde_json::Value, String>>,
+    /// Injected delay for Find Missing Photos worker (test-only, for timeout testing).
+    #[cfg(test)]
+    #[serde(skip)]
+    pub find_missing_test_delay: Option<std::time::Duration>,
     #[serde(skip)]
     pub status: String,
     #[serde(skip)]
@@ -766,12 +786,15 @@ pub enum Dialog {
     ContactSheet {
         options: lightcraft_engine::contact_sheet::Options,
     },
-    /// `parent`: the folder to create it in (none: the top level).
+    /// `parent`: the folder to create it in (none: the top level). `include_selected`: the new album
+    /// holds the selected photos (Lightroom's "Include selected photos"; folders hold none).
     NewAlbum {
         name: String,
         folder: bool,
         #[serde(default)]
         parent: Option<u64>,
+        #[serde(default = "yes")]
+        include_selected: bool,
     },
     RenameAlbum {
         id: u64,
@@ -1054,6 +1077,7 @@ impl Default for UiState {
             mask_overlay_color: [230, 30, 40],
             mask_overlay_opacity: 50.0,
             mask_pins: true,
+            mask_overlay_all: false,
             crop_overlay: CropOverlay::Thirds,
             crop_default_aspect: None,
             crop_overlay_orient: 0,
@@ -1131,6 +1155,9 @@ impl Default for UiState {
             reference: None,
             toast: None,
             last_find_missing: None,
+            last_find_missing_result: None,
+            #[cfg(test)]
+            find_missing_test_delay: None,
             status: String::new(),
             dialog: None,
         }

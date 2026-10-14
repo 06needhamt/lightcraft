@@ -29,8 +29,10 @@ pub mod demo;
 pub mod denoise;
 pub mod devices;
 pub mod display;
+mod errors;
 pub mod export;
 pub mod face_download;
+pub mod face_tiles;
 #[cfg(not(target_arch = "wasm32"))]
 mod faces_index;
 #[cfg(not(target_arch = "wasm32"))]
@@ -68,6 +70,7 @@ pub mod walk;
 use std::sync::Arc;
 
 pub use cmd::{CommandInfo, CommandSpec, command_specs, find_command};
+pub use errors::{AiModel, ErrorKind};
 pub use fonts::{CRAFT_FONTS, CraftFont};
 use lightcraft_catalog::{Catalog, Filter, Op, PhotoId, Sort};
 use lightcraft_develop::DevelopSettings;
@@ -98,6 +101,13 @@ pub enum EngineError {
     /// to import with `library.importLightroom`, when one was found.
     #[error("{} is a Lightroom Classic catalog, not a LightCraft library; import it into a LightCraft library with File ▸ Import Lightroom Catalog…{}", path.display(), catalog.as_ref().map_or(String::new(), |c| format!(" ({})", c.display())))]
     LightroomCatalog { path: std::path::PathBuf, catalog: Option<std::path::PathBuf> },
+    /// The work was cancelled (by the person, an agent or a newer request): not a failure.
+    #[error("{0}")]
+    Cancelled(String),
+    /// The feature needs `model`, which is not installed (or still downloading): a frontend
+    /// offers its download (terms first) on [`ErrorKind::ModelMissing`], not on the message.
+    #[error("{msg}")]
+    ModelMissing { model: AiModel, msg: String },
     #[error("{0}")]
     Other(String),
 }
@@ -130,7 +140,8 @@ fn single_photo(op: &Op, depth: usize) -> Option<PhotoId> {
         | Op::SetMeta { id, .. }
         | Op::SetVersions { id, .. }
         | Op::SetHistory { id, .. }
-        | Op::PushHistory { id, .. } => Some(*id),
+        | Op::PushHistory { id, .. }
+        | Op::SetHistoryCursor { id, .. } => Some(*id),
         Op::Batch { ops } if depth < 8 => {
             let mut ids = ops.iter().map(|o| single_photo(o, depth + 1));
             let first = ids.next()??;
@@ -221,7 +232,8 @@ pub struct Session {
     pub previous_active: Option<PhotoId>,
     /// Groups last used for Copy (Lightroom remembers them).
     pub copy_groups: Vec<lightcraft_develop::SettingsGroup>,
-    pub presets: Vec<lightcraft_develop::Preset>,
+    /// Built-in then user presets; its generation tells savers and caches when it changed.
+    pub presets: presets::PresetList,
     /// Favourite profile ids (persisted with the library, like preset favourites).
     pub profile_favorites: Vec<String>,
     /// Recently applied profile ids, newest first (at most [`presets::RECENT_PROFILES`]).
@@ -354,7 +366,7 @@ impl Session {
             library_folder: None,
             previous_active: None,
             copy_groups: lightcraft_develop::SettingsGroup::default_copy(),
-            presets: presets::builtin(),
+            presets: presets::PresetList::new(presets::builtin()),
             profile_favorites: Vec::new(),
             profile_recent: Vec::new(),
             journal: Vec::new(),
@@ -881,11 +893,17 @@ impl Session {
                 }
             }
             if self.source == LibrarySource::RecentlyAdded {
-                // newest import first, whatever the sort (the grid groups by import day)
+                // newest import first, whatever the sort direction (the grid groups by import day);
+                // a batch stays in file order (name, then id)
                 let cat = &self.catalog;
                 visible.sort_by(|a, b| {
                     let key = |id: &PhotoId| cat.photo(*id).map(|p| p.imported.clone()).unwrap_or_default();
-                    key(b).cmp(&key(a)).then(a.cmp(b))
+                    let name = |id: &PhotoId| cat.photo(*id).map(|p| p.file_name.as_str());
+                    let by_name = match (name(a), name(b)) {
+                        (Some(x), Some(y)) => lightcraft_catalog::query::cmp_name(x, y),
+                        _ => std::cmp::Ordering::Equal,
+                    };
+                    key(b).cmp(&key(a)).then(by_name).then(a.cmp(b))
                 });
             }
             if self.source == LibrarySource::Missing {
@@ -993,11 +1011,16 @@ mod tests_face_models;
 #[cfg(not(target_arch = "wasm32"))]
 mod tests_face_recognize;
 #[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod tests_face_tiles;
+#[cfg(test)]
 mod tests_filesystem_history;
 #[cfg(test)]
 mod tests_folders;
 #[cfg(test)]
 mod tests_forget_local;
+#[cfg(test)]
+mod tests_history_cursor;
 #[cfg(test)]
 mod tests_import;
 #[cfg(test)]
@@ -1018,6 +1041,8 @@ mod tests_organize;
 mod tests_persist;
 #[cfg(test)]
 mod tests_prefs;
+#[cfg(test)]
+mod tests_presets_scale;
 #[cfg(test)]
 mod tests_process;
 #[cfg(test)]
