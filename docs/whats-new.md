@@ -68,6 +68,10 @@
 - Faces are kept in the thumbnail cache at a few fixed sizes, so moving the thumbnail slider no longer renders them
   all again.
 
+### Reliability
+- A raw file whose black level is stored as "not a number" (or infinity), or a floating-point DNG with such
+  samples, no longer crashes LightCraft at 1:1 or on export: the bad values read as black.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
