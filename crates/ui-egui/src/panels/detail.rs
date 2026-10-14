@@ -850,7 +850,9 @@ fn info_overlay(app: &LightcraftApp, p: &egui::Painter, canvas: Rect, photo: &li
     let mut y = canvas.top() + 12.0;
     for (i, l) in lines.iter().enumerate() {
         let font = if i == 0 { t.semibold(15.0) } else { t.font(12.5) };
-        let g = p.layout_no_wrap(l.clone(), font, Color32::WHITE);
+        // laid out uncoloured: `galley` only fills placeholder text with its colour, so a white
+        // layout made the shadow a second white copy (#1690)
+        let g = p.layout_no_wrap(l.clone(), font, Color32::PLACEHOLDER);
         let at = pos2(canvas.left() + 14.0, y);
         // a soft shadow keeps the text readable on bright photos
         p.galley(at + vec2(1.0, 1.0), g.clone(), Color32::from_black_alpha(200));
@@ -2687,5 +2689,43 @@ mod filter_pill_tests {
         let (left, top) = (pill.left() - canvas.left(), pill.top() - canvas.top());
         assert!(top > 0.0, "inside the canvas: {pill:?}");
         assert_eq!(left, top, "left and top insets: {pill:?} in {canvas:?}");
+    }
+}
+
+#[cfg(test)]
+mod info_overlay_tests {
+    use super::*;
+
+    /// #1690: the info overlay's shadow is a dark copy under the text. Drawn as a second white
+    /// copy one point off, each line read doubled.
+    #[test]
+    fn the_info_overlay_shadow_is_dark() {
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), crate::Services { png: None, ..Default::default() });
+        app.ui.info_overlay = crate::state::InfoOverlay::Basic;
+        let photo = app.session.catalog.photos().next().map(|p| (**p).clone()).expect("the demo catalog has photos");
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        let canvas = Rect::from_min_size(pos2(52.0, 82.0), vec2(800.0, 500.0));
+        let raw = crate::headless::HeadlessView::raw_input(vec2(1000.0, 700.0), 1.0, 0.0, vec![]);
+        let mut out = ctx.run_ui(raw, |ui| info_overlay(&app, ui.painter(), canvas, &photo));
+        out.textures_delta.clear();
+        // the colour a text shape paints its glyphs in, as epaint resolves it
+        let ink = |s: &egui::epaint::TextShape| {
+            let c = s.galley.job.sections.first().map_or(Color32::PLACEHOLDER, |sec| sec.format.color);
+            s.override_text_color.unwrap_or(if c == Color32::PLACEHOLDER { s.fallback_color } else { c })
+        };
+        fn texts(shape: &egui::epaint::Shape, out: &mut Vec<egui::epaint::TextShape>) {
+            match shape {
+                egui::epaint::Shape::Text(t) => out.push(t.clone()),
+                egui::epaint::Shape::Vec(v) => v.iter().for_each(|s| texts(s, out)),
+                _ => {}
+            }
+        }
+        let mut all = Vec::new();
+        out.shapes.iter().for_each(|c| texts(&c.shape, &mut all));
+        let copies: Vec<Color32> = all.iter().filter(|t| t.galley.job.text == photo.file_name).map(ink).collect();
+        assert_eq!(copies.len(), 2, "the file name and its shadow: {copies:?}");
+        assert_eq!(copies[1], Color32::WHITE, "the text on top");
+        assert!(copies[0].r() < 64 && copies[0].a() > 0, "the shadow under it is dark: {:?}", copies[0]);
     }
 }
