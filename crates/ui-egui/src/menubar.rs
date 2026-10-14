@@ -207,6 +207,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "dialog.captureTime",
             "photo.tagFromTracklog",
             "---",
+            "album.removePhotos",
             "photo.delete",
             "photo.restore",
             "photo.deletePermanently",
@@ -286,9 +287,19 @@ fn host_supports(app: &LightcraftApp, id: &str) -> bool {
         "file.restoreLibrary" => app.services.restore_library.is_some(),
         "photo.restore" | "photo.deletePermanently" => selection_deleted(app),
         "photo.delete" => !selection_deleted(app),
+        // only in an album that holds its photos (not a smart one)
+        "album.removePhotos" => in_normal_album(app) && !selection_deleted(app),
         // only where the trash is on screen
         "library.emptyRecentlyDeleted" => app.session.source == lightcraft_engine::LibrarySource::RecentlyDeleted,
         _ => true,
+    }
+}
+
+/// The library shows an album that holds its photos (not a smart album, not a folder of albums).
+pub(crate) fn in_normal_album(app: &LightcraftApp) -> bool {
+    match app.session.source {
+        lightcraft_engine::LibrarySource::Album(a) => app.session.catalog.album(a).is_some_and(|a| !a.folder && !a.is_smart()),
+        _ => false,
     }
 }
 
@@ -670,6 +681,13 @@ fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
 fn node(app: &LightcraftApp, e: &MenuEntry) -> MenuNode {
     // Shift+P picks and advances in Library; don't advertise it on Presets in those views.
     let shortcut = if e.id == "panel.presets" && crate::shortcuts::library_grid(app) { None } else { e.shortcut.as_deref() };
+    // in an album the Delete key removes from the album (issue #1805): the menu says so
+    let delete_key = crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "photo.delete");
+    let shortcut = match e.id.as_str() {
+        "album.removePhotos" => delete_key,
+        "photo.delete" if matches!(app.session.source, lightcraft_engine::LibrarySource::Album(_)) => None,
+        _ => shortcut,
+    };
     item(&e.id, Value::Null, live_label(app, &e.id, &e.label), shortcut, e.enabled, checked(app, &e.id))
 }
 

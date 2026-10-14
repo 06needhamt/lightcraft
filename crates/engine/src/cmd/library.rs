@@ -1334,17 +1334,38 @@ pub fn specs() -> Vec<CommandSpec> {
                 Ok(result)
             }
         ),
-        cmd!("album.removePhotos", "Remove from Album", [], None, "{id: albumId, ids?}", has_selection, |s, p| {
-            let id = album_param(p, "id", "album.removePhotos")?;
-            let targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
-            let al = s.catalog.album(id).ok_or_else(|| bad("album.removePhotos", "no such album"))?;
-            if al.is_smart() {
-                return Err(bad("album.removePhotos", "smart albums update automatically: change their rules"));
+        cmd!(
+            "album.removePhotos",
+            "Remove from Album",
+            ["Photo"],
+            None,
+            "{id?: albumId (default: the album on screen), ids?} — takes the photos out of the album only: they stay in the library and in their folders (issue #1805; photo.delete removes them from the library) → {removed, album: name}",
+            has_selection,
+            |s, p| {
+                let id = match p.get("id") {
+                    Some(_) => album_param(p, "id", "album.removePhotos")?,
+                    None => match s.source {
+                        LibrarySource::Album(a) => a,
+                        _ => return Err(bad("album.removePhotos", "no album: pass `id` or show an album")),
+                    },
+                };
+                let targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
+                let al = s.catalog.album(id).ok_or_else(|| bad("album.removePhotos", "no such album"))?;
+                if al.is_smart() {
+                    return Err(bad("album.removePhotos", "smart albums update automatically: change their rules"));
+                }
+                if al.folder {
+                    return Err(bad("album.removePhotos", "album folders don't hold photos"));
+                }
+                let name = al.name.clone();
+                let photos: Vec<PhotoId> = al.photos.iter().copied().filter(|x| !targets.contains(x)).collect();
+                let removed = al.photos.len().saturating_sub(photos.len());
+                if removed > 0 {
+                    s.commit("Remove from Album", Op::SetAlbumPhotos { id, photos })?;
+                }
+                Ok(json!({"removed": removed, "album": name}))
             }
-            let photos: Vec<PhotoId> = al.photos.iter().copied().filter(|x| !targets.contains(x)).collect();
-            s.commit("Remove from Album", Op::SetAlbumPhotos { id, photos })?;
-            ok()
-        }),
+        ),
         cmd!("album.setCover", "Set as Album Cover", [], None, "{id: albumId, photo?: photoId}", has_active, |s, p| {
             let id = album_param(p, "id", "album.setCover")?;
             let photo = p.get("photo").and_then(Value::as_u64).map(PhotoId).or(s.active());

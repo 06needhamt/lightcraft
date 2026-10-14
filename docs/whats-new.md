@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-15
+
+### Delete in an album removes from the album only
+- In an album, the Delete key now takes the selected photos out of the album, as in Lightroom. It used to move them
+  to Recently Deleted, so they also left their folder's view (issue #1805). They stay in the library and in their
+  folder; Edit ▸ Undo puts them back in the album. Photo ▸ Remove from Album does the same and now shows the key.
+  To delete photos from the library from an album, use Photo ▸ Delete Photo or right-click ▸ Delete Photo. In a smart
+  album, Delete changes nothing: its rules decide what it shows.
+
 ## 2026-10-14
 
 ### Hard-edged Heal and Clone spots

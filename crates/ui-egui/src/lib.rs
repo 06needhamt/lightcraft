@@ -45,6 +45,8 @@ mod tests_activity;
 #[cfg(test)]
 mod tests_album_picker;
 #[cfg(test)]
+mod tests_album_remove;
+#[cfg(test)]
 mod tests_appearance;
 #[cfg(test)]
 mod tests_before_after;
