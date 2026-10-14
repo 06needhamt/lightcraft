@@ -44,7 +44,13 @@ fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, content: Rect, margin_l
 
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
-    let left = if app.integrated_titlebar { 78 } else { 10 };
+    // room for the traffic lights; in full screen they are gone, and the sidebar button sits as far
+    // from the left edge as the Discord button from the right (12 margin + 4)
+    let left = match (app.integrated_titlebar, app.window_is_fullscreen) {
+        (true, false) => 78,
+        (true, true) => 16,
+        (false, _) => 10,
+    };
     egui::Panel::top("top_bar")
         .exact_size(t.top_bar_h)
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin { left, right: 12, top: 0, bottom: 0 }))
