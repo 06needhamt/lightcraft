@@ -29,6 +29,7 @@ pub mod demo;
 pub mod denoise;
 pub mod devices;
 pub mod display;
+mod errors;
 pub mod export;
 pub mod face_download;
 pub mod face_tiles;
@@ -69,6 +70,7 @@ pub mod walk;
 use std::sync::Arc;
 
 pub use cmd::{CommandInfo, CommandSpec, command_specs, find_command};
+pub use errors::{AiModel, ErrorKind};
 pub use fonts::{CRAFT_FONTS, CraftFont};
 use lightcraft_catalog::{Catalog, Filter, Op, PhotoId, Sort};
 use lightcraft_develop::DevelopSettings;
@@ -99,6 +101,13 @@ pub enum EngineError {
     /// to import with `library.importLightroom`, when one was found.
     #[error("{} is a Lightroom Classic catalog, not a LightCraft library; import it into a LightCraft library with File ▸ Import Lightroom Catalog…{}", path.display(), catalog.as_ref().map_or(String::new(), |c| format!(" ({})", c.display())))]
     LightroomCatalog { path: std::path::PathBuf, catalog: Option<std::path::PathBuf> },
+    /// The work was cancelled (by the person, an agent or a newer request): not a failure.
+    #[error("{0}")]
+    Cancelled(String),
+    /// The feature needs `model`, which is not installed (or still downloading): a frontend
+    /// offers its download (terms first) on [`ErrorKind::ModelMissing`], not on the message.
+    #[error("{msg}")]
+    ModelMissing { model: AiModel, msg: String },
     #[error("{0}")]
     Other(String),
 }
