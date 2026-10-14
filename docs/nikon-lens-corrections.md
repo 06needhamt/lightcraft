@@ -1,10 +1,10 @@
 # Nikon embedded distortion corrections
 
 Nikon writes its own distortion correction into NEFs from its mirrorless bodies, in the raw SubIFD tag `0xc7d5`
-(NikonNEFInfo). LightCraft reads it for the NIKON Z 6_2 (Z 6II) and the NIKON Z f and turns it into an
+(NikonNEFInfo). LightCraft reads it for the NIKON Z 6_2 (Z 6II), the NIKON Z 8 and the NIKON Z f and turns it into an
 `OpcodeList3` `WarpRectilinear`, so it goes through the same profile correction control, optics path, orientation
 handling and DNG export as the other embedded corrections. Other bodies are left alone for now even if they have the
-same tag, because I've only checked files from these two.
+same tag, because I've only checked files from these three.
 
 This is distortion only. The vignetting block (`0x0006`) and what looks like lateral CA (`0x0007`) aren't applied
 yet. Like the Sony, Fujifilm and Panasonic corrections it's on by default and can be turned off under Lens
@@ -50,8 +50,8 @@ the coefficients rescaled to the farthest corner of the active area.
 
 ## How well it matches
 
-I checked it on 83 of my own Z 6II photos with three lenses between 20 and 200 mm, plus the CC0 Z f sample in the
-corpus. The numbers are the radial error against the camera JPEG at full size (6048 px wide), out to 0.95 half
+I checked it on 83 of my own Z 6II photos with three lenses between 20 and 200 mm, 45 Z 8 photos (below), plus the
+CC0 Z f sample in the corpus. The numbers are the radial error against the camera JPEG at full size (6048 px wide), out to 0.95 half
 diagonals:
 
 | Lens | Focal length | Frames | Uncorrected median / p95 | Corrected median / p95 |
@@ -66,9 +66,15 @@ diagonals:
 | NIKKOR Z 20mm f/1.8 S | 20 mm | 5 | 8.2 / 53.9 px | 1.49 / 5.46 px |
 | Tamron 35-150mm (Z f, CC0 corpus) | 150 mm | 1 | 70.4 px median | 0.22 px median |
 
+On the Z 8 (8256 px wide JPEGs) it looks the same. The 70-200 f/2.8G on the FTZ matches within 0.14 to 0.21 px median
+at 70, 135 and 200 mm. The NIKKOR Z 24-120mm f/4 S is within 0.6 to 1.0 px median from 36 to 120 mm and 1.5 px at 24
+to 28 mm, with the same kind of error toward the edges at the wide end as the Z lenses on the Z 6II. A few 14-24mm
+f/2.8G frames had Auto distortion control off, so their JPEGs aren't corrected and match about the same either way.
+
 I also rendered a few with `lightcraft-cli render` at default settings and measured those against the camera JPEG.
 The median error was 0.10 px for the 70-200 at 200 mm and 0.12 px for the Z f sample. The 24-70 was 0.32 px at 70 mm,
-on a frame with a 92 px sensor shift, and 8.4 px at 24 mm. The 20 mm came out at 1.3 px. That checks the
+on a frame with a 92 px sensor shift, and 8.4 px at 24 mm. The 20 mm came out at 1.3 px. On the Z 8 it was 0.14 px for the 70-200 at 200 mm, 0.45 and 0.68 px for the 24-120
+at 68 and 120 mm, 1.8 px for the Z 20 mm and 3.7 px for the 24-120 at 24 mm. That checks the
 center, crop and DNG conversion along with the model itself.
 
 The F-mount lens on the FTZ matches about as well as I can measure. The native Z lenses still have a smooth error
@@ -80,7 +86,7 @@ half diagonals goes from −82 px to +25 px, and at 70 mm from about −137 px t
 
 ## What's left out
 
-Only `NIKON Z 6_2` and `NIKON Z f` are corrected, matched exactly. A matching tag on another body doesn't tell us its
+Only `NIKON Z 6_2`, `NIKON Z 8` and `NIKON Z f` are corrected, matched exactly. A matching tag on another body doesn't tell us its
 pixel pitch or image area, so other bodies can be added once someone checks their files. Only the full-frame 3:2
 image area is corrected, because the stored 21.6 mm radius is the FX half diagonal, so DX and other crops are skipped.
 The decoder also skips data it doesn't recognise (another layout, radius or term count, or no correction mode),

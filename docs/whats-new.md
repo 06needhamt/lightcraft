@@ -43,7 +43,7 @@
   and new photos never reuse an id in use. What was repaired is written to the log.
 
 ### Nikon lens corrections
-- Raws from the Nikon Z 6II and Z f now open with the camera's own distortion correction, as Lightroom applies a
+- Raws from the Nikon Z 6II, Z 8 and Z f now open with the camera's own distortion correction, as Lightroom applies a
   built-in profile: straight lines near the edges stay straight and the framing matches the camera's JPEG. It works
   with Z lenses and with F-mount lenses on the FTZ adapter, follows the in-body stabilisation's shift of the optical
   centre, and can be turned off under Lens Corrections. Vignetting correction from the file comes later.

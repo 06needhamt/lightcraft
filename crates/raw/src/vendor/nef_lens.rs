@@ -15,7 +15,7 @@ const DISTORTION_INFO: u16 = 0x0005;
 const CENTRE_OFFSET: u16 = 0x0008;
 /// Bodies whose files were checked against the camera's JPEG (docs/nikon-lens-corrections.md). Matching tags on
 /// another body do not establish its pixel pitch or image area; add a body only after checking its files.
-const VALIDATED: &[&str] = &["NIKON Z 6_2", "NIKON Z f"];
+const VALIDATED: &[&str] = &["NIKON Z 6_2", "NIKON Z 8", "NIKON Z f"];
 /// The normalisation radius every checked file stores: the FX half-diagonal in millimetres.
 const FX_HALF_DIAGONAL_MM: f64 = 21.6;
 const SAMPLES: usize = 256;
@@ -224,7 +224,8 @@ pub(in crate::vendor) mod tests {
         let good = distortion_block(3, 21.6, 4, WIDE.0, WIDE.1);
         assert!(warp("NIKON Z 6_2", &raw_with(&[(DISTORTION_INFO, good.clone())])).is_some());
         assert!(warp("NIKON Z f", &raw_with(&[(DISTORTION_INFO, good.clone())])).is_some());
-        for model in ["", "NIKON Z 6", "NIKON Z 6_3", "NIKON Z 8", "NIKON D850", "NIKON Z 6_2 x"] {
+        assert!(warp("NIKON Z 8", &raw_with(&[(DISTORTION_INFO, good.clone())])).is_some());
+        for model in ["", "NIKON Z 6", "NIKON Z 6_3", "NIKON Z 9", "NIKON D850", "NIKON Z 6_2 x"] {
             assert!(warp(model, &raw_with(&[(DISTORTION_INFO, good.clone())])).is_none(), "{model}");
         }
         // correction off, a DX radius, another term count, a wild coefficient or zoom, no NEFInfo at all
