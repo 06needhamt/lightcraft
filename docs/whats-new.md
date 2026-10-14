@@ -105,6 +105,11 @@
 - A Lightroom Classic catalog whose changes are all still in its `.lrcat-wal` file (a new catalog Lightroom has
   open and hasn't written back yet) imports instead of failing with "unsupported SQLite schema format".
 
+### Reliability
+- An export enlarged far past the photo's size (20000 typed for 2000 with Don't Enlarge off) no longer ends
+  LightCraft: an enlargement stops at 512 megapixels, as in Lightroom, and one that needs more memory than the
+  computer has is refused with the size it would take, before it starts.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's
