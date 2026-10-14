@@ -1072,3 +1072,21 @@ fn two_samples_per_pixel_are_refused_not_a_panic() {
     let n = lightcraft_raw::Normalized { width: 2, height: 1, cpp: 2, data: vec![0.1, 0.2, 0.3, 0.4], cfa: None };
     assert_eq!(lightcraft_raw::demosaic(&n, Method::Ahd).data, vec![[0.1, 0.2, 0.2], [0.3, 0.4, 0.4]]);
 }
+
+/// DNGs LightCraft wrote before the writer anchored the pattern at the ActiveArea carry a bare "LightCraft" Software
+/// tag and a sensor-origin pattern; they keep that reading, while the current writer marks its files differently.
+#[test]
+fn legacy_lightcraft_dng_keeps_the_sensor_anchored_pattern() {
+    let (w, h) = (20, 12);
+    let build = |software: &str| {
+        let mut raw = base_ifd(w, h, 16, 1, true);
+        raw.set_image(ImageData::Strips { rows_per_strip: h as u32, strips: vec![u16_bytes(&pattern(w, h, 1, 16), ByteOrder::Little)] });
+        raw.set(t::WHITE_LEVEL, Value::Short(vec![65535]));
+        raw.set(t::ACTIVE_AREA, Value::Long(vec![1, 0, h as u32 - 1, w as u32 - 1]));
+        raw.set(t::SOFTWARE, Value::Ascii(software.into()));
+        decode(&dng(raw, ByteOrder::Little)).unwrap()
+    };
+    assert_eq!(build("LightCraft").cfa.unwrap().name(), "GRBG");
+    assert_eq!(build("Adobe Photoshop Lightroom").cfa.unwrap().name(), "BGGR");
+    assert_ne!(lightcraft_raw::dngwrite::SOFTWARE, "LightCraft");
+}
