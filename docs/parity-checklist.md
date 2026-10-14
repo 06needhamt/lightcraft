@@ -52,10 +52,10 @@ cited here still exists. Formerly docs/parity.md.
 | X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
-| Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 409 | 53 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
+| Lightroom Classic extras | 34 | 17 | 35 | 8 | — | 24/26 (92%) |
+| **Total** | 409 | 54 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 173.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 535 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 174.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -724,6 +724,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-DEV-DEFAULTS | Per-camera raw defaults | P1 | ✅ | `cmd:library.preferences` (`camera`, `import.perCamera`), `crates/ui-egui/src/panels/settings.rs` | Settings → Import: raw default and per-camera presets |
 | LRC-DEV-PROCESS | Process versions, Update to Current Process | P1 | ✅ | `cmd:develop.updateProcess`, `cmd:develop.reset`, `cmd:develop.get`, `crates/develop/src/settings.rs`, `crates/pipeline/src/finish.rs`, `docs/process-versions.md` | each photo records the rendering process its settings are interpreted by: settings saved before this existed load as V1, new photos and Reset get the latest, virtual copies inherit, copy / paste / sync / presets keep each photo's own; Photo ▸ Update to Current Process (one undo step, enabled while a selected photo is on an older process); a number from a newer LightCraft is kept and renders with the newest known process. Only V1 exists so far: this is what lets a retuned default tone (#146) or stronger Light sliders (#196) ship without changing existing edits |
 | LRC-DEV-VIEWOPTIONS | Develop view options | P2 | ⬜ | | |
+| LRC-DEV-LOUPEOVERLAY | Loupe overlay: layout image | P2 | 🟡 | `cmd:view.chooseLayoutImage`, `cmd:view.layoutImage`, `cmd:view.layoutImageOpacity`, `cmd:view.layoutImageMatte`, `crates/ui-egui/src/panels/layout_overlay.rs` | View ▸ Loupe Overlay: a PNG with transparency (a cover layout, a banner's safe areas) fitted and centred over the loupe photo, following zoom and pan; opacity and matte (the photo darkened outside the graphic's box) in steps; ⌥⌘O shows / hides it; read off the UI thread; saved with the UI state. Not yet: the Grid and Guides overlays, moving and resizing the layout with ⌘ held, free opacity / matte sliders |
 | LRC-DEV-VIDEO | Video frame capture | P2 | ⬜ | | |
 | LRC-MAP-VIEW | Map view | P2 | ⬜ | | |
 | LRC-MAP-GEOTAG | Drag photos onto the map | P2 | ⬜ | | |

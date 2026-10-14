@@ -2,6 +2,12 @@
 
 ## 2026-10-14
 
+### Layout image over the loupe
+- View ▸ Loupe Overlay ▸ Choose Layout Image… draws a PNG with transparency over the photo in the loupe, such as
+  a magazine cover's masthead and cover lines, so you can frame a shot for the page it is made for. It fits inside
+  the photo, follows zoom and pan, and ⌥⌘O shows or hides it. The same menu sets its opacity and a matte that
+  darkens the photo outside it. The layout stays chosen across launches.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

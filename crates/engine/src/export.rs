@@ -560,10 +560,17 @@ fn watermark_logo(path: &str) -> Option<std::sync::Arc<Rgba8>> {
     {
         return Some(img.clone());
     }
-    let bytes = std::fs::read(path).ok()?;
-    let img = Arc::new(lightcraft_codecs::decode(&bytes, Default::default()).ok()?.to_srgb8());
+    let img = Arc::new(read_graphic(path).ok()?);
     map.insert(path.to_string(), (modified, img.clone()));
     Some(img)
+}
+
+/// A graphic file (a PNG with transparency, typically) as 8-bit sRGB with its alpha: the
+/// watermark logo, the loupe's layout image. The error says why it couldn't be read or decoded.
+pub fn read_graphic(path: &str) -> Result<Rgba8, String> {
+    let bytes = std::fs::read(path).map_err(|e| format!("can't read {path}: {e}"))?;
+    let decoded = lightcraft_codecs::decode(&bytes, Default::default()).map_err(|e| format!("can't decode {path}: {e}"))?;
+    Ok(decoded.to_srgb8())
 }
 
 /// The graphic watermark: scaled (premultiplied, so transparent edges stay clean) to

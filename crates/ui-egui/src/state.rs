@@ -135,6 +135,39 @@ impl InfoOverlay {
     }
 }
 
+/// View ▸ Loupe Overlay ▸ Layout Image (Lightroom Classic's loupe overlay): a graphic with
+/// transparency, such as a magazine cover's masthead and cover lines, drawn over the photo in the
+/// loupe (`panels::layout_overlay`). Saved with the UI state, so the layout stays chosen across
+/// launches.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct LayoutImage {
+    /// The graphic's file; empty until one is chosen.
+    pub path: String,
+    /// Drawn over the loupe (⌥⌘O).
+    pub show: bool,
+    /// The graphic's opacity, 0..=1.
+    pub opacity: f32,
+    /// How dark the photo is outside the graphic's box, 0..=1 (0: not darkened).
+    pub matte: f32,
+    /// Bumped by each Choose Layout Image…, so choosing the same file again reads it again (after
+    /// it was edited elsewhere).
+    #[serde(skip)]
+    pub revision: u32,
+}
+
+impl Default for LayoutImage {
+    fn default() -> Self {
+        LayoutImage { path: String::new(), show: false, opacity: 1.0, matte: 0.0, revision: 0 }
+    }
+}
+
+impl LayoutImage {
+    /// The opacity and matte steps View ▸ Loupe Overlay offers.
+    pub const OPACITY_STEPS: [f32; 4] = [0.25, 0.5, 0.75, 1.0];
+    pub const MATTE_STEPS: [f32; 4] = [0.0, 0.25, 0.5, 0.75];
+}
+
 /// Lights Out (View ▸ Lights Out, Shift+L cycles On → Dim → Off → On; Esc turns the lights back
 /// on): everything but the photo is veiled in black, the panels stay where they are.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -725,6 +758,8 @@ pub struct UiState {
     pub slideshow: Option<(f64, f64, bool)>,
     /// Info overlay on the loupe.
     pub info_overlay: InfoOverlay,
+    /// The loupe's layout image overlay (View ▸ Loupe Overlay).
+    pub layout_image: LayoutImage,
     /// Navigator mini map in the loupe while zoomed in.
     pub navigator: bool,
     /// App preferences (Settings dialog).
@@ -1145,6 +1180,7 @@ impl Default for UiState {
             keyword_list_selected: None,
             dragging_keyword: None,
             info_overlay: InfoOverlay::Off,
+            layout_image: LayoutImage::default(),
             navigator: true,
             settings: AppSettings::default(),
             window_fullscreen: None,
