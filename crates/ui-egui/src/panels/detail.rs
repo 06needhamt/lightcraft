@@ -750,14 +750,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 // side by side / stacked: Before shows the same frame, so a click in its view (white
                 // balance, colour samples, targeted adjustment) means the same point of the photo.
                 // Zoomed in, a view's image reaches past its pane: what counts is the pane clicked.
+                // A click-zoom there centres both views on the point clicked (#1742).
                 let pointer = resp.interact_pointer_pos().or(resp.hover_pos());
-                let map = match (split, areas.first(), pointer) {
+                let (map, img, pane) = match (split, areas.first(), pointer) {
                     (true, Some(before), Some(q)) if before.contains(q) => {
-                        CanvasMap::new(&frame, fit_rect(*before, aspect, app.ui.zoom, native, ppp, app.ui.pan))
+                        let br = fit_rect(*before, aspect, app.ui.zoom, native, ppp, app.ui.pan);
+                        (CanvasMap::new(&frame, br), br, *before)
                     }
-                    _ => map,
+                    _ => (map, img_rect, main_area),
                 };
-                general_interaction(app, ui, &resp, &map, img_rect, main_area, native, aspect)
+                general_interaction(app, ui, &resp, &map, img, pane, native, aspect)
             }
         }
     }
