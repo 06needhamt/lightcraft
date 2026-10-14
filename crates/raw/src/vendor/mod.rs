@@ -10,6 +10,7 @@ pub mod cr2;
 pub mod cr3;
 pub mod crx;
 pub(crate) mod crx_wavelet;
+pub(crate) mod hasselblad;
 pub mod kodak;
 pub mod nef;
 mod nef_lens;
