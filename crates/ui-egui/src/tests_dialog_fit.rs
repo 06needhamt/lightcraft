@@ -134,3 +134,26 @@ fn a_dialog_list_shrinks_to_fit_a_short_window() {
     let dialog = rect(&h, "dialog:window");
     assert!(dialog.height() <= 320.0, "{dialog:?}");
 }
+
+/// Settings ▸ Performance: the GPU status line above the controls stays one line whatever it says
+/// (without a driver it is a long wgpu message, e.g. on the FreeBSD CI), so the controls below it
+/// don't move when the process-wide GPU state changes between two frames (a click aimed at
+/// "Memory for caches" then landed on the gap above it).
+#[test]
+fn gpu_status_never_moves_the_performance_controls() {
+    let mut h = demo([1300.0, 820.0]);
+    let r = h.request("ui.key", json!({"key": ",", "cmd": true}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let r = h.request("ui.clickWidget", json!({"id": "button:settingsTab-performance"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let mut seen = vec![];
+    for gpu in [true, false, true] {
+        // the setting is applied process-wide at the next frame (`app.gpu`), as other tests do
+        h.app.ui.settings.gpu = gpu;
+        h.step();
+        h.step();
+        seen.push((gpu, rect(&h, "button:settingsMemory-2"), lightcraft_engine::gpu::unavailable_reason()));
+    }
+    let first = seen[0].1;
+    assert!(seen.iter().all(|(_, r, _)| *r == first), "the memory buttons moved: {seen:?}");
+}

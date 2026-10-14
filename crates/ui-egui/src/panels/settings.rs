@@ -210,15 +210,8 @@ fn preset_combo(app: &LightcraftApp, ui: &mut egui::Ui, id: &str, current: Optio
         if ui.selectable_label(current.is_none(), crate::i18n::tr(none_label)).clicked() {
             out = Some(None);
         }
-        let mut group = "";
-        for p in &app.session.presets {
-            if p.group != group {
-                group = &p.group;
-                ui.label(RichText::new(crate::i18n::builtin_label(group, p.builtin)).size(10.5).weak());
-            }
-            if ui.selectable_label(current == Some(p.id.as_str()), crate::i18n::builtin_label(&p.name, p.builtin)).clicked() {
-                out = Some(Some(p.id.clone()));
-            }
+        if let Some(pid) = crate::panels::presets::picker_rows(ui, id, &app.session.presets, current) {
+            out = Some(Some(pid));
         }
     });
     register(ui.ctx(), format!("combo:{id}"), r.response.rect);
@@ -290,10 +283,8 @@ fn import_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                         if ui.selectable_label(current.is_none(), crate::i18n::tr("LightCraft Default")).clicked() {
                             pick = Some(json!({"camera": cam, "preset": null}));
                         }
-                        for p in &app.session.presets {
-                            if ui.selectable_label(current == Some(p.id.as_str()), crate::i18n::builtin_label(&p.name, p.builtin)).clicked() {
-                                pick = Some(json!({"camera": cam, "preset": p.id}));
-                            }
+                        if let Some(pid) = crate::panels::presets::picker_rows(ui, &id, &app.session.presets, current) {
+                            pick = Some(json!({"camera": cam, "preset": pid}));
                         }
                     });
                     register(ui.ctx(), format!("combo:{id}"), r.response.rect);
@@ -421,7 +412,10 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     } else {
         format!("GPU: {}", gpu::adapter_name().unwrap_or_else(|| "starting…".into()))
     };
-    hint(ui, t, &status);
+    // One line, the whole text on hover: the reason can be a long driver message (no adapter
+    // among the backends …), and the GPU state is process-wide, so it may change between frames;
+    // a hint that wrapped would move every control below it under the pointer.
+    ui.add(egui::Label::new(RichText::new(crate::i18n::tr(&status)).size(11.0).color(t.text_dim)).truncate()).on_hover_text(&status);
     row(ui, t, crate::i18n::tr("Preview size"), |ui| {
         let opts: Vec<(u32, String)> =
             PREVIEW_LIMITS.iter().map(|e| (*e, if *e == 0 { crate::i18n::tr("Automatic").to_string() } else { format!("{e} px") })).collect();
@@ -894,6 +888,18 @@ fn theme_preview(ui: &mut egui::Ui, kind: crate::theme::ThemeKind, width: f32) {
 
 // ------------------------------------------------------------------------------- Open Library…
 
+/// Switching libraries is refused while an import (or the folder scan before one) is running: its
+/// remaining batches would be committed into the new library (issue #1509).
+pub(crate) fn can_switch_library(app: &LightcraftApp) -> Result<(), String> {
+    if crate::lightroom_import::is_running(app) {
+        return Err("wait for Lightroom catalog import to finish before switching libraries".into());
+    }
+    if app.import.is_some() || app.scan.is_some() {
+        return Err("wait for the import to finish before switching libraries".into());
+    }
+    Ok(())
+}
+
 /// `app.openLibrary {path?}`: close the current library and open (or create) the one at `path`,
 /// or a folder chosen in a dialog. Remembered as the library to open at launch.
 ///
@@ -902,9 +908,7 @@ fn theme_preview(ui: &mut egui::Ui, kind: crate::theme::ThemeKind, width: f32) {
 /// and a dialog offers Import Lightroom Catalog… instead; returns `{opened: false,
 /// lightroomCatalog: <.lrcat path or null>, path}`.
 pub fn open_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
-    if crate::lightroom_import::is_running(app) {
-        return Err("wait for Lightroom catalog import to finish before switching libraries".into());
-    }
+    can_switch_library(app)?;
     let path = match p.get("path").and_then(Value::as_str) {
         Some(x) => x.to_string(),
         None => {
@@ -991,9 +995,7 @@ pub fn open_library_name(app: &LightcraftApp) -> Option<String> {
 /// `path` itself, or a new folder named after the default library. The folder must not hold a
 /// library already, nor anything else.
 pub fn new_library(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
-    if crate::lightroom_import::is_running(app) {
-        return Err("wait for Lightroom catalog import to finish before switching libraries".into());
-    }
+    can_switch_library(app)?;
     let name = match p.get("name") {
         None | Some(Value::Null) => None,
         Some(Value::String(s)) => Some(valid_library_name(s)?),
@@ -1129,4 +1131,57 @@ pub fn display_profile(app: &mut LightcraftApp, p: &Value) -> Result<Value, Stri
         Some(d) => d.describe(),
         None => json!({"path": null, "description": "sRGB (no display profile)"}),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn app_with_import() -> LightcraftApp {
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::new(), crate::Services::default());
+        app.import = Some(crate::import::ImportTask::new(vec!["a.jpg".into()], json!({"mode": "add"}), 0, false));
+        app
+    }
+
+    #[test]
+    fn open_library_is_refused_while_an_import_runs() {
+        let mut app = app_with_import();
+        let err = open_library(&mut app, &json!({"path": "other"})).unwrap_err();
+        assert!(err.contains("import to finish"), "{err}");
+        assert!(app.import.is_some());
+    }
+
+    #[test]
+    fn new_library_is_refused_while_an_import_runs() {
+        let mut app = app_with_import();
+        let err = new_library(&mut app, &json!({"path": "other"})).unwrap_err();
+        assert!(err.contains("import to finish"), "{err}");
+        assert!(app.import.is_some());
+    }
+
+    /// The menu items that switch libraries are greyed out meanwhile, like during a Lightroom import.
+    #[test]
+    fn library_switching_menu_items_are_disabled_while_an_import_runs() {
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::new(), crate::Services::default());
+        app.services.pick_folder = Some(Box::new(|| None));
+        assert!(crate::menus::ui_enabled(&app, "app.openLibrary"));
+        assert!(crate::menus::ui_enabled(&app, "app.newLibrary"));
+        app.import = Some(crate::import::ImportTask::new(vec!["a.jpg".into()], json!({"mode": "add"}), 0, false));
+        assert!(!crate::menus::ui_enabled(&app, "app.openLibrary"));
+        assert!(!crate::menus::ui_enabled(&app, "app.newLibrary"));
+    }
+
+    /// The folder scan before an import's review counts too: it ends in an import into the open library.
+    #[test]
+    fn open_library_is_refused_while_an_import_scan_runs() {
+        let dir = std::env::temp_dir().join(format!("lc-ui-switchscan-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::new(), crate::Services::default());
+        crate::import::open(&mut app, vec![dir.to_string_lossy().into_owned()]).unwrap();
+        assert!(app.scan.is_some());
+        let err = open_library(&mut app, &json!({"path": "other"})).unwrap_err();
+        assert!(err.contains("import to finish"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

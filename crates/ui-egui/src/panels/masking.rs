@@ -197,6 +197,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 if icon_button(ui, "maskOverlay", Icon::Eye, vec2(24.0, 24.0), on, true, "Show overlay (O)").clicked() {
                     app.ui.mask_overlay = !on;
                 }
+                let all = app.ui.mask_overlay_all;
+                let all_mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+                let all_base = crate::i18n::tr("Show all overlays");
+                let all_tip = match crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.maskOverlayAll") {
+                    Some(sc) => format!("{all_base} ({})", crate::menubar::shortcut_text(sc, all_mac)),
+                    None => all_base.to_string(),
+                };
+                if icon_button(ui, "maskOverlayAll", Icon::Stack, vec2(24.0, 24.0), all, true, &all_tip).clicked() {
+                    app.ui.mask_overlay_all = !all;
+                }
             });
         });
         if d.masks.is_empty() {
@@ -690,8 +700,11 @@ pub(crate) fn start_object(app: &mut LightcraftApp, ctx: &egui::Context, op: &st
     if needs_model(app, "object", op) {
         return;
     }
-    let r =
-        if op == "new" { app.run("mask.add", json!({"kind": "object"})) } else { app.run("mask.addComponent", json!({"op": op, "kind": "object"})) };
+    let r = if op == "new" {
+        app.run_typed("mask.add", json!({"kind": "object"}))
+    } else {
+        app.run_typed("mask.addComponent", json!({"op": op, "kind": "object"}))
+    };
     match r {
         Ok(_) => {
             app.ui.tool = "object".into();
@@ -769,9 +782,9 @@ fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
     app.ui.describe = Some((op.clone(), text.clone()));
     if submit && !text.trim().is_empty() {
         let r = if op == "new" {
-            app.run("mask.add", json!({"kind": "prompt", "text": text}))
+            app.run_typed("mask.add", json!({"kind": "prompt", "text": text}))
         } else {
-            app.run("mask.addComponent", json!({"op": op, "kind": "prompt", "text": text}))
+            app.run_typed("mask.addComponent", json!({"op": op, "kind": "prompt", "text": text}))
         };
         match r {
             // the mask appears when the model has found it (a detail pass follows)
