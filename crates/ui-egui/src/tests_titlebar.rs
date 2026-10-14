@@ -104,6 +104,20 @@ fn double_click_in_the_search_field_does_not_zoom() {
     assert!(h.window_commands.is_empty(), "{:?}", h.window_commands);
 }
 
+// Scenario: dragging within the search field selects text rather than moving the window (#1646)
+#[test]
+fn dragging_within_search_does_not_move_the_window() {
+    let mut h = integrated();
+    let r = widget(&h, "field:search");
+    let x = r.left() + r.width() * 0.35;
+    h.request("ui.click", json!({"x": x, "y": r.center().y}), T);
+    h.request("ui.text", json!({"text": "landscape"}), T);
+    play(&mut h);
+    h.request("ui.drag", json!({"x": x, "y": r.center().y, "toX": x + 60.0, "toY": r.center().y}), T);
+    play(&mut h);
+    assert!(h.window_commands.is_empty(), "{:?}", h.window_commands);
+}
+
 // Scenario: a window with its native title bar (Windows, Linux) leaves the bar alone
 #[test]
 fn without_the_integrated_title_bar_the_bar_is_not_a_window_handle() {
