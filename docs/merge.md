@@ -25,8 +25,11 @@ reference. Auto Align: features on exposure-normalised luminance, RANSAC transla
 homography (the simplest model that explains ≥ 97 % of the matches). Exposure ratios are measured
 (median log ratio of well-exposed pixels between brightness neighbours), EXIF is the fallback.
 Radiance is a weighted mean in linear light, weight `k · (1 − smoothstep(0.8·clip, 0.96·clip, max
-channel))`. Deghost: a per-pixel consistency test against the reference radiance (with a noise
-floor), dilated and feathered masks; the union is the deghost overlay. Output: 16-bit float DNG.
+channel))`. Where the reference is at or near its clip the scene is at least that bright, so a frame that reads far
+darker there (an object moved: a star, the moon, a passing light) is left out and the clipped highlight stays (always
+on: a moving star otherwise left a black hole). Deghost: a per-pixel consistency test on ≤ 2048 px versions against the
+reference radiance (with a noise floor; the reference predicts down to 0.1 % of its clip, so a brighter frame's ghost in
+a night sky is caught), dilated and feathered masks; the union is the deghost overlay. Output: 16-bit float DNG.
 Lens corrections: frames are merged uncorrected, and the DNG's `OpcodeList3` carries the reference frame's
 (`WarpRectilinear`, `WarpRectilinear2`, `FixVignetteRadial`: a DNG's own, or a camera's correction a raw reader
 converts, e.g. Sony, Panasonic), re-expressed for its default crop (`Opcode::cropped`). So Optics ▸ Enable Lens
@@ -52,7 +55,10 @@ scale in `BaselineExposure`; raw sources keep their DNG colour tags (camera RGB)
 
 - HDR, 3 brackets ±2 EV with 14-bit noise and handheld shifts: alignment error < 0.3 px, exposure
   error < 0.02 EV, radiance median log error < 0.03 (noise-limited, bias < 0.01), recovered
-  highlights < 0.05; moving object: ghost error 0.2–2.0 without deghosting, < 0.06 with High.
+  highlights < 0.05; moving object: ghost error 0.2–2.0 without deghosting, < 0.06 with High; a star that moves
+  across a night sky keeps its clipped core and, with High, leaves no ghost of the brightest frame.
+- Real brackets (Sony A7R VI, 67 MP, 2026-10-14): frames agree with the merged radiance within ~1 % from 3 to 90 % of
+  their clip in all three channels; measured exposure steps match EXIF within 0.03 EV.
 - Panorama, 5 views over 182° with a 1.3× exposure drift: relative rotations < 0.1°, focal < 1 %,
   BA RMS ≈ 0.35 px; median log error vs ground truth < 0.02; no seam steps.
 
