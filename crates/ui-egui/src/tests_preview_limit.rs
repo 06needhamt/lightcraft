@@ -862,9 +862,37 @@ mod in_the_loupe {
         }
     }
 
+    // …and with no monitor profile chosen but a screen that reports one (macOS: previews follow
+    // the screen's profile, #787), the sharp window is painted too (#1365): every Mac renders for
+    // a display
+    #[test]
+    fn with_the_screen_profile_the_window_is_drawn() {
+        let (mut h, native) = detail();
+        h.app.services.screen_profile = Some(Box::new(|| Some(lightcraft_codecs::icc::write_named(lightcraft_codecs::NamedSpace::DisplayP3))));
+        h.step();
+        assert!(h.app.ui.settings.display_profile.is_empty(), "no profile chosen");
+        assert!(h.app.renderer.display_id().is_some(), "the screen's profile is in use");
+        h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+        h.settle(SETTLE);
+        assert!(rendered_long_edge(&h) < native, "the whole frame is smaller than the photo");
+        let (whole, window) = (drawn(&h, Slot::Main), drawn(&h, Slot::Region));
+        assert!(!whole.is_empty(), "the whole-frame render is painted");
+        assert!(!window.is_empty(), "the window is painted");
+        assert!(window[0].0 > whole[0].0, "over the whole-frame render");
+    }
+
+    /// The engine caches' share of the default memory budget (1.5 GiB) on a machine with 6 GiB of
+    /// RAM or more: room for both panes' 24 MP originals (288 MB each as linear float).
+    const COMPARE_CACHE: usize = 768 << 20;
+
     /// Compare view of the demo library at `zoom`, settled.
+    ///
+    /// The session's cache budget is set here rather than taken from the process-wide memory
+    /// budget, which other tests change while they run (Settings ▸ Performance ▸ 1 GB leaves a
+    /// 512 MiB share, too small for two originals, so one pane's was evicted).
     fn compare_at(zoom: crate::state::Zoom) -> Headless {
         let (mut h, _) = detail();
+        h.app.session.media.set_budget(COMPARE_CACHE);
         let r = h.request("engine.execute", json!({"command": "view.compare"}), T);
         assert_eq!(r["ok"], true, "{r}");
         assert_eq!(h.app.ui.view, crate::state::ViewMode::Compare);
