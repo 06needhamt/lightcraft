@@ -1828,6 +1828,7 @@
   "Select All and multi-selection show every selected photo in the grid and filmstrip, not only the active one": "ყველაფრის მონიშვნა და მრავლობითი მონიშვნა ბადესა და კადრების ზოლში ყველა მონიშნულ ფოტოს აჩვენებს და არა მხოლოდ აქტიურს",
   "Select Luminance Range": "სიკაშკაშის დიაპაზონის არჩევა",
   "Select Mask": "ნიღბის არჩევა",
+  "Select Only Active Photo": "მხოლოდ აქტიური ფოტოს მონიშვნა",
   "Select Photos": "ფოტოების მონიშვნა",
   "Select Spot": "ლაქის არჩევა",
   "Select a photo to edit": "აირჩიეთ ფოტო რედაქტირებისთვის",
