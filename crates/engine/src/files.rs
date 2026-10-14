@@ -721,8 +721,10 @@ pub fn fs_preview_loader() -> PreviewLoader {
         let len = std::fs::metadata(path).map(|m| usize::try_from(m.len()).unwrap_or(usize::MAX)).unwrap_or(0);
         let gate = crate::memory::work_gate();
         let _permit = if crate::memory::is_background() { gate.acquire(len.saturating_mul(2)) } else { gate.acquire_urgent(len.saturating_mul(2)) };
-        if let Some(image) =
-            preview_window(path, max_edge).ok().flatten().and_then(|(header, window, read)| quick_image_srgb(&header, &window, read.adobe_rgb, max_edge))
+        if let Some(image) = preview_window(path, max_edge)
+            .ok()
+            .flatten()
+            .and_then(|(header, window, read)| quick_image_srgb(&header, &window, read.adobe_rgb, max_edge))
         {
             return Some(image);
         }

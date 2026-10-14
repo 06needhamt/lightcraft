@@ -1,12 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (KEYC-SELECTONLYACTIVE: Select Only Active Photo, ⌘⇧D; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (LR-BEHAV-AUTOSAVE: damaged snapshots are repaired on open; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (LR-EDIT-OPTICS-PROFILE: Nikon Z 6II / Z 8 / Z f in-file distortion correction; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-11 · **Change:** minor (rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; Model folder/error/retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (LRC-LIB-CATALOG-IMPORT: catalogs whose tables are all in the WAL open; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (LR-EXP-DIM: enlargements stop at 512 MP and must fit in memory; LR-MERGE-HDR: merges of raws without colour matrices keep their colour (#965); rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -42,7 +36,7 @@ cited here still exists. Formerly docs/parity.md.
 | H. Crop & rotate (CROP) | 9 | 0 | 0 | 1 | 6/6 (100%) | 3/3 (100%) |
 | I. Remove / healing (REM) | 8 | 1 | 2 | 2 | 4/4 (100%) | 2/3 (67%) |
 | J. Red eye (EYE) | 2 | 0 | 0 | 0 | — | 1/1 (100%) |
-| K. Masking (MASK) | 13 | 5 | 5 | 0 | 7/8 (88%) | 5/5 (100%) |
+| K. Masking (MASK) | 14 | 5 | 5 | 0 | 7/8 (88%) | 6/6 (100%) |
 | L. Presets (PRE) | 6 | 0 | 1 | 1 | 2/2 (100%) | 2/2 (100%) |
 | M. Versions & history (VER) | 5 | 0 | 0 | 0 | 1/1 (100%) | 3/3 (100%) |
 | N. Copy / paste / sync (SYNC) | 5 | 0 | 0 | 0 | 3/3 (100%) | 1/1 (100%) |
@@ -59,11 +53,9 @@ cited here still exists. Formerly docs/parity.md.
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
 | Lightroom Classic extras | 34 | 16 | 35 | 8 | — | 24/26 (92%) |
-| **Total** | 408 | 53 | 72 | 35 | 193/201 (96%) | 145/158 (92%) |
-| **Total** | 408 | 51 | 72 | 35 | 193/201 (96%) | 145/157 (92%) |
+| **Total** | 409 | 53 | 72 | 35 | 193/201 (96%) | 146/159 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.5%** of 533 in-scope rows — P0 98.0% of 201 · P1 94.9% of 158 · P2 50.0% of 173.
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 531 in-scope rows — P0 98.0% of 201 · P1 95.2% of 157 · P2 50.0% of 172.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **81.6%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 50.0% of 173.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes

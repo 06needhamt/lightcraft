@@ -241,9 +241,8 @@ impl LightroomJob {
             return Err(cancelled());
         }
         // (reading stops with a message when `cancel` is set: the flag says it was cancelled)
-        let mut data =
-            lightroom_catalog::read_with_progress(&self.path, cancel, &self.progress.catalog_total, &self.progress.catalog_done)
-                .map_err(|e| if cancel.load(Ordering::Relaxed) { cancelled() } else { error(e) })?;
+        let mut data = lightroom_catalog::read_with_progress(&self.path, cancel, &self.progress.catalog_total, &self.progress.catalog_done)
+            .map_err(|e| if cancel.load(Ordering::Relaxed) { cancelled() } else { error(e) })?;
         lightroom_catalog::validate_for_job(&data).map_err(error)?;
         if cancel.load(Ordering::Relaxed) {
             return Err(cancelled());

@@ -1,7 +1,6 @@
 # Gaps: where LightCraft falls short of Lightroom
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-13 · **Change:** minor (gap 8: Nikon Z 6II / Z 8 / Z f in-file distortion; gap 10: Leica Q3 verified, 236 models; CR3 entry names the EOS R7 C-RAW fix and the refused CRX variants; CI and Windows / Linux entries note the 0.6.0 riscv64 build; camera colour: tone curve from black-and-white camera JPEGs; Compare and Reference get sharp zoom windows; gap 4 shrinks; gap 14: the HDR switch is read from crs XMP; gaps 2 and 10: EOS R5 Mark II CR3 verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-13 · **Change:** patch (gaps 10, 22 and 23 listed once again: merges had left two copies of each; `cargo xtask parity` now fails on a repeated gap number; gap 10: Leica Q3 verified, 236 models; CR3 entry names the EOS R7 C-RAW fix and the refused CRX variants; CI and Windows / Linux entries note the 0.6.0 riscv64 build; camera colour: tone curve from black-and-white camera JPEGs; Compare and Reference get sharp zoom windows; gap 4 shrinks; gap 14: the HDR switch is read from crs XMP; gaps 2 and 10: EOS R5 Mark II CR3 verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-13 · **Change:** patch (gap 8: Nikon Z 6II / Z 8 / Z f in-file distortion; gaps 10, 22 and 23 listed once again: merges had left two copies of each, and `cargo xtask parity` now fails on a gap listed twice)
 
 Every known shortfall, one entry each, ranked by user impact (how many Lightroom users hit it, and
 how hard it blocks them), then by effort. **Agents pick work from the top** (the first entry nobody is

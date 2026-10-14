@@ -52,7 +52,6 @@
 - The thumbnail cache no longer follows a shard folder (`thumbs/ab/`) that is a symlink or junction to somewhere
   else (issue #1504): trimming or clearing the cache can't delete files outside it, and thumbnails are never read
   from or written through such a link.
-## 2026-10-13
 
 ### Large libraries: Synchronize Folder, import and sidecars start sooner
 - Opening Synchronize Folder, an import review or an import no longer makes a table of every photo in the library
