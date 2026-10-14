@@ -15,7 +15,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider));
     frame.show(ui, |ui| {
-        // (taken on every pass, so a hold the panel was not drawn for is forgotten)
+        // (taken on every pass the panel is drawn; one from earlier than the pass before is forgotten)
         let held = held_offset(ui.ctx());
         let Some(id) = app.session.active() else {
             // the Keyword List is the library's, not a photo's: it is there without a selection
@@ -77,7 +77,10 @@ const HOLD: &str = "right-scroll-hold";
 /// the Keywords box grew. Set on the scroll area as it starts, so the pass drawn again shows the list
 /// in place (a scroll asked for during a pass only lands a frame later).
 fn held_offset(ctx: &egui::Context) -> Option<f32> {
-    let grew = ctx.data_mut(|d| d.remove_temp::<f32>(egui::Id::new(HOLD)))?;
+    let (grew, asked) = ctx.data_mut(|d| d.remove_temp::<(f32, u64)>(egui::Id::new(HOLD)))?;
+    if asked.checked_add(1) != Some(ctx.cumulative_pass_nr()) {
+        return None;
+    }
     let offset = ctx.data(|d| d.get_temp::<f32>(egui::Id::new(OFFSET)))?;
     Some((offset + grew).max(0.0)).filter(|o| o.is_finite())
 }
@@ -957,7 +960,7 @@ fn hold_list_in_place(ui: &mut egui::Ui, top: f32) {
     if on_box || typing {
         return;
     }
-    ui.data_mut(|d| d.insert_temp(egui::Id::new(HOLD), grew));
+    ui.data_mut(|d| d.insert_temp(egui::Id::new(HOLD), (grew, pass)));
     // (drawn again at once at the new offset, so the list never shows a frame out of place)
     ui.ctx().request_discard("the Keyword List holds its place");
 }

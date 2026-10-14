@@ -1021,13 +1021,17 @@ impl LightcraftApp {
         if ctx.input(|i| i.viewport().close_requested()) && !panels::notices::may_close(self) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
-        let now = ctx.input(|i| i.time);
-        let dt = now - self.last_time;
-        if dt > 0.0 {
-            self.perf.fps = self.perf.fps * 0.9 + (1.0 / dt).min(240.0) * 0.1;
+        // (once a frame: a pass drawn again after a discard has no input of its own, and still the
+        // widgets of the pass thrown away, where a request would find them out of place)
+        if ctx.current_pass_index() == 0 {
+            let now = ctx.input(|i| i.time);
+            let dt = now - self.last_time;
+            if dt > 0.0 {
+                self.perf.fps = self.perf.fps * 0.9 + (1.0 / dt).min(240.0) * 0.1;
+            }
+            self.last_time = now;
+            self.drain_control(ctx);
         }
-        self.last_time = now;
-        self.drain_control(ctx);
         self.apply_settings(ctx);
         if !self.synthetic.is_empty() {
             ctx.request_repaint();
