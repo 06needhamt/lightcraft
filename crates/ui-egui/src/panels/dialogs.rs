@@ -1194,15 +1194,17 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 Dialog::Shortcuts => crate::panels::keymap::body(app, ui, &t),
             });
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
+            // the confirm on the right with Cancel to its left (macOS and GNOME's order), filled with
+            // the accent when it is the dialog's primary action. The row spans the width the window
+            // gives its content this frame (its default width, or its content's if wider), so it
+            // reaches the edge without widening the window.
+            let content_w = ui.available_width().max(ui.min_rect().width()).max(1.0);
+            let row_h = ui.spacing().interact_size.y;
+            ui.allocate_ui_with_layout(egui::vec2(content_w, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 // a model file LightCraft cannot use has nothing to confirm, nor has a dialog that
                 // only shows something (one Close, no Cancel / OK)
                 let unusable_model = matches!(&dlg, Dialog::DenoiseModel { info, .. } | Dialog::FaceModel { info, .. } if info["kind"] == "unsupported");
-                let informational = unusable_model
-                    || matches!(
-                        dlg,
-                        Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } | Dialog::SystemInfo { .. } | Dialog::AllMetadata { .. } | Dialog::WhatsNew
-                    );
+                let informational = unusable_model || only_shows(&dlg);
                 let sam = &app.session.segmenter;
                 let (sam_installed, sam_running, sam_failed) = (sam.installed(), sam.download_status().running, sam.download_status().error.is_some());
                 // no download location in this build: nothing to offer but the manual install
@@ -1212,13 +1214,6 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::SamModel { .. } => "Not Now",
                     _ => "Cancel",
                 };
-                if !informational {
-                    let r = ui.button(crate::i18n::tr(cancel));
-                    crate::widgets::register(ui.ctx(), "button:dialogCancel", r.rect);
-                    if r.clicked() {
-                        close = true;
-                    }
-                }
                 let add_label;
                 let ok = match &dlg {
                     Dialog::Import { opts } => {
@@ -1258,7 +1253,37 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     )
                         // smart-album rules that can't mean anything wait to be fixed
                         && !matches!(&dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty());
-                let r = (!ok.is_empty()).then(|| ui.add_enabled(can_confirm, egui::Button::new(crate::i18n::tr(ok))));
+                let primary = !informational && can_confirm && confirm_style(&dlg) == ConfirmStyle::Primary;
+                // (Cancel first, then the confirm: the keyboard goes through them as the eye does)
+                let width_of = |label: &str| {
+                    let text = egui::WidgetText::from(crate::i18n::tr(label))
+                        .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Button)
+                        .size()
+                        .x;
+                    (text + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x)
+                };
+                let gap = ui.spacing().item_spacing.x;
+                let mut buttons_w = 0.0;
+                if !informational {
+                    buttons_w += width_of(cancel) + gap;
+                }
+                if !ok.is_empty() {
+                    buttons_w += width_of(ok);
+                }
+                ui.add_space((ui.available_width() - buttons_w).max(0.0));
+                if !informational {
+                    let r = ui.button(crate::i18n::tr(cancel));
+                    crate::widgets::register(ui.ctx(), "button:dialogCancel", r.rect);
+                    if r.clicked() {
+                        close = true;
+                    }
+                }
+                let button = if primary {
+                    egui::Button::new(egui::RichText::new(crate::i18n::tr(ok)).color(egui::Color32::WHITE)).fill(t.accent)
+                } else {
+                    egui::Button::new(crate::i18n::tr(ok))
+                };
+                let r = (!ok.is_empty()).then(|| ui.add_enabled(can_confirm, button));
                 if let Some(r) = &r {
                     crate::widgets::register(ui.ctx(), "button:dialogOk", r.rect);
                 }
@@ -1974,4 +1999,29 @@ mod watermark_position_tests {
             assert_eq!(WM_POSITIONS.iter().filter(|(position, _)| *position == anchor).count(), 1);
         }
     }
+}
+
+/// How a dialog's confirm button looks: [`ConfirmStyle::Primary`] (the accent's fill) when it
+/// makes or brings in something, plain when it deletes or removes (never the eye-catching
+/// default) or when the dialog only shows something (its Close).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConfirmStyle {
+    Primary,
+    Plain,
+}
+
+pub fn confirm_style(dlg: &Dialog) -> ConfirmStyle {
+    match dlg {
+        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::RemoveFolder { .. } => ConfirmStyle::Plain,
+        _ if only_shows(dlg) => ConfirmStyle::Plain,
+        _ => ConfirmStyle::Primary,
+    }
+}
+
+/// A dialog that only shows something: one Close, nothing to confirm or cancel.
+fn only_shows(dlg: &Dialog) -> bool {
+    matches!(
+        dlg,
+        Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } | Dialog::SystemInfo { .. } | Dialog::AllMetadata { .. } | Dialog::WhatsNew
+    )
 }
