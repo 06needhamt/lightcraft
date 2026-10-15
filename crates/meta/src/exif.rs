@@ -60,6 +60,10 @@ pub fn from_tiff(tiff: &Tiff) -> Metadata {
     if let Some(s) = spec.filter(|s| s.len() == 4 && s[0] > 0.0) {
         m.lens_spec = Some([s[0], s[1], s[2], s[3]]);
     }
+    // Nikon DSLRs write neither LensModel nor LensSpecification, only the same four values in their maker note
+    if m.lens_spec.is_none() {
+        m.lens_spec = nikon_lens_spec(exif, m.make.as_deref(), tiff.order);
+    }
     m.orientation = ifd0.and_then(|i| i.u16(t::ORIENTATION)).filter(|v| (1..=8).contains(v)).map(Orientation::from_exif);
     m.rating = ifd0.and_then(|i| i.i64(t::RATING)).map(|r| r.clamp(-1, 5) as i8);
 
@@ -175,6 +179,25 @@ fn panasonic_jpg_from_raw_lens(tiff: &Tiff) -> Option<String> {
     panasonic_lens(data, &Tiff::parse(data).ok()?)
 }
 
+/// Nikon maker note tag `0x0084` (Lens in the ExifTool Nikon tag names): shortest and longest focal length, then the
+/// widest aperture at each, as rationals, like Exif LensSpecification. Zero for a lens that doesn't report itself.
+const NIKON_LENS: u16 = 0x0084;
+
+/// The lens a Nikon camera records in its maker note, when it's plausible.
+fn nikon_lens_spec(exif: Option<&Ifd>, make: Option<&str>, order: lightcraft_tiff::ByteOrder) -> Option<[f64; 4]> {
+    let make = make?;
+    if !make.trim().to_ascii_uppercase().starts_with("NIKON") {
+        return None;
+    }
+    let note = exif?.bytes(t::MAKER_NOTE)?;
+    let mn = lightcraft_tiff::makernote::parse_makernote(note, 0, note.len() as u64, order, make)?;
+    let s = mn.ifd.f64s(NIKON_LENS)?;
+    let [short, long, wide, narrow] = s.as_slice() else { return None };
+    let focal = |f: f64| f.is_finite() && f > 0.0 && f < 10_000.0;
+    let aperture = |a: f64| a.is_finite() && a > 0.0 && a < 100.0;
+    (focal(*short) && focal(*long) && long >= short && aperture(*wide) && aperture(*narrow)).then_some([*short, *long, *wide, *narrow])
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -250,6 +273,40 @@ pub(crate) mod tests {
         assert_eq!(m.lens_model.as_deref(), Some("LUMIX S 85/F1.8"));
         assert_eq!(m.focal_length, Some(85.0));
         assert_eq!(crate::extract(&rw2).lens_model.as_deref(), Some("LUMIX S 85/F1.8"));
+    }
+
+    /// An Exif block from a Nikon body whose maker note records the lens (tag 0x0084) and no LensModel or
+    /// LensSpecification, as the D700, D750, D80 and D5300 write it.
+    fn nikon_exif(make: &str, lens: Option<[(u32, u32); 4]>, spec: Option<[(u32, u32); 4]>) -> Vec<u8> {
+        let mut note = IfdBuilder::new();
+        note.set(0x0001, Value::Undefined(b"0210".to_vec()));
+        if let Some(l) = lens {
+            note.set(NIKON_LENS, Value::Rational(l.to_vec()));
+        }
+        let mut blob = b"Nikon\0\x02\x10\0\0".to_vec();
+        blob.extend(TiffWriter::new(ByteOrder::Little, false).write(&[note]).unwrap());
+        let mut exif = IfdBuilder::new();
+        exif.set(t::MAKER_NOTE, Value::Undefined(blob));
+        if let Some(sp) = spec {
+            exif.set(t::LENS_SPECIFICATION, Value::Rational(sp.to_vec()));
+        }
+        let mut ifd0 = IfdBuilder::new();
+        ifd0.set(t::MAKE, Value::Ascii(make.into()));
+        ifd0.set_child(t::EXIF_IFD, exif);
+        TiffWriter::new(ByteOrder::Big, false).write(&[ifd0]).unwrap()
+    }
+
+    #[test]
+    fn nikon_maker_note_lens_fills_the_lens_spec() {
+        let zoom = [(18, 1), (135, 1), (35, 10), (56, 10)];
+        assert_eq!(read_exif(&nikon_exif("NIKON CORPORATION", Some(zoom), None)).lens_spec, Some([18.0, 135.0, 3.5, 5.6]));
+        // Exif's own LensSpecification wins, another make's note is not read, and a lens that reports nothing is left out
+        let prime = [(50, 1), (50, 1), (18, 10), (18, 10)];
+        assert_eq!(read_exif(&nikon_exif("NIKON CORPORATION", Some(zoom), Some(prime))).lens_spec, Some([50.0, 50.0, 1.8, 1.8]));
+        assert_eq!(read_exif(&nikon_exif("Canon", Some(zoom), None)).lens_spec, None);
+        assert_eq!(read_exif(&nikon_exif("NIKON CORPORATION", Some([(0, 1), (0, 1), (0, 1), (0, 1)]), None)).lens_spec, None);
+        assert_eq!(read_exif(&nikon_exif("NIKON CORPORATION", Some([(200, 1), (80, 1), (28, 10), (28, 10)]), None)).lens_spec, None);
+        assert_eq!(read_exif(&nikon_exif("NIKON CORPORATION", None, None)).lens_spec, None);
     }
 
     pub(crate) fn sample_exif(order: ByteOrder) -> Vec<u8> {

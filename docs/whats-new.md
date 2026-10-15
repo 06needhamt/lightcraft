@@ -75,6 +75,12 @@
 - A photo whose Defringe amount was stored far past the sliders' 20 (in a damaged catalog or sidecar) no longer
   crashes LightCraft each time it renders: the amount acts as 20.
 
+### Lens names for Nikon DSLR raws
+- Photos from Nikon DSLRs like the D700, D750, D80 or D5300 now show which lens they were taken with, for example
+  "24.0-70.0 mm f/2.8". Those cameras don't write a lens name, so the lens field was empty and you couldn't filter or
+  search by lens. LightCraft now reads the lens range Nikon keeps in its own maker note, the way Lightroom shows a
+  lens it doesn't have a name for. Newly imported photos show it.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
