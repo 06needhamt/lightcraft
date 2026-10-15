@@ -343,6 +343,9 @@ pub struct AppSettings {
     /// `confirmDelete: false` by default (#1239).
     #[serde(rename = "askBeforeDelete")]
     pub confirm_delete: bool,
+    /// Ask before photos dropped on a Folders row move there on disk (the dialog's "Don't ask
+    /// again" turns it off).
+    pub ask_before_move: bool,
     /// GPU rendering allowed (`app.gpu`).
     pub gpu: bool,
     /// Largest long edge (pixels) the user lets the loupe render at; 0 = Automatic (the size it is
@@ -392,6 +395,7 @@ impl Default for AppSettings {
             recent_libraries: Vec::new(),
             startup_view: StartupView::Last,
             confirm_delete: true,
+            ask_before_move: true,
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),
@@ -1181,6 +1185,17 @@ pub enum Dialog {
     /// Confirm moving photos to Recently Deleted.
     ConfirmDelete {
         count: usize,
+    },
+    /// Confirm moving photos dropped on a Folders row into that folder on disk
+    /// (`photo.moveToFolder`). `name`: the folder's name, as the question says it.
+    MovePhotos {
+        ids: Vec<u64>,
+        folder: String,
+        name: String,
+        dont_ask: bool,
+        /// The library the photos were dropped in (`Session::library_generation`): ids are
+        /// numbered per library, so in another one they name other photos.
+        library: u64,
     },
     /// Confirm taking a folder's photos out of the library (`library.removeFolder`).
     RemoveFolder {
