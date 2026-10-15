@@ -172,6 +172,9 @@
 - An export enlarged far past the photo's size (20000 typed for 2000 with Don't Enlarge off) no longer ends
   LightCraft: an enlargement stops at 512 megapixels, as in Lightroom, and one that needs more memory than the
   computer has is refused with the size it would take, before it starts.
+### Confirm matching faces together
+- On a person's page, the ↑ control on a suggested face confirms it and all shown suggestions with equal or higher
+  similarity as one undo step. Hover or focus that face and press A for the same action; hidden suggestions stay hidden.
 
 ### Noise reduction looks the same at every size
 - Luminance and colour noise reduction no longer look much stronger in grid thumbnails and the filmstrip than in

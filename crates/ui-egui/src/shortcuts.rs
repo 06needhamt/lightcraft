@@ -346,6 +346,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.ui.dialog.is_some() {
         return;
     }
+    if app.recording_shortcut.is_none() && app.ui.name_edit.is_none() && crate::panels::person::handle_bulk_key(app, ctx) {
+        return;
+    }
     // don't steal keys from text fields or from the keymap editor recording a shortcut
     if keyboard_owned(app, ctx) || app.recording_shortcut.is_some() || app.ui.name_edit.is_some() {
         return;
