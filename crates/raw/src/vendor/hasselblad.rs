@@ -19,9 +19,14 @@
 //!   `SubIFDs` pair for the raw and preview images, whose data offsets point into the old 3FR and are not read).
 //!   [`decode`] takes the matrices from there when the outer file has none. The white balance stays the outer
 //!   file's, which is the one the converter last saved.
+//! - No JPEG preview. IFD0 is an uncompressed 8-bit RGB image (1217 x 913 in the H4D-40 FFF, IFD1 pointing at the
+//!   same strip; 218 x 218 in the CFV 3FR, under the file's own `Orientation`); the FFF also has a 16-bit RGB
+//!   copy in a `SubIFDs` child, with a `TransferFunction` whose meaning is not known, so it is not used.
+//!   [`rgb_preview`] hands the largest 8-bit one on as a small baseline TIFF.
 use crate::dng;
 use crate::{ColorData, Mode, RawFormat, RawImage, Result};
-use lightcraft_tiff::{ParseOptions, Tiff};
+use lightcraft_tiff::image::{Layout, chunk_bytes};
+use lightcraft_tiff::{ByteOrder, IfdBuilder, ImageData, ParseOptions, Tiff, TiffWriter, Value, tags as t};
 
 /// Private IFD0 tag holding the original 3FR header (a complete TIFF) inside an FFF.
 pub(crate) const ORIGINAL_HEADER: u16 = 0xc51b;
@@ -55,6 +60,58 @@ fn original_header_color(bytes: &[u8]) -> Option<ColorData> {
     crate::color::has_matrix(&color).then_some(color)
 }
 
+/// Upper bound on a preview's pixel bytes (8-bit RGB): 64 MP, far above the 1.1 MP of the largest one seen.
+const MAX_PREVIEW_BYTES: usize = (64 << 20) * 3;
+
+/// The file's largest uncompressed 8-bit RGB image (chunky, in strips), as a little-endian baseline TIFF holding
+/// just those pixels, which `lightcraft_codecs::decode` reads. No `Orientation` tag is written: the viewer
+/// applies the raw file's, which is the one that stands over this image in IFD0.
+pub(crate) fn rgb_preview(tiff: &Tiff, bytes: &[u8]) -> Option<Vec<u8>> {
+    let info = tiff
+        .all_ifds()
+        .into_iter()
+        .filter_map(|i| i.image().ok())
+        .filter(|i| {
+            i.photometric == t::photometric::RGB
+                && i.compression == t::compression::NONE
+                && i.samples_per_pixel == 3
+                && i.bits_per_sample.iter().all(|&b| b == 8)
+                && i.planar == 1
+                && i.sample_format == 1
+                && matches!(i.layout, Layout::Strips { .. })
+                && i.width > 0
+                && i.height > 0
+        })
+        .max_by_key(|i| u64::from(i.width) * u64::from(i.height))?;
+    let (w, h) = (info.width as usize, info.height as usize);
+    let size = w.checked_mul(h)?.checked_mul(3)?;
+    if size > MAX_PREVIEW_BYTES {
+        return None;
+    }
+    let mut pixels = Vec::with_capacity(size);
+    for chunk in info.chunks(bytes.len() as u64) {
+        pixels.extend_from_slice(chunk_bytes(bytes, &chunk)?);
+        if pixels.len() >= size {
+            break;
+        }
+    }
+    // a short last strip is a truncated file: no preview rather than a picture with a black band
+    if pixels.len() < size {
+        return None;
+    }
+    pixels.truncate(size);
+    let mut ifd = IfdBuilder::new();
+    ifd.set(t::IMAGE_WIDTH, Value::Long(vec![info.width]));
+    ifd.set(t::IMAGE_LENGTH, Value::Long(vec![info.height]));
+    ifd.set(t::BITS_PER_SAMPLE, Value::Short(vec![8, 8, 8]));
+    ifd.set(t::SAMPLES_PER_PIXEL, Value::Short(vec![3]));
+    ifd.set(t::PHOTOMETRIC, Value::Short(vec![t::photometric::RGB]));
+    ifd.set(t::COMPRESSION, Value::Short(vec![t::compression::NONE]));
+    ifd.set(t::PLANAR_CONFIGURATION, Value::Short(vec![1]));
+    ifd.set_image(ImageData::Strips { rows_per_strip: info.height, strips: vec![pixels] });
+    TiffWriter::new(ByteOrder::Little, false).write(&[ifd]).ok()
+}
+
 /// Take the camera matrices (and the illuminants they belong to) of `from`; the rest of `color` stays.
 fn adopt_matrices(color: &mut ColorData, from: &ColorData) {
     color.illuminant = from.illuminant;
@@ -81,7 +138,7 @@ mod tests {
         ifd.set(t::SAMPLES_PER_PIXEL, Value::Short(vec![3]));
         ifd.set(t::PHOTOMETRIC, Value::Short(vec![2]));
         ifd.set(t::COMPRESSION, Value::Short(vec![1]));
-        ifd.set_image(ImageData::Strips { rows_per_strip: 3, strips: vec![vec![0x80; 36]] });
+        ifd.set_image(ImageData::Strips { rows_per_strip: 3, strips: vec![(0..36).collect()] });
         ifd
     }
 
@@ -100,6 +157,11 @@ mod tests {
     /// An FFF in miniature: big-endian, IFD0 an RGB image with `AsShotNeutral` and the embedded header `header`,
     /// a 16-bit uncompressed CFA sub-IFD of 8 x 6 samples, no colour matrix of its own unless `own_matrix`.
     fn fff(header: Option<Vec<u8>>, own_matrix: bool) -> Vec<u8> {
+        fff_with(header, own_matrix, vec![])
+    }
+
+    /// [`fff`] with more `SubIFDs` children of IFD0 (other preview images).
+    fn fff_with(header: Option<Vec<u8>>, own_matrix: bool, extra: Vec<IfdBuilder>) -> Vec<u8> {
         let mut raw = IfdBuilder::new();
         raw.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![0]));
         raw.set(t::IMAGE_WIDTH, Value::Long(vec![8]));
@@ -122,6 +184,9 @@ mod tests {
             ifd0.set(ORIGINAL_HEADER, Value::Undefined(h));
         }
         ifd0.add_sub_ifd(raw);
+        for e in extra {
+            ifd0.add_sub_ifd(e);
+        }
         TiffWriter::new(ByteOrder::Big, false).write(&[ifd0]).unwrap()
     }
 
@@ -164,6 +229,7 @@ mod tests {
         for n in (0..bytes.len()).step_by(7) {
             let _ = decode_file(&bytes[..n]);
             let _ = probe_info(&bytes[..n]);
+            let _ = crate::embedded_preview(&bytes[..n]);
         }
         let mut header = original_header(true);
         for i in (8..header.len()).step_by(3) {
@@ -172,5 +238,58 @@ mod tests {
                 Ok(_) | Err(RawError::Corrupt(_) | RawError::Tiff(_) | RawError::Unsupported(_) | RawError::Limit(_) | RawError::NotRaw) => {}
             }
         }
+    }
+
+    /// `(width, height, pixels, has an Orientation tag)` of a wrapped preview.
+    fn wrapped(tiff: &[u8]) -> (u32, u32, Vec<u8>, bool) {
+        let t = Tiff::parse(tiff).unwrap();
+        let ifd = &t.ifds[0];
+        let info = ifd.image().unwrap();
+        let chunks = info.chunks(tiff.len() as u64);
+        let pixels = chunks.iter().flat_map(|c| chunk_bytes(tiff, c).unwrap().to_vec()).collect();
+        (info.width, info.height, pixels, ifd.contains(t::ORIENTATION))
+    }
+
+    /// No JPEG in the file: the 8-bit RGB IFD0 comes out as a baseline TIFF of the same pixels, without an
+    /// orientation of its own (the raw file's applies).
+    #[test]
+    fn rgb_ifd0_is_the_embedded_preview() {
+        let bytes = fff(Some(original_header(true)), false);
+        let preview = crate::embedded_preview(&bytes).expect("a preview");
+        assert_eq!(wrapped(&preview), (4, 3, (0..36).collect(), false));
+        assert_eq!(crate::embedded_preview_covering(&bytes, 2000), Some(preview));
+    }
+
+    /// The largest 8-bit RGB image wins; a bigger 16-bit one (the FFF's copy with a `TransferFunction`) is not
+    /// used, and nor is a planar or compressed one.
+    #[test]
+    fn only_8_bit_chunky_uncompressed_rgb_is_taken() {
+        let image = |w: u32, h: u32, bits: u16, planar: u16, compression: u16| {
+            let mut ifd = IfdBuilder::new();
+            ifd.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![1]));
+            ifd.set(t::IMAGE_WIDTH, Value::Long(vec![w]));
+            ifd.set(t::IMAGE_LENGTH, Value::Long(vec![h]));
+            ifd.set(t::BITS_PER_SAMPLE, Value::Short(vec![bits; 3]));
+            ifd.set(t::SAMPLES_PER_PIXEL, Value::Short(vec![3]));
+            ifd.set(t::PHOTOMETRIC, Value::Short(vec![2]));
+            ifd.set(t::COMPRESSION, Value::Short(vec![compression]));
+            ifd.set(t::PLANAR_CONFIGURATION, Value::Short(vec![planar]));
+            let n = (w * h * 3 * u32::from(bits / 8)) as usize;
+            ifd.set_image(ImageData::Strips { rows_per_strip: h, strips: vec![vec![7; n]] });
+            ifd
+        };
+        let bytes = fff_with(None, false, vec![image(16, 12, 16, 1, 1), image(12, 9, 8, 2, 1), image(12, 9, 8, 1, 8)]);
+        assert_eq!(wrapped(&crate::embedded_preview(&bytes).unwrap()).0, 4, "IFD0's 4 x 3");
+        let bytes = fff_with(None, false, vec![image(6, 6, 8, 1, 1)]);
+        assert_eq!(wrapped(&crate::embedded_preview(&bytes).unwrap()), (6, 6, vec![7; 108], false));
+    }
+
+    /// A preview strip cut short by a truncated file gives no preview, not a partial picture.
+    #[test]
+    fn short_preview_strip_gives_none() {
+        let mut ifd0 = rgb_ifd();
+        ifd0.set_image(ImageData::Strips { rows_per_strip: 3, strips: vec![vec![1; 30]] });
+        let tiff = TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap();
+        assert_eq!(rgb_preview(&Tiff::parse(&tiff).unwrap(), &tiff), None);
     }
 }
