@@ -160,6 +160,9 @@ const MAX_TAPER_STEPS: usize = 64;
 fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<BrushStroke> {
     let Some(&first) = to.points.first() else { return vec![to] };
     let same = |a: f64, b: f64| (a - b).abs() <= 1e-9;
+    // pen pressure along the line: the last dab's at its start, the click's at its end (none when neither has any)
+    let pressured = !last.pressure.is_empty() || !to.pressure.is_empty();
+    let (p_from, p_to) = (last.pressure_at(0), to.pressure_at(0));
     if same(last.size, to.size) && same(last.feather, to.feather) && same(last.flow, to.flow) {
         let mut points = Vec::with_capacity(to.points.len() + 1);
         points.push(from);
@@ -181,6 +184,7 @@ fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<Br
     let mut out: Vec<BrushStroke> = (0..steps)
         .map(|i| {
             let (t0, t1) = (i as f64 / steps as f64, (i + 1) as f64 / steps as f64);
+            let p = |t: f64| (f64::from(p_from) + (f64::from(p_to) - f64::from(p_from)) * t) as f32;
             BrushStroke {
                 points: vec![at(t0), at(t1)],
                 size: lerp(last.size, to.size, t1),
@@ -325,7 +329,15 @@ pub fn specs() -> Vec<CommandSpec> {
                         let anchor = strokes.last().filter(|_| connect).and_then(|l| {
                             Some((
                                 *l.points.last()?,
-                                BrushStroke { points: Vec::new(), size: l.size, feather: l.feather, flow: l.flow, ..BrushStroke::default() },
+                                BrushStroke {
+                                    points: Vec::new(),
+                                    size: l.size,
+                                    feather: l.feather,
+                                    flow: l.flow,
+                                    // the pressure the last dab was painted with, when the stroke recorded any
+                                    pressure: if l.pressure.is_empty() { Vec::new() } else { vec![l.pressure_at(l.points.len().saturating_sub(1))] },
+                                    ..BrushStroke::default()
+                                },
                             ))
                         });
                         match anchor {

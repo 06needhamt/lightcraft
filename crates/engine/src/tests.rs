@@ -368,6 +368,35 @@ fn brush_strokes_keep_pen_pressure_and_refuse_bad_lists() {
     assert!(!json.contains("pressure"), "and stores none: {json}");
 }
 
+/// A ⇧-click line carries pen pressure: the last dab's at its start and the click's at its end, stepping along a
+/// tapered line; with no pressure on either side there is none.
+#[test]
+fn connected_brush_strokes_carry_pen_pressure() {
+    use lightcraft_develop::MaskShape;
+    let mut s = demo();
+    let id = s.active().unwrap();
+    let strokes = |s: &Session| {
+        let d = s.develop_of(id).unwrap();
+        let MaskShape::Brush { strokes } = &d.masks[0].components[0].shape else { panic!("brush") };
+        strokes.clone()
+    };
+    s.execute("mask.brushStroke", &json!({"points": [[0.2, 0.5]], "size": 0.02, "pressure": [0.4]})).unwrap();
+    s.execute("mask.brushStroke", &json!({"points": [[0.6, 0.5]], "size": 0.02, "pressure": [1.0], "connect": true})).unwrap();
+    assert_eq!(strokes(&s)[1].pressure, vec![0.4, 1.0]);
+    s.execute("mask.brushStroke", &json!({"points": [[0.6, 0.9]], "size": 0.04, "pressure": [0.2], "connect": true})).unwrap();
+    let taper = &strokes(&s)[2..];
+    assert!(taper.iter().all(|t| t.pressure.len() == 2));
+    assert!((taper[0].pressure[0] - 1.0).abs() < 1e-6 && (taper.last().unwrap().pressure[1] - 0.2).abs() < 1e-6);
+    assert!(taper.windows(2).all(|w| w[1].pressure[0] <= w[0].pressure[0]));
+    // a mouse: no pressure anywhere
+    let mut m = demo();
+    m.execute("mask.brushStroke", &json!({"points": [[0.2, 0.5]], "size": 0.02})).unwrap();
+    m.execute("mask.brushStroke", &json!({"points": [[0.6, 0.5]], "size": 0.02, "connect": true})).unwrap();
+    let d = m.develop_of(m.active().unwrap()).unwrap();
+    let MaskShape::Brush { strokes } = &d.masks[0].components[0].shape else { panic!("brush") };
+    assert!(strokes[1].pressure.is_empty());
+}
+
 #[test]
 fn masks_crop_and_render() {
     let mut s = demo();
