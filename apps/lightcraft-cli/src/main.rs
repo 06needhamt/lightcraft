@@ -828,6 +828,8 @@ fn snapshot(args: &[String]) -> Result<(), String> {
     // before the first frame can start background adapter discovery.
     // This UI state is session-local: the CLI neither loads nor saves desktop ui.json.
     app.ui.settings.gpu = false;
+    // as the desktop app opens it: an empty library on the grid, where Import is offered
+    lightcraft_ui_egui::panels::empty_library::open_on_empty_library(&mut app);
     let mut h = Headless::new(app, size, scale);
     let timeout = Duration::from_secs(60);
     let mut shots = 0usize;

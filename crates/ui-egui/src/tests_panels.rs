@@ -2392,3 +2392,20 @@ fn histogram_corners_toggle_clipping_warnings() {
     h.step();
     assert!(!h.app.ui.show_clipping);
 }
+
+#[test]
+fn the_histogram_clipping_buttons_stay_clear_of_the_hovered_scroll_bar() {
+    // every section open: the Edit panel scrolls, so its scroll bar runs past the histogram
+    let h = demo(
+        [1400.0, 700.0],
+        json!({"view": "detail", "right": "edit", "histogram": true, "openSections": ["light", "color", "effects", "detail", "optics"]}),
+    );
+    let hist = widget(&h, "histogram");
+    let (low, high) = (widget(&h, "histogram:shadows"), widget(&h, "histogram:highlights"));
+    // a hovered floating scroll bar grows to its full width at the panel's right edge, over the content
+    let scroll = h.view.ctx.global_style().spacing.scroll;
+    let bar_left = hist.right() - scroll.bar_outer_margin - scroll.bar_width;
+    assert!(high.right() <= bar_left, "the highlight clipping button {high:?} is under the scroll bar (from x = {bar_left})");
+    // and the shadow one keeps the same inset from its edge
+    assert!(((low.left() - hist.left()) - (hist.right() - high.right())).abs() < 0.5, "{low:?} {high:?} in {hist:?}");
+}

@@ -165,7 +165,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(crate::i18n::tr("Profile")).font(t.font(13.0)).color(t.text_dim));
             let name = app.session.profile_info(&d.profile.id).map(|(name, _)| name).unwrap_or("Color");
-            let r = crate::widgets::dropdown(ui, "profile", crate::i18n::profile_label(&d.profile.id, name), t.font(15.0), t.text_label);
+            // a long name is cut short before Browse Profiles: a wider row would widen the whole panel's
+            // content, and the sliders below would run past its edge
+            let max = ui.available_width() - 28.0 - ui.spacing().item_spacing.x;
+            let r = crate::widgets::dropdown_within(ui, "profile", crate::i18n::profile_label(&d.profile.id, name), t.font(15.0), t.text_label, max);
             egui::Popup::menu(&r).show(|ui| profile_menu(app, ui, &d));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if crate::widgets::icon_button(
@@ -701,9 +704,13 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         }
     }
     let mut clicked = resp.clicked();
+    // the panel's floating scroll bar widens over the right edge when hovered: both buttons keep
+    // clear of it, the left one too so they stay symmetric (#1640)
+    let scroll = ui.spacing().scroll;
+    let inset = 20.0 + scroll.bar_width + scroll.bar_outer_margin;
     for (name, x, label, clipped) in [
-        ("shadows", plot.left() + 20.0, "Shadow clipping", clipping.map(|(lo, _)| lo > 0.003)),
-        ("highlights", plot.right() - 20.0, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
+        ("shadows", plot.left() + inset, "Shadow clipping", clipping.map(|(lo, _)| lo > 0.003)),
+        ("highlights", plot.right() - inset, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
     ] {
         let rect = Rect::from_center_size(pos2(x, plot.top() + 14.0), vec2(24.0, 22.0));
         let response = ui.interact(rect, ui.id().with(("histogram-clipping", name)), Sense::click());
