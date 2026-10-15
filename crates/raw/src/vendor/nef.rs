@@ -494,16 +494,16 @@ fn packed(bytes: &[u8], info: &ImageInfo, rows: usize) -> Result<RawData> {
         _ => None,
     };
     let (Some(layout), [c]) = (layout, chunks.as_slice()) else {
-        let small = bits == 12 && chunks.len() == 1 && w.checked_mul(h).and_then(|n| n.checked_mul(3)).is_some_and(|n| u64::try_from(n).ok() == Some(chunks[0].len));
+        let small = bits == 12
+            && chunks.len() == 1
+            && w.checked_mul(h).and_then(|n| n.checked_mul(3)).is_some_and(|n| u64::try_from(n).ok() == Some(chunks[0].len));
         return Err(RawError::Unsupported(if small {
             "Nikon small raw (sRAW) not decoded yet".into()
         } else {
             "Nikon compressed NEF without a linearization table (maker note 0x96)".into()
         }));
     };
-    let end = c.offset.saturating_add(c.len).min(bytes.len() as u64);
-    let src = usize::try_from(c.offset).ok().zip(usize::try_from(end).ok()).and_then(|(a, b)| bytes.get(a..b));
-    let src = src.ok_or_else(|| RawError::Corrupt("NEF: image data outside the file".into()))?;
+    let src = lightcraft_tiff::image::chunk_bytes(bytes, c).ok_or_else(|| RawError::Corrupt("NEF: image data outside the file".into()))?;
     if (w as u64).saturating_mul(h as u64) > crate::MAX_SAMPLES as u64 {
         return Err(RawError::Limit("image too large"));
     }
@@ -1036,6 +1036,33 @@ mod tests {
     }
 
     #[test]
+    fn packed_layout_refuses_overflowing_dimensions() {
+        for bits in [12, 14] {
+            assert!(packed_layout(usize::MAX - 3, 1, bits, u64::MAX).is_none());
+        }
+        assert!(d100_layout(usize::MAX, 1, 12, u64::MAX).is_none());
+    }
+
+    /// Header probes inspect only the same top rows that the masked-column test uses. Routing
+    /// still validates the complete strip's layout, so header and full decode keep the same crop.
+    #[test]
+    fn packed_header_probe_reads_only_the_mask_rows() {
+        let (w, h) = (160usize, MASK_ROWS + 7);
+        let data = samples(w * h, 12);
+        for image in [strip(&data, w, 0, |r| pack_lsb(r, 12)), be16(&data)] {
+            let bytes = nef(34713, 12, vec![image], w as u32, h as u32, h as u32);
+            let tiff = Tiff::parse(&bytes).unwrap();
+            let info = raw_ifd(&tiff).unwrap().image().unwrap();
+            let RawData::U16(top) = packed(&bytes, &info, MASK_ROWS).unwrap() else { panic!("integer samples") };
+            assert_eq!(top, data[..w * MASK_ROWS]);
+            let header = decode(&bytes, Mode::Header).unwrap();
+            let full = decode(&bytes, Mode::Full).unwrap();
+            assert_eq!((header.active_area, header.crop), (full.active_area, full.crop));
+            assert!(matches!(header.data, RawData::U16(ref samples) if samples.is_empty()));
+        }
+    }
+
+    #[test]
     fn packed_d100_rows_carry_extra_columns() {
         // IFD width 154, rows hold 160 samples (16 chunks); the last 6 are dropped
         let (w, wide, h) = (154usize, 160usize, 3usize);
@@ -1131,6 +1158,6 @@ mod tests {
         // a strip that claims more bytes than the file has
         let mut bytes = nef(34713, 12, vec![vec![0x55; 60 * 6]], 40, 6, 6);
         bytes.truncate(bytes.len() - 100);
-        let _ = crate::decode(&bytes);
+        assert!(crate::decode(&bytes).is_err(), "a truncated packed strip is corrupt");
     }
 }
