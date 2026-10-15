@@ -721,12 +721,60 @@ impl Session {
         }
         let owners = StemOwners::among(&self.catalog, &ids);
         for id in ids {
-            if self.catalog.photo(id).is_some_and(|p| file_path(p).is_some() && p.copy_of.is_none())
-                && let Err(e) = self.save_sidecar_with(id, &owners)
-            {
-                log::warn!("auto-write XMP: {e}");
+            if self.catalog.photo(id).is_some_and(|p| file_path(p).is_some() && p.copy_of.is_none()) {
+                match self.save_sidecar_with(id, &owners) {
+                    Ok(_) => {
+                        self.unsaved_sidecars.remove(&id);
+                    }
+                    Err(e) => {
+                        // kept for a retry once the file is reachable: a network share that dropped out mustn't leave
+                        // the sidecar silently behind the edit
+                        log::warn!("auto-write XMP: {e}");
+                        self.unsaved_sidecars.insert(id);
+                    }
+                }
             }
         }
+    }
+
+    /// How many photos have an automatic sidecar write waiting (it failed: the folder offline, read-only or full).
+    pub fn unsaved_sidecars(&self) -> usize {
+        self.unsaved_sidecars.len()
+    }
+
+    /// Write the waiting sidecars whose originals are reachable again (the availability cache answers without
+    /// touching the disk for the others); photos that are gone, or with auto-write off, are dropped from the wait.
+    /// Returns how many were written.
+    pub fn retry_unsaved_sidecars(&mut self) -> usize {
+        if !self.xmp.auto_write {
+            self.unsaved_sidecars.clear();
+            return 0;
+        }
+        let mut ready = Vec::new();
+        for id in self.unsaved_sidecars.clone() {
+            match self.catalog.photo(id).filter(|p| p.copy_of.is_none()).and_then(|p| file_path(p).map(str::to_owned)) {
+                None => {
+                    self.unsaved_sidecars.remove(&id);
+                }
+                Some(path) if self.media.availability.exists(&path) == Some(true) => ready.push(id),
+                Some(_) => {}
+            }
+        }
+        if ready.is_empty() {
+            return 0;
+        }
+        let owners = StemOwners::among(&self.catalog, &ready);
+        let mut written = 0;
+        for id in ready {
+            match self.save_sidecar_with(id, &owners) {
+                Ok(_) => {
+                    self.unsaved_sidecars.remove(&id);
+                    written += 1;
+                }
+                Err(e) => log::debug!("retry XMP: {e}"),
+            }
+        }
+        written
     }
 }
 

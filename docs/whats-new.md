@@ -11,6 +11,12 @@
   From the command line: `lightcraft-cli merge hdr-batch FOLDER`.
 - Merging uses about a quarter less memory: three 67 MP raws need 3.8 GB instead of 4.8 GB.
 
+### XMP sidecars catch up after a network share comes back
+- With automatic XMP writing on, an edit to a photo whose folder can't be written (a network share that dropped
+  out, a folder that went read-only) used to be written only to the library, with a line in the log, so the sidecar
+  stayed behind the edit. LightCraft now says once that the sidecars are waiting, tries again every few seconds once
+  the files are reachable, and says when they're written. `library.retrySidecars` does it on request.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

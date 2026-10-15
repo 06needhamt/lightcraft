@@ -629,6 +629,11 @@ pub struct UiState {
     /// When the watched folder was last scanned (egui time).
     #[serde(skip)]
     pub auto_import_at: f64,
+    /// When the automatic XMP writes that failed were last tried again (egui time), and how many were waiting then.
+    #[serde(skip)]
+    pub sidecar_retry_at: f64,
+    #[serde(skip)]
+    pub sidecars_waiting: usize,
     /// The develop control whose slider is being dragged (geometry sliders show a grid).
     #[serde(skip)]
     pub dragging_control: Option<String>,
@@ -1163,6 +1168,8 @@ impl Default for UiState {
             external_edits: Vec::new(),
             was_focused: true,
             auto_import_at: 0.0,
+            sidecar_retry_at: 0.0,
+            sidecars_waiting: 0,
             search: String::new(),
             focus_search: false,
             renaming_mask: None,

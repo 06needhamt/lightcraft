@@ -87,6 +87,7 @@
   "Show {hidden} hidden location{}": "Mostrar {hidden} local(is) oculto(s){:.0}",
   "Showing {n} of {}": "Mostrando {n} de {}",
   "Smart album: {}": "Álbum inteligente: {}",
+  "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.": "Não foi possível gravar os arquivos XMP de {n} fotos (a pasta está offline?). O LightCraft continua tentando.",
   "Undo {}": "Desfazer {}",
   "Updated “{name}”": "“{name}” atualizado",
   "Version {} — a clean-room, pure-Rust photo library and raw developer.": "Versão {} — uma biblioteca de fotos e revelador RAW em Rust puro, desenvolvida de forma independente.",

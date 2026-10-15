@@ -83,6 +83,7 @@
   "Show {hidden} hidden location{}": "顯示 {hidden} 個隱藏的位置{:.0}",
   "Showing {n} of {}": "顯示 {n}／{} 張",
   "Smart album: {}": "智慧型相簿：{}",
+  "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.": "無法寫入 {n} 張照片的 XMP 附屬檔案（其資料夾是否離線？）。LightCraft 會持續重試。",
   "Undo {}": "復原 {}",
   "Updated “{name}”": "已更新「{name}」",
   "Version {} — a clean-room, pure-Rust photo library and raw developer.": "版本 {} — 以純 Rust 獨立實作的照片管理與 RAW 顯像程式。",

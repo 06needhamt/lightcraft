@@ -1105,6 +1105,33 @@ impl LightcraftApp {
             }
             ctx.request_repaint_after(std::time::Duration::from_secs(3));
         }
+        // automatic XMP writes that failed (a network share offline): tried again every few seconds once their files
+        // are reachable, and said once when they start waiting and once when they're written
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.session.unsaved_sidecars() > 0 {
+                let now = ctx.input(|i| i.time);
+                if now - self.ui.sidecar_retry_at >= 10.0 {
+                    self.ui.sidecar_retry_at = now;
+                    self.session.retry_unsaved_sidecars();
+                }
+                ctx.request_repaint_after(std::time::Duration::from_secs(10));
+            }
+            let waiting = self.session.unsaved_sidecars();
+            if waiting > 0 && self.ui.sidecars_waiting == 0 {
+                self.toast_for(
+                    ctx,
+                    crate::i18n::tr_format!(
+                        "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.",
+                        n = waiting
+                    ),
+                    8.0,
+                );
+            } else if waiting == 0 && self.ui.sidecars_waiting > 0 {
+                self.toast(ctx, crate::i18n::tr("Wrote the XMP sidecars that were waiting"));
+            }
+            self.ui.sidecars_waiting = waiting;
+        }
         self.session.persist_if_dirty();
         panels::denoise::pump(self, ctx);
         model_setup::pump(self, ctx);

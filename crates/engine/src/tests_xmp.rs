@@ -1287,3 +1287,42 @@ fn lossy_dng_export_scales_and_shrinks() {
     assert!(lossy.len() < lossless.len(), "{} vs {}", lossy.len(), lossless.len());
     let _ = std::fs::remove_dir_all(&src);
 }
+
+/// An automatic sidecar write that fails (here the folder is read-only, as a network share that dropped out or went
+/// read-only) waits instead of being forgotten, and `library.retrySidecars` writes it once the folder takes writes
+/// again.
+#[cfg(unix)]
+#[test]
+fn a_failed_auto_write_waits_and_is_written_on_retry() {
+    use std::os::unix::fs::PermissionsExt;
+    let src = temp_dir("auto-retry");
+    write_png(&src.join("a.png"), 4);
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+    s.execute("library.xmpPreferences", &json!({"autoWrite": true})).unwrap();
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // (root writes anyway: nothing to test there)
+    if std::fs::write(src.join(".probe"), b"x").is_ok() {
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+    s.execute("photo.rate", &json!({"rating": 4})).unwrap();
+    let sidecar = src.join("a.xmp");
+    assert!(!sidecar.exists());
+    assert_eq!(s.unsaved_sidecars(), 1, "the failed write waits");
+    let r = s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(r, json!({"written": 0, "waiting": 1}), "still read-only");
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let r = s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(r, json!({"written": 1, "waiting": 0}));
+    assert!(std::fs::read_to_string(&sidecar).unwrap().contains("<xmp:Rating>4</xmp:Rating>"));
+    // a later edit that writes fine leaves nothing waiting; turning auto-write off drops what still waits
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o555)).unwrap();
+    s.execute("photo.rate", &json!({"rating": 3})).unwrap();
+    assert_eq!(s.unsaved_sidecars(), 1);
+    s.execute("library.xmpPreferences", &json!({"autoWrite": false})).unwrap();
+    s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(s.unsaved_sidecars(), 0);
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let _ = std::fs::remove_dir_all(&src);
+}
