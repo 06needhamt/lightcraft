@@ -802,6 +802,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-14 | patch | LR-META-XMP: automatic sidecar writes that fail (folder offline or read-only) wait and are written again once the files are reachable, with a notice (`cmd:library.retrySidecars`); status unchanged |
 | 2026-10-13 | minor | LR-BEHAV-WINDOW (new, 🟡): the desktop app's window opens at the size it was left at, zoomed / maximized if it was; full screen and the place on the desktop are not remembered |
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: Nikon D600, D610 and D5000 NEFs drop the filler and noise columns on the right (a band), and the D600 and D610 measure their white level inside the image (#1627); status unchanged (🟡) |
+| 2026-10-15 | patch | LR-VIEW-BEFOREAFTER: side by side and stacked panes share click-zoom animation for whole-frame images, window tiles and input; render requests keep the final target (#1821); status unchanged |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |
