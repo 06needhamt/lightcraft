@@ -191,6 +191,7 @@ impl MergeJob {
                         metadata: r.metadata,
                         baseline_exposure: r.baseline_exposure,
                         lens: Vec::new(),
+                        wb_multipliers: r.wb_multipliers,
                     };
                     f.orient();
                     merged.push(f);

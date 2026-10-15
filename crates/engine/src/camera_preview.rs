@@ -2789,6 +2789,36 @@ mod tests {
         renders_as_shot(&dng);
     }
 
+    /// Photo Merge gives a panorama the white balance of its frames' vendor multipliers (issue #1144). A raw without
+    /// colour matrices (CR2, NEF…) is merged with the tags above, whose neutral is that white balance already: taking
+    /// it from the multipliers again leaves the merged DNG rendering as the tags do.
+    #[test]
+    fn a_merges_white_balance_from_the_multipliers_is_the_one_the_starting_colour_tags_have() {
+        use lightcraft_raw::color::{as_shot_white_of, camera_transform_of};
+        for (model, multipliers) in [("Canon EOS 6D Mark II", [2.0, 1.0, 1.5]), ("Canon EOS 600D", [1.9, 1.0, 1.7])] {
+            let mut raw = raw_of(RawFormat::Cr2, "Canon", model, Default::default());
+            raw.wb_multipliers = Some(multipliers);
+            let tags = starting_colour_tags(&mut raw, &[]).expect("tags for a raw without colour matrices");
+            let neutral = tags.as_shot_neutral.expect("the tags carry the as-shot white balance");
+            // the reciprocal of the multipliers, up to the scale a neutral is given in
+            let scale = neutral[1] * multipliers[1] as f64;
+            for i in 0..3 {
+                assert!((neutral[i] * multipliers[i] as f64 - scale).abs() < 1e-3, "{model}: {neutral:?} vs 1 / {multipliers:?}");
+            }
+            let mut merged = lightcraft_merge::FrameColor::Camera(Box::new(tags.clone()));
+            merged.set_as_shot_multipliers(multipliers);
+            let lightcraft_merge::FrameColor::Camera(merged) = merged else { panic!("camera colour") };
+            let (a, b) = (camera_transform_of(&tags, as_shot_white_of(&tags, None)), camera_transform_of(&merged, as_shot_white_of(&merged, None)));
+            for i in 0..3 {
+                assert!((a.wb[i] - b.wb[i]).abs() < 1e-4 * a.wb[i], "{model}: {:?} vs {:?}", a.wb, b.wb);
+            }
+            for (ra, rb) in a.matrix.0.iter().zip(b.matrix.0) {
+                assert!(ra.iter().zip(rb).all(|(x, y)| (x - y).abs() < 1e-4), "{model}: {:?} vs {:?}", a.matrix, b.matrix);
+            }
+            assert_eq!(a.baseline_exposure, b.baseline_exposure);
+        }
+    }
+
     /// A look with tone curve `f` at knots `xs` and a colour model and chroma curve to keep.
     fn dro_test_look(xs: &[f32; 32], f: &dyn Fn(f32) -> f32) -> CameraLook {
         CameraLook {
