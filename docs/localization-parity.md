@@ -1,12 +1,12 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (de, es, fr, ja, uk catalogs filled; re-measured) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-15 · **Change:** minor (Polish row: format messages finished, counts fixed) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 How far each interface language is from `full`. How to add or maintain a language is in
 [localization.md](localization.md); per-language notes are in `localization-<code>.md`
 ([zh-hans](localization-zh-hans.md), [zh-hant](localization-zh-hant.md), [ja](localization-ja.md),
 [pt-br](localization-pt-br.md), [es](localization-es.md), [de](localization-de.md),
-[ru](localization-ru.md)).
+[ru](localization-ru.md), [pl](localization-pl.md)).
 
 ## The target
 
@@ -58,15 +58,16 @@ that is promising but is not recorded as review, so the column says `no (communi
 | 11 | Korean | `ko` | 0 (0%) | none | **no Korean (Hangul) face**: needs a non-Adobe OFL face in craft-fonts (Noto CJK is allowed only for Chinese) | no | none | 14–22 h |
 | 12 | Vietnamese | `vi` | 0 (0%) | none | Latin with stacked diacritics (Inter covers it; check combining marks) | no | none (target: not shipped) | 10–16 h |
 
-## Other languages LightCraft ships (3)
+## Other languages LightCraft ships (4)
 
 | Language | Code | UI strings translated | Script | Native review | Status | To `full` |
 |---|---|---:|---|---|---|---:|
 | Traditional Chinese (Taiwan) | `zh-hant` | 1,993 / 2,304 (87%) | Hant; uses the Simplified Chinese face until craft-fonts has a TC face | no (community edits) | partial | 8–14 h (incl. the font) |
 | Russian | `ru` | 1,704 / 2,304 (74%) | Cyrillic (Inter) | no (community edits) | partial | 8–12 h |
 | Ukrainian | `uk` | 2,383 / 2,398 (99%; 2026-10-12) | Cyrillic (Inter) | no (community edits) | partial (lower-layer errors English) | 2–4 h |
+| Polish | `pl` | 2,159 messages + 291 formats; every format message translated (2026-10-15) | Latin (Inter) | no (AI-drafted; follow-up by a native speaker) | partial (lower-layer errors English) | 2–4 h (full native review) |
 
-Target languages LightCraft lacks: Italian, Korean, Dutch, Polish, Swedish, Norwegian Bokmål, Thai
+Target languages LightCraft lacks: Italian, Korean, Dutch, Swedish, Norwegian Bokmål, Thai
 (Thai needs shaping and line breaking without spaces). Each Latin-script one is ~10–16 h; Thai
 ~20–35 h on top of the shaping work.
 
@@ -91,6 +92,7 @@ Target languages LightCraft lacks: Italian, Korean, Dutch, Polish, Swedish, Norw
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-15 | minor | Polish row added: the format messages still in English translated, counts made right for every number, dates day.month.year ([localization-pl.md](localization-pl.md)) |
 | 2026-10-11 | minor | Shared work: the interface decides on error kinds, not English error text (#1046) |
 | 2026-10-10 | major | Created: per-language counts measured from the catalogs, the twelve key languages, script support, estimates |
 | 2026-10-12 | minor | de, es, fr, ja and uk catalogs filled to every message another catalog knows (agent translations, native review welcome); those rows re-measured against the current 2,398 messages. Other rows keep their 2026-10-10 counts (open PRs for pt-BR, ru, zh) |
