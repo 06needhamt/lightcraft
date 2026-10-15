@@ -296,9 +296,9 @@ DJI	DJI Mavic 4 Pro (DJI FC9284)	DNG	2025	unverified	DNG decoder (uncompressed, 
 DJI	DJI Mavic 4 Pro (DJI FC9287)	DNG	2025	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 DJI	DJI Mavic 4 Pro (Hasselblad L3D-100c)	DNG	2025	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 DxO	DxO ONE	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
-Epson	R-D1	ERF	2003	preview	ERF is opened from its embedded JPEG only
-Epson	R-D1s	ERF	2005	preview	ERF is opened from its embedded JPEG only
-Epson	R-D1x	ERF	2008	preview	ERF is opened from its embedded JPEG only
+Epson	R-D1	ERF	2003	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Epson	R-D1s	ERF	2005	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Epson	R-D1x	ERF	2008	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	GFX 50R	RAF	2017	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)
 Fujifilm	GFX 50S	RAF	2015	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Fujifilm	GFX 50S II	RAF	2020	verified	corpus: crates/raw/tests/body_corpus.rs (pinned sensor hash, camera-JPEG check)

@@ -2343,6 +2343,9 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "https://raw.pixls.us/getfile.php/1791/nice/Canon%20-%20EOS%2030D%20-%20RAW%20%283:2%29.CR2",
         "fb216f8df8d7abca4eb9d9f8dc594c1d2b69d0a6369fb8b4107743343c37144f",
     ),
+    ("erf-epson-rd1.erf", "https://raw.pixls.us/data/Epson/R-D1/_EPS0672.ERF", "09d8e533d93116294a9f3e161ed868e929454c7b946e083b644bd6bb75bcb5e4"),
+    ("erf-epson-rd1s.erf", "https://raw.pixls.us/data/Epson/R-D1s/EPSN3575.ERF", "45bb0081baf1c813c7cd9e05b3e6ae734b90aba408dd1195118dc94dc6abbbb9"),
+    ("erf-epson-rd1x.erf", "https://raw.pixls.us/data/Epson/R-D1x/_EPS1919.ERF", "fa1bff3e0b9b9a14f83b8db9fae022c2aca8d455896bf4f25f2c1a0034e295e6"),
 ];
 
 fn cmd_corpus(download: bool) -> Result<(), String> {
