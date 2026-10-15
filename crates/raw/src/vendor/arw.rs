@@ -45,8 +45,9 @@
 //! through the generic TIFF path.
 
 use super::arw6;
+use crate::lens_metadata::SonyLensGeometry;
 use crate::tiffraw::{Packing, check_image, read_image_in};
-use crate::{BlackLevel, Cfa, ColorData, Mode, OpcodeLists, RawData, RawError, RawFormat, RawImage, Rect, Result, ljpeg};
+use crate::{BlackLevel, Cfa, ColorData, LensMetadata, Mode, OpcodeLists, RawData, RawError, RawFormat, RawImage, Rect, Result, ljpeg};
 use lightcraft_geom::Orientation;
 use lightcraft_tiff::image::{Chunk, ImageInfo, Layout, chunk_bytes};
 use lightcraft_tiff::tags::{self as t, photometric};
@@ -553,6 +554,14 @@ fn dng_default_crop(raw: &Ifd, w: usize, h: usize) -> Option<Rect> {
     None
 }
 
+/// A rectangle exactly as an origin tag and a size tag record it (two values each), when both exist and fit `usize`.
+fn recorded_rect(raw: &Ifd, origin: u16, size: u16) -> Option<Rect> {
+    let (Some(origin), Some(size)) = (raw.u64s(origin), raw.u64s(size)) else { return None };
+    let (&[x, y], &[w, h]) = (origin.as_slice(), size.as_slice()) else { return None };
+    let n = |v: u64| usize::try_from(v).ok();
+    Some(Rect::new(n(x)?, n(y)?, n(w)?, n(h)?))
+}
+
 /// The image area for files without Sony's crop tags (`0x74c7/0x74c8`, written since about 2017): the DNG-style
 /// default crop when the raw IFD has one, else the image size the camera records (see [`recorded_size_crop`]).
 ///
@@ -749,6 +758,39 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     let mut metadata = lightcraft_meta::from_tiff(&tiff);
     metadata.width = Some(crop.width as u32);
     metadata.height = Some(crop.height as u32);
+    // The lens-correction record. The distortion table is centred on the DNG-style default crop when the file has
+    // one: on the ILCE-7RM4A it starts at x = 32 where Sony's crop tags (the image crop, unchanged) start at 0, and
+    // the warp was validated against Sony's exports with that centre. The opcode's centre is in active-area
+    // coordinates, so it stays on the optical centre whichever crop frames the image.
+    let reference = dng_default_crop(raw, w, h).unwrap_or(crop);
+    let geometry = SonyLensGeometry {
+        storage_width: w,
+        storage_height: h,
+        sony_crop: recorded_rect(raw, CROP_TOP_LEFT, CROP_SIZE),
+        default_crop: recorded_rect(raw, t::DEFAULT_CROP_ORIGIN, t::DEFAULT_CROP_SIZE),
+        image_crop: crop,
+        reference,
+        compression: info.compression,
+        linear_ycbcr: linear_rgb,
+        native_3_2: super::arw_lens::is_3_2(crop) && super::arw_lens::is_3_2(reference),
+    };
+    // decrypted for the copies' agreement check too, not only when a plain field is missing: a few dozen kB, found by
+    // reading only three `SR2Private` entries (see `sr2::SubIfd::read`)
+    let (mut sony_lens, warp) = super::arw_lens::corrections(bytes, tiff.order, (raw, tiff.bigtiff), sr2(), &model, geometry);
+    // The ILCE-7RM6's tables follow other conventions, measured against its camera JPEGs ([`super::arw_lens_rm6`]);
+    // its allowlist and `arw_lens`'s are disjoint, so at most one of them produces an opcode. Both the image framing
+    // and the table geometry must stay within the validated 3:2 scope.
+    let rm6: Vec<crate::Opcode> = if linear_rgb || !super::arw_lens::is_3_2(crop) {
+        Vec::new()
+    } else {
+        super::arw_lens_rm6::lens_opcodes(raw, &model, Rect::new(0, 0, w, h), reference)
+    };
+    if !rm6.is_empty()
+        && let Some(record) = sony_lens.as_mut()
+    {
+        // distortion only: its lateral CA planes are off (see `arw_lens_rm6::lens_opcodes`)
+        record.distortion.status = crate::lens_metadata::SonyLensStatus::Applied;
+    }
     let img = RawImage {
         format: RawFormat::Arw,
         width: w,
@@ -768,28 +810,10 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         // makes a neutral surface magenta. WB edits remain relative to this as-shot RGB.
         wb_multipliers: if linear_rgb { Some([1.0; 3]) } else { wb },
         linearized: false,
-        // The distortion table is centred on the DNG-style default crop when the file has one: on the ILCE-7RM4A
-        // it starts at x = 32 where Sony's crop tags (the image crop, unchanged) start at 0, and the warp was
-        // validated against Sony's exports with that centre. The opcode's centre is in active-area coordinates, so
-        // it stays on the optical centre whichever crop frames the image. The ILCE-7RM6's tables follow other
-        // conventions, measured against its camera JPEGs ([`super::arw_lens_rm6`]); the two allowlists are
-        // disjoint, so at most one of them produces an opcode.
-        opcodes: OpcodeLists {
-            // DefaultCrop can retain native geometry while Sony's tags select an aspect crop.
-            // Both the image framing and the table geometry must stay within the validated 3:2 scope.
-            list3: if linear_rgb || crop.height == 0 || (crop.width as f64 / crop.height as f64 - 1.5).abs() > 0.005 {
-                Vec::new()
-            } else {
-                let geometry = dng_default_crop(raw, w, h).unwrap_or(crop);
-                let active = Rect::new(0, 0, w, h);
-                super::arw_lens::distortion(&model, raw, active, geometry)
-                    .into_iter()
-                    .chain(super::arw_lens_rm6::lens_opcodes(raw, &model, active, geometry))
-                    .collect()
-            },
-            ..Default::default()
-        },
+        // only validated components become opcodes (see `arw_lens`, and `arw_lens_rm6` for the ILCE-7RM6)
+        opcodes: OpcodeLists { list3: warp.into_iter().chain(rm6).collect(), ..Default::default() },
         metadata,
+        lens_metadata: LensMetadata { sony: sony_lens },
     };
     img.validate_for(mode)?;
     Ok(img)

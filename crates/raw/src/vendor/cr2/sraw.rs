@@ -393,6 +393,7 @@ pub(super) fn decode(bytes: &[u8], tiff: &Tiff, raw: &Ifd, mode: Mode) -> Result
         linearized: false,
         opcodes: OpcodeLists::default(),
         metadata,
+        lens_metadata: Default::default(),
     };
     img.validate_for(mode)?;
     Ok(img)
