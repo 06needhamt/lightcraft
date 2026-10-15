@@ -75,6 +75,8 @@ mod tests_dialog_fit;
 #[cfg(test)]
 mod tests_dialogs;
 #[cfg(test)]
+mod tests_edit_layout;
+#[cfg(test)]
 mod tests_error_kinds;
 #[cfg(test)]
 mod tests_filmstrip;
