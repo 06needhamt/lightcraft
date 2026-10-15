@@ -1584,6 +1584,56 @@ mod tests {
         assert_eq!(named(&h, ids[1], 0), None);
     }
 
+    /// A double click on an unnamed face opens its photo in the loupe, as in the grid (#1664); a single click still only
+    /// selects it, and Escape from that photo goes back to the People view.
+    #[test]
+    fn double_clicking_an_unnamed_face_opens_its_photo() {
+        use crate::state::ViewMode;
+        use lightcraft_catalog::Op;
+        let mut h = demo([1400.0, 900.0]);
+        let t = Duration::from_secs(10);
+        let ids: Vec<_> = h.app.session.catalog.photos().map(|p| p.id).take(2).collect();
+        for id in &ids {
+            let mut meta = h.app.session.catalog.photo(*id).unwrap().meta.clone();
+            meta.regions = vec![lightcraft_meta::Region {
+                rect: lightcraft_geom::Rect { x0: 0.3, y0: 0.2, x1: 0.5, y1: 0.55 },
+                kind: lightcraft_meta::RegionKind::Face,
+                name: None,
+                description: None,
+            }];
+            h.app.session.commit("setup", Op::SetMeta { id: *id, meta: Box::new(meta) }).unwrap();
+        }
+        h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [ids[0].0]}}), t);
+        h.request("engine.execute", json!({"command": "view.people"}), t);
+        h.settle(SETTLE);
+        h.step();
+        h.step();
+        let tile = format!("unnamed-face:{}:0", ids[1].0);
+        // one click selects the face and stays in People
+        let r = h.request("ui.clickWidget", json!({"id": tile}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step();
+        h.step();
+        assert_eq!((h.app.ui.view, h.app.session.active()), (ViewMode::People, Some(ids[0])));
+        assert_eq!(h.app.ui.unnamed_selected.len(), 1);
+        h.request("ui.clickWidget", json!({"id": "unnamed:clear"}), t);
+        // half a second of frames, so egui does not count the next two clicks as the third and fourth of one burst
+        for _ in 0..30 {
+            h.step();
+        }
+        // two open the photo the face is in
+        let r = h.request("ui.clickWidget", json!({"id": tile, "count": 2}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step();
+        h.step();
+        assert_eq!((h.app.ui.view, h.app.session.active()), (ViewMode::Detail, Some(ids[1])));
+        assert_eq!(h.app.session.catalog.photo(ids[1]).unwrap().meta.regions[0].name, None, "nothing is named");
+        // Escape goes back to the faces, not to the grid
+        h.request("ui.key", json!({"key": "escape"}), t);
+        h.step();
+        assert_eq!((h.app.ui.view, h.app.ui.person_page.clone()), (ViewMode::People, None));
+    }
+
     /// The name field under the unnamed faces is a shared text field: right-click ▸ Paste puts the
     /// clipboard's name in, and Esc leaves the field and clears the selection, as Clear does.
     #[test]

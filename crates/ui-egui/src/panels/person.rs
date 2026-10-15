@@ -270,7 +270,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, name: &str) {
                 let _ = app.run("library.select", json!({"ids": [f.photo], "active": f.photo}));
                 let _ = app.run("view.detail", json!({}));
                 // Escape comes back to this page; the People button to everyone, with this person next to its title
-                app.ui.person_from = Some((shown_name.clone(), f.photo));
+                app.ui.person_from = Some((Some(shown_name.clone()), f.photo));
                 app.ui.last_person = Some(shown_name.clone());
                 app.ui.person_page = None;
             }

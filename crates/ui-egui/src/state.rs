@@ -710,9 +710,10 @@ pub struct UiState {
     /// The person whose page the People view shows (their faces and the faces that look like them); `None`: everyone.
     #[serde(skip)]
     pub person_page: Option<String>,
-    /// The person page a photo in the loupe was opened from, and that photo: Escape goes back to the page (not the grid).
+    /// The person page a photo in the loupe was opened from (`None`: the People view's unnamed faces), and that photo:
+    /// Escape goes back there (not to the grid).
     #[serde(skip)]
-    pub person_from: Option<(String, u64)>,
+    pub person_from: Option<(Option<String>, u64)>,
     /// The last person page left: the People view offers a way back to it next to its title.
     #[serde(skip)]
     pub last_person: Option<String>,
