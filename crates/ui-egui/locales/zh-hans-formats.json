@@ -283,5 +283,7 @@
   "{s} s of AV1 video": "{s} 秒 AV1 视频",
   "Slideshow exported: {what}": "幻灯片放映已导出：{what}",
   " · {n} skipped (could not be rendered)": " · 已跳过 {n} 张（无法渲染）",
-  "{n} raws can now be developed from their raw data": "{n} 个 RAW 现在可以从 RAW 数据冲印"
+  "{n} raws can now be developed from their raw data": "{n} 个 RAW 现在可以从 RAW 数据冲印",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft 意外停止：{e}\n\n详细信息见日志文件：{path}",
+  "LightCraft stopped unexpectedly: {e}": "LightCraft 意外停止：{e}"
 }

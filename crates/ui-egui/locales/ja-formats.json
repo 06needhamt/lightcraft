@@ -283,5 +283,7 @@
   "{s} s of AV1 video": "AV1 ビデオ {s} 秒",
   "Slideshow exported: {what}": "スライドショーを書き出しました：{what}",
   " · {n} skipped (could not be rendered)": " · {n} 枚をスキップ（レンダリングできません）",
-  "{n} raws can now be developed from their raw data": "{n}枚のRAWをRAWデータから現像できるようになりました"
+  "{n} raws can now be developed from their raw data": "{n}枚のRAWをRAWデータから現像できるようになりました",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraftが予期せず終了しました: {e}\n\n詳しくはログファイルをご覧ください: {path}",
+  "LightCraft stopped unexpectedly: {e}": "LightCraftが予期せず終了しました: {e}"
 }

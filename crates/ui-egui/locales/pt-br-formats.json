@@ -283,5 +283,7 @@
   "{s} s of AV1 video": "{s} s de vídeo AV1",
   "Slideshow exported: {what}": "Apresentação exportada: {what}",
   " · {n} skipped (could not be rendered)": " · {n} ignoradas (não foi possível renderizar)",
-  "{n} raws can now be developed from their raw data": "{n} RAW agora podem ser revelados a partir dos dados RAW"
+  "{n} raws can now be developed from their raw data": "{n} RAW agora podem ser revelados a partir dos dados RAW",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "O LightCraft parou inesperadamente: {e}\n\nO arquivo de log tem os detalhes: {path}",
+  "LightCraft stopped unexpectedly: {e}": "O LightCraft parou inesperadamente: {e}"
 }

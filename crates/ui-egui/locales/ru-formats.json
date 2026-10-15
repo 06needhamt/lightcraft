@@ -283,5 +283,7 @@
   "{s} s of AV1 video": "{s} с видео AV1",
   "Slideshow exported: {what}": "Слайд-шоу экспортировано: {what}",
   " · {n} skipped (could not be rendered)": " · пропущено: {n} (не удалось отрисовать)",
-  "{n} raws can now be developed from their raw data": "RAW-файлов, которые теперь можно проявлять из RAW-данных: {n}"
+  "{n} raws can now be developed from their raw data": "RAW-файлов, которые теперь можно проявлять из RAW-данных: {n}",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft неожиданно остановился: {e}\n\nПодробности в файле журнала: {path}",
+  "LightCraft stopped unexpectedly: {e}": "LightCraft неожиданно остановился: {e}"
 }
