@@ -10,7 +10,7 @@ use crate::widgets::{icon_button, register};
 
 /// The bar doubles as the window's title bar: dragging its empty space moves the window and a
 /// double-click zooms or restores it. Registered before the bar's widgets so they win the click.
-fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, content: Rect, margin_left: f32, margin_right: f32) {
+fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, content: Rect, margin_left: f32, margin_right: f32, search_rect: Rect) {
     use crate::titlebar::{Gesture, WindowState, command_for};
     let bar = Rect::from_min_max(pos2(content.left() - margin_left, content.top()), pos2(content.right() + margin_right, content.bottom()));
     register(ui.ctx(), "region:titlebar", bar);
@@ -28,9 +28,12 @@ fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, content: Rect, margin_l
         ctx.data_mut(|d| d.insert_temp(memo, on_widget));
     }
     let on_widget = ctx.data(|d| d.get_temp::<bool>(memo)).unwrap_or(false);
-    let gesture = if resp.double_clicked_by(egui::PointerButton::Primary) {
+    // The search field is drawn after this handle. Its hit-test response may not exist
+    // yet when the press is recorded; the press origin still identifies text selection.
+    let on_search = ui.input(|i| i.pointer.press_origin().is_some_and(|p| search_rect.contains(p)));
+    let gesture = if resp.double_clicked_by(egui::PointerButton::Primary) && !on_search {
         Some(Gesture::DoubleClicked)
-    } else if resp.drag_started_by(egui::PointerButton::Primary) && !on_widget {
+    } else if resp.drag_started_by(egui::PointerButton::Primary) && !on_widget && !on_search {
         Some(Gesture::DragStarted)
     } else {
         None
@@ -57,9 +60,6 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin { left, right: 12, top: 0, bottom: 0 }))
         .show(ui, |ui| {
             let full = ui.max_rect();
-            if app.integrated_titlebar {
-                window_handle(app, ui, full, left as f32, 12.0);
-            }
             // room for the filter icon and the six icons on the right
             let mut sw = 640.0f32.min(full.width() - 540.0).max(200.0);
             if !app.native_menu {
@@ -68,6 +68,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 sw = sw.min(2.0 * (full.center().x - menus_right)).max(200.0);
             }
             let search_left = full.center().x - sw / 2.0;
+            let sr = Rect::from_center_size(pos2(full.center().x, full.center().y), vec2(sw, 28.0));
+            if app.integrated_titlebar {
+                window_handle(app, ui, full, left as f32, 12.0, sr);
+            }
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 if icon_button(ui, "sidebar", Icon::Sidebar, vec2(30.0, 30.0), app.ui.left_panel, true, crate::i18n::tr("Show/hide My Photos panel"))
@@ -88,7 +92,6 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 }
             });
             // search field (centred on the window)
-            let sr = Rect::from_center_size(pos2(full.center().x, full.center().y), vec2(sw, 28.0));
             let id = crate::text_field::id("field:search");
             if std::mem::take(&mut app.ui.focus_search) {
                 ui.memory_mut(|m| m.request_focus(id));
