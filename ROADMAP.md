@@ -132,6 +132,8 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
   / localization parity); `docs/parity.md` renamed `docs/parity-checklist.md`. Landed today: Nikon
   lossy-after-split NEF (#633), ORF 12.8 bpp (#651), HDR gain map JPEG / PQ AVIF / float TIFF export
   (#646), Lightroom-like Auto (#628), activity stack.
+- 2026-10-11: Sony ILCA-99M2 (α99 II) camera colour: bundled profile from 144 photos; on 30 withheld photos
+  mean ΔE vs the camera JPEG 5.11 → 4.87, 25 of them closer.
 - 2026-10-09: Sony ILCE-7CR camera colour: bundled profile from 125 photos; on 26 withheld photos mean
   ΔE vs the camera JPEG 4.07 → 3.29. HEIC in release builds (#609), Samsung uncompressed SRW,
   contact-sheet PDF export, Ukrainian and French UI, release v0.5.0.
@@ -163,6 +165,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-13 | minor | Sony ILCA-99M2 camera colour profile in the log; numbers unchanged |
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |
