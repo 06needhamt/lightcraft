@@ -114,6 +114,15 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     let flag = active.as_ref().map(|p| p.flag).unwrap_or_default();
     for (id, icon, f) in [("unflag", Icon::Circle, Flag::None), ("pick", Icon::FlagPick, Flag::Pick), ("reject", Icon::FlagReject, Flag::Reject)] {
         let (r, resp) = pill_ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+        crate::widgets::announce_selected(
+            &resp,
+            crate::i18n::tr(match f {
+                Flag::None => "Unflagged",
+                Flag::Pick => "Pick",
+                Flag::Reject => "Reject",
+            }),
+            flag == f,
+        );
         register(pill_ui.ctx(), format!("flag:{id}"), r);
         let on = flag == f && f != Flag::None;
         let c = if on {
@@ -136,6 +145,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     }
     let copy_r = Rect::from_min_size(pos2(pill.right() + 10.0, pill.top()), vec2(copy_width, 30.0));
     let cresp = ui.interact(copy_r, egui::Id::new("copy-settings"), Sense::click());
+    crate::widgets::announce(&cresp, label.to_string());
     register(ui.ctx(), "button:copySettings", copy_r);
     ui.painter().rect_filled(copy_r, 15.0, if cresp.hovered() { t.hover } else { t.canvas });
     ui.painter().text(copy_r.center(), Align2::CENTER_CENTER, label, t.font(13.0), if active.is_some() { t.text_label } else { t.text_disabled });
@@ -146,6 +156,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     }
     let gear_r = Rect::from_min_size(pos2(copy_r.right() + 4.0, pill.top()), vec2(30.0, 30.0));
     let gresp = ui.interact(gear_r, egui::Id::new("copy-gear"), Sense::click());
+    crate::widgets::announce(&gresp, crate::i18n::tr("Copy Settings…"));
     register(ui.ctx(), "icon:copyGear", gear_r);
     ui.painter().rect_filled(gear_r, 15.0, if gresp.hovered() { t.hover } else { t.canvas });
     paint(ui.painter(), gear_r.shrink(7.0), Icon::Gear, t.icon);
@@ -229,6 +240,7 @@ fn right_side(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, compact_zo
     } else {
         // thumbnail size slider
         let (r, resp) = child.allocate_exact_size(vec2(110.0, 20.0), Sense::click_and_drag());
+        crate::widgets::announce(&resp, crate::i18n::tr("Thumbnail size"));
         register(child.ctx(), "slider:thumbSize", r);
         let p = child.painter();
         let y = r.center().y;

@@ -229,6 +229,7 @@ pub fn tile(app: &mut LightcraftApp, ui: &mut egui::Ui, list: &Unnamed, i: usize
     let key = (f.photo, f.index);
     let selected = app.ui.unnamed_selected.contains(&key);
     let resp = ui.interact(r, egui::Id::new(("unnamed-face", f.photo, f.index)), Sense::click());
+    crate::widgets::announce_selected(&resp, crate::i18n::tr("Unnamed face"), selected);
     register(ui.ctx(), format!("unnamed-face:{}:{}", f.photo, f.index), r);
     // a suggested name along the bottom: a click accepts it for this face (added after the tile, so it wins there)
     let strip = Rect::from_min_max(pos2(r.left(), r.bottom() - 20.0), r.right_bottom());

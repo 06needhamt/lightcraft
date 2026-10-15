@@ -594,6 +594,7 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     let hdr = hist.as_ref().and_then(|h| h.hdr);
     let legend = if hdr.is_some() { 26.0 } else { 0.0 };
     let (r, resp) = ui.allocate_exact_size(vec2(w, 118.0 + legend), Sense::click());
+    crate::widgets::announce(&resp, crate::i18n::tr("Histogram"));
     register(ui.ctx(), "histogram", r);
     let p = ui.painter();
     p.rect_filled(r, 0.0, t.button);
@@ -900,6 +901,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
                 ("blue", hex("#3377ee")),
             ] {
                 let (r, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
+                crate::widgets::announce(&resp, format!("{} {ch}", crate::i18n::tr("Curve channel")));
                 register(ui.ctx(), format!("curveChannel:{ch}"), r);
                 let sel = app.ui.curve_channel == ch;
                 if ch == "parametric" {
@@ -939,6 +941,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
     let (outer, _) = ui.allocate_exact_size(vec2(w, side + 12.0), Sense::hover());
     let r = Rect::from_min_size(pos2(outer.left() + 24.0, outer.top() + 6.0), vec2(side, side));
     let resp = ui.interact(r, egui::Id::new(("curve", &ch)), Sense::click_and_drag());
+    crate::widgets::announce(&resp, crate::i18n::tr("Tone Curve"));
     register(ui.ctx(), "curve", r);
     resp.context_menu(|ui| curve_reset_menu(app, ui, &ch));
     let p = ui.painter();
@@ -1255,6 +1258,7 @@ fn mixer(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings) {
             ui.spacing_mut().item_spacing.x = 5.0;
             for (i, b) in bands.iter().enumerate() {
                 let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                crate::widgets::announce(&resp, crate::i18n::tr(b));
                 register(ui.ctx(), format!("mixerBand:{b}"), r);
                 ui.painter().circle_filled(r.center(), 9.0, hex(BAND_COLORS[i]));
                 if i == sel {
@@ -1346,6 +1350,7 @@ fn point_color(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings) 
             }
             for (i, p) in d.point_colors.iter().enumerate() {
                 let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                crate::widgets::announce(&resp, format!("{} {}", crate::i18n::tr("Point Color"), i + 1));
                 register(ui.ctx(), format!("pointColor:{i}"), r);
                 ui.painter().rect_filled(r.shrink(2.0), 3.0, oklch_color(p.lum, p.chroma, p.hue));
                 if i == sel {
@@ -1481,6 +1486,7 @@ fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings
     let zone = r.expand(10.0);
     let hovering = ui.rect_contains_pointer(zone);
     let resp = ui.interact(r, egui::Id::new(("wheel", key)), Sense::click_and_drag());
+    crate::widgets::announce(&resp, format!("{} {key}", crate::i18n::tr("Color wheel")));
     let resp = resp.on_hover_text(crate::i18n::tr(
         "Drag to set hue and saturation. Hold Shift to keep the hue, Cmd/Ctrl to keep the saturation, Alt/Option to fine-adjust. Double-click to reset.",
     ));
@@ -1570,6 +1576,7 @@ fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings
     if hovering || hidden {
         let eye = Rect::from_center_size(r.left_bottom() + vec2(2.0, -2.0), vec2(16.0, 16.0));
         let er = ui.interact(eye, egui::Id::new(("wheelEye", key)), Sense::click());
+        crate::widgets::announce(&er, crate::i18n::tr("Show / hide"));
         register(ui.ctx(), format!("wheelEye:{key}"), eye);
         paint(ui.painter(), eye, if hidden { Icon::EyeOff } else { Icon::Eye }, if hidden { t.text_disabled } else { t.icon });
         let er = er.on_hover_text(crate::i18n::tr(if hidden { "Show this wheel's effect" } else { "Hide this wheel's effect" }));

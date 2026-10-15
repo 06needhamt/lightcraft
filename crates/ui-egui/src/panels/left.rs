@@ -593,6 +593,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing.y = 0.0;
         // the title offers the sections' menu too: where hidden sections come back from
         let (hr, title) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::click());
+        crate::widgets::announce(&title, crate::i18n::tr("My Photos"));
         register(ui.ctx(), "sidebarTitle", hr);
         title.context_menu(|ui| sections_menu(app, ui, None));
         // the open library's name under the title, so nobody edits in the wrong one (issue #902)

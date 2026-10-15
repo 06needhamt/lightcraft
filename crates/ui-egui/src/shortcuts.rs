@@ -316,6 +316,12 @@ fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
     if crate::widgets::slider_has_focus(ctx) {
         return ctx.input(|input| [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown].iter().any(|key| input.key_pressed(*key)));
     }
+    // a handle on the photo keeps the arrows (it moves) and Return / Space (it acts)
+    if crate::canvas_keys::has_focus(ctx) {
+        return ctx.input(|input| {
+            [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Enter, Key::Space].iter().any(|key| input.key_pressed(*key))
+        });
+    }
     let chrome = app
         .ui
         .docking

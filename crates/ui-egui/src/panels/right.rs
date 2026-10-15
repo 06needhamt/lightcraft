@@ -556,6 +556,7 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.horizontal(|ui| {
             for l in lightcraft_catalog::ColorLabel::ALL {
                 let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                crate::widgets::announce(&resp, crate::i18n::tr(&format!("{l:?}")));
                 let key = format!("{l:?}").to_lowercase();
                 register(ui.ctx(), format!("label:{key}"), r);
                 let on = p.label == Some(l);
@@ -1032,6 +1033,7 @@ fn versions(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         // newest first
         for (i, v) in shown.into_iter().rev() {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 58.0), Sense::click());
+            crate::widgets::announce(&resp, format!("{} {}", crate::i18n::tr("Version"), i + 1));
             register(ui.ctx(), format!("version:{i}"), r);
             let current = *v.settings == *p.develop;
             if resp.hovered() {
@@ -1138,6 +1140,7 @@ fn activity(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let cursor = p.history_index();
         for (i, h) in p.history.iter().enumerate().rev() {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
+            crate::widgets::announce(&resp, crate::i18n::tr(&h.label));
             register(ui.ctx(), format!("history:{i}"), r);
             let row = history_row(i, cursor);
             if row == HistoryRow::Current {

@@ -32,6 +32,7 @@ fn caption(ui: &mut egui::Ui, text: &str) {
 fn toggle(ui: &mut egui::Ui, id: &str, on: bool, tip: &str, draw: impl FnOnce(&egui::Painter, Rect, Color32)) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(26.0, 26.0), Sense::click());
+    crate::widgets::announce_selected(&resp, crate::i18n::tr(tip), on);
     register(ui.ctx(), format!("filter:{id}"), r);
     let p = ui.painter();
     if on {
@@ -131,6 +132,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     );
     for i in 1..=5u8 {
         let (r, resp) = ui.allocate_exact_size(vec2(17.0, 26.0), Sense::click());
+        crate::widgets::announce(&resp, format!("{i} ★"));
         register(ui.ctx(), format!("filter:star{i}"), r);
         let filled = i <= f.rating;
         let c = if filled {
