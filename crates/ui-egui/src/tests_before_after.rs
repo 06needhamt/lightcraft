@@ -70,6 +70,45 @@ fn wb_selector_picks_the_same_point_in_the_before_view() {
     }
 }
 
+/// A click at Fit zooms in on the point clicked whichever view of a side-by-side or top/bottom
+/// Before / After layout it lands in: both views then show the same part of the photo. A click
+/// on the Before view used to be measured against the After view's rectangle, so it zoomed in on
+/// the photo's edge (#1742).
+#[test]
+fn a_click_in_the_before_view_zooms_in_on_the_point_clicked() {
+    let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+    let mut h = Headless::new(app, [1400.0, 900.0], 1.0);
+    let r = h.request("ui.set", json!({"view": "detail", "right": "none", "filmstrip": false}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let fit = |h: &mut Headless, mode: BeforeAfter| {
+        h.app.ui.before_after = mode;
+        h.app.ui.zoom = Zoom::Fit;
+        h.app.ui.pan = Default::default();
+        h.settle(SETTLE);
+        (h.app.image_rect.expect("After view on screen"), h.app.canvas_rect.expect("canvas"))
+    };
+    for mode in [BeforeAfter::SideBySide, BeforeAfter::TopBottom] {
+        let (img, canvas) = fit(&mut h, mode);
+        let shift = match mode {
+            BeforeAfter::SideBySide => egui::vec2(img.left() + img.right() - 2.0 * canvas.center().x, 0.0),
+            _ => egui::vec2(0.0, img.top() + img.bottom() - 2.0 * canvas.center().y),
+        };
+        assert!(shift.length() > 100.0, "{mode:?}: two views, {shift:?} apart");
+        // off the middle of the photo, so that a zoom on another point shows
+        let after = img.center() + egui::vec2(img.width() * 0.3, img.height() * -0.25);
+        let mut pans = Vec::new();
+        for before_view in [false, true] {
+            fit(&mut h, mode);
+            click_at(&mut h, if before_view { after - shift } else { after });
+            assert!(matches!(h.app.ui.zoom, Zoom::Percent(_)), "{mode:?}: the click zoomed in ({:?})", h.app.ui.zoom);
+            pans.push(h.app.ui.pan);
+        }
+        let (a, b) = (pans[0], pans[1]);
+        assert!((a.0 - 0.8).abs() < 0.02 && (a.1 - 0.25).abs() < 0.02, "{mode:?}: the After view zooms in on the point clicked ({a:?})");
+        assert!((b.0 - a.0).abs() < 1e-3 && (b.1 - a.1).abs() < 1e-3, "{mode:?}: the Before view zooms in on the same point ({b:?}, not {a:?})");
+    }
+}
+
 /// Mean (r, g, b) of the 41 × 41 screen pixels around `at`.
 fn mean_around(shot: &egui::ColorImage, at: egui::Pos2) -> [f32; 3] {
     let mut sum = [0.0f32; 3];
