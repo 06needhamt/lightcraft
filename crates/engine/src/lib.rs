@@ -585,8 +585,8 @@ impl Session {
     }
 
     /// Apply an op that is LightCraft's own bookkeeping rather than something the user did (faces found by the background
-    /// scan, a raw's as-shot white read by a decode): journaled like any op, but not an undo step, and it leaves the
-    /// redo stack alone.
+    /// scan, a raw's as-shot white read by a decode, raws rechecked after an update): journaled like any op, but not
+    /// an undo step, and it leaves the redo stack alone.
     pub(crate) fn apply_system(&mut self, op: Op) -> Result<()> {
         let fwd = op.clone();
         self.catalog.apply(op)?;
@@ -1089,6 +1089,8 @@ mod tests_prefs;
 mod tests_presets_scale;
 #[cfg(test)]
 mod tests_process;
+#[cfg(test)]
+mod tests_recheck;
 #[cfg(test)]
 mod tests_segment;
 #[cfg(test)]

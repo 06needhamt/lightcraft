@@ -2095,5 +2095,9 @@
   "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "带编号的 JPEG 文件（name-001.jpg…），放在下一步命名的新文件夹中。",
   "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "AV1 视频，每张幻灯片按其时长显示并带有淡化效果。无声音：暂不导出音乐。",
   "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "幻灯片使用幻灯片放映的版面、叠加以及片头和片尾画面，按视图顺序排列。",
-  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "将视图中的照片按上方设置制作为幻灯片。进度显示在活动列表中。"
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "将视图中的照片按上方设置制作为幻灯片。进度显示在活动列表中。",
+  "Checking raw files": "正在检查 RAW 文件",
+  "1 raw can now be developed from its raw data": "1 个 RAW 现在可以从 RAW 数据冲印",
+  "This raw is now developed from its raw data": "此 RAW 现在从 RAW 数据冲印",
+  "This raw variant still can't be decoded": "这种 RAW 变体仍无法解码"
 }

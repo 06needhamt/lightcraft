@@ -265,5 +265,6 @@
   "{n} JPEG files": "{n} fichiers JPEG",
   "{s} s of AV1 video": "{s} s de vidéo AV1",
   "Slideshow exported: {what}": "Diaporama exporté : {what}",
-  " · {n} skipped (could not be rendered)": " · {n} ignorées (rendu impossible)"
+  " · {n} skipped (could not be rendered)": " · {n} ignorées (rendu impossible)",
+  "{n} raws can now be developed from their raw data": "{n} fichiers RAW peuvent désormais être développés à partir de leurs données RAW"
 }

@@ -265,5 +265,6 @@
   "{n} JPEG files": "Файлов JPEG: {n}",
   "{s} s of AV1 video": "{s} с видео AV1",
   "Slideshow exported: {what}": "Слайд-шоу экспортировано: {what}",
-  " · {n} skipped (could not be rendered)": " · пропущено: {n} (не удалось отрисовать)"
+  " · {n} skipped (could not be rendered)": " · пропущено: {n} (не удалось отрисовать)",
+  "{n} raws can now be developed from their raw data": "RAW-файлов, которые теперь можно проявлять из RAW-данных: {n}"
 }

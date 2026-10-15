@@ -1048,7 +1048,7 @@ impl crate::Session {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     /// Keywords from a file keep their hierarchy: the paths of `lr:hierarchicalSubject`, not the
     /// flat names of `dc:subject` that LightCraft's exports (and Lightroom Classic) write besides
     /// them; an exported `travel|Italy|Rome` comes back as itself.
@@ -1633,7 +1633,7 @@ mod tests {
     }
 
     /// A CR3-shaped file (not decodable yet) whose only content is a `PRVW` preview box.
-    fn cr3_with_preview(w: u32, h: u32) -> Vec<u8> {
+    pub(crate) fn cr3_with_preview(w: u32, h: u32) -> Vec<u8> {
         let px: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 128, 200]).collect();
         let jpeg = encode_jpeg(&EncodeImage::new(w, h, 3, Samples::U8(&px)), 90, ChromaSubsampling::S444, &EncodeMeta::default()).unwrap();
         let mut b = b"\0\0\0\x18ftypcrx \0\0\0\x01crx isom".to_vec();
@@ -2157,6 +2157,9 @@ mod tests {
         let p = s.catalog.photo(id).unwrap().clone();
         let why = p.preview_only.clone().expect("marked preview only");
         assert!(why.to_uppercase().contains("CR3"), "the decoder's reason: {why}");
+        // stamped with the version that decided it, so a later version rechecks it (#662)
+        assert_eq!(p.preview_checked, lightcraft_catalog::APP_VERSION);
+        assert!(!p.preview_only_stale());
         assert_eq!(p.kind, MediaKind::Raw, "still a raw file (filters, Convert to DNG…)");
         assert!(!p.develops_raw());
         // rendered like the JPEG it is: relative white balance, display tone curve, no raw defaults
@@ -2174,14 +2177,17 @@ mod tests {
         let mut s = crate::Session::new().with_fs();
         s.open_library(&lib, false).unwrap();
         assert_eq!(s.catalog.photo(id).unwrap().preview_only.as_deref(), Some(why.as_str()));
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, lightcraft_catalog::APP_VERSION);
         // the file decodes now (here: replaced by a DNG): Reload clears it, undo brings it back
         std::fs::write(&path, crate::tests_xmp::synthetic_dng_with(None, lightcraft_meta::Metadata::default())).unwrap();
         let r = s.execute("photo.reload", &json!({"ids": [id.0]})).unwrap();
         assert_eq!(r["reloaded"], json!([id.0]), "{r}");
         assert!(s.catalog.photo(id).unwrap().develops_raw());
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, "", "the stamp goes with the flag");
         assert!(crate::media::source_info(s.catalog.photo(id).unwrap()).raw);
         s.execute("edit.undo", &json!({})).unwrap();
         assert_eq!(s.catalog.photo(id).unwrap().preview_only.as_deref(), Some(why.as_str()));
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, lightcraft_catalog::APP_VERSION);
         // relinking to a file that decodes clears it too
         let dng = files.join("DSC_0001.dng");
         std::fs::write(&dng, crate::tests_xmp::synthetic_dng_with(None, lightcraft_meta::Metadata::default())).unwrap();

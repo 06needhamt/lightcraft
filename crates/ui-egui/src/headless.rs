@@ -2370,6 +2370,7 @@ mod tests {
                 file_size: ph.file_size,
                 content_hash: ph.content_hash.clone(),
                 preview_only: Some("Nikon Huffman-compressed NEF (no clean-room description available)".into()),
+                preview_checked: lightcraft_catalog::APP_VERSION.into(),
             })
             .unwrap();
         h.settle(SETTLE);
@@ -2386,10 +2387,18 @@ mod tests {
         h.settle(SETTLE);
         let n = ids(&mut h, "notice:previewOnly:");
         assert!(n.contains(&"notice:previewOnly:loupe".to_string()) && n.contains(&"notice:previewOnly:edit".to_string()), "{n:?}");
+        // with a Reload from Disk button (issue #662)
+        assert_eq!(ids(&mut h, "button:reloadPreviewOnly:"), vec!["button:reloadPreviewOnly:edit".to_string()]);
         // Info
         h.app.ui.right = crate::state::RightPanel::Info;
         h.settle(SETTLE);
         assert!(ids(&mut h, "notice:previewOnly:").contains(&"notice:previewOnly:info".to_string()));
+        assert_eq!(ids(&mut h, "button:reloadPreviewOnly:"), vec!["button:reloadPreviewOnly:info".to_string()]);
+        // …which re-reads the file and says what came of it (a demo photo has none to re-read)
+        let r = h.request("ui.clickWidget", json!({"id": "button:reloadPreviewOnly:info"}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert_eq!(h.app.ui.toast.clone().map(|x| x.0).as_deref(), Some("This raw variant still can't be decoded"));
         // a regular photo: no notice
         h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [other.0]}}), t);
         h.app.ui.right = crate::state::RightPanel::Edit;

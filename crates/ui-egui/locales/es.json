@@ -2093,5 +2093,9 @@
   "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "Archivos JPEG numerados (nombre-001.jpg…) en una carpeta nueva cuyo nombre se elige en el paso siguiente.",
   "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "Vídeo AV1, cada diapositiva durante su duración con sus fundidos. Sin sonido: la música aún no se exporta.",
   "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "Las diapositivas usan el diseño, las superposiciones y las pantallas de inicio y final de la presentación, en el orden de la vista.",
-  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "Las fotos de la vista como diapositivas, con los ajustes de arriba. El progreso aparece en la pila de actividad."
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "Las fotos de la vista como diapositivas, con los ajustes de arriba. El progreso aparece en la pila de actividad.",
+  "Checking raw files": "Comprobando archivos RAW",
+  "1 raw can now be developed from its raw data": "1 RAW ya se puede revelar a partir de sus datos RAW",
+  "This raw is now developed from its raw data": "Este RAW ya se revela a partir de sus datos RAW",
+  "This raw variant still can't be decoded": "Esta variante RAW aún no se puede decodificar"
 }

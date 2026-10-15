@@ -2059,5 +2059,9 @@
   "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "番号付きの JPEG ファイル（name-001.jpg…）を、次の手順で名前を付ける新しいフォルダーに書き出します。",
   "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "AV1 ビデオ。各スライドを表示時間のあいだフェード付きで表示します。音声なし：音楽はまだ書き出されません。",
   "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "スライドにはスライドショーのレイアウト、オーバーレイ、イントロ画面とエンディング画面が表示順で使われます。",
-  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "表示中の写真を上の設定でスライドにします。進行状況はアクティビティ一覧に表示されます。"
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "表示中の写真を上の設定でスライドにします。進行状況はアクティビティ一覧に表示されます。",
+  "Checking raw files": "RAWファイルを確認中",
+  "1 raw can now be developed from its raw data": "1枚のRAWをRAWデータから現像できるようになりました",
+  "This raw is now developed from its raw data": "このRAWはRAWデータから現像されるようになりました",
+  "This raw variant still can't be decoded": "このRAWの形式はまだデコードできません"
 }
