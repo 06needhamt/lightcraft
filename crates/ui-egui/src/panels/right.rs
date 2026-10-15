@@ -15,6 +15,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider));
     frame.show(ui, |ui| {
+        // (taken on every pass the panel is drawn; one from earlier than the pass before is forgotten)
+        let held = held_offset(ui.ctx());
         let Some(id) = app.session.active() else {
             // the Keyword List is the library's, not a photo's: it is there without a selection
             if app.ui.right == RightPanel::Keywords {
@@ -33,7 +35,20 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             super::empty_message(ui, r, "No photo selected", "Select a photo to edit");
             return;
         };
-        egui::ScrollArea::vertical().id_salt("right-scroll").auto_shrink([false, false]).show(ui, |ui| {
+        let mut area = egui::ScrollArea::vertical().id_salt("right-scroll").auto_shrink([false, false]);
+        if let Some(offset) = held {
+            area = area.vertical_scroll_offset(offset);
+        }
+        // (where the pass starts: by its end egui may have pulled a shrunken panel's offset back)
+        let area_id = ui.data(|d| d.get_temp::<egui::Id>(egui::Id::new(AREA)));
+        let start = held.or_else(|| area_id.and_then(|a| egui::scroll_area::State::load(ui.ctx(), a)).map(|s| s.offset.y));
+        ui.data_mut(|d| match start {
+            Some(o) => {
+                d.insert_temp(egui::Id::new(OFFSET), o);
+            }
+            None => d.remove::<f32>(egui::Id::new(OFFSET)),
+        });
+        let scrolled = area.show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             match app.ui.right {
                 RightPanel::Edit => super::edit::show(app, ui, id),
@@ -49,7 +64,26 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 RightPanel::None => {}
             }
         });
+        ui.data_mut(|d| d.insert_temp(egui::Id::new(AREA), scrolled.id));
     });
+}
+
+/// The panel's scroll area, its offset as the last pass started, and how far
+/// [`hold_list_in_place`] asks it to move.
+const AREA: &str = "right-scroll-id";
+const OFFSET: &str = "right-scroll-offset";
+const HOLD: &str = "right-scroll-hold";
+
+/// Where [`hold_list_in_place`] holds the panel: its offset as the pass before started, moved by as much as
+/// the Keywords box grew. Set on the scroll area as it starts, so the pass drawn again shows the list
+/// in place (a scroll asked for during a pass only lands a frame later).
+fn held_offset(ctx: &egui::Context) -> Option<f32> {
+    let (grew, asked) = ctx.data_mut(|d| d.remove_temp::<(f32, u64)>(egui::Id::new(HOLD)))?;
+    if asked.checked_add(1) != Some(ctx.cumulative_pass_nr()) {
+        return None;
+    }
+    let offset = ctx.data(|d| d.get_temp::<f32>(egui::Id::new(OFFSET)))?;
+    Some((offset + grew).max(0.0)).filter(|o| o.is_finite())
 }
 
 pub fn header(ui: &mut egui::Ui, title: &str) {
@@ -876,9 +910,11 @@ fn keywords(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if app.session.catalog.photo(id).is_none() {
         return;
     }
+    let top = ui.cursor().top();
     if fold_header(app, ui, "keywording", "Keywords") {
         keywording(app, ui);
     }
+    hold_list_in_place(ui, top);
     super::keyword_list::show(app, ui);
 }
 
@@ -1061,6 +1097,35 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             });
         }
     });
+}
+
+/// Keeps the Keyword List where it is on screen when the Keywords box above it (starting at
+/// `top`) grows or shrinks: a keyword ticked or unticked in the list, another selection. Without it
+/// a long tree slides away from under the pointer by a row of chips each time. It holds only while
+/// the box's top is scrolled out of sight (at the top of the panel the box is watched growing) and
+/// while the change does not come from the box itself (the pointer on it, or typing in its field).
+fn hold_list_in_place(ui: &mut egui::Ui, top: f32) {
+    let height = ui.cursor().top() - top;
+    let key = egui::Id::new("kw-box-height");
+    let pass = ui.ctx().cumulative_pass_nr();
+    // (the height drawn on the pass before: one from an earlier visit to the panel says nothing)
+    let before = ui.data(|d| d.get_temp::<(f32, u64)>(key)).filter(|&(_, drawn)| drawn.checked_add(1) == Some(pass)).map(|(h, _)| h);
+    ui.data_mut(|d| d.insert_temp(key, (height, pass)));
+    let Some(before) = before else { return };
+    let grew = height - before;
+    if !grew.is_finite() || grew.abs() < 0.5 || top >= ui.clip_rect().top() - 0.5 {
+        return;
+    }
+    // (only the part of it in sight: the pointer on the top bar above a half-hidden box isn't on it)
+    let old_box = Rect::from_x_y_ranges(ui.max_rect().x_range(), top..=top + before).intersect(ui.clip_rect());
+    let on_box = ui.input(|i| i.pointer.latest_pos()).is_some_and(|p| old_box.contains(p));
+    let typing = ui.memory(|m| m.has_focus(crate::text_field::id("field:keyword")));
+    if on_box || typing {
+        return;
+    }
+    ui.data_mut(|d| d.insert_temp(egui::Id::new(HOLD), (grew, pass)));
+    // (drawn again at once at the new offset, so the list never shows a frame out of place)
+    ui.ctx().request_discard("the Keyword List holds its place");
 }
 
 /// The keyword set: pick a set, then nine buttons (⌥1–⌥9) that toggle its keywords on the
