@@ -192,6 +192,8 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             );
         } else if app.session.source == lightcraft_engine::LibrarySource::Folder {
             super::empty_message(ui, ui.max_rect(), "No photos in this folder", "Turn on Include subfolders, or pick another folder under Local");
+        } else if super::empty_library::shown(&app.session) {
+            super::empty_library::show(app, ui, ui.max_rect());
         } else {
             super::empty_message(ui, ui.max_rect(), "No photos", "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here");
         }
@@ -1090,7 +1092,7 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         }
     });
     crate::widgets::menu_button(ui, crate::i18n::tr("Set Color Label"), |ui| label_menu(app, ui));
-    if local_only(app, &app.session.targets(&serde_json::Value::Null)) {
+    if local_only(app, &app.session.selected()) {
         // albums hold library photos (issue #684): nothing here to add until they join My Photos
         let add = ui.add_enabled(false, egui::Button::new(crate::i18n::tr("Add to Album"))).on_disabled_hover_text(albums_hint());
         register(ui.ctx(), "button:contextAddToAlbum", add.rect);
@@ -1196,7 +1198,7 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let _ = app.run("develop.reset", json!({}));
     }
     crate::widgets::menu_button(ui, crate::i18n::tr("Photo Merge"), |ui| {
-        let n = app.session.targets(&json!({})).len();
+        let n = app.session.selected().len();
         for (id, label) in [("dialog.mergeHdr", "HDR…"), ("dialog.mergePanorama", "Panorama…"), ("dialog.mergeHdrPanorama", "HDR Panorama…")] {
             if ui.add_enabled(n >= 2, egui::Button::new(crate::i18n::tr(label))).clicked() {
                 let _ = app.run(id, json!({}));

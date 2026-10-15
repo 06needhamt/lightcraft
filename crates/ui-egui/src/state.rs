@@ -907,6 +907,9 @@ pub struct UiState {
     pub status: String,
     #[serde(skip)]
     pub dialog: Option<Dialog>,
+    /// The Print dialog's page, selection and drag.
+    #[serde(skip)]
+    pub print: crate::print_view::PrintUi,
 }
 
 /// Settings group ids (`SettingsGroup` serde names) a new preset includes by default: everything
@@ -942,6 +945,9 @@ pub enum Dialog {
         details: Vec<String>,
         first: Option<u64>,
     },
+    /// File ▸ Print…: the Print module. Its state is the session's (`print.*`); the page on show
+    /// and the selected cell are [`UiState::print`].
+    Print,
     ContactSheet {
         options: lightcraft_engine::contact_sheet::Options,
     },
@@ -1362,6 +1368,7 @@ impl Default for UiState {
             rechecked_library: None,
             status: String::new(),
             dialog: None,
+            print: Default::default(),
         }
     }
 }
