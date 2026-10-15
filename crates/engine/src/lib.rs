@@ -1036,6 +1036,8 @@ mod tests_lightroom_folder;
 #[cfg(test)]
 mod tests_merge;
 #[cfg(test)]
+mod tests_move_to_share;
+#[cfg(test)]
 mod tests_organize;
 #[cfg(test)]
 mod tests_persist;
