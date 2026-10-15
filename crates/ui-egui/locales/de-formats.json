@@ -287,5 +287,7 @@
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft wurde unerwartet beendet: {e}\n\nEinzelheiten stehen in der Protokolldatei: {path}",
   "LightCraft stopped unexpectedly: {e}": "LightCraft wurde unerwartet beendet: {e}",
   "Renames {n} face{} across the library. The files are not changed.": "Benennt {n} Gesichter in der Bibliothek um. Die Dateien werden nicht geändert.{:.0}",
-  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "„{to}“ ist bereits eine Person. Zusammenführen ergibt eine Person; Rückgängig trennt sie wieder."
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "„{to}“ ist bereits eine Person. Zusammenführen ergibt eine Person; Rückgängig trennt sie wieder.",
+  "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what}-Zusammenfügung mit {mp} hinzugefügt: die volle Größe, {full}, braucht mehr Arbeitsspeicher, als dieser Computer hat",
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what}-Zusammenfügung mit {mp} hinzugefügt, der größten möglichen Panoramagröße (volle Größe: {full})"
 }

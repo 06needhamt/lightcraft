@@ -849,6 +849,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-13 | patch | LR-BEHAV-GPU: a GPU lost while LightCraft runs (driver reset) is reported as a stop, not a failed start, and the next start renders on the CPU and says why (issue #1337); status unchanged |
 | 2026-10-13 | minor | LR-META-INFO: Nikon DSLR raws show their lens from the maker note; status unchanged (✅) |
 | 2026-10-13 | patch | LR-IMP-LOCAL: browsing a Local folder again forgets the untouched records of files deleted or moved by another app (issue #1392); status unchanged |
+| 2026-10-13 | minor | LR-MERGE-PANO: a panorama keeps its photos' resolution (up to 512 MP / 65,000 px) instead of a fixed 40 MP, held to what fits in memory (issue #1455); status unchanged |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |

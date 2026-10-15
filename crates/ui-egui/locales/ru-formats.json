@@ -287,5 +287,7 @@
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft неожиданно остановился: {e}\n\nПодробности в файле журнала: {path}",
   "LightCraft stopped unexpectedly: {e}": "LightCraft неожиданно остановился: {e}",
   "Renames {n} face{} across the library. The files are not changed.": "Переименовывает {n} лиц в библиотеке. Файлы не изменяются.{:.0}",
-  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "«{to}» уже есть среди людей. Объединение оставляет одного человека; отмена снова разделяет их."
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "«{to}» уже есть среди людей. Объединение оставляет одного человека; отмена снова разделяет их.",
+  "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what}: слияние добавлено в размере {mp}: для полного размера ({full}) не хватает памяти этого компьютера",
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what}: слияние добавлено в размере {mp} — это наибольший размер панорамы (полный размер: {full})"
 }
