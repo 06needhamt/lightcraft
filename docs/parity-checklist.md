@@ -795,12 +795,8 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
-<<<<<<< HEAD
 | 2026-10-12 | minor | LR-EDIT-OPTICS-PROFILE: Sony ARW shading, CA and distortion tables decoded with settings and provenance (raw IFD, `SR2SubIFD` fallback); applied corrections unchanged (ILCE-7RM4A and ILCE-7RM6 distortion); status unchanged (🟡) |
-||||||| 21125577
-=======
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: Camera-coverage sweep (#1327): 30 models verified on 40 CC0 files (coverage.py 515 → 545 verified); sensor verification does not establish colour parity (#1277); status unchanged (🟡) |
->>>>>>> rb/1327
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: 17 uncompressed Olympus and Samsung Adobe models verified on one CC0 file each; status unchanged (🟡) |
 | 2026-10-13 | minor | LR-EDIT-SECTION-SOLO: Solo Mode for Edit sections (Window ▸ Edit Sections, section-header menu, ⌥-click); KEYC-PANELS notes it |
 | 2026-10-14 | minor | LR-MERGE-HDR ✅ → 🟡: tested on real 67 MP Sony brackets; moving clipped highlights (black-hole stars) and dark-sky ghosts fixed, merge memory cut ~25 %; AI Denoise on merged DNGs, JPEG response curves and per-frame memory remain (gap 29). LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set (`merge.hdrBatch`) |

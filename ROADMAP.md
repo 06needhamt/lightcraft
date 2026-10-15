@@ -2,13 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-<<<<<<< HEAD
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (RAW: 82% of Adobe's models decode, 36% verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-||||||| 21125577
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-=======
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled; camera-coverage sweep: 30 more models verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
->>>>>>> rb/1327
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-15 · **Change:** minor (RAW: 83% of Adobe's models decode, 38% verified after the camera-coverage sweep #1327) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
