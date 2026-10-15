@@ -412,7 +412,10 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     } else {
         format!("GPU: {}", gpu::adapter_name().unwrap_or_else(|| "starting…".into()))
     };
-    hint(ui, t, &status);
+    // One line, the whole text on hover: the reason can be a long driver message (no adapter
+    // among the backends …), and the GPU state is process-wide, so it may change between frames;
+    // a hint that wrapped would move every control below it under the pointer.
+    ui.add(egui::Label::new(RichText::new(crate::i18n::tr(&status)).size(11.0).color(t.text_dim)).truncate()).on_hover_text(&status);
     row(ui, t, crate::i18n::tr("Preview size"), |ui| {
         let opts: Vec<(u32, String)> =
             PREVIEW_LIMITS.iter().map(|e| (*e, if *e == 0 { crate::i18n::tr("Automatic").to_string() } else { format!("{e} px") })).collect();
@@ -953,6 +956,10 @@ fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> 
     app.session.close_library().map_err(|e| e.to_string())?;
     let opened = app.session.open_library(&dir, false).map(|_| ()).map_err(|e| format!("{path}: {e}"));
     app.lightroom_last = None;
+    app.lightroom_result = None;
+    if matches!(app.ui.dialog.as_ref(), Some(crate::state::Dialog::LightroomResult { .. })) {
+        app.ui.dialog = None;
+    }
     app.renderer.forget_all();
     app.ui.compare = None;
     if let Err(err) = opened {
