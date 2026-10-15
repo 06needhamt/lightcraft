@@ -949,7 +949,7 @@
   "No edits yet.": "まだ編集していません",
   "No exposure information": "露出情報がありません",
   "No filter presets yet": "フィルタープリセットはまだありません",
-  "No lens data embedded in this file (DNG lens opcodes only).": "このファイルにレンズ情報は含まれていません（DNGのレンズ情報のみ対応）",
+  "No lens data embedded in this file.": "このファイルにレンズ情報は含まれていません",
   "No masks yet. Choose a mask type above.": "マスクはありません。上から種類を選択してください",
   "No matching photos": "一致する写真がありません",
   "No metadata found": "メタデータがありません",

@@ -971,7 +971,7 @@
   "No edits yet.": "尚未编辑。",
   "No exposure information": "无曝光信息",
   "No filter presets yet": "暂无筛选器预设",
-  "No lens data embedded in this file (DNG lens opcodes only).": "此文件中未嵌入镜头数据 (仅支持 DNG 镜头操作码)。",
+  "No lens data embedded in this file.": "此文件中未嵌入镜头数据。",
   "No masks yet. Choose a mask type above.": "尚无蒙版。请在上方选择蒙版类型。",
   "No matching photos": "没有匹配的照片",
   "No metadata found": "未找到元数据",

@@ -920,7 +920,7 @@
   "No edits yet.": "Aún no hay ediciones.",
   "No exposure information": "Sin información de exposición",
   "No filter presets yet": "Aún no hay ajustes preestablecidos de filtro",
-  "No lens data embedded in this file (DNG lens opcodes only).": "Este archivo no incluye datos de objetivo (solo opcodes de objetivo DNG).",
+  "No lens data embedded in this file.": "Este archivo no incluye datos de objetivo.",
   "No masks yet. Choose a mask type above.": "Aún no hay máscaras. Elegir un tipo de máscara arriba.",
   "No matching commands": "Ningún comando coincide",
   "No matching photos": "No hay fotos coincidentes",
