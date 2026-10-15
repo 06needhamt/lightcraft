@@ -81,6 +81,8 @@ impl eframe::App for App {
         self.0.ui(ui);
     }
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        // (a size the window was just given is remembered too)
+        self.0.ui.window = self.1.window_at_exit(self.0.ui.window);
         if let Err(e) = self.1.save(&self.0) {
             log::error!("{e}");
         }
@@ -224,6 +226,16 @@ fn config_dir() -> Option<std::path::PathBuf> {
     lightcraft_engine::config::config_dir()
 }
 
+/// The window at the size it was last used at, zoomed if it was (`window`), or at the usual size
+/// when nothing is remembered. A zoomed window is given the size it goes back to. Where it
+/// opens is the system's to say.
+fn as_remembered(builder: egui::ViewportBuilder, window: Option<lightcraft_ui_egui::window_place::WindowPlace>) -> egui::ViewportBuilder {
+    let builder = builder.with_inner_size(window.map_or(lightcraft_ui_egui::window_place::DEFAULT_SIZE, |w| w.size));
+    // (only ever asked to zoom: asked not to, macOS un-zooms a window whose size fills the screen
+    // to a size of its own choosing)
+    if window.is_some_and(|w| w.zoomed) { builder.with_maximized(true) } else { builder }
+}
+
 /// `<config>/ui.json`, the saved UI state and app settings — `None` when nothing is read or
 /// written: `LIGHTCRAFT_NO_PREFS` (tests, scripts) or no home folder.
 fn prefs_path() -> Option<std::path::PathBuf> {
@@ -342,6 +354,11 @@ struct PrefsWriter {
     failing: bool,
     /// `ui.json` couldn't be read at launch: never overwrite it this session.
     keep_file: bool,
+    /// Follows the window, to remember the size it rests at (`UiState::window`).
+    window: lightcraft_ui_egui::window_place::WindowWatch,
+    /// When the window was first looked at: its watch goes by the clock from then on, not by
+    /// the interface's time, which stands still while the window is hidden.
+    window_since: Option<std::time::Instant>,
 }
 
 impl PrefsWriter {
@@ -372,8 +389,33 @@ impl PrefsWriter {
         Ok(())
     }
 
+    /// What to remember of the window as the app quits ([`WindowWatch::at_exit`]).
+    ///
+    /// [`WindowWatch::at_exit`]: lightcraft_ui_egui::window_place::WindowWatch::at_exit
+    fn window_at_exit(
+        &mut self,
+        remembered: Option<lightcraft_ui_egui::window_place::WindowPlace>,
+    ) -> Option<lightcraft_ui_egui::window_place::WindowPlace> {
+        match self.window_since {
+            Some(since) => self.window.at_exit(remembered, since.elapsed().as_secs_f64()),
+            None => remembered,
+        }
+    }
+
     fn tick(&mut self, app: &mut LightcraftApp, ctx: &egui::Context) {
-        let now = ctx.input(|i| i.time);
+        // (asked for before the input is read: the context is not asked from inside its own lock)
+        let zoom = ctx.zoom_factor();
+        let (now, seen) = ctx.input(|i| (i.time, lightcraft_ui_egui::window_place::Seen::of(i.viewport(), i.content_rect(), zoom)));
+        // how the window is, to open like that next time (written with the settings below). What
+        // the settings hold is checked first: a script may have set it (`ui.set`)
+        let remembered = app.ui.window.and_then(lightcraft_ui_egui::window_place::WindowPlace::checked);
+        let at = self.window_since.get_or_insert_with(std::time::Instant::now).elapsed().as_secs_f64();
+        app.ui.window = self.window.note(remembered, &seen, at);
+        if let Some(wait) = self.window.waits(at) {
+            // (a size is only remembered once the window has rested at it: look again then, though
+            // nothing else asks for a frame)
+            ctx.request_repaint_after(wait);
+        }
         let moved = app.ui.settings.library_path != self.library;
         if !moved && now - self.checked < 3.0 {
             return;
@@ -881,12 +923,12 @@ fn main() -> eframe::Result {
     // the window came up: a failure after this is LightCraft stopping, not a start that failed
     let came_up = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let came_up_app = came_up.clone();
+    // how the window was when the app was last used (checked: the settings file is a file)
+    let opens_as = prefs.as_ref().and_then(|ui| ui.window).and_then(lightcraft_ui_egui::window_place::WindowPlace::checked);
     let options = eframe::NativeOptions {
         renderer,
-        viewport: egui::ViewportBuilder::default()
-            .with_title("LightCraft")
-            .with_inner_size([1600.0, 1000.0])
-            .with_min_inner_size([900.0, 560.0])
+        viewport: as_remembered(egui::ViewportBuilder::default().with_title("LightCraft"), opens_as)
+            .with_min_inner_size(lightcraft_ui_egui::window_place::MIN_SIZE)
             .with_drag_and_drop(true)
             .with_fullsize_content_view(true)
             .with_titlebar_shown(false)
@@ -1384,6 +1426,96 @@ mod tests {
         let (loaded, warning, _) = load_prefs_at(&path, true);
         assert!(loaded.is_some() && warning.is_none());
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Given what the settings remember of the window, when the app's window is built, then it
+    /// opens at that size, zoomed if it was, where the system puts it; with nothing remembered it
+    /// opens at the usual size.
+    #[test]
+    fn the_window_opens_as_it_was() {
+        use lightcraft_ui_egui::window_place::{DEFAULT_SIZE, WindowPlace};
+        let fresh = as_remembered(egui::ViewportBuilder::default(), None);
+        assert_eq!((fresh.inner_size, fresh.position, fresh.maximized), (Some(egui::Vec2::from(DEFAULT_SIZE)), None, None));
+        let b = as_remembered(egui::ViewportBuilder::default(), Some(WindowPlace { size: [1300.0, 800.0], zoomed: true }));
+        assert_eq!((b.inner_size, b.position, b.maximized), (Some(egui::vec2(1300.0, 800.0)), None, Some(true)));
+        // (not asked to un-zoom: macOS would then resize a window that fills its screen)
+        let b = as_remembered(egui::ViewportBuilder::default(), Some(WindowPlace { size: [1300.0, 800.0], zoomed: false }));
+        assert_eq!((b.inner_size, b.position, b.maximized), (Some(egui::vec2(1300.0, 800.0)), None, None));
+    }
+
+    /// Given a window that rests at a size, when the settings are written and read again, then
+    /// they hold how it was. A window in the file that is not one (a hand edit, another version's)
+    /// reads as nothing remembered and costs no other setting; and a window resized just before
+    /// the app quits is remembered at that size.
+    #[test]
+    fn the_settings_keep_how_the_window_was() {
+        use lightcraft_ui_egui::window_place::{Seen, WindowPlace};
+        let d = dir("window");
+        let path = d.join("ui.json");
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services::default());
+        app.ui.settings.library_path = "/pictures/library".into();
+        let mut writer = PrefsWriter { path: Some(path.clone()), ..Default::default() };
+        writer.save(&app).unwrap();
+        assert!(!std::fs::read_to_string(&path).unwrap().contains("\"window\""), "nothing to remember yet");
+        let window = WindowPlace { size: [1300.0, 800.0], zoomed: true };
+        app.ui.window = Some(window);
+        writer.save(&app).unwrap();
+        let (restored, warning, _) = load_prefs_at(&path, false);
+        assert_eq!((restored.unwrap().window, warning), (Some(window), None));
+
+        // a window that is no window: the file is read all the same, with its other settings
+        let text = std::fs::read_to_string(&path).unwrap();
+        for odd in [r#""window": {}"#, r#""window": "wide""#, r#""window": {"size": [1, 2, 3]}"#, r#""window": {"size": [null, 800.0]}"#] {
+            let start = text.find("\"window\"").unwrap();
+            let end = start + text[start..].find('}').unwrap() + 1;
+            std::fs::write(&path, format!("{}{odd}{}", &text[..start], &text[end..])).unwrap();
+            let (restored, warning, keep) = load_prefs_at(&path, true);
+            let restored = restored.unwrap_or_else(|| panic!("{odd}: {warning:?}"));
+            assert_eq!((restored.window, restored.settings.library_path.as_str(), warning, keep), (None, "/pictures/library", None, false), "{odd}");
+        }
+
+        // resized, and the app quits a moment later: the new size is what is written
+        let mut writer = PrefsWriter { path: Some(path.clone()), ..Default::default() };
+        let rest = Some(WindowPlace { size: [1300.0, 800.0], zoomed: false });
+        writer.window.note(rest, &Seen { size: Some([1500.0, 900.0]), ..Default::default() }, 0.0);
+        writer.window_since = std::time::Instant::now().checked_sub(std::time::Duration::from_millis(400));
+        assert!(writer.window_since.is_some());
+        assert_eq!(writer.window_at_exit(rest), Some(WindowPlace { size: [1500.0, 900.0], zoomed: false }));
+        assert_eq!(PrefsWriter::default().window_at_exit(rest), rest, "a window that was never seen");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Given the app's window at a size, when the settings writer looks at it frame after frame,
+    /// then it asks to be woken while the size has still to rest, remembers the size once it has,
+    /// and asks for nothing more. A window in the settings that is not one (a script set it) is
+    /// put right before it is gone by.
+    #[test]
+    fn the_writer_follows_the_window_from_frame_to_frame() {
+        use lightcraft_ui_egui::window_place::WindowPlace;
+        let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services::default());
+        let mut writer = PrefsWriter::default();
+        let ctx = egui::Context::default();
+        let pass = |look: &mut dyn FnMut(&egui::Context)| {
+            let raw =
+                egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 800.0))), ..Default::default() };
+            let mut out = ctx.run_ui(raw, |ui| look(ui.ctx()));
+            out.textures_delta.clear();
+            out.viewport_output.get(&egui::ViewportId::ROOT).map(|v| v.repaint_delay)
+        };
+        // (egui's own first frames ask for another: let them pass)
+        for _ in 0..3 {
+            pass(&mut |_| {});
+        }
+        app.ui.window = Some(WindowPlace { size: [f32::NAN, 800.0], zoomed: true });
+        let asked = pass(&mut |ctx| writer.tick(&mut app, ctx));
+        assert_eq!(app.ui.window, None, "no window, and not yet at rest");
+        assert!(asked.is_some_and(|wait| wait <= std::time::Duration::from_secs(1)), "{asked:?}");
+        // a second later
+        writer.window_since = writer.window_since.and_then(|since| since.checked_sub(std::time::Duration::from_secs(1)));
+        pass(&mut |ctx| writer.tick(&mut app, ctx));
+        assert_eq!(app.ui.window, Some(WindowPlace { size: [1300.0, 800.0], zoomed: false }));
+        let asked = pass(&mut |ctx| writer.tick(&mut app, ctx));
+        assert!(asked.is_none_or(|wait| wait > std::time::Duration::from_secs(3600)), "at rest and remembered: {asked:?}");
     }
 
     /// #1331: on macOS the process ends inside `on_exit`, before eframe would tear the window down.

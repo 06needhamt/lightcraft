@@ -612,6 +612,11 @@ pub enum KeywordChips {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct UiState {
+    /// How large the app's window was and whether it was zoomed, to open it like that again (the
+    /// desktop app; absent until a window has rested at a size). Read leniently: a window that
+    /// is not one reads as none, and never costs the other settings.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::window_place::WindowPlace::lenient")]
+    pub window: Option<crate::window_place::WindowPlace>,
     /// Shared panel arrangement; absent in legacy settings until their first layout.
     pub docking: Option<crate::docking::Workspace>,
     #[serde(default = "crate::i18n::default_language")]
@@ -1229,6 +1234,7 @@ pub struct SyncCounts {
 impl Default for UiState {
     fn default() -> Self {
         UiState {
+            window: None,
             docking: None,
             language: crate::i18n::default_language(),
             preview_build_seen: None,

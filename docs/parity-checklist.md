@@ -51,7 +51,7 @@ cited here still exists. Formerly docs/parity.md.
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
 | V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
-| X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
+| X. Cross-cutting behaviours (BEHAV) | 23 | 7 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
 | Lightroom Classic extras | 36 | 22 | 27 | 8 | — | 24/26 (92%) |
@@ -802,6 +802,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-14 | minor | LR-MERGE-HDR ✅ → 🟡: tested on real 67 MP Sony brackets; moving clipped highlights (black-hole stars) and dark-sky ghosts fixed, merge memory cut ~25 %; AI Denoise on merged DNGs, JPEG response curves and per-frame memory remain (gap 29). LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set (`merge.hdrBatch`) |
 | 2026-10-15 | patch | LR-VIEW-BEFOREAFTER: side by side and stacked panes share click-zoom animation for whole-frame images, window tiles and input; render requests keep the final target (#1821); status unchanged |
 | 2026-10-14 | patch | LR-META-XMP: automatic sidecar writes that fail (folder offline or read-only) wait and are written again once the files are reachable, with a notice (`cmd:library.retrySidecars`); status unchanged |
+| 2026-10-13 | minor | LR-BEHAV-WINDOW (new, 🟡): the desktop app's window opens at the size it was left at, zoomed / maximized if it was; full screen and the place on the desktop are not remembered |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |
