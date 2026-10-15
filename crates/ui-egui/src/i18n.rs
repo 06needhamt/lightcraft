@@ -682,7 +682,7 @@ mod tests {
                 lightcraft_engine::CRAFT_FONTS.iter().filter(|font| font.serves(language.script())).map(|font| font.family).collect();
             faces.dedup();
             if faces.is_empty() {
-                eprintln!("skipped {}: built without a craft-fonts face for {}", language.code(), language.script());
+                lightcraft_testkit::skip!(Fonts, "{}: built without a craft-fonts face for {}", language.code(), language.script());
                 continue;
             }
             ctx.fonts_mut(|fonts| {
@@ -1391,7 +1391,7 @@ mod tests {
         let samples = [(Locale::Ja, "日本語の文字"), (Locale::ZhHans, "简体中文字"), (Locale::ZhHant, "繁體中文字")];
         for (language, sample) in samples {
             if !lightcraft_engine::CRAFT_FONTS.iter().any(|font| font.serves(language.script())) {
-                eprintln!("skipped {}: built without a craft-fonts face for {}", language.code(), language.script());
+                lightcraft_testkit::skip!(Fonts, "{}: built without a craft-fonts face for {}", language.code(), language.script());
                 continue;
             }
             set_language(language);

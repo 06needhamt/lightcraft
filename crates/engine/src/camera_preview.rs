@@ -2459,7 +2459,7 @@ mod tests {
             .join("raw");
         for name in ["arw-sony-a7m4-14bit.arw", "cr2-canon-5d3.cr2", "nef-nikon-d5100-lossless.nef", "cr2-canon-7d.cr2", "dng-canon-5d3-16bit.dng"] {
             let Ok(bytes) = std::fs::read(dir.join(name)) else {
-                eprintln!("skip: {name} absent");
+                lightcraft_testkit::skip!(Corpus, "{name} absent");
                 continue;
             };
             let mut raw = lightcraft_raw::decode(&bytes).unwrap();
@@ -2563,13 +2563,13 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw/cr3-canon-r100-raw.cr3");
         let Ok(bytes) = std::fs::read(&path) else {
-            eprintln!("skip: {} absent", path.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
             return;
         };
         let raw = match lightcraft_raw::decode(&bytes) {
             Ok(raw) => raw,
             Err(lightcraft_raw::RawError::Unsupported(why)) => {
-                eprintln!("skip CR3 sensor decoder: {why}");
+                lightcraft_testkit::skip!(Feature, "CR3 sensor decoder: {why}");
                 return;
             }
             Err(error) => panic!("CR3 corpus failed to decode: {error}"),
@@ -2598,7 +2598,7 @@ mod tests {
         let bytes = match std::fs::read(&path) {
             Ok(bytes) => bytes,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                eprintln!("skip: {} absent", path.display());
+                lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
                 return;
             }
             Err(e) => panic!("{}: {e}", path.display()),
@@ -2639,7 +2639,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw/nef-nikon-d7500-lossless14.nef");
         let Ok(bytes) = std::fs::read(&path) else {
-            eprintln!("skip: {} absent", path.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
             return;
         };
         let (_, info) = crate::files::load_bytes(&bytes, 400).unwrap();
@@ -2659,7 +2659,7 @@ mod tests {
             let bytes = match std::fs::read(dir.join(name)) {
                 Ok(bytes) => bytes,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    eprintln!("skip: {name} absent");
+                    lightcraft_testkit::skip!(Corpus, "{name} absent");
                     continue;
                 }
                 Err(e) => panic!("{name}: {e}"),
@@ -2680,7 +2680,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw/rw2-panasonic-fz1000m2-4x3.rw2");
         let Ok(bytes) = std::fs::read(&path) else {
-            eprintln!("skip: {} absent", path.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
             return;
         };
         let (img, info) = crate::files::load_bytes(&bytes, 400).unwrap();
@@ -2699,7 +2699,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw/arw-sony-a7rm2-12bit-uncompressed.arw");
         let Ok(bytes) = std::fs::read(&path) else {
-            eprintln!("skip: {} absent", path.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
             return;
         };
         let (_, info) = crate::files::load_bytes(&bytes, 400).unwrap();
@@ -2940,7 +2940,7 @@ mod tests {
             let bytes = match std::fs::read(&path) {
                 Ok(bytes) => bytes,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    eprintln!("skip: {} absent", path.display());
+                    lightcraft_testkit::skip!(Corpus, "{} absent", path.display());
                     continue;
                 }
                 Err(e) => panic!("{}: {e}", path.display()),
