@@ -103,6 +103,10 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.maskOverlayMode", "Cycle Mask Overlay Mode", None, "View"),
     ("view.maskOverlayColor", "Cycle Mask Overlay Color", None, "View"),
     ("view.maskPins", "Show Mask Pins", None, "View"),
+    // {mode?: auto | always | selected | never}: when spot and mask pins show (steps to the next
+    // mode when omitted; Shift+H, like Classic's H for pins, since H opens Remove). View ▸ Tool
+    // Overlay and the Remove panel list the modes.
+    ("view.toolOverlay", "Cycle Tool Overlay", Some("Shift+H"), ""),
     ("view.visualizeSpots", "Visualize Spots", Some("A"), "View"),
     ("view.cropOverlay", "Cycle Crop Overlay", Some("Shift+O"), "View"),
     ("view.cropOverlayOrientation", "Cycle Crop Overlay Orientation", None, "View"),
@@ -343,6 +347,18 @@ fn bool_param(command: &str, p: &Value, key: &str) -> Result<Option<bool>, Strin
         Some(Value::Bool(b)) => Ok(Some(*b)),
         Some(other) => Err(format!("{command}: `{key}` must be true or false, not {other}")),
     }
+}
+
+/// What Shift+H says it switched to (the pins themselves may be off screen).
+fn tool_overlay_toast(mode: crate::state::ToolOverlay) -> String {
+    use crate::state::ToolOverlay;
+    crate::i18n::tr(match mode {
+        ToolOverlay::Auto => "Tool Overlay: Auto",
+        ToolOverlay::Always => "Tool Overlay: Always",
+        ToolOverlay::Selected => "Tool Overlay: Selected",
+        ToolOverlay::Never => "Tool Overlay: Never",
+    })
+    .to_string()
 }
 
 fn appearance_json(app: &LightcraftApp) -> Value {
@@ -967,6 +983,19 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.maskPins" => {
             app.ui.mask_pins = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.mask_pins);
             Ok(json!({"maskPins": app.ui.mask_pins}))
+        }
+        "view.toolOverlay" => {
+            use crate::state::ToolOverlay;
+            let mode = match p.get("mode") {
+                None | Some(Value::Null) => app.ui.tool_overlay.next(),
+                Some(v) => match v.as_str().and_then(ToolOverlay::parse) {
+                    Some(m) => m,
+                    None => return Some(Err(format!("view.toolOverlay: unknown mode {v} (auto|always|selected|never)"))),
+                },
+            };
+            app.ui.tool_overlay = mode;
+            app.toast(&ctx, tool_overlay_toast(mode));
+            Ok(json!({"mode": mode.name()}))
         }
         "view.visualizeSpots" => {
             // like Lightroom's A: opens the Remove tool with the view on, or toggles it there

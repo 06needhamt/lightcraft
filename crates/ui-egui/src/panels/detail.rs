@@ -10,7 +10,7 @@ use serde_json::json;
 
 use crate::LightcraftApp;
 use crate::render::Slot;
-use crate::state::{BeforeAfter, RightPanel, Zoom};
+use crate::state::{BeforeAfter, RightPanel, ToolOverlay, Zoom};
 use crate::theme::Tokens;
 use crate::widgets::register;
 
@@ -1935,6 +1935,12 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
     let p = &ui.painter_at(clip);
     // (mask, component, handle, screen position) of everything that can be grabbed
     let mut grips: Vec<(u32, usize, u8, Pos2)> = Vec::new();
+    // pins follow Show Pins and the Tool Overlay mode (Shift+H); Auto hides them while brushing
+    let (mode, live) = (app.ui.tool_overlay, pins_live(app, resp, map));
+    let mut pins = p.clone();
+    if mode == ToolOverlay::Auto && matches!(app.gesture, Some(Gesture::Brush { .. })) {
+        pins.set_invisible();
+    }
     for m in &d.masks {
         let sel = Some(m.id) == active;
         for (ci, c) in m.components.iter().enumerate() {
@@ -1987,10 +1993,11 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                 _ => {}
             }
             if app.ui.mask_pins
+                && mode.shows(sel, live)
                 && let Some(at) = component_pin(&c.shape)
             {
                 let q = map.screen(at);
-                pin(p, q, sel);
+                pin(&pins, q, sel);
                 register(ui.ctx(), format!("maskPin:{}:{ci}", m.id), Rect::from_center_size(q, vec2(14.0, 14.0)));
                 grips.push((m.id, ci, 0, q));
             }
@@ -2218,6 +2225,12 @@ fn frame_long_norm(map: &CanvasMap) -> (f64, f64) {
     (l / x.max(1e-9), l / y.max(1e-9))
 }
 
+/// Auto's condition for the Tool Overlay (Shift+H): the pointer is over the photo, or a pin is
+/// being dragged.
+fn pins_live(app: &LightcraftApp, resp: &egui::Response, map: &CanvasMap) -> bool {
+    resp.hover_pos().is_some_and(|q| map.rect.contains(q)) || matches!(app.gesture, Some(Gesture::SpotMove { .. } | Gesture::MaskHandle { .. }))
+}
+
 fn pin(p: &egui::Painter, c: Pos2, sel: bool) {
     p.circle_filled(c, 6.0, if sel { Color32::from_rgb(1, 101, 221) } else { Color32::from_gray(200) });
     p.circle_stroke(c, 6.0, Stroke::new(1.5, Color32::WHITE));
@@ -2227,15 +2240,28 @@ fn pin(p: &egui::Painter, c: Pos2, sel: bool) {
 
 /// The Remove tool on the photo: every spot's outline and pin (the selected one with its source),
 /// click a pin to select its spot, drag a target or source to move it, paint elsewhere to add one.
+/// The Tool Overlay mode (Shift+H) says which spots show; a hidden spot can't be grabbed, so a
+/// click there adds a new one.
 fn remove_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
     let long = (map.rect.width().max(map.rect.height())) as f64;
-    let p = ui.painter_at(app.canvas_rect.unwrap_or(map.rect));
     let active = app.session.active_spot.filter(|i| *i < d.spots.len());
+    let (mode, live) = (app.ui.tool_overlay, pins_live(app, resp, map));
+    // Auto also hides them while a new spot is painted
+    let painting = mode == ToolOverlay::Auto && matches!(app.gesture, Some(Gesture::Spot { .. }));
+    let p = ui.painter_at(app.canvas_rect.unwrap_or(map.rect));
+    let mut pins = p.clone();
+    if painting {
+        pins.set_invisible();
+    }
     // (spot, is source, screen centre, radius) of everything that can be grabbed
     let mut grips: Vec<(usize, bool, Pos2, f32)> = Vec::new();
     for (i, s) in d.spots.iter().enumerate() {
         let r = (s.size * long) as f32;
         let sel = Some(i) == active;
+        if !mode.shows(sel, live) {
+            continue;
+        }
+        let p = &pins;
         let col = Color32::from_white_alpha(if sel { 230 } else { 150 });
         for q in &s.points {
             p.circle_stroke(map.screen(*q), r, Stroke::new(if sel { 1.5 } else { 1.0 }, col));
@@ -2252,7 +2278,7 @@ fn remove_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respo
             register(ui.ctx(), format!("spotSource:{i}"), Rect::from_center_size(sq, vec2(14.0, 14.0)));
             grips.push((i, true, sq, r));
         }
-        pin(&p, tq, sel);
+        pin(p, tq, sel);
         register(ui.ctx(), format!("spotPin:{i}"), Rect::from_center_size(tq, vec2(14.0, 14.0)));
         grips.push((i, false, tq, r));
     }

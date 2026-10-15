@@ -60,6 +60,7 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 | Expand/collapse edit sections | ⌘⌥1–5 | ⌘1–6 | ⌘0 = Zoom to Fit, ⌘1 = Zoom 100 %; Geometry lives in the Crop panel |
 | Histogram | ⌘⇧H | ⌘0 | ⌘0 = Zoom to Fit |
 | Square Grid | ⇧G | (none; ⇧G = Guided Upright) | Guided Upright is a button in the Crop panel |
+| Hide / show pins (Tool Overlay) | ⇧H (cycles Auto, Always, Selected, Never) | H (Classic) | H opens Remove; View ▸ Tool Overlay and the Remove / Masking panels pick a mode |
 | Export dialog | ⌘⇧E (+ ⇧E) | ⇧E | ⌘⇧E is "Edit in Photoshop" there; no external-editor command yet |
 | Crop overlay cycle | ⇧O | O | O = mask overlay; ⇧O (mask colour / overlay orientation) unused otherwise |
 | Create Version | ⌘⇧S (+ ⇧M) | ⇧M (Windows: Ctrl+⇧S) | — |
@@ -70,7 +71,6 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 **Still missing / broken:**
 - No command yet: F1 help (verify the rest of the old list: full screen, settings, stacks,
   visualize spots and merges have commands now).
-- `H` opens Remove; Lightroom also uses it (Classic) to hide pins — pins toggle from View → Show Mask Pins.
 - ⌘M / ⌘H / ⌘Q / ⌘W rely on the platform window defaults (unverified).
 
 
@@ -127,6 +127,7 @@ a real screen reader on any platform yet.
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-12 | minor | Accessibility: crop handles, spots, gradient handles and mask pins operable by keyboard with AccessKit names and values; Tab order test for the right panels; hand-drawn icons and rows named; 55% → 75%; UI remaining 34–58 h → 32–54 h |
+| 2026-10-13 | minor | Shortcuts: Tool Overlay modes for spot and mask pins on ⇧H (H stays Remove; issue #224), listed with the deliberate differences; dropped from the missing list |
 | 2026-10-12 | minor | Accessibility: an AccessKit tree audit test over every view, Develop tool and 13 dialogs; unnamed fields, slider ranges and the Auto Stack slider fixed; 30% → 55%; UI remaining 40–70 h → 34–58 h |
 | 2026-10-11 | minor | Zoom row: Compare and Reference get zoom windows; what remains of LR-VIEW-ZOOM is overlays and soft proofing |
 | 2026-10-10 | major | Created: measured command and shortcut counts, assessment by area, estimates; moved the shortcut conflicts section here from the checklist |
