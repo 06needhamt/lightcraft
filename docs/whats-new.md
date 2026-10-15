@@ -86,6 +86,11 @@
   is connected, the same review File → Import from Device opens. It's off by default. A card that's already in when
   LightCraft starts doesn't ask, and if a dialog is open or an import is running it waits until that's done.
 
+### Local folders
+- Photos deleted (or moved) by another app no longer stay in a Local folder, failing to load and logging an error
+  each time you look (issue #1392): the next time you browse the folder, in a later session, they're left out. A photo you had rated, flagged or
+  edited stays, marked missing, so its changes aren't lost; photos in My Photos are unchanged.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

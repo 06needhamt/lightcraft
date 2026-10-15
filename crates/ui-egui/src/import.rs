@@ -581,6 +581,12 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     app.session.import_probes = out.probes;
     if task.browse {
+        // records of files gone from the folder (deleted or moved by another app) that nothing was changed on go,
+        // as `library.browse` forgets them (issue #1392)
+        if let Some(b) = app.session.browse.clone() {
+            let listed: Vec<String> = out.candidates.iter().map(|c| c.path.clone()).collect();
+            app.session.forget_gone_from(&b.path, b.subfolders, &listed);
+        }
         // what the library doesn't know yet joins the Local view
         let queue: Vec<String> =
             out.candidates.iter().filter(|c| c.duplicate != Some("path".into()) && c.error.is_none()).map(|c| c.path.clone()).collect();
