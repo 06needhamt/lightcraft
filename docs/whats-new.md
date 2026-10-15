@@ -20,6 +20,16 @@
   #1447), or keeps the photo you had when the folder holds it. Before, the photo from the previous view stayed active:
   Photo Grid marked nothing, and Detail, the histogram and the photo info showed a photo that isn't in the folder.
 
+### Nikon Z 6II, Z 8 and D5300 colour profiles
+- Raws from the Nikon Z 6II, Z 8 and D5300 now start from a colour profile built from a few hundred photos from each camera, the same way the
+  Sony and Fujifilm profiles were made, instead of fitting each photo's colour on its own. Colours that one photo
+  shows only a little of come out closer to the camera's JPEG.
+
+### Closer camera colour for lens-corrected raws
+- Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
+  Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that
+  didn't line up with the raw near the edges. Photos you already imported pick this up when their previews are rebuilt.
+
 ### HDR merges of moving lights, and many brackets at once
 - A star, the moon or a light that moves between the photos of a bracket (a night bracket on a tripod) no longer
   leaves a black hole where the middle photo had it clipped. With Deghost, the brightest photo's copy of it in a
@@ -117,10 +127,6 @@
   #1236). The D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600,
   Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
   the area the camera itself frames, a few pixels smaller than before.
-- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
-  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
-  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
-
 ### An empty library leads to Import
 - A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
   Detail view that pointed at an empty grid. The grid and Detail view offer Import Photos… and, in the desktop app,
@@ -146,10 +152,28 @@
   folder browsed every day from the sidebar was forgotten anyway and read again from scratch on the next visit,
   which is slow on a network share.
 ## 2026-10-14
-
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
+
+### Where the camera focused
+- **View ▸ Show Focus Point** (⌥F) draws the autofocus frame the camera recorded over the photo, in Detail, Compare
+  and Survey, following rotation and crops; the Info panel says how it focused (`AF-C · Wide · Animal Eye Tracking`).
+  Lightroom has no such view.
+- **Z zooms to it**: Toggle Zoom centres on the focus point, so checking that the subject is sharp is one key
+  (View ▸ Zoom to Focus Point turns this off). Photos without a point zoom as before.
+- Sony α1 (ILCE-1) and A7S III (ILCE-7SM3) raws for now; manual-focus shots and Wide shots that only report the frame
+  centre show nothing. More cameras will follow. Details: [focus-points.md](focus-points.md).
+- **Photos already in your library get theirs in the background**: LightCraft reads just the few kilobytes of each
+  file that hold the focus point (about 100 photos a second from a spinning disk), with a *Reading focus points* row
+  in the activity stack you can stop. Photo ▸ Read Focus Points runs it by hand.
+
+### Cleaner HDR merges
+- Bright windows in an HDR made with Photo ▸ Photo Merge ▸ HDR no longer take a magenta tinge from the brighter
+  photos along the areas they clipped: right next to a clipped area, a photo's colour isn't used. It showed most when
+  the highlights were darkened or saturated.
+- The same photos give the same HDR whatever order they are selected in; before, a different order could change a
+  few pixels.
 
 ### HDR merges keep the white balance
 - An HDR merged from raws that LightCraft colours from the camera's JPEG (CR2, NEF, ARW…) now opens at the same
