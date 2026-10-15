@@ -634,7 +634,11 @@ fn render_impl(src: Src<'_>, info: &SourceInfo, s: &DevelopSettings, req: &Rende
 /// exposed scene colours, as [`MaskShape::ColorRange`](lightcraft_develop::MaskShape) compares
 /// them), averaged over 3 × 3 pixels of a render fitting `req`. `None` outside the image.
 pub fn color_range_sample(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, req: &RenderRequest, p: lightcraft_geom::Point) -> Option<[f64; 3]> {
-    let plan = plan(src, info, s, req);
+    // Pick from the same settings as the render: disabled panels contribute nothing, and an
+    // SDR preview of an HDR edit includes the SDR rendition's exposure offset.
+    let effective = s.effective();
+    let rendition = settings_for(&effective, req);
+    let plan = plan(src, info, &rendition, req);
     let mut img = plan.frame.sample(src, plan.w, plan.h);
     lin_cpu(&mut img, info, &plan);
     let o = plan.frame.norm_to_out(plan.w, plan.h).apply(p);
@@ -642,7 +646,7 @@ pub fn color_range_sample(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, 
     if cx < 0 || cy < 0 || cx >= plan.w as i64 || cy >= plan.h as i64 {
         return None;
     }
-    let gain = (s.light.exposure as f32).exp2();
+    let gain = (plan.settings.light.exposure as f32).exp2();
     let mut acc = [0f64; 3];
     let mut n = 0.0;
     for y in (cy - 1).max(0)..=(cy + 1).min(plan.h as i64 - 1) {
