@@ -341,7 +341,9 @@ mod contact_sheet_tests {
         crate::pick::poll(&mut app, &ctx);
         assert!(app.pending_picks.is_empty());
         assert!(app.export.is_some(), "picker did not start export: {:?}", app.ui.toast);
-        let deadline = Instant::now() + Duration::from_secs(90);
+        // a hang guard, not a speed check: the render queues behind other tests' demo scenes (generated one at a
+        // time process-wide), which on a loaded machine takes minutes
+        let deadline = Instant::now() + Duration::from_secs(300);
         loop {
             // Poll the real worker without starting unrelated gallery renders each frame.
             poll(&mut app, &ctx);
