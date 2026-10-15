@@ -396,56 +396,37 @@ fn one_graph_drag_that_moves_several_regions_is_one_undo_step() {
     assert_eq!(develop(&h).curve, before, "undo takes back the whole gesture at once");
 }
 
-/// The screen position of a region's handle: its region's window centre, at the level the region's
-/// own bump puts the curve, so a drag starts on the dot the graph draws.
-fn region_handle(r: [f32; 4], c: &lightcraft_develop::ToneCurve, region: usize) -> [f32; 2] {
-    let model = ParametricCurve::new(c);
-    let x = model.region_x(region);
-    let y = model.handle_level(region, model.amounts[region]);
-    [r[0] + x as f32 * r[2], r[1] + (1.0 - y as f32) * r[3]]
+/// The screen point where a drag should grab the curve: graph fraction `fx`, on the line itself.
+fn on_curve(r: [f32; 4], c: &lightcraft_develop::ToneCurve, fx: f32) -> [f32; 2] {
+    let y = ParametricCurve::new(c).at(fx as f64);
+    [r[0] + fx * r[2], r[1] + (1.0 - y as f32) * r[3]]
 }
 
-/// The screen position of a split's notch, on the graph's bottom edge.
-fn split_handle(r: [f32; 4], c: &lightcraft_develop::ToneCurve, split: usize) -> [f32; 2] {
-    let model = ParametricCurve::new(c);
-    [r[0] + model.split_x(split) as f32 * r[2], r[1] + r[3]]
-}
-
-/// The point to press to grab a split's notch: its x, a few points up from the graph's bottom edge
-/// (the notch is drawn on the edge, and a press exactly on the widget's border falls outside egui's
-/// hit rect). Well inside [`CURVE_HIT`] of the notch.
-fn split_grab(r: [f32; 4], c: &lightcraft_develop::ToneCurve, split: usize) -> [f32; 2] {
-    let [x, y] = split_handle(r, c, split);
-    [x, y - 3.0]
-}
-
-/// Dragging a region's handle on the graph bends that region and moves its slider with it, live:
-/// the value under the pointer while the drag is in flight, and the same value when it lands.
+/// Dragging the curve itself bends the region under the pointer and moves that region's slider with
+/// it, live. The graph draws no handles, so the only thing to grab is the line.
 #[test]
-fn dragging_a_region_handle_moves_its_slider() {
+fn dragging_the_curve_moves_the_region_slider() {
     let mut h = curve_open("parametric");
     exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 60}));
     h.step();
     let r = curve_graph_rect(&mut h);
     let c = develop(&h).curve;
     let undo_before = h.app.session.undo.len();
-    let [x, y] = region_handle(r, &c, 2);
-    let down = 0.08 * r[3];
-    let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x, "toY": y + down, "steps": 8}), T);
+    // grab the line inside the Lights window (x = 0.625) and pull it down
+    let [x, y] = on_curve(r, &c, 0.625);
+    let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x, "toY": y + 0.08 * r[3], "steps": 8}), T);
     assert_eq!(d["ok"], true, "{d}");
     h.step();
     let after = develop(&h).curve;
-    assert!(after.lights < 60.0, "the Lights slider follows the handle down: {}", after.lights);
+    assert!(after.lights < 60.0, "the Lights slider follows the line down: {}", after.lights);
     assert!(after.lights > 0.0, "and lands on a value, not at the bottom: {}", after.lights);
     assert_eq!((after.shadows, after.darks, after.highlights), (0.0, 0.0, 0.0), "the other regions stay put: {after:?}");
     assert_eq!(after.split_shadows, c.split_shadows, "and the splits are untouched");
     assert_eq!(h.app.session.undo.len(), undo_before + 1, "one undo step for the whole drag");
-    // the graph is redrawn bent, with the handle where the drag left it
+    // the graph really is redrawn below where the line was
     let graph = curve_graph_rect(&mut h);
-    let model = ParametricCurve::new(&after);
-    let painted = painted_param_curve(&h, graph)(model.region_x(2));
-    let want = model.handle_level(2, after.lights);
-    assert!((painted - want).abs() < 0.03, "the handle sits on the redrawn curve: painted {painted}, handle {want}");
+    let painted = painted_param_curve(&h, graph)(0.625);
+    assert!(painted < c.lights / 100.0 + 0.625, "the painted line followed the drag down: {painted}");
     // and Undo takes the whole gesture back to where it started
     exec(&mut h, "edit.undo", json!({}));
     assert_eq!(develop(&h).curve, c, "undo restores the value the drag started from");
@@ -453,61 +434,60 @@ fn dragging_a_region_handle_moves_its_slider() {
 
 /// Dragging up bends the region the other way, so the gesture is not just "downwards works".
 #[test]
-fn dragging_a_region_handle_up_raises_its_slider() {
+fn dragging_the_curve_up_raises_the_region_slider() {
     let mut h = curve_open("parametric");
     let r = curve_graph_rect(&mut h);
     let c = develop(&h).curve;
-    let [x, y] = region_handle(r, &c, 1);
+    // x = 0.375 is inside the Darks window
+    let [x, y] = on_curve(r, &c, 0.375);
     let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x, "toY": y - 0.08 * r[3], "steps": 8}), T);
     assert_eq!(d["ok"], true, "{d}");
     h.step();
     let after = develop(&h).curve;
-    assert!(after.darks > 0.0, "the Darks slider follows the handle up: {}", after.darks);
+    assert!(after.darks > 0.0, "the Darks slider follows the line up: {}", after.darks);
     assert_eq!((after.shadows, after.lights, after.highlights), (0.0, 0.0, 0.0), "the other regions stay put: {after:?}");
-    // the drawn curve really did move up where that region lives
-    assert!(ParametricCurve::new(&after).at(0.375) > ParametricCurve::new(&c).at(0.375), "the curve bends up at the Darks region");
+    assert!(ParametricCurve::new(&after).at(0.375) > ParametricCurve::new(&c).at(0.375), "the curve is drawn bent up at the Darks region");
 }
 
-/// Dragging a split's notch moves the region boundary — the same split slider the pipeline reads —
-/// leaving the four region amounts alone, in one undo step.
+/// Which region a drag moves is decided by where on the line it is grabbed: the same drag gesture
+/// four times over grabs four different sliders.
 #[test]
-fn dragging_a_split_moves_the_region_boundary() {
-    let mut h = curve_open("parametric");
-    exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 40}));
-    h.step();
-    let r = curve_graph_rect(&mut h);
-    let c = develop(&h).curve;
-    let undo_before = h.app.session.undo.len();
-    let [x, y] = split_grab(r, &c, 1);
-    let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x + 0.1 * r[2], "toY": y, "steps": 8}), T);
-    assert_eq!(d["ok"], true, "{d}");
-    h.step();
-    let after = develop(&h).curve;
-    assert!(after.split_mid > c.split_mid, "the Midtones split follows the notch right: {} → {}", c.split_mid, after.split_mid);
-    assert_eq!((after.shadows, after.darks, after.lights, after.highlights), (0.0, 0.0, 40.0, 0.0), "the region amounts stay put");
-    assert_eq!(h.app.session.undo.len(), undo_before + 1, "one undo step for the drag");
-    // dragged far right it stops inside the split's own range, without crossing the next split
-    let [x, y] = split_grab(r, &after, 1);
-    let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x + 0.9 * r[2], "toY": y, "steps": 8}), T);
-    assert_eq!(d["ok"], true, "{d}");
-    h.step();
-    let far = develop(&h).curve;
-    assert!((20.0..=80.0).contains(&far.split_mid), "the split stays in its slider's range: {}", far.split_mid);
-    let model = ParametricCurve::new(&far);
-    assert!(model.split_x(1) < model.split_x(2), "and stays left of the split after it: {far:?}");
+fn the_region_dragged_is_the_one_under_the_pointer() {
+    for (fx, control, region) in
+        [(0.125_f32, "curve.shadows", 0usize), (0.375, "curve.darks", 1), (0.625, "curve.lights", 2), (0.875, "curve.highlights", 3)]
+    {
+        let mut h = curve_open("parametric");
+        let r = curve_graph_rect(&mut h);
+        let c = develop(&h).curve;
+        assert_eq!(ParametricCurve::new(&c).region_at(fx as f64), region, "x = {fx} belongs to {control}");
+        let [x, y] = on_curve(r, &c, fx);
+        let d = h.request("ui.drag", json!({"x": x, "y": y, "toX": x, "toY": y - 0.06 * r[3], "steps": 6}), T);
+        assert_eq!(d["ok"], true, "{d}");
+        h.step();
+        let after = develop(&h).curve;
+        let moved = after.shadows + after.darks + after.lights + after.highlights;
+        let want = match region {
+            0 => after.shadows,
+            1 => after.darks,
+            2 => after.lights,
+            _ => after.highlights,
+        };
+        assert!(want > 0.0, "grabbing at {fx} raises {control}: {after:?}");
+        assert!((moved - want).abs() < 1e-9, "and nothing else moved: {after:?}");
+    }
 }
 
-/// A drag that starts away from every handle is not a graph gesture at all: nothing moves and no
-/// undo step is made (the graph is not a "click anywhere to bend" surface).
+/// A drag that starts away from the line is not a graph gesture at all: nothing moves and no undo
+/// step is made (the graph is not a "click anywhere to bend" surface).
 #[test]
-fn a_parametric_drag_off_a_handle_changes_nothing() {
+fn a_parametric_drag_off_the_line_changes_nothing() {
     let mut h = curve_open("parametric");
     exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 40}));
     h.step();
     let before = develop(&h).curve;
     let undo = h.app.session.undo.len();
     let r = curve_graph_rect(&mut h);
-    // a corner of the graph, far from the curve and from both handle rows
+    // a corner of the graph, far above the line
     let d = h.request(
         "ui.drag",
         json!({"x": r[0] + 0.06 * r[2], "y": r[1] + 0.06 * r[3], "toX": r[0] + 0.2 * r[2], "toY": r[1] + 0.3 * r[3], "steps": 6}),
@@ -519,52 +499,65 @@ fn a_parametric_drag_off_a_handle_changes_nothing() {
     assert_eq!(h.app.session.undo.len(), undo, "and no undo step was made");
 }
 
-/// The graph shows the value under the pointer while the drag is in flight, so the slider and the
-/// handle are seen to agree mid-gesture, not only once it lands.
+/// Hovering the line names the region a press there would move (and offers the grab cursor), so the
+/// graph says which slider it is about to change before the drag starts.
 #[test]
-fn the_value_under_the_pointer_reads_out_during_the_drag() {
+fn hovering_the_line_names_the_region_it_would_move() {
     let mut h = curve_open("parametric");
     exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 60}));
     h.step();
     let r = curve_graph_rect(&mut h);
-    let c = develop(&h).curve;
-    let [x, y] = region_handle(r, &c, 2);
-    // press on the handle and hover the same place: the readout names the control it will write
+    let [x, y] = on_curve(r, &develop(&h).curve, 0.625);
     let q = h.request("ui.move", json!({"x": x, "y": y}), T);
     assert_eq!(q["ok"], true, "{q}");
     h.step();
-    assert!(h.painted_text().iter().any(|t| t.contains("Lights")), "the handle names the slider it writes: {:?}", h.painted_text());
+    assert_eq!(h.last_cursor, egui::CursorIcon::Grab, "the line offers a grab: {:?}", h.last_cursor);
+    assert!(h.painted_text().iter().any(|t| t.contains("Lights")), "and names the slider it would move: {:?}", h.painted_text());
+    // well above the line there is no grab and no name
+    let q = h.request("ui.move", json!({"x": x, "y": r[1] + 0.06 * r[3]}), T);
+    assert_eq!(q["ok"], true, "{q}");
+    h.step();
+    assert_eq!(h.last_cursor, egui::CursorIcon::Default, "away from the line there is nothing to grab: {:?}", h.last_cursor);
 }
 
-/// A region's handle level and its slider amount are inverses, so a drag puts the handle exactly
-/// where the pointer is; a level the region cannot reach saturates rather than jumping.
+/// A point's level on the region's curve and its slider amount are inverses, so a drag puts the line
+/// exactly where the hand is, at whatever point on the graph it was grabbed. A level the region
+/// cannot reach saturates rather than jumping.
 #[test]
-fn a_region_level_and_its_amount_are_inverses() {
+fn a_curve_level_and_its_amount_are_inverses() {
     let c = lightcraft_develop::ToneCurve { shadows: 20.0, lights: 40.0, ..Default::default() };
     let model = ParametricCurve::new(&c);
     for region in 0..4 {
-        for amount in [-100.0, -40.0, 0.0, 30.0, 100.0] {
-            let level = model.handle_level(region, amount);
-            let back = model.amount_at_level(region, level);
-            assert!((back - amount).abs() <= 1.0, "region {region}: {amount} → level {level} → {back}");
+        let centre = model.region_x(region);
+        // the region's window centre, and a point off-centre inside the same window
+        for x in [centre, centre + (model.split_x(region) - centre) * 0.5] {
+            for amount in [-100.0, -40.0, 0.0, 30.0, 100.0] {
+                let level = model.handle_level_at(region, amount, x);
+                let back = model.amount_at_level(region, level, x);
+                assert!((back - amount).abs() <= 1.0, "region {region} at {x}: {amount} → {level} → {back}");
+            }
         }
     }
-    assert_eq!(model.amount_at_level(3, 1.0), 100.0, "a level above the region's reach saturates high");
-    assert_eq!(model.amount_at_level(3, 0.0), -100.0, "and one below saturates low");
-    // a split reads out in its own slider's range (10..=70 here), not the graph's 0..=100 …
-    assert_eq!(model.split_value(0, 0.0), 10.0, "the Shadows split bottoms out at its slider's low end");
-    // … and its neighbours are what actually bound it, closer than that range's own ends
-    assert!(model.split_value(0, 1.0) <= 70.0 && model.split_value(0, 1.0) > 10.0, "kept inside its range");
-    assert!(model.split_x(1) > model.split_x(0) && model.split_x(2) > model.split_x(1), "and the splits stay in order");
-    assert!(model.split_value(2, 1.0) <= 90.0, "the Highlights split stays in its own range too");
+    let centre = model.region_x(3);
+    assert_eq!(model.amount_at_level(3, 1.0, centre), 100.0, "a level above the region's reach saturates high");
+    assert_eq!(model.amount_at_level(3, 0.0, centre), -100.0, "and one below saturates low");
 }
 
-/// A dragged split never crosses its neighbours, however far the pointer goes.
+/// The four regions tile the graph: every position belongs to exactly one of them, in order, so a
+/// drag anywhere on the line moves exactly one slider and the one the pointer is over.
 #[test]
-fn a_dragged_split_stays_between_its_neighbours() {
+fn the_four_regions_tile_the_graph() {
     let model = ParametricCurve::new(&lightcraft_develop::ToneCurve::default());
-    assert!((model.split_x_limited(1, 0.0) - 0.26).abs() < 1e-9, "Midtones stops just right of the split before it");
-    assert!((model.split_x_limited(1, 1.0) - 0.74).abs() < 1e-9, "and just left of the split after it");
-    assert!(model.split_x_limited(0, -1.0).abs() < 1e-9, "the first split can reach black");
-    assert!((model.split_x_limited(2, 2.0) - 1.0).abs() < 1e-9, "the last can reach white");
+    assert_eq!(model.region_at(0.0), 0, "black is the darkest region");
+    assert_eq!(model.region_at(1.0), 3, "white is the lightest");
+    assert_eq!(model.region_at(0.2), 0, "below the first split");
+    assert_eq!(model.region_at(0.3), 1, "between the first two splits");
+    assert_eq!(model.region_at(0.6), 2);
+    assert_eq!(model.region_at(0.8), 3);
+    let mut prev = model.region_at(0.0);
+    for i in 0..=100 {
+        let r = model.region_at(i as f64 / 100.0);
+        assert!(r >= prev, "the regions never go backwards: {r} after {prev}");
+        prev = r;
+    }
 }
