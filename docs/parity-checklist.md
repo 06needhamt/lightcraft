@@ -800,6 +800,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-13 | patch | LR-EXP-DIM: an enlarged export stops at 512 megapixels and is refused when it needs more memory than the computer has, instead of aborting the app; status unchanged |
 | 2026-10-13 | minor | LR-PROF-CAMERACOLOR: bundled ILCA-99M2 profile with its held-out measurement |
 | 2026-10-12 | minor | LR-MASK-EFFECTS (new, ✅): local adjustment (effect / brush) presets: Effect menu, New Effect Preset dialog, Manage window, groups and favorites; imports Lightroom Classic local `.lrtemplate`, Camera Raw local `.xmp`, `.lceffect` and `.zip`. LR-IMP-PROFILES and LR-MASK-SLIDERS notes updated |
+| 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: 21 Sony and Leica Adobe models verified on one CC0 file each; status unchanged (🟡) |
 | 2026-10-11 | minor | LR-MERGE-HDR: HDR and panorama merges of raws without colour matrices (CR2, NEF, ARW…) write the colour they open with as DNG tags (issue #965); status unchanged |
 | 2026-10-12 | minor | LR-META-XMP: Read Metadata from File no longer auto-writes the sidecar it has just read, which added `lc:settings` and hid another app's later `crs:` edits (#934); status unchanged (✅) |
 | 2026-10-12 | patch | LR-IMP-CAMERA-COVERAGE: CR2 white level from the active area, not the saturated masked rows above it (issue #1272); status unchanged (🟡) |

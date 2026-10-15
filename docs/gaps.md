@@ -76,6 +76,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-14 | minor | Gap 21: de, es, fr, ja and uk catalogs filled (97–99%); 55–90 h → 40–70 h |
 | 2026-10-13 | patch | Gaps 10, 22 and 23 each had two rows (two branches edited them; the merges kept both): the older copies are removed, and `cargo xtask parity` (in `ci`) now fails when a gap number is listed twice |
 | 2026-10-13 | minor | Closed recently: Sony ILCA-99M2 profile |
+| 2026-10-14 | minor | Gap 10: 21 Sony and Leica models verified on one CC0 file each (258 models) |
 | 2026-10-11 | minor | Gap 10 shrinks: Leica Q3 verified by a recorded check of 38 private DNGs (236 models verified; Leica 14); gap not closed |
 | 2026-10-12 | minor | Camera-look deep shadows follow the JPEG toe (#1307); camera calibration remains partial |
 | 2026-10-12 | minor | Gap 23 (accessibility): the AccessKit tree audit and its fixes landed; what is left is canvas placement by keyboard and a real screen-reader session; 10–20 h → 4–8 h; gap not closed |

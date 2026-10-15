@@ -19,7 +19,7 @@ ranked in [gaps.md](gaps.md). Details per format: [cr3.md](cr3.md),
 | Decoder path should handle it, **unverified** | **919** (64%) | measured from the format rules (631 of them DNG, mostly phones) |
 | **Preview-only** (embedded JPEG) | **232** (16%) | measured |
 | **Unsupported** (not imported, refused or decodes wrongly) | **36** (2%) | measured |
-| Models added since 2017 (Camera Raw 10+): verified / unverified / preview / unsupported | 83 / 639 / 24 / 8 of 754 | measured |
+| Models added since 2017 (Camera Raw 10+): verified / unverified / preview / unsupported | 95 / 627 / 24 / 8 of 754 | measured |
 | **Share of photographers whose camera fully works** (decodes from sensor data), use-weighted | **~85%** | estimated: measured classes × written usage weights × per-format confidence |
 | …of which on a body we have verified | **~42%** | estimated, same weights |
 | Camera colour: Adobe profiles vs ours | 1,500 Adobe Standard profiles, 481 models with Camera Matching profiles vs **5 bundled profiles** + per-file fits + 52 spectral matrices | measured (bundle listing, Adobe list, `assets/camera-profiles`) |
@@ -76,7 +76,7 @@ committed table is stale.
 | Fujifilm | 97 | 65 | 9 | 23 | 0 | pre-X FinePix RAF without a raw IFD (estimated split) |
 | Google | 88 | 1 | 87 | 0 | 0 | — |
 | Olympus | 71 | 3 | 9 | 59 | 0 | **compressed ORF** |
-| Leica | 61 | 14 | 47 | 0 | 0 | — |
+| Leica | 61 | 27 | 34 | 0 | 0 | — |
 | Xiaomi, Oppo, LG, Huawei, OnePlus, Motorola, Nokia | 139 | 0 | 139 | 0 | 0 | — (DNG) |
 | Pentax / Ricoh | 60 | 4 | 56 | 0 | 0 | — |
 | Hasselblad | 34 | 1 | 2 | 31 | 0 | Hasselblad-compressed 3FR / FFF |
@@ -99,7 +99,7 @@ committed table is stale.
 | OM / Olympus | 3% | 3% | 1% | compressed ORF |
 | Phones | 3% | 93% | 1% | DNG |
 | Pentax / Ricoh | 1.5% | 94% | 14% | |
-| Leica | 1% | 96% | 21% | the Q3 verified |
+| Leica | 1% | 99% | 72% | the Q3 verified, 13 more bodies pinned on CC0 files |
 | DJI | 1% | 95% | 0% | |
 | Medium format and others | 0.5% | 23% | 1% | IIQ, 3FR, X3F |
 | **Weighted** | 100% | **92%** | **59%** | |
@@ -273,6 +273,7 @@ Beyond decoding:
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-13 | minor | Bundled camera profiles 4 → 5 (ILCA-99M2) |
+| 2026-10-14 | minor | 21 Sony and Leica models verified (one CC0 raw.pixls.us file each, pinned; `sony_leica_corpus.rs`): 258 verified, 920 unverified; Leica on a verified body 21% → 72%, Sony 91% → 92%, use-weighted 85% and 43% |
 | 2026-10-11 | minor | Leica Q3 verified by a recorded check of 38 private DNGs (no decode failure; mean ΔE to the camera JPEG 6.3–13.9): 236 verified, 941 unverified, Leica bucket on a verified body 5% → 21%, weighted shares unchanged |
 | 2026-10-12 | patch | CR2 white level from the active area, not the saturated masked rows above it (#1272: EOS 50D, 60D, 450D (Rebel XSi), 500D (Rebel T1i), 550D (Rebel T2i), 1200D (Rebel T5) and 100D (Rebel SL1)); scores unchanged |
 | 2026-10-12 | minor | Canon PowerShot G9: as-shot white balance from WBInfo (`0x0029`, the row of the preset in ShotInfo), issue #1273; render unchanged (the camera-look fit already absorbed it), As Shot now the camera's; counts unchanged |
