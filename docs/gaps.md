@@ -42,6 +42,7 @@ Hours are Opus 5.5 agent wall-clock hours (see [target-app-parity.md](target-app
 | 25 | **File writes**: AVIF import; Render to DNG as a catalog command (lossy DNG and the Render to DNG export format landed) (PSD export landed with Edit in PhotoCraft, #953) | file-format-parity.md | interchange edge cases | 19–34 | [file-format-parity](file-format-parity.md) |
 | 26 | **Performance at scale**: 85k-photo library opens in 1.7–4.7 s; 100k grid test pending; colour NR at half resolution | ROADMAP log, gpu-pipeline.md | large-catalog users | 15–30 | [target-app-parity](target-app-parity.md#by-dimension) |
 | 27 | **Windows / Linux runtime coverage**: Windows installer UI unverified on Windows (#79); GPU path proven on Apple and on one AMD GPU on Linux (Radeon 8060S, Vulkan); NVIDIA, Intel and DX12 unverified; the Linux riscv64 tarball (new in 0.6.0, #844) is cross-compiled and never run beyond a QEMU smoke test | ROADMAP, issues, `release.yml` | non-Mac users find bugs first | 13–27 | [hardware-parity](hardware-parity.md) |
+| 29 | **HDR merge leftovers** (LR-MERGE-HDR): AI Denoise doesn't run on merged (linear) DNGs; JPEG brackets are treated as linear (no camera response curve); every frame is held as 32-bit float, ~0.86 GB per 67 MP frame (half-float frames would halve it) | tested on Sony A7R VI brackets 2026-10-14 ([merge.md](merge.md)); Lightroom's Denoise supports HDR DNGs | HDR shooters who denoise their merges, merge JPEGs, or merge 7+ frames of high-resolution raws on 16 GB machines | 10–20 (+ denoise linear-RGB contract, gap 11) | [merge](merge.md) |
 | 28 | **Small Classic shortcuts and keys**: rating `[` `]`, flag cycling, filter-bar keys, F1 help, panel keys (Tab, F5–F8) | [ui-parity](ui-parity.md#shortcuts) | Classic muscle memory | 4–8 | [ui-parity](ui-parity.md) |
 
 Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform work they need around them,
@@ -49,7 +50,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 ## Gaps by kind
 
-- **Feature:** 5, 8, 11, 12, 13, 15, 16, 18, 19
+- **Feature:** 5, 8, 11, 12, 13, 15, 16, 18, 19, 29
 - **UI / UX:** 4, 23, 24, 28
 - **File format:** 2, 6, 7, 10, 13, 20, 25 (raw ones in [raw-parity.md](raw-parity.md))
 - **Hardware:** 14, 17, 22, 27
@@ -76,6 +77,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 |---|---|---|
 | 2026-10-14 | minor | Gap 21: de, es, fr, ja and uk catalogs filled (97–99%); 55–90 h → 40–70 h |
 | 2026-10-14 | minor | Gap 10: 17 uncompressed Olympus and Samsung models verified on one CC0 file each (254 models) |
+| 2026-10-14 | minor | Gap 29 added: the HDR merge, tested on real 67 MP brackets, keeps moving clipped highlights and merges in batches now; AI Denoise on merged DNGs, JPEG response curves and per-frame memory remain |
 | 2026-10-13 | patch | Gaps 10, 22 and 23 each had two rows (two branches edited them; the merges kept both): the older copies are removed, and `cargo xtask parity` (in `ci`) now fails when a gap number is listed twice |
 | 2026-10-13 | minor | Closed recently: Sony ILCA-99M2 profile |
 | 2026-10-14 | minor | Gap 10: 21 Sony and Leica models verified on one CC0 file each (258 models) |

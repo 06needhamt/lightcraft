@@ -20,6 +20,10 @@ use serde_json::{Value, json};
 
 use crate::{EngineError, Result, Session};
 
+/// Why `merge.hdrBatch` found nothing to merge.
+pub const NO_BRACKET_SETS: &str =
+    "no bracket sets among these photos: select stacks, or photos taken less than a second apart at different exposures";
+
 /// Long edge of the frames of a preview merge.
 pub const PREVIEW_EDGE: usize = 1024;
 
@@ -105,20 +109,18 @@ impl MergeJob {
         use rayon::prelude::*;
         let done = std::sync::atomic::AtomicUsize::new(0);
         let n = self.sources.len();
-        let frames: std::result::Result<Vec<Frame>, String> = self
-            .sources
-            .par_iter()
-            .map(|(_, path)| {
-                let bytes = (self.read)(path)?;
-                // a raw without colour matrices of its own starts from the colour it has when opened alone (#965)
-                let f = lightcraft_merge::load_frame_with(&bytes, self.preview, orient, &crate::camera_preview::starting_colour_tags)
-                    .map_err(|e| format!("{path}: {e}"));
-                let k = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                progress(span.0 + (span.1 - span.0) * k as f32 / n as f32, "Reading photos");
-                f
-            })
-            .collect();
-        frames
+        let one = |(_, path): &(PhotoId, String)| {
+            let bytes = (self.read)(path)?;
+            // a raw without colour matrices of its own starts from the colour it has when opened alone (#965)
+            let f = lightcraft_merge::load_frame_with(&bytes, self.preview, orient, &crate::camera_preview::starting_colour_tags)
+                .map_err(|e| format!("{path}: {e}"));
+            let k = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            progress(span.0 + (span.1 - span.0) * k as f32 / n as f32, "Reading photos");
+            f
+        };
+        // Full-size photos are decoded one at a time (the demosaic is parallel inside): decoding several 60 MP raws at
+        // once multiplied the decoders' scratch memory, and a 7-frame bracket ran out of memory.
+        if self.preview.is_some() { self.sources.par_iter().map(one).collect() } else { self.sources.iter().map(one).collect() }
     }
 
     /// Run the merge. `progress(fraction, stage)` returns false to cancel.

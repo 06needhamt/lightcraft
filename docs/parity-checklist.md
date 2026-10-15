@@ -42,7 +42,7 @@ cited here still exists. Formerly docs/parity.md.
 | L. Presets (PRE) | 6 | 0 | 1 | 1 | 2/2 (100%) | 2/2 (100%) |
 | M. Versions & history (VER) | 5 | 0 | 0 | 0 | 1/1 (100%) | 3/3 (100%) |
 | N. Copy / paste / sync (SYNC) | 5 | 0 | 0 | 0 | 3/3 (100%) | 1/1 (100%) |
-| O. Merge (MERGE) | 4 | 0 | 0 | 0 | — | — |
+| O. Merge (MERGE) | 3 | 1 | 0 | 0 | — | — |
 | P. Enhance (ENH) | 0 | 0 | 2 | 0 | — | — |
 | Q. HDR (HDR) | 2 | 3 | 0 | 0 | — | — |
 | R. Video (VID) | 0 | 0 | 5 | 1 | — | 0/2 (0%) |
@@ -353,10 +353,10 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
-| LR-MERGE-HDR | HDR merge | P2 | ✅ | `cmd:merge.hdr`, `cmd:dialog.mergeHdr`, `crates/merge/src/frame.rs` (`Frame::lens`) | auto align, deghost None–High + overlay, auto settings, float DNG, Create Stack; the DNG keeps the reference frame's embedded lens corrections (tested by `hdr_merge_keeps_the_reference_frames_lens_corrections`); JPEG brackets treated as linear; raws without colour matrices of their own (CR2, NEF, ARW…) keep the colour they open with, written as DNG tags (`starting_colour_tags`; the look's chroma curve has no tag; panoramas too), issue #965 |
+| LR-MERGE-HDR | HDR merge | P2 | 🟡 | `cmd:merge.hdr`, `cmd:dialog.mergeHdr`, `crates/merge/src/frame.rs` (`Frame::lens`), `crates/merge/src/hdr.rs` | auto align, deghost None–High + overlay, auto settings, float DNG, Create Stack; the DNG keeps the reference frame's embedded lens corrections (tested by `hdr_merge_keeps_the_reference_frames_lens_corrections`); raws without colour matrices of their own (CR2, NEF, ARW…) keep the colour they open with, written as DNG tags (`starting_colour_tags`; the look's chroma curve has no tag; panoramas too), issue #965. Tested on real Sony A7R VI brackets (67 MP, 2026-10-14): frames agree with the merged radiance within ~1 % in all channels, exposure steps match EXIF within 0.03 EV. A clipped highlight of the reference that moved in other frames (a star at 200 mm) stays instead of becoming a black hole, and deghost (≤ 2048 px maps) catches a brighter frame's ghost in a dark sky (`a_clipped_star_of_the_reference_is_not_erased_by_frames_where_it_moved`, `deghost_removes_a_bright_frames_ghost_in_a_dark_sky`). 🟡 because: AI Denoise doesn't run on merged DNGs (Bayer only; Lightroom's does), JPEG brackets are treated as linear (no camera response curve), and every frame is held as 32-bit float (~0.86 GB per 67 MP frame, so 7 frames need ~7 GB); gap 29 |
 | LR-MERGE-PANO | Panorama | P2 | ✅ | `cmd:merge.panorama`, `cmd:dialog.mergePanorama` | spherical/cylindrical/perspective + auto, boundary warp, auto crop, fill edges (diffusion), DNG; no lens model / 360° wrap |
 | LR-MERGE-HDRPANO | HDR panorama | P2 | ✅ | `cmd:merge.hdrPanorama`, `cmd:dialog.mergeHdrPanorama` | brackets grouped by EXIF |
-| LR-MERGE-HEADLESS | Merge with last settings | P2 | ✅ | `cmd:merge.hdrLast`, `cmd:merge.panoramaLast`, `cmd:merge.hdrPanoramaLast` | no dialog; the options of the last merge of that kind (defaults the first time) |
+| LR-MERGE-HEADLESS | Merge with last settings | P2 | ✅ | `cmd:merge.hdrLast`, `cmd:merge.panoramaLast`, `cmd:merge.hdrPanoramaLast`, `cmd:merge.hdrBatch`, `crates/catalog/src/stacks.rs` (`bracket_sets`) | no dialog; the options of the last merge of that kind (defaults the first time). HDR for Each Bracket Set merges a batch like Lightroom's merge of stacks: one HDR per stack among the photos, then per bracket (photos taken less than a second apart, after the shutter time, at exposures ≥ ½ EV apart; bursts at one exposure are skipped), one after the other in the activity stack (cancelling one stops the rest; a failed set doesn't); CLI `merge hdr-batch FILES…` |
 
 ## P. Enhance (ENH)
 
@@ -562,7 +562,7 @@ visible menu bar yet: the menu model is only exposed through the control channel
 | MENU-PHOTO-FLIP | Flip horizontal / vertical | P0 | ✅ | `cmd:photo.flipHorizontal`, `cmd:photo.flipVertical` | |
 | MENU-PHOTO-CREATEVERSION | Create Version… | P1 | ✅ | `cmd:version.create` | no name prompt |
 | MENU-PHOTO-STACK | Stack submenu | P1 | ✅ | `cmd:stack.group`, `cmd:stack.ungroup`, `cmd:dialog.autoStack` | |
-| MENU-PHOTO-MERGE | Photo merge submenu | P2 | ✅ | `cmd:dialog.mergeHdr`, `cmd:dialog.mergePanorama`, `cmd:dialog.mergeHdrPanorama`, `cmd:merge.hdrLast` | |
+| MENU-PHOTO-MERGE | Photo merge submenu | P2 | ✅ | `cmd:dialog.mergeHdr`, `cmd:dialog.mergePanorama`, `cmd:dialog.mergeHdrPanorama`, `cmd:merge.hdrLast`, `cmd:merge.hdrBatch` | |
 | MENU-PHOTO-ENHANCE | Enhance… | P2 | ⬜ | | |
 | MENU-PHOTO-AUTO | Auto settings | P0 | ✅ | `cmd:develop.auto` | |
 | MENU-PHOTO-BW | Convert to B&W | P0 | ✅ | `cmd:develop.treatment` | |
@@ -798,6 +798,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 |---|---|---|
 | 2026-10-14 | minor | LR-IMP-CAMERA-COVERAGE: 17 uncompressed Olympus and Samsung Adobe models verified on one CC0 file each; status unchanged (🟡) |
 | 2026-10-13 | minor | LR-EDIT-SECTION-SOLO: Solo Mode for Edit sections (Window ▸ Edit Sections, section-header menu, ⌥-click); KEYC-PANELS notes it |
+| 2026-10-14 | minor | LR-MERGE-HDR ✅ → 🟡: tested on real 67 MP Sony brackets; moving clipped highlights (black-hole stars) and dark-sky ghosts fixed, merge memory cut ~25 %; AI Denoise on merged DNGs, JPEG response curves and per-frame memory remain (gap 29). LR-MERGE-HEADLESS, MENU-PHOTO-MERGE: HDR for Each Bracket Set (`merge.hdrBatch`) |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |

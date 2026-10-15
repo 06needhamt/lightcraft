@@ -2,6 +2,15 @@
 
 ## 2026-10-14
 
+### HDR merges of moving lights, and many brackets at once
+- A star, the moon or a light that moves between the photos of a bracket (a night bracket on a tripod) no longer
+  leaves a black hole where the middle photo had it clipped. With Deghost, the brightest photo's copy of it in a
+  dark sky is now removed too.
+- Photo ▸ Photo Merge ▸ HDR for Each Bracket Set merges every bracket among the selected photos with the last HDR
+  settings, one after the other: each stack, and photos taken less than a second apart at different exposures.
+  From the command line: `lightcraft-cli merge hdr-batch FOLDER`.
+- Merging uses about a quarter less memory: three 67 MP raws need 3.8 GB instead of 4.8 GB.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

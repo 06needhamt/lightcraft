@@ -110,6 +110,8 @@ pub struct MergeState {
     pub ids: Vec<PhotoId>,
     /// The options of the last merge started, per kind ("merge.hdr" …): Merge with Last Settings.
     pub last: std::collections::HashMap<String, MergeDialog>,
+    /// HDR for Each Bracket Set: the sets still to merge after the running one.
+    pub batch: std::collections::VecDeque<Vec<PhotoId>>,
 }
 
 impl MergeState {
@@ -194,6 +196,31 @@ pub fn start_last(app: &mut LightcraftApp, command: &str) -> Result<Value, Strin
     start_final(app, &opts)
 }
 
+/// HDR for Each Bracket Set (`merge.hdrBatch`): merge each bracket set among the photos in the background, one after
+/// the other, with the options last used for HDR (the defaults the first time).
+pub fn start_batch(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    if app.merge.final_task.is_some() {
+        return Err("a merge is already running".into());
+    }
+    let ids = app.session.targets(p);
+    let sets = app.session.catalog.bracket_sets(&ids);
+    if sets.is_empty() {
+        return Err(lightcraft_engine::merge::NO_BRACKET_SETS.into());
+    }
+    let n = sets.len();
+    app.merge.batch = sets.into();
+    next_in_batch(app)?;
+    Ok(json!({"started": true, "sets": n}))
+}
+
+/// Start the next bracket set of a batch, if any.
+fn next_in_batch(app: &mut LightcraftApp) -> Result<(), String> {
+    let Some(ids) = app.merge.batch.pop_front() else { return Ok(()) };
+    app.merge.ids = ids;
+    let opts = app.merge.last.get("merge.hdr").cloned().unwrap_or_else(|| MergeDialog::for_command("merge.hdr"));
+    start_final(app, &opts).map(|_| ())
+}
+
 /// Per frame: keep the preview in sync with the dialog's options, collect finished jobs.
 pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
     // preview for the open dialog
@@ -272,10 +299,21 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
                         app.merge.last_result = Some(v);
                         app.toast(ctx, crate::i18n::tr_format!("{what} merge added", what = what));
                     }
-                    Err(_) if t.cancel.load(Ordering::Relaxed) => app.toast(ctx, crate::i18n::tr_format!("{what} merge cancelled", what = what)),
+                    Err(_) if t.cancel.load(Ordering::Relaxed) => {
+                        // cancelling one merge of a batch stops the batch
+                        app.merge.batch.clear();
+                        app.toast(ctx, crate::i18n::tr_format!("{what} merge cancelled", what = what))
+                    }
                     Err(e) => {
                         app.ui.status = e.to_string();
                         app.toast(ctx, crate::i18n::tr_format!("{what} merge failed: {e}", e = e, what = what));
+                    }
+                }
+                // a failed set doesn't stop the others
+                while !app.merge.batch.is_empty() {
+                    match next_in_batch(app) {
+                        Ok(()) => break,
+                        Err(e) => app.toast(ctx, crate::i18n::tr_format!("{what} merge failed: {e}", e = e, what = what)),
                     }
                 }
             }

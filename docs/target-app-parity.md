@@ -75,7 +75,7 @@ from the checklist sections and the deep-dive documents.
 | Remove, heal, Enhance (denoise, Raw Details, Super Resolution, Lens Blur) | 7% | 45% | 30% | 70–130 h | checklist I 75%, P 0% |
 | Presets, profiles, versions, history, sync | 5% | 95% | 85% | 8–15 h | |
 | Export | 6% | 89% | 75% | 15–30 h | checklist S 88.9% |
-| Merge and HDR | 3% | 85% | 60% | 20–35 h | merge 100%, HDR 70% (no HDR display) |
+| Merge and HDR | 3% | 85% | 60% | 20–35 h | merge 88% (HDR merge 🟡: AI Denoise on merged DNGs, JPEG response, memory; gap 29), HDR 70% (no HDR display) |
 | Views, compare, zoom, culling | 5% | 90% | 70% | 15–30 h | zoom detail P0 gap |
 | Classic output modules (Map, Book, Slideshow, Print, Web, publish, tethering) | 4% | 15% | 10% | 90–150 h | Classic extras 48% counts many small keys; the modules themselves are mostly ⬜ |
 | Video | 1% | 0% | 0% | 25–45 h | catalogued only |
@@ -302,6 +302,7 @@ P2 items 12–25 h; look tuning, performance, packaging, hardening 25–45 h.
 |---|---|---|
 | 2026-10-14 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
 | 2026-10-12 | minor | UI/UX remaining 34–58 h → 32–54 h (canvas tools by keyboard); headline numbers unchanged |
+| 2026-10-14 | minor | Merge and HDR: merge 100% → 88% (LR-MERGE-HDR ✅ → 🟡 after testing on real 67 MP brackets; gap 29); area percentages unchanged |
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed, ui-parity.md); percentages unchanged |
 | 2026-10-12 | minor | 22 more CR3 bodies verified on one CC0 file each (raw-parity.md): use-weighted share whose camera decodes 85% → 92%, RAW decoding 77% → 83%; full 60.7% → 61.2% (~61%), mainstream depth 72.1% → 74.0% (~49% → ~51%), essentials depth 77.5% → 78.0% (~64% → ~65%) |
 | 2026-10-12 | minor | 117 Nikon and Fujifilm bodies verified (raw-parity.md): use-weighted share whose camera decodes 85% → 86%, RAW decoding 77% (unchanged); mainstream depth 72.1% → 72.4%, essentials depth 77.5% → 77.6%; headline numbers unchanged |
