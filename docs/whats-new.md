@@ -129,9 +129,6 @@
 - The top bar has an Import button, beside Export, in every library.
 
 ### Reliability
-- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
-  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
-  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
 
 ### One kind of button
 - Dialogs' buttons and About's Discord link are drawn by one button component: primary (filled with the accent),
