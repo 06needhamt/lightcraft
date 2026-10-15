@@ -2285,5 +2285,13 @@
   "Tidying the thumbnail cache": "Ordenando la caché de miniaturas",
   "Reset all edits (Cmd+Shift+R)": "Restablecer todas las ediciones (Cmd+Mayús+R)",
   "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo": "Los álbumes inteligentes se actualizan solos: cambie sus reglas o use Foto → Eliminar foto",
-  "LightCraft stopped": "LightCraft se detuvo"
+  "LightCraft stopped": "LightCraft se detuvo",
+  "Run face models on the CPU only": "Ejecutar los modelos de caras solo en la CPU",
+  "Detection": "Detección",
+  "Recognition": "Reconocimiento",
+  "Not loaded yet": "Aún no cargado",
+  "Checking the GPU…": "Comprobando la GPU…",
+  "CPU": "CPU",
+  "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modelo de caras usa la GPU solo cuando una comprobación muestra que da los mismos resultados más rápido.",
+  "Checking the GPU for faces": "Comprobando la GPU para las caras"
 }

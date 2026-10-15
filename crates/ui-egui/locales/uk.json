@@ -2283,5 +2283,13 @@
   "Tidying the thumbnail cache": "Упорядкування кешу мініатюр",
   "Reset all edits (Cmd+Shift+R)": "Скинути всі зміни (Cmd+Shift+R)",
   "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo": "Розумні альбоми оновлюються самі: змініть їхні правила або виберіть Фото → Видалити фото",
-  "LightCraft stopped": "LightCraft зупинився"
+  "LightCraft stopped": "LightCraft зупинився",
+  "Run face models on the CPU only": "Запускати моделі облич лише на ЦП",
+  "Detection": "Виявлення",
+  "Recognition": "Розпізнавання",
+  "Not loaded yet": "Ще не завантажено",
+  "Checking the GPU…": "Перевірка ГП…",
+  "CPU": "ЦП",
+  "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель облич використовує ГП, лише якщо перевірка показала, що він дає ті самі результати швидше.",
+  "Checking the GPU for faces": "Перевірка ГП для облич"
 }
