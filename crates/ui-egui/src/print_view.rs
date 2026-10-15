@@ -153,7 +153,8 @@ pub fn body(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens) {
     let height = (screen.height() - 190.0).clamp(280.0, 780.0);
     let mut pu = std::mem::take(&mut app.ui.print);
     let st = app.session.print.clone();
-    let ids = app.session.targets(&json!({}));
+    // (no `id`/`ids` given: the selection, which never fails to parse)
+    let ids = app.session.targets(&json!({})).unwrap_or_default();
     // the page shown stays inside the print
     let pages = st.layout.page_count(ids.len());
     pu.page = pu.page.min(pages.saturating_sub(1));

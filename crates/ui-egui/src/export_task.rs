@@ -143,7 +143,7 @@ pub fn start_print(app: &mut LightcraftApp, params: &Value) -> Result<Value, Str
     app.session.check_write_target(&path)?;
     let guard = app.session.original_guard();
     let settings = app.session.print.clone();
-    let ids = app.session.targets(params);
+    let ids = app.session.targets(params).map_err(|e| e.to_string())?;
     let prepared = compose::prepare(&mut app.session, &settings, &ids)?;
     let total = prepared.len();
     let title = std::path::Path::new(&path).file_stem().and_then(|n| n.to_str()).unwrap_or("Print").to_string();

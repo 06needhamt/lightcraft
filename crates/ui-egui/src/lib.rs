@@ -78,9 +78,9 @@ mod tests_dialog_primary;
 #[cfg(test)]
 mod tests_dialogs;
 #[cfg(test)]
-mod tests_empty_library;
-#[cfg(test)]
 mod tests_edit_layout;
+#[cfg(test)]
+mod tests_empty_library;
 #[cfg(test)]
 mod tests_error_kinds;
 #[cfg(test)]

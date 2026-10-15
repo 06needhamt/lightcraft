@@ -43,7 +43,7 @@ fn state(s: &Session, photos: usize) -> Value {
 }
 
 fn reply(s: &Session) -> Result<Value> {
-    Ok(state(s, s.targets(&Value::Null).len()))
+    Ok(state(s, s.targets(&Value::Null)?.len()))
 }
 
 /// Applies `patch` over `dst`: objects merge key by key, anything else replaces.
@@ -64,7 +64,7 @@ fn merge(dst: &mut Value, patch: &Value, depth: usize) {
 }
 
 fn get(s: &mut Session, p: &Value) -> Result<Value> {
-    Ok(state(s, s.targets(p).len()))
+    Ok(state(s, s.targets(p)?.len()))
 }
 
 fn set(s: &mut Session, p: &Value) -> Result<Value> {
@@ -245,7 +245,7 @@ fn export_pdf(s: &mut Session, p: &Value) -> Result<Value> {
         return Err(bad(ID, "id must be a photo id"));
     }
     s.check_write_target(path).map_err(|e| bad(ID, e))?;
-    let ids = s.targets(p);
+    let ids = s.targets(p)?;
     let settings = s.print.clone();
     // a printer profile that can't be used fails the print before anything renders
     crate::print_color::PrintColorJob::new(&settings.job.color).map_err(|e| bad(ID, e))?;
