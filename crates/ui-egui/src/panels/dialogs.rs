@@ -226,6 +226,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::RenameAlbum { .. } => "Rename Album",
         Dialog::Rename { .. } => "Rename Photos",
         Dialog::Import { .. } => "Import Photos",
+        Dialog::LightroomResult { .. } => "Lightroom Catalog Import",
         Dialog::LabelNames { .. } => "Edit Color Label Names",
         Dialog::CaptureTime { .. } => "Edit Capture Time",
         Dialog::RenameKeyword { .. } => "Rename Keyword",
@@ -350,6 +351,20 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 }
                 Dialog::DenoiseModel { info, accepted } => crate::panels::denoise::model_dialog(app, ui, &t, info, accepted),
                 Dialog::FaceModel { info, accepted, .. } => crate::panels::faces::model_dialog(app, ui, &t, info, accepted),
+                Dialog::LightroomResult { summary, library, details, .. } => {
+                    ui.label(summary.as_str());
+                    ui.add_space(8.0);
+                    if let Some(library) = library {
+                        ui.label(crate::i18n::tr("Destination library"));
+                        ui.add(egui::Label::new(library.as_str()).wrap().selectable(true));
+                        ui.label(crate::i18n::tr("Lightroom catalogs import into the open library; no separate catalog folder is created."));
+                    } else {
+                        ui.label(crate::i18n::tr("These photos are only in memory. Open a library on disk and import the catalog again to save them."));
+                    }
+                    for detail in details.iter() {
+                        ui.add(egui::Label::new(detail).wrap().selectable(true));
+                    }
+                }
                 Dialog::SystemInfo { rows } => {
                     egui::Grid::new("sysinfo").num_columns(2).spacing([16.0, 4.0]).striped(true).show(ui, |ui| {
                         for (k, v) in rows.iter() {
@@ -1220,6 +1235,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 // only shows something (one Close, no Cancel / OK)
                 let unusable_model = matches!(&dlg, Dialog::DenoiseModel { info, .. } | Dialog::FaceModel { info, .. } if info["kind"] == "unsupported");
                 let informational = unusable_model
+                    || matches!(dlg, Dialog::LightroomResult { first: None, .. })
                     || matches!(
                         dlg,
                         Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } | Dialog::SystemInfo { .. } | Dialog::AllMetadata { .. } | Dialog::WhatsNew
@@ -1232,6 +1248,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 let cancel = match &dlg {
                     Dialog::SamModel { .. } if sam_running || sam_installed || sam_nowhere => "Close",
                     Dialog::SamModel { .. } => "Not Now",
+                    Dialog::LightroomResult { .. } => "Close",
                     _ => "Cancel",
                 };
                 if !informational {
@@ -1249,6 +1266,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         add_label = crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n);
                         add_label.as_str()
                     }
+                    Dialog::LightroomResult { first: Some(_), .. } => "Show in Library",
                     Dialog::ContactSheet { .. } => "Choose PDF…",
                     Dialog::Merge { .. } => "Merge",
                     Dialog::DenoiseModel { info, .. } if info["download"].is_string() => "Accept & Download",
@@ -1450,11 +1468,32 @@ fn sam_by_hand(sam: &lightcraft_engine::segment::Segmenter) -> bool {
 /// The model installation guide.
 const SAM_HELP: &str = "https://github.com/storytold/lightcraft/blob/main/docs/ai-masks.md#getting-the-model";
 
-/// Show the SAM 3 model folder in the file manager (created first, so there is something to show).
-fn show_model_folder(app: &mut LightcraftApp, dir: &std::path::Path) -> Result<(), String> {
+/// Open the configured SAM 3 folder itself; revealing a file opens its parent instead.
+pub(crate) fn show_model_folder(app: &mut LightcraftApp) -> Result<serde_json::Value, String> {
+    let dir = app.session.segmenter.dir.as_ref().ok_or("no folder is set for the SAM 3 model")?;
+    let path = dir.to_str().ok_or("the model folder path is not valid UTF-8")?;
+    let open = app.services.open_with.as_mut().ok_or("opening model folders is not available here")?;
+    // Create only after the host action is available. Existing model files are left alone.
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let reveal = app.services.reveal.as_mut().ok_or("not available here")?;
-    reveal(&dir.to_string_lossy())
+    #[cfg(target_os = "linux")]
+    if let Some(open_folder) = app.services.open_model_folder.clone() {
+        let path = path.to_string();
+        let folder = path.clone();
+        crate::tasks::spawn(
+            app,
+            "Show in File Manager",
+            Some("openModelFolder"),
+            move || open_folder(&folder),
+            |app, ctx, result| {
+                if let Err(e) = result {
+                    app.toast_error(ctx, e);
+                }
+            },
+        )?;
+        return Ok(json!({"path": path, "background": true}));
+    }
+    open(path, "")?;
+    Ok(json!({"path": path}))
 }
 
 /// The SAM 3 dialog: what the model is, its size and licence, and the download's progress.
@@ -1512,13 +1551,13 @@ fn sam_model_body(app: &mut LightcraftApp, ui: &mut egui::Ui, error: Option<&str
             .color(t.text_dim),
         );
         ui.horizontal_wrapped(|ui| {
-            if let Some(dir) = dir.filter(|_| app.services.reveal.is_some()) {
+            if dir.is_some() && crate::menus::ui_enabled(app, "app.openSamModelFolder") {
                 let r = ui.button(crate::i18n::tr(crate::menus::reveal_label()));
                 crate::widgets::register(ui.ctx(), "button:samFolder", r.rect);
                 if r.clicked()
-                    && let Err(e) = show_model_folder(app, &dir)
+                    && let Err(e) = app.run("app.openSamModelFolder", json!({}))
                 {
-                    app.toast(ui.ctx(), e);
+                    app.toast_error(ui.ctx(), e);
                 }
             }
             let r = ui.link(crate::i18n::tr("How to install the model")).on_hover_text(SAM_HELP);
@@ -1555,6 +1594,20 @@ pub(crate) fn album_entries(cat: &lightcraft_catalog::Catalog, editing: Option<u
 
 pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_json::Value, String> {
     match dlg {
+        Dialog::LightroomResult { first, .. } => {
+            if let Some(first) = first {
+                app.run("library.source", json!({"kind": "all"}))?;
+                let mut filter = serde_json::to_value(lightcraft_catalog::Filter::default()).map_err(|e| e.to_string())?;
+                // The filter command merges a patch; these defaults are omitted by serde.
+                filter["only"] = json!([]);
+                filter["labels"] = json!([]);
+                filter["ruleSet"] = serde_json::Value::Null;
+                app.run("library.filter", filter)?;
+                app.run("library.select", json!({"ids": [first]}))?;
+                app.ui.view = crate::state::ViewMode::PhotoGrid;
+            }
+            Ok(serde_json::Value::Null)
+        }
         Dialog::SamModel { then, .. } => {
             if app.session.segmenter.installed() {
                 // installed: start what the user was doing
