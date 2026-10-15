@@ -38,6 +38,8 @@ mod faces_index;
 #[cfg(not(target_arch = "wasm32"))]
 mod faces_worker;
 pub mod files;
+#[cfg(not(target_arch = "wasm32"))]
+mod focus_scan;
 pub mod fonts;
 pub mod guard;
 pub mod import;
@@ -248,6 +250,9 @@ pub struct Session {
     /// The loaded recognition model and the face embeddings made with it.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) faces: faces_index::FacesState,
+    /// Reading focus points for photos imported before they were read (`photo.readFocusPoints`, `focus.pump`).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) focus_scan: focus_scan::FocusScan,
     /// Copied develop settings (partial JSON) for Paste.
     pub clipboard: Option<Value>,
     /// The folder on disk the [`LibrarySource::Folder`] view browses.
@@ -422,6 +427,8 @@ impl Session {
             face_catalog: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
             faces: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            focus_scan: Default::default(),
             clipboard: None,
             meta_clipboard: None,
             browse: None,
@@ -1221,6 +1228,8 @@ mod tests_face_recognize;
 mod tests_face_tiles;
 #[cfg(test)]
 mod tests_filesystem_history;
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests_focus_scan;
 #[cfg(test)]
 mod tests_folders;
 #[cfg(test)]
