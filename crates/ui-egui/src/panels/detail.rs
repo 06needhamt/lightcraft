@@ -1032,7 +1032,7 @@ fn region_overlay(
             let resp = ui.interact(label, egui::Id::new(("region-label", index)), Sense::click());
             crate::widgets::announce(&resp, crate::i18n::tr("Click to name this face"));
             register(ui.ctx(), format!("regionLabel:{index}"), label);
-            if resp.on_hover_text("Click to name this face").clicked() {
+            if resp.on_hover_text(crate::i18n::tr("Click to name this face")).clicked() {
                 let start = r.name.clone().or_else(|| hint.and_then(|h| h.suggestion.as_ref().map(|(n, _)| n.clone()))).unwrap_or_default();
                 *editing = Some(crate::state::NameEdit { photo: photo.id.0, index, text: start, fresh: true });
             }

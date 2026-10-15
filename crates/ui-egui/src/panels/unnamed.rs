@@ -148,7 +148,7 @@ pub fn naming_bar(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         if b.clicked() {
             submit = Some(chosen);
         }
-        let c = ui.button("Clear");
+        let c = ui.button(crate::i18n::tr("Clear"));
         register(ui.ctx(), "unnamed:clear", c.rect);
         clear = c.clicked() || field.cancelled();
     });
@@ -203,7 +203,7 @@ pub fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, list: &Unnamed
     p.text(pos2(at.x, at.y + 24.0), Align2::LEFT_CENTER, sub, t.font(12.0), t.text_dim);
     if !list.ready && list.faces.is_empty() {
         let r = Rect::from_min_size(pos2(at.x, at.y + 38.0), vec2(120.0, 22.0));
-        let b = ui.put(r, egui::Button::new("Open Settings"));
+        let b = ui.put(r, egui::Button::new(crate::i18n::tr("Open Settings")));
         register(ui.ctx(), "unnamed:openSettings", b.rect);
         if b.clicked() {
             let _ = app.run("app.settings", json!({"tab": "faces"}));
@@ -211,7 +211,7 @@ pub fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, list: &Unnamed
     } else if !list.faces.is_empty() {
         let r = Rect::from_min_size(pos2(right - 130.0, at.y + 12.0), vec2(130.0, 22.0));
         let all = app.ui.unnamed_selected.len() == list.faces.len();
-        let b = ui.put(r, egui::Button::new(if all { "Select none" } else { "Select all" }));
+        let b = ui.put(r, egui::Button::new(crate::i18n::tr(if all { "Select none" } else { "Select all" })));
         register(ui.ctx(), "unnamed:selectAll", b.rect);
         if b.clicked() {
             app.ui.unnamed_selected.clear();
