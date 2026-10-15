@@ -2220,5 +2220,9 @@
   "Checking raw files": "RAW-Dateien werden geprüft",
   "1 raw can now be developed from its raw data": "1 RAW-Datei kann jetzt aus ihren Rohdaten entwickelt werden",
   "This raw is now developed from its raw data": "Diese RAW-Datei wird jetzt aus ihren Rohdaten entwickelt",
-  "This raw variant still can't be decoded": "Diese RAW-Variante kann noch nicht dekodiert werden"
+  "This raw variant still can't be decoded": "Diese RAW-Variante kann noch nicht dekodiert werden",
+  "No lens data embedded in this file (DNG lens opcodes only).": "Keine Objektivdaten in dieser Datei eingebettet (nur DNG-Objektiv-Opcodes).",
+  "Export to": "Exportieren nach",
+  "Specific folder": "Bestimmter Ordner",
+  "Same folder as original photo": "Im selben Ordner wie das Originalfoto"
 }

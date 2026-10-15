@@ -2097,5 +2097,9 @@
   "Checking raw files": "Comprobando archivos RAW",
   "1 raw can now be developed from its raw data": "1 RAW ya se puede revelar a partir de sus datos RAW",
   "This raw is now developed from its raw data": "Este RAW ya se revela a partir de sus datos RAW",
-  "This raw variant still can't be decoded": "Esta variante RAW aún no se puede decodificar"
+  "This raw variant still can't be decoded": "Esta variante RAW aún no se puede decodificar",
+  "No lens data embedded in this file (DNG lens opcodes only).": "Este archivo no incluye datos de objetivo (solo opcodes de objetivo DNG).",
+  "Export to": "Exportar a",
+  "Specific folder": "Carpeta específica",
+  "Same folder as original photo": "Misma carpeta que la foto original"
 }

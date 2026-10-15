@@ -2099,5 +2099,9 @@
   "Checking raw files": "正在检查 RAW 文件",
   "1 raw can now be developed from its raw data": "1 个 RAW 现在可以从 RAW 数据冲印",
   "This raw is now developed from its raw data": "此 RAW 现在从 RAW 数据冲印",
-  "This raw variant still can't be decoded": "这种 RAW 变体仍无法解码"
+  "This raw variant still can't be decoded": "这种 RAW 变体仍无法解码",
+  "No lens data embedded in this file (DNG lens opcodes only).": "此文件中未嵌入镜头数据 (仅支持 DNG 镜头操作码)。",
+  "Export to": "导出到",
+  "Specific folder": "指定文件夹",
+  "Same folder as original photo": "与原始照片相同的文件夹"
 }

@@ -2063,5 +2063,9 @@
   "Checking raw files": "RAWファイルを確認中",
   "1 raw can now be developed from its raw data": "1枚のRAWをRAWデータから現像できるようになりました",
   "This raw is now developed from its raw data": "このRAWはRAWデータから現像されるようになりました",
-  "This raw variant still can't be decoded": "このRAWの形式はまだデコードできません"
+  "This raw variant still can't be decoded": "このRAWの形式はまだデコードできません",
+  "No lens data embedded in this file (DNG lens opcodes only).": "このファイルにレンズ情報は含まれていません（DNGのレンズ情報のみ対応）",
+  "Export to": "書き出し先",
+  "Specific folder": "指定フォルダー",
+  "Same folder as original photo": "元の写真と同じフォルダー"
 }

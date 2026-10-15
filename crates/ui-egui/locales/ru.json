@@ -2253,5 +2253,9 @@
   "Checking raw files": "Проверка RAW-файлов",
   "1 raw can now be developed from its raw data": "1 RAW-файл теперь можно проявлять из RAW-данных",
   "This raw is now developed from its raw data": "Этот RAW-файл теперь проявляется из RAW-данных",
-  "This raw variant still can't be decoded": "Этот вариант RAW пока не удаётся декодировать"
+  "This raw variant still can't be decoded": "Этот вариант RAW пока не удаётся декодировать",
+  "No lens data embedded in this file (DNG lens opcodes only).": "В этом файле нет данных об объективе (только опкоды объектива DNG).",
+  "Export to": "Экспорт в",
+  "Specific folder": "Указанная папка",
+  "Same folder as original photo": "Та же папка, что и у оригинала"
 }

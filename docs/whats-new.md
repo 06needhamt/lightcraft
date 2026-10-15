@@ -239,6 +239,16 @@
 - Lossy JPEG XL files in Display P3 or Rec. 2020 now open in their real colours; saturated colours used to come in
   noticeably duller.
 
+### Export next to the originals
+- The Export dialog has Export to: Specific folder (as before) or Same folder as original photo, like Lightroom
+  Classic (issue #956). With the second, each photo is exported into the folder its original is in, plus the
+  Subfolder if you give one (say `Exports`), so a batch from several folders lands next to each set of originals.
+  "If file exists" works per folder as usual, and an original is never written over.
+- A photo that has no folder on disk (a demo photo, or one in the web version's browser storage) or whose folder
+  is missing (moved, drive unplugged) is not exported; it gets its own error naming it.
+- The choice is saved in export presets and Export with Previous. Agents pass
+  `destinationMode: "sameAsOriginal"` (or `"specificFolder"`) to `app.export`; `dir` is then not needed.
+
 ### Open Library knows a Lightroom catalog
 - Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
   `.lrcat-data` folders, or the `.lrcat`) no longer makes an empty LightCraft library inside it (issue #891). The

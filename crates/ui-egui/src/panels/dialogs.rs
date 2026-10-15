@@ -941,18 +941,32 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             opts.start_number = v as u32;
                         }
                     }
-                    field(ui, "Folder", |ui| {
-                        trailing_button_row(ui, |ui| {
-                            if app.services.pick_folder.is_some()
-                                && crate::widgets::text_button(ui, "exportChooseFolder", crate::i18n::tr("Choose…"), false).clicked()
-                                && let Some(pick) = app.services.pick_folder.as_mut()
-                                && let Some(d) = pick()
-                            {
-                                *dir = d;
-                            }
-                            crate::widgets::named(ui.add(egui::TextEdit::singleline(dir).desired_width(ui.available_width())), crate::i18n::tr("Folder"));
+                    // like Lightroom Classic's Export To: one folder, or each photo's own folder (not on
+                    // the web, where originals live in the browser's storage, not in folders)
+                    use lightcraft_engine::export::DestinationMode as D;
+                    if !cfg!(target_arch = "wasm32") || opts.destination_mode != D::SpecificFolder {
+                    choices(
+                        ui,
+                        "Export to",
+                        "exportDestinationMode",
+                        &[(D::SpecificFolder, "Specific folder"), (D::SameAsOriginal, "Same folder as original photo")],
+                        &mut opts.destination_mode,
+                    );
+                    }
+                    if opts.destination_mode == D::SpecificFolder {
+                        field(ui, "Folder", |ui| {
+                            trailing_button_row(ui, |ui| {
+                                if app.services.pick_folder.is_some()
+                                    && crate::widgets::text_button(ui, "exportChooseFolder", crate::i18n::tr("Choose…"), false).clicked()
+                                    && let Some(pick) = app.services.pick_folder.as_mut()
+                                    && let Some(d) = pick()
+                                {
+                                    *dir = d;
+                                }
+                                crate::widgets::named(ui.add(egui::TextEdit::singleline(dir).desired_width(ui.available_width())), crate::i18n::tr("Folder"));
+                            });
                         });
-                    });
+                    }
                     field(ui, "Subfolder", |ui| {
                         crate::widgets::named(ui.add(egui::TextEdit::singleline(&mut opts.subfolder).hint_text(crate::i18n::tr("none")).desired_width(f32::INFINITY)), crate::i18n::tr("Subfolder"))
                     });

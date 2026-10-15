@@ -874,3 +874,94 @@ mod apple_photos {
         assert_eq!(s.commands().into_iter().find(|c| c.id == "export.addToPhotos").unwrap().enabled, cfg!(target_os = "macos"));
     }
 }
+
+/// Issue #956: "Same folder as original photo" puts each photo's export next to its own original
+/// (plus the subfolder), so one batch from two folders lands in two folders. The conflict policy
+/// and the original guard work per folder as they do for a specific folder.
+#[test]
+fn same_folder_as_original_exports_next_to_each_photo() {
+    use crate::export::{Conflict, Destination, DestinationMode};
+    let dir = temp_dir("export-same-folder");
+    let (a, b) = (dir.join("A"), dir.join("B"));
+    // two different photos (the same bytes would be imported once)
+    let jpeg = |blue: u8| {
+        let img = lightcraft_raster::Rgba8::from_fn(48, 32, |x, y| [(x * 5) as u8, (y * 7) as u8, blue, 255]);
+        crate::export::encode_image(&img, &ExportOptions::default()).unwrap()
+    };
+    let originals = [(&a, jpeg(120)), (&b, jpeg(30))];
+    for (d, bytes) in &originals {
+        std::fs::create_dir_all(d).unwrap();
+        std::fs::write(d.join("IMG_1.jpg"), bytes).unwrap();
+    }
+    let mut s = Session::new().with_fs();
+    let paths = [a.join("IMG_1.jpg").to_string_lossy().to_string(), b.join("IMG_1.jpg").to_string_lossy().to_string()];
+    s.execute("library.import", &json!({"paths": paths})).unwrap();
+    let ids: Vec<_> = s.catalog.photos().map(|p| p.id).collect();
+    assert_eq!(ids.len(), 2);
+    // the folder of a specific-folder export is not used
+    let to = Destination { dir: dir.join("unused").to_string_lossy().to_string(), exact: None };
+    let o = ExportOptions { destination_mode: DestinationMode::SameAsOriginal, subfolder: "Exports".into(), ..Default::default() };
+    let exists = |p: &str| std::path::Path::new(p).exists();
+    let files = crate::export::export_batch(&mut s, &ids, &o, &to, &mut crate::export::write_file, &exists).unwrap();
+    let written: Vec<&str> = files.iter().map(|f| f["path"].as_str().unwrap()).collect();
+    let mut want = vec![a.join("Exports/IMG_1.jpg").to_string_lossy().to_string(), b.join("Exports/IMG_1.jpg").to_string_lossy().to_string()];
+    let mut got: Vec<String> = written.iter().map(|p| p.to_string()).collect();
+    want.sort();
+    got.sort();
+    assert_eq!(got, want);
+    assert!(!dir.join("unused").exists(), "nothing written to the specific folder");
+    // again: each folder's own collision gets the next free name
+    let files = crate::export::export_batch(&mut s, &ids, &o, &to, &mut crate::export::write_file, &exists).unwrap();
+    assert!(files.iter().all(|f| f["path"].as_str().unwrap().ends_with("Exports/IMG_1-2.jpg")), "{files:?}");
+    // no subfolder: next to the original, which is never written over
+    let beside = ExportOptions { subfolder: String::new(), conflict: Conflict::Overwrite, ..o.clone() };
+    let err = crate::export::export_batch(&mut s, &ids, &beside, &to, &mut crate::export::write_file, &exists).unwrap_err();
+    assert!(err.contains("original of IMG_1.jpg"), "{err}");
+    let unique = ExportOptions { conflict: Conflict::Unique, ..beside };
+    let files = crate::export::export_batch(&mut s, &ids, &unique, &to, &mut crate::export::write_file, &exists).unwrap();
+    assert!(files.iter().all(|f| f["path"].as_str().unwrap().ends_with("IMG_1-2.jpg")), "{files:?}");
+    for (d, bytes) in &originals {
+        assert_eq!(&std::fs::read(d.join("IMG_1.jpg")).unwrap(), bytes, "the original is untouched");
+        assert!(d.join("IMG_1-2.jpg").exists());
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Issue #956: a photo with no folder on disk (a demo photo) or whose folder is gone gets its own
+/// error in "Same folder as original photo" mode instead of a file written somewhere else.
+#[test]
+fn same_folder_as_original_refuses_photos_without_a_folder() {
+    use crate::export::{Destination, DestinationMode};
+    let o = ExportOptions { destination_mode: DestinationMode::SameAsOriginal, subfolder: "Exports".into(), ..Default::default() };
+    let to = Destination { dir: "out".into(), exact: None };
+    let mut s = Session::with_demo();
+    let ids: Vec<_> = s.catalog.photos().take(2).map(|p| p.id).collect();
+    let mut written = Vec::new();
+    let mut write = |p: &str, _: &[u8]| -> Result<(), String> {
+        written.push(p.to_string());
+        Ok(())
+    };
+    let err = crate::export::export_batch(&mut s, &ids, &o, &to, &mut write, &|_| false).unwrap_err();
+    assert!(err.contains("no folder on disk"), "{err}");
+    // without stopping: one error per photo, nothing written
+    let items = crate::export::prepare_batch(&mut s, &ids, &o).unwrap();
+    let files = crate::export::run_batch(items, &o, &to, &mut write, &|_| false, false, &mut |_, _| true).unwrap();
+    assert_eq!(files.len(), 2);
+    for (f, id) in files.iter().zip(&ids) {
+        assert_eq!(f["photo"], id.0, "{f}");
+        assert!(f["error"].as_str().unwrap().contains("no folder on disk"), "{f}");
+    }
+    drop(write);
+    assert!(written.is_empty(), "{written:?}");
+
+    // a photo on disk whose folder is gone (moved, an unplugged drive)
+    let (mut s, id, dir, _src, _) = library_with_jpeg("export-same-folder-gone");
+    let items = crate::export::prepare_batch(&mut s, &[id], &o).unwrap();
+    let gone = dir.to_string_lossy().to_string();
+    let exists = |p: &str| p != gone && !p.starts_with(&format!("{gone}/"));
+    let mut write = |p: &str, _: &[u8]| -> Result<(), String> { Err(format!("wrote {p}")) };
+    let files = crate::export::run_batch(items, &o, &to, &mut write, &exists, false, &mut |_, _| true).unwrap();
+    let e = files[0]["error"].as_str().unwrap();
+    assert!(e.contains("folder is missing") && e.contains(&gone), "{e}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

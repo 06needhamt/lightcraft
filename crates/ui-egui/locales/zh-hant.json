@@ -2061,5 +2061,9 @@
   "Checking raw files": "正在檢查 RAW 檔案",
   "1 raw can now be developed from its raw data": "1 個 RAW 現在可以從 RAW 資料沖印",
   "This raw is now developed from its raw data": "此 RAW 現在從 RAW 資料沖印",
-  "This raw variant still can't be decoded": "這種 RAW 變體仍無法解碼"
+  "This raw variant still can't be decoded": "這種 RAW 變體仍無法解碼",
+  "No lens data embedded in this file (DNG lens opcodes only).": "此檔案未內嵌鏡頭資料（僅支援 DNG 鏡頭操作碼）。",
+  "Export to": "輸出至",
+  "Specific folder": "指定資料夾",
+  "Same folder as original photo": "與原始照片相同的資料夾"
 }
