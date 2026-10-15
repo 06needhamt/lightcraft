@@ -1697,20 +1697,47 @@ pub(crate) fn wheel_pick(v: egui::Vec2, rad: f32, lock: Option<WheelLock>) -> (f
 }
 
 fn paint_wheel(p: &egui::Painter, c: Pos2, rad: f32) {
+    p.add(wheel_mesh(c, rad));
+    p.circle_stroke(c, rad, Stroke::new(1.0, Color32::from_gray(40)));
+}
+
+/// The picture of a grading wheel: a hue disc whose rim is fully saturated display sRGB at full
+/// brightness, fading to a neutral grey at the centre. It is built from concentric rings so the
+/// saturation ramps evenly with the radius instead of one fan of triangles blending each hue
+/// straight into grey (which made the whole disc look muddy, issue #77). Only the drawing:
+/// what a position means for the edit is [`wheel_pick`].
+pub(crate) fn wheel_mesh(c: Pos2, rad: f32) -> Mesh {
+    const SEGMENTS: u32 = 72;
+    const RINGS: u32 = 12;
+    /// Brightness (HSV value) at the centre; the rim is 1.0.
+    const CENTRE_V: f32 = 0.6;
+    let colour = |hue_deg: f32, t: f32| {
+        let rgb = lightcraft_color::perceptual::hsv_to_rgb(hue_deg, t, CENTRE_V + (1.0 - CENTRE_V) * t);
+        let u = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+        Color32::from_rgb(u(rgb[0]), u(rgb[1]), u(rgb[2]))
+    };
     let mut mesh = Mesh::default();
-    let n = 48;
-    mesh.vertices.push(Vertex { pos: c, uv: Pos2::ZERO, color: Color32::from_gray(128) });
-    for i in 0..=n {
-        let a = i as f32 / n as f32 * std::f32::consts::TAU;
-        let rgb = lightcraft_color::perceptual::hsv_to_rgb(a.to_degrees(), 0.75, 0.8);
-        let col = Color32::from_rgb((rgb[0] * 255.0) as u8, (rgb[1] * 255.0) as u8, (rgb[2] * 255.0) as u8);
-        mesh.vertices.push(Vertex { pos: c + vec2(a.cos(), -a.sin()) * rad, uv: Pos2::ZERO, color: col });
-        if i > 0 {
-            mesh.indices.extend([0, i as u32, i as u32 + 1]);
+    mesh.vertices.push(Vertex { pos: c, uv: Pos2::ZERO, color: colour(0.0, 0.0) });
+    // ring k (1..=RINGS) holds SEGMENTS + 1 vertices starting at index 1 + (k - 1) * (SEGMENTS + 1)
+    let row = SEGMENTS + 1;
+    for k in 1..=RINGS {
+        let t = k as f32 / RINGS as f32;
+        for i in 0..=SEGMENTS {
+            let a = i as f32 / SEGMENTS as f32 * std::f32::consts::TAU;
+            mesh.vertices.push(Vertex { pos: c + vec2(a.cos(), -a.sin()) * rad * t, uv: Pos2::ZERO, color: colour(a.to_degrees(), t) });
         }
     }
-    p.add(mesh);
-    p.circle_stroke(c, rad, Stroke::new(1.0, Color32::from_gray(40)));
+    for i in 0..SEGMENTS {
+        mesh.indices.extend([0, 1 + i, 2 + i]);
+    }
+    for k in 1..RINGS {
+        let inner = 1 + (k - 1) * row;
+        let outer = inner + row;
+        for i in 0..SEGMENTS {
+            mesh.indices.extend([inner + i, outer + i, outer + i + 1, inner + i, outer + i + 1, inner + i + 1]);
+        }
+    }
+    mesh
 }
 
 /// Quick Develop (grid with several photos selected): relative steps applied to every selected
