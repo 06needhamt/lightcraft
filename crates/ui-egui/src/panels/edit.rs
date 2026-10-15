@@ -701,9 +701,13 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         }
     }
     let mut clicked = resp.clicked();
+    // the panel's floating scroll bar widens over the right edge when hovered: both buttons keep
+    // clear of it, the left one too so they stay symmetric (#1640)
+    let scroll = ui.spacing().scroll;
+    let inset = 20.0 + scroll.bar_width + scroll.bar_outer_margin;
     for (name, x, label, clipped) in [
-        ("shadows", plot.left() + 20.0, "Shadow clipping", clipping.map(|(lo, _)| lo > 0.003)),
-        ("highlights", plot.right() - 20.0, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
+        ("shadows", plot.left() + inset, "Shadow clipping", clipping.map(|(lo, _)| lo > 0.003)),
+        ("highlights", plot.right() - inset, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
     ] {
         let rect = Rect::from_center_size(pos2(x, plot.top() + 14.0), vec2(24.0, 22.0));
         let response = ui.interact(rect, ui.id().with(("histogram-clipping", name)), Sense::click());
