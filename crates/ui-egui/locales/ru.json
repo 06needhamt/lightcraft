@@ -997,7 +997,7 @@
   "Reset Section": "Сбросить раздел",
   "Reset Tone Curve": "Сбросить тоновую кривую",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "Сбросить все кривые: точечные (все каналы) и параметрическую (двойной щелчок по каналу сбрасывает только его)",
-  "Reset all edits (Cmd+Shift+R)": "Сбросить все правки (Cmd+Shift+R)",
+  "Reset all edits": "Сбросить все правки",
   "Reshuffle": "Перемешать",
   "Resize panel window": "Изменить размер окна панели",
   "Resize panels": "Изменить размеры панелей",

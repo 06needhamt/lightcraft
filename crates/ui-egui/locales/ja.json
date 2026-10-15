@@ -1135,7 +1135,7 @@
   "Reset Section": "項目をリセット",
   "Reset Tone Curve": "トーンカーブをリセット",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "すべてのポイントカーブとパラメトリックカーブをリセット（チャンネルのダブルクリックで個別にリセット）",
-  "Reset all edits (Cmd+Shift+R)": "すべての編集をリセット（⌘⇧R）",
+  "Reset all edits": "すべての編集をリセット",
   "Resize Face Box": "顔の枠のサイズを変更",
   "Resize panel window": "パネルウィンドウのサイズを変更",
   "Resize panels": "パネルのサイズを変更",

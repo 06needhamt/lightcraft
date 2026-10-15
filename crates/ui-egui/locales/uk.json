@@ -1231,7 +1231,7 @@
   "Reset Parametric Curve": "Скинути параметричну криву",
   "Reset Tone Curve": "Скинути тональну криву",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "Скинути всі криві: точкові криві (усі канали) і параметричну (подвійне клацання каналу скидає лише його)",
-  "Reset all edits (Cmd+Shift+R)": "Скинути всі зміни (Cmd+Shift+R)",
+  "Reset all edits": "Скинути всі зміни",
   "Resize Face Box": "Змінити розмір рамки обличчя",
   "Resize to": "Змінити розмір до",
   "Resolution (ppi)": "Роздільність (ppi)",

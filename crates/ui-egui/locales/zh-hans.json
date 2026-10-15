@@ -1191,7 +1191,7 @@
   "Reset Section": "重置此区段",
   "Reset Tone Curve": "重置色调曲线",
   "Reset all curves: point curves (all channels) and parametric (double-click a channel to reset only that one)": "重置所有曲线：点曲线（所有通道）和参数曲线（双击某个通道可单独重置该通道）",
-  "Reset all edits (Cmd+Shift+R)": "重置所有编辑 (Cmd+Shift+R)",
+  "Reset all edits": "重置所有编辑",
   "Resize Face Box": "调整人脸框大小",
   "Resize panel window": "调整面板窗口大小",
   "Resize panels": "调整面板大小",
