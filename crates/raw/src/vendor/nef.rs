@@ -178,10 +178,6 @@ const MEASURED_BODIES: &[MeasuredBody] = &[
     MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON D5000", size: (4352, 2868), bits: 12, crop: (10, 10, 4288, 2848), white: Some(3830.0) },
-    MeasuredBody { model: "NIKON D600", size: (6080, 4028), bits: 12, crop: (8, 6, 6016, 4016), white: None },
-    MeasuredBody { model: "NIKON D600", size: (6080, 4028), bits: 14, crop: (8, 6, 6016, 4016), white: None },
-    MeasuredBody { model: "NIKON D610", size: (6080, 4028), bits: 12, crop: (8, 6, 6016, 4016), white: None },
-    MeasuredBody { model: "NIKON D610", size: (6080, 4028), bits: 14, crop: (8, 6, 6016, 4016), white: None },
 ];
 
 fn measured_body(model: &str, w: usize, h: usize, bits: u32) -> Option<&'static MeasuredBody> {
