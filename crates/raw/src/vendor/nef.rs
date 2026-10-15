@@ -45,6 +45,20 @@ fn nrw_black(mn: Option<&makernote::MakerNote>, bits: u32) -> Option<f32> {
     (u64::from(v) < (1u64 << bits.min(16)) / 4).then_some(v as f32)
 }
 
+/// As-shot white balance from the NRW data block, for bodies whose maker note has no `0x000c`: the first entry of the
+/// block's colour-temperature table (byte `0x34`) is five `u32`s, kelvin, R, G, G, B, in the same 1/256 units as
+/// `0x000c` (the same R and B values in the P950, B700, P1000 and P1100 files, which carry both). Only used when the
+/// table's fourth entry, a kelvin-only slot, repeats the first entry's kelvin (the P7000); the P7100 keeps its
+/// as-shot kelvin there (3195) while entry 0 is the 3000 K preset, so that body gets no white balance from here.
+fn nrw_wb(mn: Option<&makernote::MakerNote>) -> Option<[f32; 3]> {
+    let (b, order) = nrw_data(mn)?;
+    let at = |i: usize| -> Option<u32> { Some(order.u32(b.get(0x34 + 4 * i..0x38 + 4 * i)?.try_into().ok()?)) };
+    let (kelvin, r, g1, g2, bl) = (at(0)?, at(1)?, at(2)?, at(3)?, at(4)?);
+    let sane = |v: u32| (64..=2560).contains(&v);
+    let mirrored = at(15)? == kelvin;
+    (mirrored && (2000..=12000).contains(&kelvin) && g1 == 512 && g2.abs_diff(512) <= 8 && sane(r) && sane(bl)).then(|| [r as f32 / 256.0, 1.0, bl as f32 / 256.0])
+}
+
 /// Nikon CropArea is `[left, top, width, height]` in sensor pixels (maker-note tag documentation).
 /// Keep the active area/CFA origin unchanged: the default crop is applied after demosaicing.
 fn default_crop(mn: Option<&makernote::MakerNote>, w: usize, h: usize) -> Rect {
@@ -229,7 +243,8 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         .as_ref()
         .and_then(|m| m.ifd.f64s(WB_RB_LEVELS))
         .filter(|v| v.len() >= 2 && v[0] > 0.1 && v[1] > 0.1 && v[0] < 10.0 && v[1] < 10.0)
-        .map(|v| [v[0] as f32, 1.0, v[1] as f32]);
+        .map(|v| [v[0] as f32, 1.0, v[1] as f32])
+        .or_else(|| nrw_wb(mn.as_ref()));
     let cfa = match (raw.u64s(t::CFA_REPEAT_PATTERN_DIM).as_deref(), raw.bytes(t::CFA_PATTERN_EP)) {
         (Some([2, 2]), Some(p)) if p.len() == 4 && p.iter().all(|&c| c <= 2) => Cfa { width: 2, height: 2, pattern: p.to_vec() },
         _ => Cfa::bayer_static("RGGB"),
@@ -294,7 +309,8 @@ fn uncompressed(bytes: &[u8], info: &ImageInfo, order: ByteOrder, mn: Option<&ma
     let packing = if bytes_per_row >= row_samples * 2 {
         Packing::Word16
     } else if bits == 12 && bytes_per_row * 8 >= row_samples * 12 && bytes_per_row * 8 < row_samples * 13 {
-        if nrw_data(mn).is_some() && bytes_per_row.is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
+        // the row's own size (a strip may be padded past the last row, which skews `bytes_per_row`)
+        if nrw_data(mn).is_some() && (row_samples * 12).div_ceil(8).is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
     } else if info.compression == 1 && bits != 8 && bits != 16 {
         return Err(RawError::Unsupported(format!("NEF uncompressed packing ({bytes_per_row} bytes per {row_samples}-sample row)")));
     } else {
@@ -734,6 +750,41 @@ mod tests {
         let mut both = nrw_note(200);
         both.set(BLACK_LEVEL, Value::Short(vec![400, 404, 408, 412]));
         assert_eq!(decode(Some(both)).black.values, vec![100.0, 101.0, 102.0, 103.0]);
+    }
+
+    #[test]
+    fn nrw_padded_strip_keeps_32_bit_word_packing() {
+        // 16 x 6 12-bit samples are 24 bytes a row; a strip padded past the last row must not change the packing
+        let (w, h) = (16usize, 6usize);
+        let px: Vec<u16> = (0..w * h).map(|i| (200 + i * 131 % 3800) as u16).collect();
+        let mut packed = words32(&px, w, ByteOrder::Little);
+        packed.extend_from_slice(&[0u8; 6]);
+        let r = crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![packed], w as u32, h as u32, h as u32, Some(nrw_note(0)))).unwrap();
+        assert_eq!(r.data, RawData::U16(px));
+    }
+
+    #[test]
+    fn nrw_block_supplies_the_as_shot_white_balance_when_the_maker_note_has_none() {
+        let note = |kelvin: u32, r: u32, g1: u32, g2: u32, b: u32, mirror: Option<u32>| {
+            let mut block = b"NRW 0101".to_vec();
+            block.resize(0x34, 0);
+            for v in [kelvin, r, g1, g2, b] {
+                block.extend_from_slice(&v.to_le_bytes());
+            }
+            block.resize(0x34 + 60, 0);
+            block.extend_from_slice(&mirror.unwrap_or(kelvin).to_le_bytes());
+            block.resize(0x80, 0);
+            let mut mn = IfdBuilder::new();
+            mn.set(NRW_DATA, Value::Undefined(block));
+            mn
+        };
+        let wb = |mn| crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![vec![0; 144]], 16, 6, 6, Some(mn))).unwrap().wb_multipliers;
+        assert_eq!(wb(note(5236, 430, 512, 510, 567, None)), Some([430.0 / 256.0, 1.0, 567.0 / 256.0]));
+        // an implausible entry is not a white balance
+        assert_eq!(wb(note(0, 430, 512, 510, 567, None)), None);
+        assert_eq!(wb(note(5236, 430, 300, 510, 567, None)), None);
+        // the P7100 layout: entry 0 is a preset, the as-shot kelvin sits in the fourth entry
+        assert_eq!(wb(note(3000, 278, 512, 510, 868, Some(3195))), None);
     }
 
     #[test]
