@@ -74,6 +74,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-14 | minor | Gap 21: de, es, fr, ja and uk catalogs filled (97–99%); 55–90 h → 40–70 h |
+| 2026-10-14 | minor | Gap 10: 17 uncompressed Olympus and Samsung models verified on one CC0 file each (254 models) |
 | 2026-10-13 | patch | Gaps 10, 22 and 23 each had two rows (two branches edited them; the merges kept both): the older copies are removed, and `cargo xtask parity` (in `ci`) now fails when a gap number is listed twice |
 | 2026-10-13 | minor | Closed recently: Sony ILCA-99M2 profile |
 | 2026-10-14 | minor | Gap 10: 21 Sony and Leica models verified on one CC0 file each (258 models) |
