@@ -289,5 +289,7 @@
   "{n} originals opened in the other editor": "{n} originals opened in the other editor",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}",
   "Effect: {name}": "Effect: {name}",
-  " in {g} group{}": " in {g} group{}"
+  " in {g} group{}": " in {g} group{}",
+  "Color space: Rec. 2020 {curve} (HDR AVIF)": "Color space: Rec. 2020 {curve} (HDR AVIF)",
+  "{n} selected photos · {pages} pages": "{n} selected photos · {pages} pages"
 }
