@@ -269,6 +269,9 @@ pub struct Perf {
     pub update_ms: f64,
     /// The slowest whole update since start.
     pub max_update_ms: f64,
+    /// The previous frame's whole time on this thread, painting (texture uploads) included, as
+    /// the host reports it (eframe's `cpu_usage`); `None` without a host report (headless).
+    pub host_frame_ms: Option<f64>,
     pub fps: f64,
 }
 
@@ -367,6 +370,8 @@ pub struct LightcraftApp {
     pub region_before_view: Option<region::RegionView>,
     /// The loupe's render sizes while a pinch or two-finger scroll runs.
     pub(crate) size_hold: region::SizeHold,
+    /// The size of a slider drag's whole-frame drafts (full size where they keep up, issue #330).
+    pub(crate) drag_scale: region::DragScale,
     /// (photo, look, window frame size) a window was refused for: it reads more than one render holds.
     pub(crate) window_refused: Option<(lightcraft_catalog::PhotoId, u64, usize)>,
     pub(crate) region_tiles: std::collections::HashMap<(bool, u64), region::RegionView>,
@@ -477,6 +482,7 @@ impl LightcraftApp {
             region_view: None,
             region_before_view: None,
             size_hold: Default::default(),
+            drag_scale: Default::default(),
             window_refused: None,
             region_tiles: Default::default(),
             compare_windows: [None; 2],

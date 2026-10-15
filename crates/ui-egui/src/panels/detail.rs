@@ -439,13 +439,21 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     app.image_rect = Some(img_rect);
     // request renders: the loupe at display resolution (drafts during drags)
     let interacting = app.session.interaction.is_some();
-    let scale = if interacting { 0.6 } else { 1.0 };
+    let overlay = view_overlay(app, &d);
+    // a drag drafts at full size where the GPU draws the view (by the GPU's own rule, `handles`;
+    // `ready` first: `available` would wait for a device still being created)
+    let gpu = interacting
+        && lightcraft_engine::gpu::handles(lightcraft_pipeline::OutputDepth::U8, app.ui.soft_proof, overlay)
+        && lightcraft_engine::gpu::ready()
+        && lightcraft_engine::gpu::available();
+    let shown = app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id && t.quick.is_none()).map(|t| (t.key, t.ms));
+    let drag = app.session.interaction.as_ref().map(|i| (i.photo, i.label.as_str()));
+    let draft = app.drag_scale.scale(drag, gpu, shown.map(|(key, _)| key));
     // render at the final size: a click-zoom animation only changes how the result is drawn
     let native_long = native[0].max(native[1]);
     let drawn_long = target_rect.width().max(target_rect.height()) * ppp;
     // the whole frame at about canvas size; the zoomed part of it is a window render (below)
     let look = d.hash64();
-    let overlay = view_overlay(app, &d);
     // Diagnostic views that need whole-frame context, soft proofing, or reads too far for one
     // window still render the whole frame at the size it is drawn. A mask overlay is window-safe.
     let sizes = crate::region::ViewSizes {
@@ -453,12 +461,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         canvas_long: canvas.width().max(canvas.height()) * ppp,
         native_long,
         texture_side,
-        draft_scale: scale,
+        draft,
         windows: !app.ui.soft_proof && overlay_supports_window(overlay),
     };
     let mut plan = crate::region::plan(&app.ui.settings, sizes);
     if plan.window_edge.is_some_and(|edge| app.window_refused == Some((id, look, edge))) {
         plan = crate::region::plan(&app.ui.settings, crate::region::ViewSizes { windows: false, ..sizes });
+    }
+    // time the full-size drafts where they are what shows: under a window the whole-frame draft
+    // is small anyway, and the frame's time is the window's upload
+    if let Some((key, ms)) = shown.filter(|_| plan.window_edge.is_none()) {
+        app.drag_scale.observe(key, ms, app.perf.host_frame_ms);
     }
     // a pinch changes the zoom every frame: keep the sizes of before it until it is quiet
     let now = ui.input(|i| i.time);

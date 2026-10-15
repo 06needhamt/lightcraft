@@ -76,7 +76,8 @@ impl eframe::App for App {
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.0.raw_input_hook(raw);
     }
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.0.perf.host_frame_ms = frame.info().cpu_usage.map(|s| f64::from(s) * 1000.0);
         self.0.ui(ui);
     }
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
