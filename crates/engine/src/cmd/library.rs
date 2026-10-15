@@ -182,7 +182,7 @@ fn mark_deleted(s: &mut Session, ids: &[PhotoId], label: &str) -> Result<usize> 
 
 /// Apply one op per target as a single undo step.
 fn for_targets(s: &mut Session, p: &Value, label: &str, f: impl Fn(PhotoId) -> Option<Op>) -> Result<Value> {
-    let targets = s.targets(p);
+    let targets = s.targets(p)?;
     let ops: Vec<Op> = targets.iter().filter_map(|id| f(*id)).collect();
     let n = ops.len();
     if n > 0 {
@@ -194,7 +194,7 @@ fn for_targets(s: &mut Session, p: &Value, label: &str, f: impl Fn(PhotoId) -> O
 /// Adjust each target's own rating; unchanged bounds do not create an undo step.
 fn change_rating(s: &mut Session, p: &Value, delta: i8, label: &str) -> Result<Value> {
     let mut ops = Vec::new();
-    for id in s.targets(p) {
+    for id in s.targets(p)? {
         let old = s.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?.rating;
         let rating = (i16::from(old) + i16::from(delta)).clamp(0, 5) as u8;
         if rating != old {
@@ -213,7 +213,7 @@ fn change_rating(s: &mut Session, p: &Value, delta: i8, label: &str) -> Result<V
 /// raising/lowering clamps on reject < unflagged < pick. Unchanged photos make no history step.
 fn change_flag(s: &mut Session, p: &Value, label: &str, step: impl Fn(Flag) -> Flag) -> Result<Value> {
     let mut ops = Vec::new();
-    for id in s.targets(p) {
+    for id in s.targets(p)? {
         let old = s.catalog.photo(id).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?.flag;
         let flag = step(old);
         if flag != old {
@@ -258,7 +258,7 @@ fn row_step(p: &Value) -> isize {
 }
 
 fn rotate(s: &mut Session, p: &Value, cw: bool) -> Result<Value> {
-    let targets = s.targets(p);
+    let targets = s.targets(p)?;
     let mut ops = Vec::new();
     for id in targets {
         if let Some(d) = s.develop_of(id) {
@@ -277,7 +277,7 @@ fn rotate(s: &mut Session, p: &Value, cw: bool) -> Result<Value> {
 }
 
 fn flip(s: &mut Session, p: &Value, horizontal: bool) -> Result<Value> {
-    let targets = s.targets(p);
+    let targets = s.targets(p)?;
     let mut ops = Vec::new();
     for id in targets {
         if let Some(d) = s.develop_of(id) {
@@ -883,7 +883,7 @@ pub fn specs() -> Vec<CommandSpec> {
         // ---- delete / restore
         cmd!("photo.delete", "Delete Photo", ["Photo"], Some("Delete"), "{ids?} — moves to Recently Deleted", has_selection, |s, p| {
             let before = s.visible_cloned();
-            let targets = s.targets(p);
+            let targets = s.targets(p)?;
             let n = mark_deleted(s, &targets, "Delete")?;
             select_after_deletion(s, &before);
             Ok(json!({"changed": n}))
@@ -912,7 +912,7 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!("photo.deletePermanently", "Delete Permanently", ["Photo"], None, "{ids?}", has_selection, |s, p| {
             let before = s.visible_cloned();
-            let t = s.targets(p);
+            let t = s.targets(p)?;
             let op = s.catalog.delete_photos_permanently_ops(&t);
             s.commit("Delete Permanently", op)?;
             select_after_deletion(s, &before);
@@ -929,7 +929,7 @@ pub fn specs() -> Vec<CommandSpec> {
             |s, p| {
                 let strs =
                     |k: &str| p.get(k).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
-                let targets = s.targets(p);
+                let targets = s.targets(p)?;
                 // GPS: "lat, lon" (decimal or 51°30'26"N 0°7'39"W), [lat, lon], or null / "" to clear
                 let gps: Option<Option<(f64, f64)>> = match p.get("gps") {
                     None => None,
@@ -1027,8 +1027,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 }
                 let folder = bool_or(p, "folder", false);
                 let parent = p.get("parent").and_then(Value::as_u64).map(AlbumId);
-                let (photos, skipped) =
-                    if !folder && bool_or(p, "addSelected", false) { album_targets(s, s.targets(&Value::Null)) } else { (vec![], 0) };
+                let (photos, skipped) = if !folder && bool_or(p, "addSelected", false) { album_targets(s, s.selected()) } else { (vec![], 0) };
                 let id = s.catalog.alloc_album_id();
                 let cover = photos.first().copied();
                 s.commit(
@@ -1268,7 +1267,7 @@ pub fn specs() -> Vec<CommandSpec> {
             has_library_selection,
             |s, p| {
                 let id = album_param(p, "id", "album.addPhotos")?;
-                let targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
+                let targets = ids_param(p).unwrap_or_else(|| s.selected());
                 let al = s.catalog.album(id).ok_or_else(|| bad("album.addPhotos", "no such album"))?;
                 if al.is_smart() || al.folder {
                     return Err(bad("album.addPhotos", "smart albums and folders can't hold photos"));
@@ -1295,7 +1294,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{ids?} — B: adds the photos to the target album (the Quick Collection unless one is set), or removes them when they're all in it → {album, added, skipped}; Local photos are skipped",
             has_library_selection,
             |s, p| {
-                let targets = album_targets_or_err(s, "album.toggleTarget", ids_param(p).unwrap_or_else(|| s.targets(&Value::Null)))?;
+                let targets = album_targets_or_err(s, "album.toggleTarget", ids_param(p).unwrap_or_else(|| s.selected()))?;
                 let (targets, skipped) = targets;
                 let target = s.target_album.filter(|a| s.catalog.album(*a).is_some_and(|al| !al.is_smart() && !al.folder));
                 let id = match target.or_else(|| s.catalog.quick_collection()) {
@@ -1454,7 +1453,7 @@ pub fn specs() -> Vec<CommandSpec> {
                         _ => return Err(bad("album.removePhotos", "no album: pass `id` or show an album")),
                     },
                 };
-                let targets = ids_param(p).unwrap_or_else(|| s.targets(&Value::Null));
+                let targets = ids_param(p).unwrap_or_else(|| s.selected());
                 let al = s.catalog.album(id).ok_or_else(|| bad("album.removePhotos", "no such album"))?;
                 if al.is_smart() {
                     return Err(bad("album.removePhotos", "smart albums update automatically: change their rules"));
