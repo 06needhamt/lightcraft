@@ -771,3 +771,81 @@ fn cmp_name_ignores_case_without_allocating() {
     assert_eq!(cmp_name("DSC_0001", "DSC_0002"), Less);
     assert_eq!(cmp_name("a", "ab"), Less);
 }
+
+/// What the catalog remembers of its latest ops: which photos each changed and what of them, as long as that can be
+/// said photo by photo.
+#[test]
+fn the_catalog_remembers_which_photos_its_latest_ops_changed_and_what_of_them() {
+    let mut c = Catalog::default();
+    let photo = |c: &mut Catalog, name: &str| {
+        let id = c.alloc_photo_id();
+        c.apply(Op::AddPhoto {
+            photo: Box::new(Photo::new(id, Source::File { path: format!("/p/{name}") }, name, "JPEG", 60, 40, "2026-01-01T10:00:00")),
+        })
+        .unwrap();
+        id
+    };
+    let (a, b) = (photo(&mut c, "a.jpg"), photo(&mut c, "b.jpg"));
+    let start = c.revision;
+    assert_eq!(c.touched_since(start), Some(vec![]));
+    assert_eq!(c.aspects_since(start), Some(Aspects::NONE));
+    // a rating, then a flag on another photo, as one batch
+    c.apply(Op::SetRating { id: a, rating: 3 }).unwrap();
+    assert_eq!(c.touched_since(start), Some(vec![a]));
+    assert_eq!(c.aspects_since(start), Some(Aspects::RATING));
+    let after_rating = c.revision;
+    c.apply(Op::Batch { ops: vec![Op::SetFlag { id: b, flag: Flag::Pick }, Op::SetRating { id: a, rating: 4 }] }).unwrap();
+    assert_eq!(c.touched_since(start), Some(vec![a, b]), "each once");
+    assert_eq!(c.touched_since(after_rating), Some(vec![a, b]));
+    assert_eq!(c.aspects_since(after_rating), Some(Aspects::FLAG.with(Aspects::RATING)));
+    assert_eq!(c.touched_since(c.revision), Some(vec![]));
+    // a photo that goes counts for everything
+    let before = c.revision;
+    c.apply(Op::RemovePhoto { id: b }).unwrap();
+    assert_eq!(c.touched_since(before), Some(vec![b]));
+    assert!(c.aspects_since(before).is_some_and(|x| x.any_of(Aspects::PRESENCE) && x.any_of(Aspects::FILE)));
+    // an op that changes more than photos of its own: nothing is said of what came before it
+    let before = c.revision;
+    let album = c.alloc_album_id();
+    c.apply(Op::AddAlbum { album: Album::new(album, "Trip") }).unwrap();
+    assert_eq!(c.touched_since(before), None);
+    assert_eq!(c.aspects_since(start), None);
+    assert_eq!(c.touched_since(c.revision), Some(vec![]), "from after it, it is known again");
+    // a revision that is not this catalog's past
+    assert_eq!(c.touched_since(c.revision + 5), None);
+    // a revision set from outside (a library just loaded): nothing is known of how the catalog got there, and after
+    // the next op nothing of before it
+    let old = c.revision;
+    c.revision = 7 << 32;
+    assert_eq!(c.touched_since(old), None);
+    assert_eq!(c.aspects_since(c.revision), None);
+    let loaded = c.revision;
+    c.apply(Op::SetRating { id: a, rating: 1 }).unwrap();
+    assert_eq!(c.touched_since(loaded), Some(vec![a]));
+    assert_eq!(c.touched_since(old), None);
+    // an op that fails changes nothing, and what is remembered never says less than what happened
+    let before = c.revision;
+    assert!(c.apply(Op::SetRating { id: PhotoId(9_999), rating: 1 }).is_err());
+    assert_eq!(c.revision, before);
+    c.apply(Op::SetFlag { id: a, flag: Flag::Pick }).unwrap();
+    assert!(c.touched_since(before).is_some_and(|ids| ids.contains(&a)));
+    assert!(c.aspects_since(before).is_some_and(|x| x.any_of(Aspects::FLAG)));
+    // a batch that fails midway is undone as a whole; a batch in a batch is remembered photo by photo; a batch
+    // with an op that changes more than photos is not
+    let before = c.revision;
+    assert!(c.apply(Op::Batch { ops: vec![Op::SetRating { id: a, rating: 5 }, Op::SetRating { id: PhotoId(9_999), rating: 1 }] }).is_err());
+    assert_eq!((c.revision, c.photo(a).map(|p| p.rating)), (before, Some(1)));
+    c.apply(Op::Batch { ops: vec![Op::Batch { ops: vec![Op::SetRating { id: a, rating: 2 }] }] }).unwrap();
+    // (the photo the failed batch asked for and never found may be named too: more is said, never less)
+    assert!(c.touched_since(before).is_some_and(|ids| ids.contains(&a)));
+    let before = c.revision;
+    c.apply(Op::Batch { ops: vec![Op::SetRating { id: a, rating: 3 }, Op::RenameAlbum { id: album, name: "Journey".into() }] }).unwrap();
+    assert_eq!(c.touched_since(before), None);
+    // more ops than are remembered: the oldest are answered with "anything"
+    let long_ago = c.revision;
+    for i in 0..9000u32 {
+        c.apply(Op::SetRating { id: a, rating: (i % 5) as u8 }).unwrap();
+    }
+    assert_eq!(c.touched_since(long_ago), None);
+    assert_eq!(c.touched_since(c.revision - 10), Some(vec![a]));
+}

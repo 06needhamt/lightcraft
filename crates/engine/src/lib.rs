@@ -180,6 +180,9 @@ pub struct Interaction {
     pub original: Arc<DevelopSettings>,
 }
 
+/// The most photos an edit may touch for the view to follow it photo by photo; a larger edit is worked out whole.
+const MAX_FOLLOWED: usize = 256;
+
 /// Source of [`Session::visible_shared`] generations (process-wide, so two sessions never share one).
 static VISIBLE_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 static LIBRARY_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
@@ -201,10 +204,18 @@ pub struct Session {
     /// A view holds the photos it shows until it is refreshed (`library.holdView`): an edit that makes a photo stop
     /// matching a smart album's rules, Picks or the filter bar leaves it where it is. Off: the photo goes at once.
     pub hold_view: bool,
-    /// The view that is held and the photos in it, before stacks are arranged ([`Session::hold_view`]). Another
-    /// source, filter or sort is another view, and starts from what matches; so does a smart album whose rules
-    /// were changed. `None` for a view that nothing can stop matching (a source with no filter over it).
-    held: Option<(String, Vec<PhotoId>)>,
+    /// The view last worked out, the catalog's revision then, and the photos in it before stacks are arranged.
+    /// A small edit is followed from it: only the photos the edit touched are asked about again and put at their
+    /// place in the order ([`Session::visible`]). It is also what a held view holds ([`Session::hold_view`]).
+    /// Another source, filter or sort is another view, and so is a smart album whose rules were changed.
+    base: Option<(String, u64, Vec<PhotoId>)>,
+    /// How many times the view followed an edit from the list it had, and how many times it was worked out from
+    /// every photo (`ui.inspect` → `perf`): what tells a slow library from a slow edit.
+    pub view_followed: u64,
+    pub view_worked_out: u64,
+    /// Tests: work the view out whole every time (what following has to equal).
+    #[cfg(test)]
+    never_follow: bool,
     /// Identifies the current `visible` list: a new value (unique in the process) every time it
     /// is recomputed, so frontends can key their per-view caches on it instead of hashing the ids.
     visible_gen: u64,
@@ -390,7 +401,11 @@ impl Session {
             visible: Vec::new().into(),
             visible_key: None,
             hold_view: false,
-            held: None,
+            base: None,
+            view_followed: 0,
+            view_worked_out: 0,
+            #[cfg(test)]
+            never_follow: false,
             visible_gen: 0,
             total: None,
             undo: Vec::new(),
@@ -954,25 +969,50 @@ impl Session {
             // (only a view that asks something can lose a photo to an edit: the others are queried as ever, at no
             // cost for the hold)
             let holds = self.hold_view && (asks || self.filter != Filter::default());
-            let held = self.held.as_ref().filter(|(held, _)| holds && *held == view).map(|(_, ids)| ids);
-            let mut visible = match held {
-                Some(ids) => {
-                    let keep: std::collections::HashSet<PhotoId> = ids.iter().copied().collect();
-                    let within = if asks {
-                        self.view_filter(LibrarySource::All, &Filter::default())
-                    } else if self.source == LibrarySource::RecentlyAdded {
-                        // (how far back it reaches was worked out for `f`: not a second pass over the library)
-                        Filter { imported_from: f.imported_from.clone(), ..Default::default() }
-                    } else {
-                        self.view_filter(self.source, &Filter::default())
-                    };
-                    self.catalog.query_keeping(&f, &self.sort, &keep, &within)
+            let within = holds.then(|| {
+                if asks {
+                    self.view_filter(LibrarySource::All, &Filter::default())
+                } else if self.source == LibrarySource::RecentlyAdded {
+                    // (how far back it reaches was worked out for `f`: not a second pass over the library)
+                    Filter { imported_from: f.imported_from.clone(), ..Default::default() }
+                } else {
+                    self.view_filter(self.source, &Filter::default())
                 }
-                None => self.catalog.query(&f, &self.sort),
+            });
+            // Views whose order or photos are not the query's alone are worked out whole each time: an album in
+            // its own order, Recently Added (how far back it reaches moves with every import), Missing Photos.
+            let own_order = matches!(self.source, LibrarySource::Album(a) if self.sort.key == lightcraft_catalog::SortKey::CaptureDate
+                && self.filter == Filter::default()
+                && self.catalog.album(a).is_some_and(|al| !al.is_smart()));
+            let whole = own_order || matches!(self.source, LibrarySource::RecentlyAdded | LibrarySource::Missing);
+            // A view that asks about "the last N days" (itself, or through a smart album it looks into) changes
+            // with the clock as well as with edits: a photo nobody touched can stop matching. It is asked whole.
+            let clocked = f.depends_on_now()
+                || (!f.albums_tested().is_empty() && self.catalog.albums().any(|al| al.smart.as_deref().is_some_and(Filter::depends_on_now)));
+            let base = self.base.take().filter(|(of, _, _)| *of == view);
+            // A small edit to the same view: the photos it touched are taken out, asked about again, and put back
+            // at their place in the order. The others neither stopped matching nor moved.
+            #[cfg(test)]
+            let clocked = clocked || self.never_follow;
+            let followed = base.as_ref().filter(|_| !whole && !clocked).and_then(|(_, revision, ids)| {
+                let touched = self.catalog.touched_since(*revision).filter(|touched| touched.len() <= MAX_FOLLOWED)?;
+                Some(self.catalog.follow(ids, &touched, &f, &self.sort, within.as_ref()))
+            });
+            match followed {
+                Some(_) => self.view_followed += 1,
+                None => self.view_worked_out += 1,
+            }
+            let mut visible = match (followed, &base, &within) {
+                (Some(ids), _, _) => ids,
+                (None, Some((_, _, held)), Some(within)) => {
+                    let keep: std::collections::HashSet<PhotoId> = held.iter().copied().collect();
+                    self.catalog.query_keeping(&f, &self.sort, &keep, within)
+                }
+                _ => self.catalog.query(&f, &self.sort),
             };
-            // what the view shows now is what it holds until it is refreshed (taken before stacks are arranged, so
-            // a photo folded into a stack is held with it)
-            self.held = holds.then(|| (view, visible.clone()));
+            // what the view shows now is what the next edit is followed from, and what it holds until it is
+            // refreshed (taken before stacks are arranged, so a photo folded into a stack is held with it)
+            self.base = (!whole || holds).then(|| (view, self.catalog.revision, visible.clone()));
             if visible.is_empty() && self.source == LibrarySource::LibraryFolder && !self.folder_holds_photos() {
                 // the shown folder lost its last photo (deleted, moved, removed): everything, not
                 // an empty grid under the name of a folder that is gone from the sidebar
@@ -1040,8 +1080,23 @@ impl Session {
 
     /// Let go of what a held view kept: the view shows what matches now ([`Session::hold_view`]).
     pub fn refresh_view(&mut self) {
-        self.held = None;
+        self.base = None;
         self.visible_key = None;
+    }
+
+    /// [`Session::visible`] worked out from every photo, whatever was followed before: what following an edit
+    /// has to equal.
+    /// Nothing the session keeps is changed by asking: the next edit is followed from where the last one left the
+    /// view, so a list followed many times over is compared, not only one followed once.
+    #[cfg(test)]
+    pub(crate) fn visible_in_full(&mut self) -> Vec<PhotoId> {
+        let kept = (self.base.clone(), self.visible_key.clone(), self.visible.clone(), self.visible_gen, self.view_followed, self.view_worked_out);
+        self.never_follow = true;
+        self.visible_key = None;
+        let whole = self.visible().to_vec();
+        self.never_follow = false;
+        (self.base, self.visible_key, self.visible, self.visible_gen, self.view_followed, self.view_worked_out) = kept;
+        whole
     }
 
     /// Whether the library still holds a photo imported from the folder a `LibraryFolder` source
@@ -1057,6 +1112,16 @@ impl Session {
         if self.source == LibrarySource::Missing {
             return None;
         }
+        if self.filter == Filter::default() && !self.hold_view {
+            // nothing narrows the source: what the view lists is all of it, and is counted already (not a view
+            // that holds photos that stopped matching: those are not of the source any more)
+            let _ = self.visible();
+            if let Some((_, revision, ids)) = &self.base
+                && *revision == self.catalog.revision
+            {
+                return Some(ids.len());
+            }
+        }
         let key = (self.catalog.revision, format!("{:?}|{:?}|{:?}", self.source, self.browse, self.library_folder));
         if self.total.as_ref().map(|t| &t.0) != Some(&key) {
             let mut f = self.source.to_filter(&Filter::default(), &self.catalog);
@@ -1068,7 +1133,8 @@ impl Session {
             if self.source == LibrarySource::LibraryFolder {
                 f.library_folder = Some(self.library_folder.clone().unwrap_or_else(|| ".".into()));
             }
-            let n = self.catalog.query(&f, &self.sort).len();
+            // (how many, not which: nothing to put in order)
+            let n = self.catalog.count(&f);
             self.total = Some((key, n));
         }
         self.total.as_ref().map(|t| t.1)
@@ -1188,5 +1254,7 @@ mod tests_slideshow_export;
 mod tests_spots;
 #[cfg(test)]
 mod tests_sync;
+#[cfg(test)]
+mod tests_view_follow;
 #[cfg(test)]
 mod tests_xmp;

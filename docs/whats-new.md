@@ -92,6 +92,20 @@
 
 ## 2026-10-13
 
+### Edits keep up in a large library
+- A small edit (a keyword, a rating, a flag, a slider) no longer has the grid's list worked out again from every
+  photo: only the photos the edit touched are asked about again and put at their place in the order. In a library of
+  67,000 photos that step went from 37 ms to under 1 ms. Still worked out whole: an edit to more than 256 photos, a
+  change to an album, a stack or the keyword list, an album shown in its own order, Recently Added, Missing Photos,
+  and a view that asks about "the last N days".
+- With no filter set, the count of the source is taken from the list instead of from a second pass over the library.
+- The side panels keep a tally an edit cannot have changed: a rating or a slider changes none of the folders,
+  keywords, dates, people and counts; a keyword leaves the folders, the dates and the counts as they are. With both
+  side panels open, the frame after a keyword went from about 156 ms to about 54 ms in that library (2 ms with the
+  panels closed, from 71 ms).
+- Still tallied from every photo on each edit: the count beside each album and smart album in the left panel (about
+  25 ms for a smart album in that library), and the filter bar's lists of cameras, lenses and keywords.
+
 ### A view can hold its photos until you refresh it
 - View ▸ Hold View Until Refreshed (off unless you turn it on; kept with the library). With it on, an edit that makes
   a photo stop matching the view keeps it in the view: a keyword given in a smart album of photos without keywords,
