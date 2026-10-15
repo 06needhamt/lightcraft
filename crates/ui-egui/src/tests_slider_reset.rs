@@ -131,7 +131,7 @@ fn a_sliders_name_and_thumb_say_a_double_click_resets_it() {
     assert!(!shown(&h), "no hint away from the thumb");
     // the value keeps its own hint
     ask(&mut h, "ui.hoverWidget", json!({"id": "sliderValue:light.exposure"}));
-    assert!(h.step_until(Duration::from_secs(5), |h| h.painted_text().iter().any(|t| t == "Click to type a value")));
+    assert!(h.step_until(Duration::from_secs(5), |h| h.painted_text().iter().any(|t| t == "Click to type a value, drag to change it")));
 }
 
 /// Typing a value (KEY-SLIDER-TYPE, #1362) still works next to the reset.
