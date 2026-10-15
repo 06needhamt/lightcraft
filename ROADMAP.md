@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled; Georgian interface language) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -96,7 +96,7 @@ while lower-layer errors stay English. Detail: [localization-parity.md](docs/loc
 | Korean | ko | 0% | none (no Hangul face) |
 | Vietnamese | vi | 0% | none |
 
-Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%).
+Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%), Georgian (100%).
 
 ## Upcoming
 
@@ -187,6 +187,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 | 2026-10-14 | minor | 17 uncompressed Olympus and Samsung models verified on one CC0 file each (254 models verified, 18%); headline numbers unchanged |
 | 2026-10-12 | minor | Mamiya MEF decoded and imported: ZD verified (241); headline numbers unchanged |
 | 2026-10-12 | minor | Epson ERF decoded: 3 more verified models (240); headline numbers unchanged |
+| 2026-10-12 | minor | Georgian (`ka`) interface language added (every catalog message) |
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
 | 2026-10-12 | minor | 22 more CR3 bodies verified, EOS R6 Mark III white balance: RAW decoding 77% → 83%, RAW ~56% → ~60%; mainstream 49% → 51%, essentials 64% → 65%; full unchanged at ~61% |
 | 2026-10-12 | minor | 117 Nikon and Fujifilm bodies verified (354 models, 24%); headline numbers unchanged |
