@@ -26,6 +26,11 @@
 
 ## 2026-10-14
 
+### Nikon Z 6II colour profile
+- Raws from the Nikon Z 6II now start from a colour profile built from a few hundred Z 6II photos, the same way the
+  Sony and Fujifilm profiles were made, instead of fitting each photo's colour on its own. Colours that one photo
+  shows only a little of come out closer to the camera's JPEG.
+
 ### Closer camera colour for lens-corrected raws
 - Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
   Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that
