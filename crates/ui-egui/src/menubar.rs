@@ -830,7 +830,18 @@ pub fn menu_bar(app: &LightcraftApp) -> Vec<(String, Vec<MenuNode>)> {
 /// Compare/Survey; Auto Advance moves on).
 pub fn run_item(app: &mut LightcraftApp, id: &str, params: Value) -> Result<Value, String> {
     let mut params = if params.is_null() { json!({}) } else { params };
-    let culling_cmd = matches!(id, "photo.rate" | "photo.flag" | "photo.label" | "photo.pick" | "photo.reject" | "photo.unflag");
+    let culling_cmd = matches!(
+        id,
+        "photo.rate"
+            | "photo.flag"
+            | "photo.label"
+            | "photo.pick"
+            | "photo.reject"
+            | "photo.unflag"
+            | "photo.cycleFlag"
+            | "photo.increaseFlag"
+            | "photo.decreaseFlag"
+    );
     if culling_cmd {
         crate::panels::compare::target_active(app, &mut params);
     }
@@ -863,6 +874,8 @@ pub fn shortcut_text(sc: &str, mac: bool) -> String {
             "Escape" => "⎋",
             "Left" => "←",
             "Right" => "→",
+            "Up" => "↑",
+            "Down" => "↓",
             k => k,
         };
         format!("{mods}{key}")
