@@ -117,6 +117,13 @@
   "Canon CRX adaptive QP value 172" or "175". They now decode from the sensor data. Photos imported before this
   switch over with Photo ▸ Reload from Disk.
 
+### An empty library leads to Import
+- A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
+  Detail view that pointed at an empty grid. The grid and Detail view offer Import Photos… and, in the desktop app,
+  Import Lightroom Catalog… as buttons, and say that photos (and, in the desktop app, folders) can be dropped into
+  the window. The shortcut they show is the one Import Photos… has now.
+- The top bar has an Import button, beside Export, in every library.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

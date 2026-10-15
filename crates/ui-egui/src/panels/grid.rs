@@ -192,6 +192,8 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             );
         } else if app.session.source == lightcraft_engine::LibrarySource::Folder {
             super::empty_message(ui, ui.max_rect(), "No photos in this folder", "Turn on Include subfolders, or pick another folder under Local");
+        } else if super::empty_library::shown(&app.session) {
+            super::empty_library::show(app, ui, ui.max_rect());
         } else {
             super::empty_message(ui, ui.max_rect(), "No photos", "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here");
         }
