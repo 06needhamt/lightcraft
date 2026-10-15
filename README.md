@@ -268,6 +268,20 @@ lightcraft --control 7980 ~/Pictures/trip
   with the same font coverage as watermarks (CJK requires craft-fonts), with long names shortened in the middle.
   This is a contact-sheet workflow,
   not a printer-driver or custom picture-package layout editor.
+- **Print layouts (native app / CLI):** **File → Print…** opens the Print module's layout editor: Single Image,
+  Contact Sheet, Picture Package (Auto Layout packs cells onto pages) and Custom Package (drag and resize cells,
+  stacking order, snap to cells or a grid), Zoom to Fill / Rotate to Fit, Photo Border and Inner Stroke, paper
+  sizes from 4 × 6 to 13 × 19 and A3 to A5 or custom, margins, rulers in in/cm/mm/pt, page background, 72–720 ppi,
+  and saved templates. **Print to PDF…** renders in the background. Everything is a `print.*` command
+  (`print.get`, `print.set`, `print.cell.add`, `print.layout.autoLayout`, `print.exportPdf`,
+  `print.template.save`…), so the CLI and MCP drive it too:
+
+  ```sh
+  lightcraft-cli run --import ~/Pictures/shoot print.set 'layout={"style":"picturePackage","page":{"paper":"8x10"}}' \
+      print.cell.add width=5 height=7 print.cell.add width=2.5 height=3.5 print.layout.autoLayout print.exportPdf path=Package.pdf
+  ```
+
+  Printer colour management and page overlays (identity plate, watermark, page numbers) are not there yet.
 - **Every widget is addressable** (`ui.widgets`) and clickable by name, so agents operate the real UI, not a
   side door.
 - The screenshots in this README were produced end to end by the [`docs/showcase/`](docs/showcase/) scripts.
@@ -394,6 +408,13 @@ enough memory. Downstream packagers should serialize large binary builds and avo
 information combined with LTO and one codegen unit on low-memory builders. A PKGBUILD that exports
 its own profile settings can override inherited variables; adjust the packaging recipe locally or
 contact its maintainer rather than assuming an environment prefix on `makepkg` will take precedence.
+
+Tests that need a GPU, the corpus, the craft-fonts faces or a model pass without checking anything when
+those are missing (libtest has no "skipped" status), so `cargo xtask ci` lists them: tests record a skip
+with `lightcraft_testkit::skip!`, and the run ends with what the machine offered (OS, CPUs, RAM, GPU
+adapters per backend, corpus, fonts) and every skip by reason. It writes `target/ci/report.json` and
+`target/ci/summary.md`, a block to paste into a PR (`--summary-md` prints it); `--hardware` also runs the
+GPU tests on every backend that has a hardware adapter. Nothing is uploaded.
 
 **Chinese and Japanese text** need the shared font repo, an optional build input (official releases always include it):
 

@@ -150,7 +150,7 @@ fn spawn(app: &LightcraftApp, options: &MergeDialog, ids: &[PhotoId], preview: b
 
 /// Open the merge dialog for the selection.
 pub fn open(app: &mut LightcraftApp, command: &str) -> Result<Value, String> {
-    let ids = app.session.targets(&json!({}));
+    let ids = app.session.selected();
     if ids.len() < 2 {
         return Err("select at least 2 photos to merge".into());
     }
@@ -187,7 +187,7 @@ pub fn start_final(app: &mut LightcraftApp, opts: &MergeDialog) -> Result<Value,
 /// Merge the selection without the dialog, with the options last used for `command` (the
 /// defaults the first time).
 pub fn start_last(app: &mut LightcraftApp, command: &str) -> Result<Value, String> {
-    let ids = app.session.targets(&json!({}));
+    let ids = app.session.selected();
     if ids.len() < 2 {
         return Err("select at least 2 photos to merge".into());
     }
@@ -202,7 +202,7 @@ pub fn start_batch(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> 
     if app.merge.final_task.is_some() {
         return Err("a merge is already running".into());
     }
-    let ids = app.session.targets(p);
+    let ids = app.session.targets(p).map_err(|e| e.to_string())?;
     let sets = app.session.catalog.bracket_sets(&ids);
     if sets.is_empty() {
         return Err(lightcraft_engine::merge::NO_BRACKET_SETS.into());
