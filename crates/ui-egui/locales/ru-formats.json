@@ -285,5 +285,7 @@
   " · {n} skipped (could not be rendered)": " · пропущено: {n} (не удалось отрисовать)",
   "{n} raws can now be developed from their raw data": "RAW-файлов, которые теперь можно проявлять из RAW-данных: {n}",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft неожиданно остановился: {e}\n\nПодробности в файле журнала: {path}",
-  "LightCraft stopped unexpectedly: {e}": "LightCraft неожиданно остановился: {e}"
+  "LightCraft stopped unexpectedly: {e}": "LightCraft неожиданно остановился: {e}",
+  "Renames {n} face{} across the library. The files are not changed.": "Переименовывает {n} лиц в библиотеке. Файлы не изменяются.{:.0}",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "«{to}» уже есть среди людей. Объединение оставляет одного человека; отмена снова разделяет их."
 }

@@ -285,5 +285,7 @@
   " · {n} skipped (could not be rendered)": " · 已跳过 {n} 张（无法渲染）",
   "{n} raws can now be developed from their raw data": "{n} 个 RAW 现在可以从 RAW 数据冲印",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft 意外停止：{e}\n\n详细信息见日志文件：{path}",
-  "LightCraft stopped unexpectedly: {e}": "LightCraft 意外停止：{e}"
+  "LightCraft stopped unexpectedly: {e}": "LightCraft 意外停止：{e}",
+  "Renames {n} face{} across the library. The files are not changed.": "在整个图库中重命名 {n} 张面孔。不会改动文件。{:.0}",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}”已经是另一个人。合并后成为一个人；撤销会再把他们分开。"
 }

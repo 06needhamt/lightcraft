@@ -285,5 +285,7 @@
   " · {n} skipped (could not be rendered)": " · {n} ignoradas (não foi possível renderizar)",
   "{n} raws can now be developed from their raw data": "{n} RAW agora podem ser revelados a partir dos dados RAW",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "O LightCraft parou inesperadamente: {e}\n\nO arquivo de log tem os detalhes: {path}",
-  "LightCraft stopped unexpectedly: {e}": "O LightCraft parou inesperadamente: {e}"
+  "LightCraft stopped unexpectedly: {e}": "O LightCraft parou inesperadamente: {e}",
+  "Renames {n} face{} across the library. The files are not changed.": "Renomeia {n} rosto{} na biblioteca. Os arquivos não são alterados.",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” já é uma pessoa. Combiná-las deixa uma só; Desfazer as separa de novo."
 }
