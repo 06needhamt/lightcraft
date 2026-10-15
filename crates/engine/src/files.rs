@@ -401,12 +401,15 @@ fn load_bytes_now(
         // (removed before the camera look's binned sensor proxy too, which needs an empty `OpcodeList3`).
         let info = raw.info();
         let lens = crate::lens_profiles::for_raw(&info, || lightcraft_meta::extract(&bytes));
+        // (the camera look still pairs the sensor with the camera JPEG through the warp the camera applied to it)
+        let lens_geometry = crate::camera_preview::lens_geometry(&raw.opcodes.list3);
         raw.opcodes.list3.retain(|op| !op.is_lens_correction());
         // Which scale white balance is edited on, and the as-shot white on it, from the file's own colour tags or
         // the camera's measured matrices (`Photo::relative_wb` decides the same from the catalog's camera)
         let scale = WbScaleOf::new(raw.format, &raw.color, raw.wb_multipliers, &raw.metadata);
         // the source's segmentation mattes (DNG semantic masks), read while the starting colour is fitted
-        let ((xy, t, camera_look), mattes) = rayon::join(|| crate::camera_preview::starting_colour(&mut raw, &bytes), || dng_mattes(&bytes, &info));
+        let ((xy, t, camera_look), mattes) =
+            rayon::join(|| crate::camera_preview::starting_colour(&mut raw, &bytes, lens_geometry.as_ref()), || dng_mattes(&bytes, &info));
         drop(bytes);
         // Previews and thumbnails bin the mosaic straight to (about) the size they need; only
         // larger levels (exports, 1:1) demosaic the whole sensor.
