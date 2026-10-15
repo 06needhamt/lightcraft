@@ -383,6 +383,11 @@ pub struct AppSettings {
     /// The Keywording box: whole keyword paths, or grouped by the keyword they are inside.
     #[serde(deserialize_with = "lenient")]
     pub keyword_chips: KeywordChips,
+    /// View ▸ Show Focus Point: draw the box the camera focused on (`view.focusPoint`).
+    pub focus_point: bool,
+    /// View ▸ Zoom to Focus Point: Toggle Zoom (Z) centres the zoomed view on the camera's focus point
+    /// when the photo has one (`view.zoomToFocus`).
+    pub zoom_to_focus: bool,
 }
 
 impl Default for AppSettings {
@@ -409,6 +414,8 @@ impl Default for AppSettings {
             favorite_themes: Vec::new(),
             display_profile: String::new(),
             keyword_chips: KeywordChips::default(),
+            focus_point: false,
+            zoom_to_focus: true,
         }
     }
 }

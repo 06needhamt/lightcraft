@@ -248,6 +248,63 @@ pub(crate) fn output_px(frame: &Frame) -> [usize; 2] {
     [px(w), px(h)]
 }
 
+/// The camera's focus point of `photo` in the displayed frame (its crop, rotation and flips), as the
+/// normalized box over the drawn image: `None` when the photo has none or it is cropped away.
+pub(crate) fn focus_box(photo: &lightcraft_catalog::Photo) -> Option<lightcraft_geom::Rect> {
+    let f = photo.meta.focus.as_ref()?;
+    let d = &photo.develop;
+    let frame = Frame::with_lens(photo.width.max(1) as usize, photo.height.max(1) as usize, d, true, photo.embedded_lens.as_ref());
+    let [w, h] = output_px(&frame);
+    let to_out = frame.out_to_norm(w, h).inverse()?;
+    // stored on the upright photo: the user's Rotate / Flip on top, then the crop
+    let r = d.orientation.map_norm_rect(f.rect);
+    let corners = [Point::new(r.x0, r.y0), Point::new(r.x1, r.y0), Point::new(r.x0, r.y1), Point::new(r.x1, r.y1)].map(|c| {
+        let q = to_out.apply(c);
+        (q.x / w as f64, q.y / h as f64)
+    });
+    let xs = corners.map(|c| c.0);
+    let ys = corners.map(|c| c.1);
+    let out = lightcraft_geom::Rect {
+        x0: xs.iter().copied().fold(f64::INFINITY, f64::min),
+        y0: ys.iter().copied().fold(f64::INFINITY, f64::min),
+        x1: xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        y1: ys.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+    };
+    if ![out.x0, out.y0, out.x1, out.y1].iter().all(|v| v.is_finite()) {
+        return None;
+    }
+    // its centre must be in the frame; the box may reach past the edge (it is clipped when drawn)
+    let (cx, cy) = ((out.x0 + out.x1) / 2.0, (out.y0 + out.y1) / 2.0);
+    ((0.0..=1.0).contains(&cx) && (0.0..=1.0).contains(&cy)).then_some(out)
+}
+
+/// Where Toggle Zoom centres the view on the photo's focus point (`app.ui.pan`), if it has one in frame.
+pub(crate) fn focus_pan(app: &LightcraftApp, id: PhotoId) -> Option<(f32, f32)> {
+    let r = focus_box(app.session.catalog.photo(id)?)?;
+    Some((((r.x0 + r.x1) / 2.0) as f32, ((r.y0 + r.y1) / 2.0) as f32))
+}
+
+/// Draw the camera's focus box over a photo drawn in `img` (View ▸ Show Focus Point): green corner
+/// brackets with a dark keyline, the way cameras show their AF frame, never smaller than 14 pt.
+/// `key` names it for tests and the control channel (`canvas:focusPoint`, `compare:focusPoint:<id>`).
+pub(crate) fn draw_focus_point(p: &egui::Painter, img: Rect, photo: &lightcraft_catalog::Photo, key: &str) {
+    let Some(r) = focus_box(photo) else { return };
+    let at = |x: f64, y: f64| pos2(img.left() + x as f32 * img.width(), img.top() + y as f32 * img.height());
+    let b = Rect::from_two_pos(at(r.x0, r.y0), at(r.x1, r.y1));
+    let b = Rect::from_center_size(b.center(), b.size().max(vec2(14.0, 14.0)));
+    let arm = (b.width().min(b.height()) * 0.3).max(5.0);
+    let green = Color32::from_rgb(90, 230, 110);
+    for (c, dx, dy) in [(b.left_top(), 1.0, 1.0), (b.right_top(), -1.0, 1.0), (b.left_bottom(), 1.0, -1.0), (b.right_bottom(), -1.0, -1.0)] {
+        let pts = vec![c + vec2(dx * arm, 0.0), c, c + vec2(0.0, dy * arm)];
+        p.add(egui::Shape::line(pts.clone(), Stroke::new(4.0, Color32::from_black_alpha(170))));
+        p.add(egui::Shape::line(pts, Stroke::new(2.0, green)));
+    }
+    let c = b.center();
+    p.circle_filled(c, 2.5, Color32::from_black_alpha(170));
+    p.circle_filled(c, 1.5, green);
+    register(p.ctx(), key, b);
+}
+
 /// Ease the loupe rect toward `target` while a click-zoom animation runs; otherwise follow it exactly.
 fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
     let t = if *anim { 0.22 } else { 0.0 };
@@ -756,6 +813,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             None => {}
         }
+    }
+    if app.ui.settings.focus_point && !crop_tool {
+        draw_focus_point(&p.with_clip_rect(img_rect.intersect(canvas)), img_rect, &photo, "canvas:focusPoint");
     }
     // a fine grid while a transform (geometry) slider is dragged, to judge verticals
     if app.ui.dragging_control.as_deref().is_some_and(|c| c.starts_with("geometry.")) {
