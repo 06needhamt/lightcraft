@@ -1020,7 +1020,15 @@ mod imp {
             s.faces.scanned.insert(b.0);
             let old = finished(&s, a, Some(vec![rect]), vec![(rect, Some(unit(&[(2, 1.0)])), rect)]);
             let (width, height) = s.catalog.photo(a).map(|p| (p.width, p.height)).unwrap();
-            let replace = Op::SetContent { id: a, width, height, file_size: 1234, content_hash: Some("edited".into()), preview_only: None };
+            let replace = Op::SetContent {
+                id: a,
+                width,
+                height,
+                file_size: 1234,
+                content_hash: Some("edited".into()),
+                preview_only: None,
+                preview_checked: String::new(),
+            };
             s.commit("Reload Changed Files", replace).unwrap();
             assert!(s.faces.index.get(a.0, &rect).is_none() && !s.faces.scanned.contains(a.0), "the old file's faces are forgotten");
             assert!(needs_search(&s, s.catalog.photo(a).unwrap()), "and the photo is searched again");

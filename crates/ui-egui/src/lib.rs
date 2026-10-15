@@ -55,9 +55,9 @@ mod tests_appearance;
 #[cfg(test)]
 mod tests_before_after;
 #[cfg(test)]
-mod tests_canvas_keys;
-#[cfg(test)]
 mod tests_browse_active;
+#[cfg(test)]
+mod tests_canvas_keys;
 #[cfg(test)]
 mod tests_compare;
 #[cfg(test)]
@@ -129,9 +129,9 @@ mod tests_quit_unsaved;
 #[cfg(test)]
 mod tests_recheck;
 #[cfg(test)]
-mod tests_sam_setup;
-#[cfg(test)]
 mod tests_rename_person;
+#[cfg(test)]
+mod tests_sam_setup;
 #[cfg(test)]
 mod tests_scroll;
 #[cfg(test)]
@@ -565,10 +565,10 @@ impl LightcraftApp {
         if self.ui.last_person.as_deref().is_some_and(same) {
             self.ui.last_person = Some(to.to_string());
         }
-        if let Some((name, photo)) = self.ui.person_from.clone()
+        if let Some((Some(name), photo)) = self.ui.person_from.clone()
             && same(&name)
         {
-            self.ui.person_from = Some((to.to_string(), photo));
+            self.ui.person_from = Some((Some(to.to_string()), photo));
         }
     }
 

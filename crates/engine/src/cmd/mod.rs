@@ -35,8 +35,8 @@ mod prefs;
 mod preset_files;
 pub mod previews;
 mod query;
-mod slideshow;
 pub mod recheck;
+mod slideshow;
 mod sync;
 mod xmp;
 

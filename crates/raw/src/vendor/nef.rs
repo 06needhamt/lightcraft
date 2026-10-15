@@ -56,7 +56,8 @@ fn nrw_wb(mn: Option<&makernote::MakerNote>) -> Option<[f32; 3]> {
     let (kelvin, r, g1, g2, bl) = (at(0)?, at(1)?, at(2)?, at(3)?, at(4)?);
     let sane = |v: u32| (64..=2560).contains(&v);
     let mirrored = at(15)? == kelvin;
-    (mirrored && (2000..=12000).contains(&kelvin) && g1 == 512 && g2.abs_diff(512) <= 8 && sane(r) && sane(bl)).then(|| [r as f32 / 256.0, 1.0, bl as f32 / 256.0])
+    (mirrored && (2000..=12000).contains(&kelvin) && g1 == 512 && g2.abs_diff(512) <= 8 && sane(r) && sane(bl))
+        .then(|| [r as f32 / 256.0, 1.0, bl as f32 / 256.0])
 }
 
 /// Nikon CropArea is `[left, top, width, height]` in sensor pixels (maker-note tag documentation).
