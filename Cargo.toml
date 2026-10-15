@@ -40,6 +40,7 @@ lightcraft-heif = { path = "crates/heif" }
 lightcraft-segment = { path = "crates/segment" }
 lightcraft-geocode = { path = "crates/geocode" }
 lightcraft-slideshow = { path = "crates/slideshow" }
+lightcraft-testkit = { path = "crates/testkit" }
 
 # foundation
 thiserror = "2"

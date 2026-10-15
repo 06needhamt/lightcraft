@@ -5,6 +5,7 @@
 
 mod assets;
 mod bench;
+mod ci_report;
 mod ico;
 mod layers;
 mod parity;
@@ -33,7 +34,11 @@ commands:
   web [--serve [port]] [--dev]
                   build the browser app (apps/lightcraft-web) into <target>/web-site/;
                   --serve serves it on http://127.0.0.1:<port> (default 8080)
-  ci              fmt --check, clippy -D warnings, heif, test, parity refs, layers, assets, wasm (stops at first failure)
+  ci [--hardware] [--summary-md]
+                  fmt --check, clippy -D warnings, heif, test, GPU probe, parity refs, layers, assets, wasm
+                  (stops at first failure); writes target/ci/report.json (machine, GPU adapters, data,
+                  steps, skipped tests) and target/ci/summary.md; --hardware also runs the GPU tests on
+                  every backend with a hardware adapter; --summary-md prints the Markdown summary
   corpus [--download [nikon]]
                   show where test corpora live; --download fetches PngSuite and CC0 raw samples (raw.pixls.us) into corpus/ and checks their sha256;
                   --download nikon fetches the Nikon survey's 138 CC0 samples (docs/nikon-bodies/samples.json, ~2.7 GB)
@@ -57,7 +62,7 @@ fn main() -> ExitCode {
         Some("parity") => parity::run(&root(), rest.contains(&"--write")),
         Some("wasm") => cmd_wasm(),
         Some("web") => web::run(&rest),
-        Some("ci") => cmd_ci(),
+        Some("ci") => cmd_ci(&rest),
         Some("corpus") => cmd_corpus(rest.contains(&"--download"), rest.contains(&"nikon")),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("raw-frame") => cmd_raw_frame(&rest),
@@ -261,9 +266,38 @@ fn cmd_wasm() -> Result<(), String> {
     if failed == 0 { Ok(()) } else { Err(format!("{failed} crate(s) failed the wasm check")) }
 }
 
-fn cmd_ci() -> Result<(), String> {
-    type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
-    let steps: Vec<Step> = vec![
+fn cmd_ci(args: &[&str]) -> Result<(), String> {
+    let hardware = args.contains(&"--hardware");
+    let print_md = args.contains(&"--summary-md");
+    if let Some(other) = args.iter().find(|a| !matches!(**a, "--hardware" | "--summary-md")) {
+        return Err(format!("ci: unknown option `{other}`\n\n{USAGE}"));
+    }
+    let root = root();
+    let report_dir = ci_report::prepare(&root)?;
+    let started = std::time::Instant::now();
+    let started_unix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // test runs append the skips their tests record (`lightcraft_testkit::skip!`) to target/ci/skips-<step>.jsonl
+    let test = |cargo_args: &[&str], step: &str| {
+        let mut c = cargo();
+        c.args(cargo_args).env(ci_report::SKIP_LOG_ENV, ci_report::skip_log(&root, step));
+        run(c, &format!("cargo {}", cargo_args.join(" ")))
+    };
+    let gpu = std::cell::RefCell::new(serde_json::Value::Null);
+    let hardware_runs = std::cell::RefCell::new(Vec::new());
+    // What this machine offers the GPU tests, once, after the workspace tests (whose build the
+    // probe reuses). Never fails the run: the report says what went wrong.
+    let probe = || {
+        if gpu.borrow().is_null() {
+            eprintln!("\n=== ci: GPU probe ===");
+            let t = std::time::Instant::now();
+            let mut found = ci_report::gpu(probe_gpu, hardware);
+            found["seconds"] = serde_json::json!(t.elapsed().as_secs_f64());
+            *gpu.borrow_mut() = found;
+        }
+    };
+
+    type Step<'a> = (&'static str, Box<dyn Fn() -> Result<(), String> + 'a>);
+    let mut steps: Vec<Step> = vec![
         (
             "fmt",
             Box::new(|| {
@@ -287,46 +321,144 @@ fn cmd_ci() -> Result<(), String> {
                 let mut c = cargo();
                 c.args(["clippy", "-p", "lightcraft-codecs", "--features", "heif", "--all-targets", "--", "-D", "warnings"]);
                 run(c, "cargo clippy -p lightcraft-codecs --features heif --all-targets -- -D warnings")?;
-                let mut c = cargo();
-                c.args(["test", "-p", "lightcraft-codecs", "-p", "lightcraft-heif", "--features", "lightcraft-codecs/heif"]);
-                run(c, "cargo test -p lightcraft-codecs -p lightcraft-heif --features lightcraft-codecs/heif")?;
+                test(&["test", "-p", "lightcraft-codecs", "-p", "lightcraft-heif", "--features", "lightcraft-codecs/heif"], "heif")?;
                 // the engine's HEIC import test, with the decoder (the workspace run checks the error)
-                let mut c = cargo();
-                c.args(["test", "-p", "lightcraft-engine", "--lib", "--features", "lightcraft-codecs/heif", "heic"]);
-                run(c, "cargo test -p lightcraft-engine --lib --features lightcraft-codecs/heif heic")
+                test(&["test", "-p", "lightcraft-engine", "--lib", "--features", "lightcraft-codecs/heif", "heic"], "heif")
             }),
         ),
-        (
-            "test",
-            Box::new(|| {
-                let mut c = cargo();
-                c.args(["test", "--workspace"]);
-                run(c, "cargo test --workspace")
-            }),
-        ),
-        ("parity", Box::new(|| parity::run(&root(), false))),
-        ("layers", Box::new(cmd_layers)),
-        ("assets", Box::new(|| assets::run(&root()))),
-        ("wasm", Box::new(cmd_wasm)),
+        ("test", Box::new(|| test(&["test", "--workspace"], "test"))),
     ];
-    let mut done = Vec::new();
+    if hardware {
+        steps.push((
+            "gpu-backends",
+            Box::new(|| {
+                // the GPU tests once per backend with a hardware adapter (`LIGHTCRAFT_GPU_BACKEND`)
+                probe();
+                let backends = ci_report::hardware_backends(&gpu.borrow());
+                if backends.is_empty() {
+                    eprintln!("no hardware GPU adapter on any backend: nothing to run");
+                }
+                let mut failed = Vec::new();
+                for (backend, adapter) in backends {
+                    let step = format!("gpu-{backend}");
+                    let mut c = cargo();
+                    c.args(["test", "-p", "lightcraft-gpu", "--features", "denoise"])
+                        .env("LIGHTCRAFT_GPU_BACKEND", &backend)
+                        .env(ci_report::SKIP_LOG_ENV, ci_report::skip_log(&root, &step));
+                    let t = std::time::Instant::now();
+                    let ok = run(c, &format!("LIGHTCRAFT_GPU_BACKEND={backend} cargo test -p lightcraft-gpu --features denoise")).is_ok();
+                    hardware_runs.borrow_mut().push(serde_json::json!({
+                        "backend": backend,
+                        "adapter": adapter,
+                        "status": if ok { "ok" } else { "fail" },
+                        "seconds": t.elapsed().as_secs_f64(),
+                    }));
+                    if !ok {
+                        failed.push(backend);
+                    }
+                }
+                if failed.is_empty() { Ok(()) } else { Err(format!("the GPU tests failed on {}", failed.join(", "))) }
+            }),
+        ));
+    }
+    steps.push(("parity", Box::new(|| parity::run(&root, false))));
+    steps.push(("layers", Box::new(cmd_layers)));
+    steps.push(("assets", Box::new(|| assets::run(&root))));
+    steps.push(("wasm", Box::new(cmd_wasm)));
+
+    let mut results = Vec::new();
+    let mut failure = None;
     for (name, f) in &steps {
         eprintln!("\n=== ci: {name} ===");
-        if let Err(e) = f() {
+        let t = std::time::Instant::now();
+        let r = f();
+        let status = if r.is_ok() { "ok" } else { "fail" };
+        results.push(serde_json::json!({"name": name, "status": status, "seconds": t.elapsed().as_secs_f64()}));
+        if *name == "test" {
+            // right after the workspace tests, before parity and wasm build other feature sets
+            probe();
+        }
+        if let Err(e) = r {
+            failure = Some((*name, e));
+            break;
+        }
+    }
+    if gpu.borrow().is_null() {
+        *gpu.borrow_mut() = serde_json::json!({"error": "not probed: the test step did not run"});
+    }
+    let done: Vec<&str> = steps.iter().take(results.len()).map(|(n, _)| *n).collect();
+    match &failure {
+        Some((name, e)) => {
             println!("\nCI summary:");
-            for d in &done {
+            for d in done.iter().filter(|d| *d != name) {
                 println!("  ok    {d}");
             }
             println!("  FAIL  {name}: {e}");
-            for (n, _) in steps.iter().skip(done.len() + 1) {
+            for (n, _) in steps.iter().skip(results.len()) {
                 println!("  skip  {n}");
             }
-            return Err(format!("ci failed at `{name}`"));
         }
-        done.push(*name);
+        None => println!("\nCI summary: all {} steps passed ({})", done.len(), done.join(", ")),
     }
-    println!("\nCI summary: all {} steps passed ({})", done.len(), done.join(", "));
-    Ok(())
+    for (n, _) in steps.iter().skip(results.len()) {
+        results.push(serde_json::json!({"name": n, "status": "not run"}));
+    }
+
+    let skips = ci_report::read_skips(&report_dir, &root);
+    let ram_mb = available_ram_mb();
+    let report = serde_json::json!({
+        "schema": ci_report::SCHEMA,
+        "command": std::iter::once("cargo xtask ci").chain(args.iter().copied()).collect::<Vec<_>>().join(" "),
+        "result": if failure.is_some() { "fail" } else { "pass" },
+        "failed_step": failure.as_ref().map(|(n, _)| *n),
+        "started_unix": started_unix,
+        "seconds": started.elapsed().as_secs_f64(),
+        "git": ci_report::git(&root),
+        "machine": ci_report::machine(total_ram_gb(), ram_mb),
+        "toolchain": ci_report::toolchain(),
+        "capabilities": {"gpu": gpu.take(), "data": ci_report::data(&root, &RAW_SAMPLES.iter().map(|s| s.0).collect::<Vec<_>>())},
+        "steps": results,
+        "hardware": hardware_runs.take(),
+        "skips": ci_report::skips_json(&skips),
+    });
+    print!("{}", ci_report::summary_text(&report));
+    let md = ci_report::summary_md(&report);
+    let written = serde_json::to_string_pretty(&report)
+        .map_err(|e| e.to_string())
+        .and_then(|json| std::fs::write(report_dir.join("report.json"), json + "\n").map_err(|e| e.to_string()))
+        .and_then(|()| std::fs::write(report_dir.join("summary.md"), &md).map_err(|e| e.to_string()));
+    match written {
+        Ok(()) => println!("Report: target/ci/report.json; to paste into a PR: target/ci/summary.md (or run with --summary-md)"),
+        Err(e) => eprintln!("ci: could not write the report to {}: {e}", report_dir.display()),
+    }
+    if print_md {
+        println!("\n{md}");
+    }
+    match failure {
+        Some((name, _)) => Err(format!("ci failed at `{name}`")),
+        None => Ok(()),
+    }
+}
+
+/// Run the ignored `gpu_probe` test of lightcraft-gpu: the pipeline's device (`None`) or one
+/// backend's adapters. `--workspace`, like the test step, so its build is reused. Its stdout, or why
+/// it failed (a driver that crashes while it is enumerated, issue #136, ends up here, not in xtask).
+fn probe_gpu(backend: Option<&str>) -> Result<String, String> {
+    let mut c = cargo();
+    c.args(["test", "-q", "--workspace", "--test", "gpu_probe", "--", "--ignored", "--exact", "gpu_probe", "--nocapture"]);
+    c.env("LIGHTCRAFT_GPU_PROBE", backend.unwrap_or(""));
+    let out = c.output().map_err(|e| format!("gpu_probe: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let tail: Vec<&str> = err.lines().rev().filter(|l| !l.trim().is_empty()).take(3).collect();
+        return Err(format!(
+            "gpu_probe {}exited with {}: {}",
+            backend.map(|b| format!("{b} ")).unwrap_or_default(),
+            out.status,
+            tail.into_iter().rev().collect::<Vec<_>>().join(" / ")
+        ));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
 /// CC0 raw samples (raw.pixls.us). Small, representative set; extend freely (CC0 only).

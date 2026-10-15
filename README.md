@@ -395,6 +395,13 @@ information combined with LTO and one codegen unit on low-memory builders. A PKG
 its own profile settings can override inherited variables; adjust the packaging recipe locally or
 contact its maintainer rather than assuming an environment prefix on `makepkg` will take precedence.
 
+Tests that need a GPU, the corpus, the craft-fonts faces or a model pass without checking anything when
+those are missing (libtest has no "skipped" status), so `cargo xtask ci` lists them: tests record a skip
+with `lightcraft_testkit::skip!`, and the run ends with what the machine offered (OS, CPUs, RAM, GPU
+adapters per backend, corpus, fonts) and every skip by reason. It writes `target/ci/report.json` and
+`target/ci/summary.md`, a block to paste into a PR (`--summary-md` prints it); `--hardware` also runs the
+GPU tests on every backend that has a hardware adapter. Nothing is uploaded.
+
 **Chinese and Japanese text** need the shared font repo, an optional build input (official releases always include it):
 
 ```sh
