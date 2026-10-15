@@ -124,7 +124,7 @@ Canon	EOS-1Ds Mark II	CR2	2005	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1Ds Mark III	CR2	2007	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1D X	CR2	2012	unverified	CR2 lossless JPEG decoder
 Canon	EOS-1D X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS-1D X Mark III	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS-1D X Mark III	CR3	2019	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS 5D	CR2	2005	unverified	CR2 lossless JPEG decoder
 Canon	EOS 5D Mark II	CR2	2008	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Canon	EOS-5D Mark III	CR2	2012	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
@@ -146,9 +146,9 @@ Canon	EOS 60Da	CR2	2012	unverified	CR2 lossless JPEG decoder
 Canon	EOS 70D	CR2	2013	unverified	CR2 lossless JPEG decoder
 Canon	EOS 77D (EOS 9000D)	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	EOS 80D	CR2	2015	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
-Canon	EOS 90D	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS 90D	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS 200D (EOS Kiss X9, EOS Rebel SL2)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 250D (EOS Rebel SL3, EOS 200D II, EOS Kiss X10)	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS 250D (EOS Rebel SL3, EOS 200D II, EOS Kiss X10)	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS D30	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	EOS D60	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	EOS 300D (EOS Digital Rebel, EOS Kiss Digital)	CRW	2003	preview	CRW is opened from its embedded JPEG only
@@ -166,7 +166,7 @@ Canon	EOS 3000D (EOS Rebel T100, EOS 4000D)	CR2	2017	unverified	CR2 lossless JPE
 Canon	EOS 750D (EOS Digital Rebel T6i, EOS Kiss X8i)	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	EOS 760D (EOS Digital Rebel T6s, EOS Kiss 8000D)	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	EOS 800D (EOS Digital Rebel T7i, EOS Kiss X9i)	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS 850D (EOS Kiss X10i, EOS Rebel T8i)	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS 850D (EOS Kiss X10i, EOS Rebel T8i)	CR3	2019	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS 1000D (EOS Digital Rebel XS, EOS Kiss F)	CR2	2008	unverified	CR2 lossless JPEG decoder
 Canon	EOS 450D (EOS Digital Rebel XSi, EOS Kiss Digital X2)	CR2	2007	unverified	CR2 lossless JPEG decoder
 Canon	EOS 350D (EOS Digital Rebel XT, EOS Kiss Digital N)	CR2	2005	unverified	CR2 lossless JPEG decoder
@@ -174,33 +174,33 @@ Canon	EOS 400D (EOS Digital Rebel XTi, EOS Kiss Digital X)	CR2	2005	unverified	C
 Canon	EOS C50	CR3	2025	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	EOS M	CR2	2012	unverified	CR2 lossless JPEG decoder
 Canon	EOS M2	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	EOS M200	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS M200	CR3	2019	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS M3	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	EOS M5	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS M50 Mark II	CR3	2020	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS M50 Mark II	CR3	2020	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS M6	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	EOS M6 Mark II	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS M6 Mark II	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS M10	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	EOS M50 (EOS Kiss M)	CR3	2017	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor hashes, docs/cr3.md)
 Canon	EOS M100	CR2	2017	unverified	CR2 lossless JPEG decoder
-Canon	EOS R (** see note)	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R (** see note)	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS R1	CR3	2023	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R3	CR3	2021	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R5	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R3	CR3	2021	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
+Canon	EOS R5	CR3	2019	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS R5 C	CR3	2021	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
 Canon	EOS R5 Mark II	CR3	2023	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hashes, docs/cr3.md); bulk: QP maps of 33,665 C-RAW files
-Canon	EOS R6	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R6	CR3	2019	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS R6 V	CR3	2025	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R6 Mark II	CR3	2022	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R6 Mark III	CR3	2025	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R7	CR3	2021	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R6 Mark II	CR3	2022	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md; C-RAW with adaptive QP above 168 still opens as the preview)
+Canon	EOS R6 Mark III	CR3	2025	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
+Canon	EOS R7	CR3	2021	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md; lossless only, C-RAW unverified)
 Canon	EOS R8 Mark II	CR3	2025	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R10	CR3	2021	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R10	CR3	2021	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS Ra	CR3	2019	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS RP	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS RP	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS R8	CR3	2022	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor hashes, docs/cr3.md)
-Canon	EOS R50	CR3	2022	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	EOS R50 V	CR3	2024	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	EOS R50	CR3	2022	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
+Canon	EOS R50 V	CR3	2024	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	EOS R100	CR3	2022	verified	corpus: crates/raw/tests/cr3_corpus.rs (exact sensor hashes, docs/cr3.md)
 Canon	PowerShot 600	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot A5	CRW	2003	preview	CRW is opened from its embedded JPEG only
@@ -214,11 +214,11 @@ Canon	PowerShot G3	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot G3 X	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot G5	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot G5 X	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G5 X Mark II	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	PowerShot G5 X Mark II	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	PowerShot G6	CRW	2003	preview	CRW is opened from its embedded JPEG only
 Canon	PowerShot G7 X	CR2	2013	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot G7 X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot G7 X Mark III	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	PowerShot G7 X Mark III	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Canon	PowerShot G9	CR2	2007	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot G9X	CR2	2015	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot G9 X Mark II	CR2	2015	unverified	CR2 lossless JPEG decoder
@@ -245,8 +245,8 @@ Canon	PowerShot S120	CR2	2013	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot SX1 IS	CR2	2008	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot SX50	CR2	2012	unverified	CR2 lossless JPEG decoder
 Canon	PowerShot SX60 HS	CR2	2013	unverified	CR2 lossless JPEG decoder
-Canon	PowerShot SX70 HS	CR3	2018	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
-Canon	PowerShot V1	CR3	2024	unverified	CRX decoder: lossless and C-RAW 0x100 / 0x200 single-tile; other variants fall back to the preview
+Canon	PowerShot SX70 HS	CR3	2018	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
+Canon	PowerShot V1	CR3	2024	verified	corpus: crates/raw/tests/cr3_corpus.rs (pinned sensor hash, camera-JPEG check, docs/cr3.md)
 Casio	EXILIM EX-10	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Casio	EXILIM EX-100	DNG	2013	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)
 Casio	EXILIM EX-100F	DNG	2015	unverified	DNG decoder (uncompressed, LJ92, lossy, Deflate, JPEG XL, LinearRaw)

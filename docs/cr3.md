@@ -32,7 +32,7 @@ are the public prose descriptions and patents cited in
 embedded-JPEG fallback and its visible warning when a JPEG is present. So does
 any other CR3 decode error (a corrupt file, or a body whose CRX stream the
 decoder misreads): every CR3 opened from its embedded JPEG before this decoder,
-and only four bodies are verified, so a CR3 never fails to import or load
+and not every body's variants are known, so a CR3 never fails to import or load
 where a preview exists. HEVC-only preview tracks are recognized but are not
 decoded.
 
@@ -136,6 +136,35 @@ remain unsupported. The decoder bounds image dimensions, sample count,
 tile count, marker headers and temporary allocations. The full sensor buffer is
 allocated only after the first plane decodes, and plane buffers grow row by row,
 so a small crafted file fails before reserving memory for the image it claims.
+
+## Further bodies: one CC0 file each
+
+All 110 CR3 files on raw.pixls.us (2026-10-12, every one CC0, 31 folders) decode from sensor data; none
+falls back to the preview, so none of them uses a CRX variant the decoder refuses (vertical C-RAW tiles,
+partial-subband or rounded-plane coding, multi-tile 0x200, adaptive low-frequency gains) or a CR3
+sRAW / mRAW. HEIF stills are separate `.HIF` files, not CR3. One file per body is pinned in
+`canon_cr3_bodies_decode_like_the_camera_jpeg` (`crates/raw/tests/cr3_corpus.rs`; URLs and SHA-256 in
+`RAW_SAMPLES`, `xtask/src/main.rs`): EOS-1D X Mark III, 90D, 250D, 850D, M200, M50 Mark II, M6 Mark II,
+R, R3, R5, R6, R6 Mark II, R6 Mark III, R7, R10, RP, R50, R50 V and PowerShot G5 X Mark II, G7 X Mark III,
+SX70 HS and V1, C-RAW where the body has a CC0 C-RAW sample. No external decoder was run: the sensor
+hashes pin LightCraft's own decode, and the check is black-box against the camera:
+
+- the green sites of the active area, on a 24 × 16 grid, follow the camera's own embedded JPEG
+  (gamma-encoded Pearson r 0.93–0.99; 0.83 for the M6 Mark II and 0.71 for the G7 X Mark III, whose
+  JPEGs are strongly distortion-corrected; a misread stream gives r near 0);
+- each render was inspected at 100 % for tile seams, band or quantiser artefacts (none);
+- where raw.pixls.us has RAW and C-RAW shots of one scene, their black-subtracted sensor means correlate
+  on 16 × 16 blocks at 0.99–0.995 (R, R6, 250D, R50, G5 X Mark II, R5 crop mode) and 0.97 (RP); the
+  two R5 full-frame shots correlate at only 0.83, though each follows its own camera JPEG at r 0.98, so
+  the shots differ, not the decodes. The shots differ in exposure, so the means are not compared.
+
+The EOS R6 Mark III (`ColorData` version 66) reads its as-shot white balance and black level as described at
+the top of this page; its white level comes from the data.
+
+Not every C-RAW file of a verified body decodes: the decoder accepts adaptive QP values 131–168 only, and a
+user reports 3 of 40 EOS R6 Mark II C-RAW files with QP 172 or 175 ("Canon CRX adaptive QP value 172"), which
+open as their preview. EOS R7 C-RAW (the odd-height QP map above) has only been checked on six paired RAW /
+C-RAW captures; the pinned R7 file is lossless, so R7 C-RAW still has no black-box reference.
 
 ## White level
 

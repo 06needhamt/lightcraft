@@ -820,6 +820,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-12 | minor | LR-MASK-BRUSH: pen pressure scales brush size and flow |
 | 2026-10-13 | patch | LR-BEHAV-AUTOSAVE: a damaged snapshot that still parses is repaired on open (ids, stacks, folder loops, id counters) instead of panicking or hanging; status unchanged |
 | 2026-10-13 | minor | LR-EDIT-OPTICS-PROFILE: Nikon Z 6II / Z 8 / Z f NEFs use the camera's in-file distortion correction (NikonNEFInfo); status unchanged (🟡) |
+| 2026-10-12 | minor | LR-IMP-FORMATS and LR-IMP-CAMERA-COVERAGE: 22 more CR3 bodies verified on one CC0 file each (all 110 CC0 CR3s decode); EOS R6 Mark III `ColorData` 66 white balance; status unchanged (🟡: CRX variants without public samples remain refused) |
 | 2026-10-11 | minor | Model setup folder action, opener error and retry (LR-MASK-OBJECTS). |
 | 2026-10-12 | minor | LR-VIEW-ZOOM: slider-drag drafts are timed with the frame that shows them, drop to 0.6 mid-drag when far over budget, stay 0.6 under a zoom window; workers convert texture pixels (issue #330); status unchanged |
 | 2026-10-11 | minor | LR-VIEW-ZOOM: a slider drag keeps the loupe's full resolution where the GPU draws the view and keeps up (0.6 drafts on the CPU, with soft proofing or the HDR range, or after over-budget drags; issue #330); status unchanged |
