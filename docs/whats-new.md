@@ -130,6 +130,11 @@
   script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
   or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
 
+### A dialog's confirm button says it's the next step
+- In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
+  brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
+  choice is never the eye-catching default.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
