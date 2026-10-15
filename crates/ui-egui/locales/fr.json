@@ -1753,7 +1753,7 @@
   "Apply the local tone mapping stored in the raw (Apple ProRAW), as the camera renders it": "Appliquer le mappage local des tons enregistré dans le fichier raw (Apple ProRAW), comme le rend l’appareil",
   "Decrease Rating": "Diminuer la note",
   "Increase Rating": "Augmenter la note",
-  "Click to type a value": "Cliquez pour saisir une valeur",
+  "Click to type a value, drag to change it": "Cliquez pour saisir une valeur, faites glisser pour la modifier",
   "Angle": "Angle",
   "Video": "Vidéo",
   "Copyrighted": "Protégé par copyright",
