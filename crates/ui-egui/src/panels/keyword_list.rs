@@ -22,7 +22,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     crate::widgets::divider(ui);
     // the title, where a dragged keyword goes back to the top level
-    let (title, _) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::hover());
+    let (title, title_resp) = ui.allocate_exact_size(vec2(ui.available_width(), 46.0), Sense::click());
     register(ui.ctx(), "keywordList:topLevel", title);
     let dragging = app.ui.dragging_keyword.clone();
     let (pointer, released) = ui.input(|i| (i.pointer.latest_pos(), i.pointer.any_released()));
@@ -30,13 +30,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if dragging.is_some() && over_title {
         ui.painter().rect_stroke(title.shrink2(vec2(16.0, 6.0)), 4.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
     }
+    // (it folds the list shut; while a keyword is dragged it says where the drop goes)
     let heading = if dragging.is_some() { crate::i18n::tr("Drop here for the top level") } else { crate::i18n::tr("Keyword List") };
-    ui.painter().text(pos2(title.left() + 24.0, title.center().y + 2.0), Align2::LEFT_CENTER, heading, t.semibold(15.0), t.text);
+    let open = super::right::fold_title(app, ui, "keywordList", title, &title_resp, heading);
     if released
         && over_title
         && let Some(k) = dragging.clone()
     {
         drop_keyword(app, ui.ctx(), &k, None);
+    }
+    if !open {
+        return;
     }
     let fid = egui::Id::new("keyword-list-filter");
     let mut filter: String = ui.data(|d| d.get_temp(fid)).unwrap_or_default();

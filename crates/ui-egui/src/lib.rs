@@ -1527,11 +1527,19 @@ pub struct Caches {
     keyword_names: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
     /// The Keywording box's chips, by library revision and selection.
     keyword_chips: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Chip>>)>,
+    /// How many photos of the library the selection is, by library revision and selection.
+    selected_photos: Option<(u64, u64, usize)>,
+    /// The Keywording box's chips grouped by the keyword they are inside, by library revision and
+    /// selection.
+    keyword_groups: Option<(u64, u64, std::sync::Arc<Vec<panels::keywording::Group>>)>,
     /// The Keyword List's tick boxes, by library revision and selection.
     keyword_ticks: Option<(u64, u64, std::sync::Arc<panels::keyword_list::Ticks>)>,
     folder_tree: Option<(u64, std::sync::Arc<Vec<lightcraft_catalog::FolderNode>>)>,
     people: Option<(u64, lightcraft_catalog::Filter, std::sync::Arc<Vec<lightcraft_catalog::Person>>)>,
     suggestions: Option<(u64, std::sync::Arc<Vec<String>>)>,
+    /// What the Add keyword box offers for the text typed in it, by library revision, the
+    /// selection's keywords and that text.
+    completions: Option<(u64, std::sync::Arc<panels::keywording::Offers>)>,
     counts: Option<(u64, LibraryCounts)>,
     date_groups: Option<(u64, std::sync::Arc<Vec<lightcraft_catalog::DateGroup>>)>,
     filter_values: Option<(u64, std::sync::Arc<FilterValues>)>,
@@ -1667,6 +1675,36 @@ impl Caches {
             }
         }
     }
+    /// How many photos the selection is: each once, those the library has (what the Keywording
+    /// box's "N of M" counts).
+    pub(crate) fn selected_photos(&mut self, cat: &lightcraft_catalog::Catalog, selection: &[lightcraft_catalog::PhotoId]) -> usize {
+        let key = key_of(selection);
+        match self.selected_photos {
+            Some((r, k, n)) if r == cat.revision && k == key => n,
+            _ => {
+                let n = panels::keywording::distinct(cat, selection).len();
+                self.selected_photos = Some((cat.revision, key, n));
+                n
+            }
+        }
+    }
+    /// The selection's keywords grouped by the keyword they are inside (the grouped Keywording box).
+    pub(crate) fn keyword_groups(
+        &mut self,
+        cat: &lightcraft_catalog::Catalog,
+        selection: &[lightcraft_catalog::PhotoId],
+    ) -> std::sync::Arc<Vec<panels::keywording::Group>> {
+        let key = key_of(selection);
+        match &self.keyword_groups {
+            Some((r, k, g)) if *r == cat.revision && *k == key => g.clone(),
+            _ => {
+                let chips = self.keyword_chips(cat, selection);
+                let g = std::sync::Arc::new(panels::keywording::grouped(&chips));
+                self.keyword_groups = Some((cat.revision, key, g.clone()));
+                g
+            }
+        }
+    }
     /// How many selected photos have each keyword (the Keyword List's tick boxes).
     pub(crate) fn keyword_ticks(
         &mut self,
@@ -1761,6 +1799,25 @@ impl Caches {
                     keywords: cat.keywords().into_iter().map(|(k, _)| k).collect(),
                 });
                 self.filter_values = Some((cat.revision, v.clone()));
+                v
+            }
+        }
+    }
+    /// What the Add keyword box offers for `typed` (see [`panels::keywording::offers`]). Kept apart
+    /// from [`Self::suggestions`]: both are asked for on every frame of typing, and each looks
+    /// through the library's keywords.
+    pub(crate) fn completions(
+        &mut self,
+        cat: &lightcraft_catalog::Catalog,
+        current: &[String],
+        typed: &str,
+    ) -> std::sync::Arc<panels::keywording::Offers> {
+        let k = key_of((cat.revision, current, typed));
+        match &self.completions {
+            Some((h, v)) if *h == k => v.clone(),
+            _ => {
+                let v = std::sync::Arc::new(panels::keywording::offers(cat, current, typed));
+                self.completions = Some((k, v.clone()));
                 v
             }
         }
