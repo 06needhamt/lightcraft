@@ -129,11 +129,15 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("panel.versions", "Versions", Some("Shift+V"), "Window"),
     ("panel.activity", "History", None, "Window"),
     ("panel.close", "Close Panel", None, ""),
+    // {solo?}: true opens just that section (⌥-click on its header); otherwise opens or closes it
     ("section.light", "Light", Some("Cmd+1"), "Window>Edit Sections"),
     ("section.color", "Color", Some("Cmd+2"), "Window>Edit Sections"),
     ("section.effects", "Effects", Some("Cmd+3"), "Window>Edit Sections"),
     ("section.detail", "Detail", Some("Cmd+4"), "Window>Edit Sections"),
     ("section.optics", "Optics", Some("Cmd+5"), "Window>Edit Sections"),
+    ("section.calibration", "Calibration", None, ""),
+    // {on?}; no params toggles. Opening one Edit section closes the others.
+    ("view.soloSections", "Solo Mode", None, "Window>Edit Sections"),
     ("tool.brush", "Brush", Some("B"), "Window>Tools"),
     ("tool.linear", "Linear Gradient", Some("L"), "Window>Tools"),
     ("tool.radial", "Radial Gradient", Some("R"), "Window>Tools"),
@@ -971,6 +975,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             }
             Ok(json!({"hidden": app.ui.hidden_locations}))
         }
+        "view.soloSections" => bool_param(id, p, "on").map(|on| {
+            app.ui.set_single_panel(on.unwrap_or(!app.ui.single_panel));
+            json!({"soloSections": app.ui.single_panel})
+        }),
         "view.filterBar" => {
             app.ui.filter_bar = !app.ui.filter_bar;
             if app.ui.filter_bar && !matches!(app.ui.view, ViewMode::PhotoGrid | ViewMode::SquareGrid) {
@@ -1051,14 +1059,22 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.presets = false;
             Ok(Value::Null)
         }
-        s if s.starts_with("section.") => {
+        s if s.starts_with("section.") => bool_param(s, p, "solo").and_then(|solo| {
+            // only the Edit sections listed above: an unknown one would close the real ones
+            if !UI_COMMANDS.iter().any(|c| c.0 == s) {
+                return Err(format!("{s}: no such Edit section"));
+            }
             let sec = &s["section.".len()..];
             if app.ui.right != RightPanel::Edit {
                 app.ui.right = RightPanel::Edit;
             }
-            app.ui.toggle_section(sec);
+            if solo == Some(true) {
+                app.ui.solo_section(sec);
+            } else {
+                app.ui.toggle_section(sec);
+            }
             Ok(Value::Null)
-        }
+        }),
         s if s.starts_with("tool.") => {
             let tool = &s["tool.".len()..];
             match tool {
