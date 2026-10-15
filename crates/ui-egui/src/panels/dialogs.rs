@@ -1267,11 +1267,13 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                                 crate::theme::font_credits(app.chinese_font.is_some())
                             ));
                             ui.add_space(10.0);
-                            let discord = egui::Button::new(egui::RichText::new(crate::i18n::tr("Join the ArtCraft Discord")).font(t.semibold(15.0)).color(egui::Color32::WHITE))
-                                .fill(t.accent)
-                                .min_size(egui::vec2(260.0, 34.0));
-                            let r = ui.add(discord).on_hover_text(crate::links::DISCORD);
-                            crate::widgets::register(ui.ctx(), "button:aboutDiscord", r.rect);
+                            let r = crate::button::Button::new("Join the ArtCraft Discord")
+                                .primary()
+                                .large()
+                                .min_width(260.0)
+                                .widget("button:aboutDiscord")
+                                .tooltip(crate::links::DISCORD)
+                                .show(ui);
                             if r.clicked() {
                                 let _ = crate::links::open(app, crate::links::DISCORD);
                             }
@@ -1365,39 +1367,31 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             // smart-album rules that can't mean anything wait to be fixed
                             && !matches!(&dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty()));
                 let primary = !informational && can_confirm && confirm_style(&dlg) == ConfirmStyle::Primary;
+                use crate::button::{Button, Kind};
+                // (each kind of dialog its own buttons: the keyboard's place doesn't carry from a
+                // dialog to the one it opens)
+                let kind = std::mem::discriminant(&dlg);
+                let cancel_button = Button::new(cancel).widget("button:dialogCancel").id_salt(kind).min_width(72.0);
+                let ok_button = Button::new(ok)
+                    .kind(if primary { Kind::Primary } else { Kind::Secondary })
+                    .enabled(can_confirm)
+                    .widget("button:dialogOk")
+                    .id_salt(kind)
+                    .min_width(72.0);
                 // (Cancel first, then the confirm: the keyboard goes through them as the eye does)
-                let width_of = |label: &str| {
-                    let text = egui::WidgetText::from(crate::i18n::tr(label))
-                        .into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Button)
-                        .size()
-                        .x;
-                    (text + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x)
-                };
                 let gap = ui.spacing().item_spacing.x;
                 let mut buttons_w = 0.0;
                 if !informational {
-                    buttons_w += width_of(cancel) + gap;
+                    buttons_w += cancel_button.desired_size(ui).x + gap;
                 }
                 if !ok.is_empty() {
-                    buttons_w += width_of(ok);
+                    buttons_w += ok_button.desired_size(ui).x;
                 }
                 ui.add_space((ui.available_width() - buttons_w).max(0.0));
-                if !informational {
-                    let r = ui.button(crate::i18n::tr(cancel));
-                    crate::widgets::register(ui.ctx(), "button:dialogCancel", r.rect);
-                    if r.clicked() {
-                        close = true;
-                    }
+                if !informational && cancel_button.show(ui).clicked() {
+                    close = true;
                 }
-                let button = if primary {
-                    egui::Button::new(egui::RichText::new(crate::i18n::tr(ok)).color(egui::Color32::WHITE)).fill(t.accent)
-                } else {
-                    egui::Button::new(crate::i18n::tr(ok))
-                };
-                let r = (!ok.is_empty()).then(|| ui.add_enabled(can_confirm, button));
-                if let Some(r) = &r {
-                    crate::widgets::register(ui.ctx(), "button:dialogOk", r.rect);
-                }
+                let r = (!ok.is_empty()).then(|| ok_button.show(ui));
                 if r.is_some_and(|r| r.clicked()) {
                     if informational {
                         close = true;
