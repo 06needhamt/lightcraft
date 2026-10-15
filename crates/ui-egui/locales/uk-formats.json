@@ -259,5 +259,11 @@
   "Imported {name}": "Імпортовано: {name}",
   "Skipped {problem}": "Пропущено: {problem}",
   "…and {more} more": "…і ще {more}",
-  "Template preview: {name}": "Перегляд шаблону: {name}"
+  "Template preview: {name}": "Перегляд шаблону: {name}",
+  "{n} photos in view · {slides} slides · {time}": "Фото в перегляді: {n} · слайдів: {slides} · {time}",
+  "{n} pages": "Сторінок: {n}",
+  "{n} JPEG files": "Файлів JPEG: {n}",
+  "{s} s of AV1 video": "{s} с відео AV1",
+  "Slideshow exported: {what}": "Слайд-шоу експортовано: {what}",
+  " · {n} skipped (could not be rendered)": " · пропущено: {n} (не вдалося відтворити)"
 }

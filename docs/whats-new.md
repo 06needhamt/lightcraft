@@ -284,6 +284,22 @@
   preset pickers in Import and Settings ▸ Import scroll the same way.
 - Importing a large collection and opening its library no longer compare every preset with every other.
 
+### Slideshow export: PDF, JPEG and video
+- View ▸ Export Slideshow… (or the Export buttons at the end of Settings ▸ Slideshow) writes the slideshow out, like
+  Lightroom Classic's Export PDF, Export JPEG and Export Video: the photos in view as their slides, with the layout,
+  overlays and the intro and ending screens, in view order.
+- **PDF:** one page per slide at 1024, 1920 or 3840 pixels on the long side, at a JPEG quality you choose. Each page
+  carries the slide duration and fade, so a PDF viewer's presentation mode plays it as a slideshow, and "Automatically
+  show full screen" asks the viewer to open it that way.
+- **JPEG:** numbered files (`Holiday-001.jpg`, `Holiday-002.jpg`…) in a new folder.
+- **Video:** AV1 video in an MP4 (or WebM) file at 720p or 1080p, 24 or 30 frames per second: each slide stays up for
+  its duration and the fades are rendered frame by frame (crossfades, or fades through the fade colour). The video has
+  no sound yet. It is AV1 rather than Lightroom's H.264, which has no open encoder we can ship; current browsers,
+  VLC and recent phones and TVs play it.
+- The export runs in the background with its row in the activity stack; ✕ stops it and leaves no half-written file
+  behind. A photo that can't be read is skipped and named in the message at the end. Agents use `slideshow.export`
+  (`slideshow.exportStatus` for the result).
+
 ### Slideshow templates
 - Settings ▸ Slideshow now opens with a template browser, like Lightroom Classic's Template Browser. A template holds
   everything about how a slideshow looks and plays: the playback timing and fades, the layout, options and backdrop,

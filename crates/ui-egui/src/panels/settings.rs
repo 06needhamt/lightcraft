@@ -706,6 +706,8 @@ fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 super::slide_overlays::sections(app, ui, t);
                 ui.add_space(6.0);
                 super::slide_titles::sections(app, ui, t);
+                ui.add_space(6.0);
+                export_section(app, ui, t);
             });
         });
         ui.add_space(12.0);
@@ -714,6 +716,26 @@ fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             super::slide_layout::preview(app, ui, t)
         });
     });
+}
+
+/// Export: PDF, JPEG sequence or video of the slideshow (View ▸ Export Slideshow…).
+fn export_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    heading(ui, t, crate::i18n::tr("Export"));
+    let running = app.session.slideshow_export.as_ref().is_some_and(|r| r.running());
+    ui.horizontal(|ui| {
+        for (id, label, format) in [
+            ("slideshowExportPdf", "Export PDF…", "pdf"),
+            ("slideshowExportJpeg", "Export JPEG…", "jpeg"),
+            ("slideshowExportVideo", "Export Video…", "video"),
+        ] {
+            let r = ui.add_enabled(!running, egui::Button::new(crate::i18n::tr(label)));
+            register(ui.ctx(), format!("button:{id}"), r.rect);
+            if r.clicked() {
+                let _ = app.run("dialog.slideshowExport", json!({"format": format}));
+            }
+        }
+    });
+    hint(ui, t, crate::i18n::tr("The photos in view as slides, with the settings above. Progress shows in the activity stack."));
 }
 
 fn playback_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {

@@ -149,6 +149,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.sidebarReset", "Reset Sidebar Sections", None, ""),
     ("view.slideshow", "Slideshow", Some("Cmd+Alt+Enter"), "View"),
     ("view.slideshowOptions", "Slideshow Options…", None, "View"),
+    ("dialog.slideshowExport", "Export Slideshow…", None, "View"),
+    ("app.slideshowExport", "Export Slideshow", None, ""),
     // the slideshow's playback controls (Space, ←/→ and Esc while it plays)
     ("slideshow.togglePause", "Pause / Resume Slideshow", None, ""),
     ("slideshow.next", "Next Slide", None, ""),
@@ -1207,6 +1209,16 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.dialog = Some(Dialog::CopySettings { groups });
             Ok(Value::Null)
         }
+        "dialog.slideshowExport" => {
+            let format = match p.get("format").and_then(Value::as_str) {
+                Some("jpeg") => lightcraft_engine::slideshow_export::Format::Jpeg,
+                Some("video") => lightcraft_engine::slideshow_export::Format::Video,
+                _ => lightcraft_engine::slideshow_export::Format::Pdf,
+            };
+            app.ui.dialog = Some(Dialog::SlideshowExport { settings: lightcraft_engine::slideshow_export::ExportSettings::for_format(format) });
+            Ok(Value::Null)
+        }
+        "app.slideshowExport" => crate::slideshow_export::start(app, id, p),
         "dialog.contactSheet" => {
             app.ui.dialog = Some(Dialog::ContactSheet { options: lightcraft_engine::contact_sheet::Options::default() });
             Ok(Value::Null)
@@ -1897,6 +1909,9 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
     match id {
         "library.selectOnlyActive" => app.session.active().is_some(),
         "dialog.contactSheet" | "app.contactSheet" => !cfg!(target_arch = "wasm32") && app.session.active().is_some() && app.export.is_none(),
+        "dialog.slideshowExport" | "app.slideshowExport" => {
+            !cfg!(target_arch = "wasm32") && !app.session.slideshow_export.as_ref().is_some_and(|r| r.running())
+        }
         s if s.starts_with("panel.") || s.starts_with("tool.") || s.starts_with("section.") => app.session.active().is_some() || s == "panel.close",
         "app.export" | "dialog.export" | "dialog.createPreset" | "dialog.rename" | "dialog.captureTime" | "dialog.copySettings" => {
             app.session.active().is_some()

@@ -2044,5 +2044,20 @@
   "A light grey wall with a white mat and a soft shadow; the caption and the rating under the photo.": "明るいグレーの壁に白いマットと柔らかな影。写真の下にキャプションとレーティング。",
   "Every photo cropped to fill the whole screen, with slow crossfades.": "各写真を画面全体に合わせて切り抜き、ゆっくりクロスフェードします。",
   "A 16:9 frame with black bars above and below, the title in the corner, fades through black and a closing card.": "上下に黒帯のある16:9の画面、隅にタイトル、黒を経由するフェード、エンディングカード。",
-  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "暗いスレート色の背景。各写真の下に露出・ISO・焦点距離、その下にカメラとレンズ。"
+  "A dark slate backdrop with the exposure, ISO and focal length, then the camera and lens, under each photo.": "暗いスレート色の背景。各写真の下に露出・ISO・焦点距離、その下にカメラとレンズ。",
+  "Exporting slideshow": "スライドショーを書き出し中",
+  "Export Slideshow…": "スライドショーを書き出し…",
+  "Export Slideshow": "スライドショーを書き出し",
+  "Export Slideshow: folder for the JPEG files": "スライドショーを書き出し：JPEG ファイルのフォルダー",
+  "Frame rate": "フレームレート",
+  "Container": "コンテナー",
+  "Export PDF…": "PDF を書き出し…",
+  "Export JPEG…": "JPEG を書き出し…",
+  "Export Video…": "ビデオを書き出し…",
+  "Automatically show full screen": "自動的にフルスクリーンで表示",
+  "One page per slide (the long side in pixels = points), with the slide duration and fade for the viewer's presentation mode.": "スライドごとに 1 ページ（長辺のピクセル数 = ポイント数）。ビューアーのプレゼンテーションモード用にスライドの表示時間とフェードを含みます。",
+  "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.": "番号付きの JPEG ファイル（name-001.jpg…）を、次の手順で名前を付ける新しいフォルダーに書き出します。",
+  "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.": "AV1 ビデオ。各スライドを表示時間のあいだフェード付きで表示します。音声なし：音楽はまだ書き出されません。",
+  "Slides use the slideshow's layout, overlays and intro and ending screens, in view order.": "スライドにはスライドショーのレイアウト、オーバーレイ、イントロ画面とエンディング画面が表示順で使われます。",
+  "The photos in view as slides, with the settings above. Progress shows in the activity stack.": "表示中の写真を上の設定でスライドにします。進行状況はアクティビティ一覧に表示されます。"
 }

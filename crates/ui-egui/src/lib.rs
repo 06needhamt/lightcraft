@@ -31,6 +31,7 @@ pub mod region;
 pub mod render;
 pub mod shortcuts;
 pub mod sidebar;
+pub mod slideshow_export;
 pub mod softpaint;
 pub mod state;
 pub mod sync;
@@ -399,6 +400,8 @@ pub struct LightcraftApp {
     pub tasks: tasks::Tasks,
     /// The files of the last finished background export (`ui.inspect` → `export.last`).
     pub last_export_result: Option<Value>,
+    /// The last slideshow export's end has been told (a toast).
+    pub slideshow_export_reported: bool,
     /// The look the loupe shows while the pointer rests on a preset or profile (set by the
     /// panels each frame; nothing is committed, no history entry).
     pub hover_preview: Option<HoverPreview>,
@@ -489,6 +492,7 @@ impl LightcraftApp {
             export: None,
             tasks: Default::default(),
             last_export_result: None,
+            slideshow_export_reported: true,
             hover_preview: None,
             window_is_fullscreen: false,
             gpu_applied: None,
@@ -1340,6 +1344,7 @@ impl LightcraftApp {
         panels::dialogs::show(self, &ctx);
         panels::library_problem::show(self, &ctx);
         export_task::poll(self, &ctx);
+        slideshow_export::poll(self, &ctx);
         panels::activity::show(self, &ctx);
         export_task::poll_photos(self, &ctx);
         pick::poll(self, &ctx);
