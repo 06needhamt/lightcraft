@@ -146,6 +146,12 @@
 - In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
   brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
   choice is never the eye-catching default.
+### Straight brush strokes with ⇧-click
+- With the brush, click once, then ⇧-click somewhere else: the brush paints a straight line between the two, and
+  further ⇧-clicks carry on from the last point, as in Lightroom. Change the brush size, feather or flow before the
+  ⇧-click and the line tapers from the old values to the new ones. The whole line is one undo step.
+  `mask.brushStroke {connect: true}` does the same for agents.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

@@ -2170,11 +2170,14 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             app.brush_live = None;
             let pts: Vec<[f64; 2]> = points.iter().map(|q| [q.x, q.y]).collect();
             // holding ⌥ (Alt) paints with the other mode: Erase while adding, Add while erasing
-            let erase = app.ui.brush_erase != resp.ctx.input(|i| i.modifiers.alt);
+            let (alt, shift) = resp.ctx.input(|i| (i.modifiers.alt, i.modifiers.shift));
+            let erase = app.ui.brush_erase != alt;
+            // a ⇧-click draws a straight line from where the last stroke ended, as in Lightroom
+            let connect = shift && resp.clicked() && pts.len() == 1;
             let _ = app.run(
                 "mask.brushStroke",
                 json!({"points": pts, "size": app.ui.brush_size, "feather": app.ui.brush_feather, "flow": app.ui.brush_flow,
-                       "erase": erase, "autoMask": app.ui.brush_auto_mask, "pressure": pressure}),
+                       "erase": erase, "autoMask": app.ui.brush_auto_mask, "pressure": pressure, "connect": connect}),
             );
         }
         return;
