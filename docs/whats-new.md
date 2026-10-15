@@ -95,6 +95,12 @@
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
 
+### HDR merges keep the white balance
+- An HDR merged from raws that LightCraft colours from the camera's JPEG (CR2, NEF, ARW…) now opens at the same
+  As Shot temperature and tint as its photos, and changing the white balance no longer turns it green. Sony ARW
+  merges used to open at about 7000 K / +115 where the photos show 4000–5300 K / +8. HDRs merged before this keep
+  their old white balance; merge them again.
+
 ## 2026-10-13
 
 ### Edits keep up in a large library
