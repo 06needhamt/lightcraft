@@ -29,6 +29,11 @@
   past that a write is skipped (the image stays in memory and is written by a later render), so a slow disk can't
   pile up threads and memory.
 
+### Reliability
+- Saving the catalog and resuming a model download no longer write through a link left at the temporary file's
+  name (`catalog.snap.tmp`, `model.onnx.part`): the link is removed and a new file made in its place, so the file it
+  pointed to is never changed (issue #1502).
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
