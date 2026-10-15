@@ -88,8 +88,7 @@ pub(crate) fn starting_colour(
     lens: Option<&LensGeometry>,
     embedded: Option<&lightcraft_develop::EmbeddedLens>,
 ) -> (Xy, CameraTransform, Option<CameraLook>) {
-    let (xy, t, look) =
-        starting_colour_with(raw, |raw, t| fit_preview(raw, bytes, t, lens), |raw, t| monochrome_look(raw, bytes, t, lens));
+    let (xy, t, look) = starting_colour_with(raw, |raw, t| fit_preview(raw, bytes, t, lens), |raw, t| monochrome_look(raw, bytes, t, lens));
     if look.is_none() && dng_tone_eligible(raw, &t) {
         let look = fit_dng_tone(raw, bytes, &t, embedded);
         return (xy, t, look);
