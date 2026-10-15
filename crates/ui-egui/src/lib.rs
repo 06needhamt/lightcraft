@@ -116,6 +116,8 @@ mod tests_preset_import;
 #[cfg(test)]
 mod tests_preview_limit;
 #[cfg(test)]
+mod tests_profiles_layout;
+#[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]
 mod tests_recheck;
