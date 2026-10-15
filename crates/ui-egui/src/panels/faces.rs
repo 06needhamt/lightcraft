@@ -177,9 +177,7 @@ fn mb(bytes: Option<u64>) -> String {
 /// "its input is not an image" → "Its input is not an image."
 fn sentence(s: &str) -> String {
     let s = s.trim();
-    let mut c = s.chars();
-    let mut out: String = c.next().map(|f| f.to_uppercase().collect()).unwrap_or_default();
-    out.push_str(c.as_str());
+    let mut out = crate::i18n::upper_first(s);
     if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
         out.push('.');
     }

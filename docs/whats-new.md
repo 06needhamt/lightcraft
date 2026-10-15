@@ -146,6 +146,12 @@
 - In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
   brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
   choice is never the eye-catching default.
+### Straight brush strokes with ⇧-click
+- With the brush, click once, then ⇧-click somewhere else: the brush paints a straight line between the two, and
+  further ⇧-clicks carry on from the last point, as in Lightroom. Change the brush size, feather or flow before the
+  ⇧-click and the line tapers from the old values to the new ones. The whole line is one undo step.
+  `mask.brushStroke {connect: true}` does the same for agents.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
@@ -328,6 +334,12 @@
   with NVIDIA), LightCraft still stops, because its window can't keep drawing on the lost device, but it now says
   "LightCraft stopped unexpectedly" and why, instead of "could not open its window", and the next start renders
   on the CPU and explains how to turn the GPU back on.
+
+### Resetting a slider
+- Resting the pointer on a slider's name or its thumb now says that a double-click resets it ("Exposure — double-click
+  to reset it"), in every language (issue #1436).
+- A double-click on the thumb is a single step in History and Undo. Its first click no longer nudges the value to
+  where the pointer landed, and a single click on the thumb leaves the value alone.
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
