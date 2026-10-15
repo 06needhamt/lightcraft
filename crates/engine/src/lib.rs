@@ -59,6 +59,7 @@ mod pdf;
 pub mod preset_import;
 pub mod preset_luminar;
 pub mod presets;
+pub mod profile_refs;
 pub mod proof;
 pub mod rename;
 pub mod segment;
