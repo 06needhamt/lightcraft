@@ -283,5 +283,11 @@
   "{s} s of AV1 video": "{s} s of AV1 video",
   "Slideshow exported: {what}": "Slideshow exported: {what}",
   " · {n} skipped (could not be rendered)": " · {n} skipped (could not be rendered)",
-  "{n} raws can now be developed from their raw data": "{n} raws can now be developed from their raw data"
+  "{n} raws can now be developed from their raw data": "{n} raws can now be developed from their raw data",
+  "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}",
+  "LightCraft stopped unexpectedly: {e}": "LightCraft stopped unexpectedly: {e}",
+  "Renames {n} face{} across the library. The files are not changed.": "Renames {n} face{} across the library. The files are not changed.",
+  "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
+  "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has",
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})"
 }
