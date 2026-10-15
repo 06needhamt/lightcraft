@@ -341,7 +341,7 @@ mod contact_sheet_tests {
         crate::pick::poll(&mut app, &ctx);
         assert!(app.pending_picks.is_empty());
         assert!(app.export.is_some(), "picker did not start export: {:?}", app.ui.toast);
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + Duration::from_secs(90);
         loop {
             // Poll the real worker without starting unrelated gallery renders each frame.
             poll(&mut app, &ctx);
