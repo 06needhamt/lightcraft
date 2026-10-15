@@ -446,7 +446,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         // a slideshow: Space pauses / resumes
         if id == "view.zoomToggle" && app.ui.slideshow.is_some() {
             if let Ok(v) = app.run("slideshow.togglePause", json!({})) {
-                app.toast(ctx, if v["paused"] == true { "Slideshow paused" } else { "Slideshow resumed" });
+                app.toast(ctx, crate::i18n::tr(if v["paused"] == true { "Slideshow paused" } else { "Slideshow resumed" }));
             }
             continue;
         }
