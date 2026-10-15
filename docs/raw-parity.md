@@ -78,7 +78,7 @@ committed table is stale.
 | Olympus | 71 | 3 | 9 | 59 | 0 | **compressed ORF** |
 | Leica | 61 | 27 | 34 | 0 | 0 | — |
 | Xiaomi, Oppo, LG, Huawei, OnePlus, Motorola, Nokia | 139 | 0 | 139 | 0 | 0 | — (DNG) |
-| Pentax / Ricoh | 60 | 4 | 56 | 0 | 0 | — |
+| Pentax / Ricoh | 60 | 40 | 20 | 0 | 0 | — |
 | Hasselblad | 34 | 1 | 2 | 31 | 0 | Hasselblad-compressed 3FR / FFF |
 | Phase One / Leaf / Mamiya | 59 | 0 | 0 | 43 | 16 | IIQ, MOS preview; TIFF raws and MEF not imported |
 | Casio | 26 | 0 | 26 | 0 | 0 | — (DNG) |
@@ -290,3 +290,4 @@ Beyond decoding:
 | 2026-10-10 (later) | major | Model-by-model measurement against Adobe's published list (1,446 models: 234 verified, 943 unverified, 233 preview, 36 unsupported); `docs/raw/` data and re-measure script; use-weighted share 84% (40% on verified bodies); variant matrix; colour and lens sections with scores; ranked next cameras; RAW readiness ~56% from written parts |
 | 2026-10-10 | major | Created: formats, makers, demosaic, colour and lens checklists; target counts from the installed Lightroom 9.6 bundle listing |
 | 2026-10-10 (later) | minor | Lens profiles: Sony ILCE-7RM6 in-file distortion next to the ILCE-7RM4A's (its lateral CA parsed, off by default); lens score unchanged (~10%: one more body) |
+| 2026-10-14 | minor | 97 Canon CR2, Pentax and Ricoh models verified (one CC0 raw.pixls.us file each, pinned, checked against the camera JPEG; `canon_pentax_corpus.rs`): 334 verified, 844 unverified, 232 preview; 50% of photographers on a verified body; use-weighted 85% unchanged |

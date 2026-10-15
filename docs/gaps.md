@@ -105,3 +105,4 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-13 | minor | Catalog import review: offline Local records join All Photos, redundant operation/settings copies removed, and result invalidation across library switches covered. Approximate rendering and database/table limits remain. |
 | 2026-10-14 | patch | LRC-LIB-CATALOG-IMPORT: reconciled with upstream phased progress, cancellation kinds, WAL-only import, translations and current progress tracking. Status and summary counts unchanged. |
 | 2026-10-10 | minor | Gap 8: Sony ILCE-7RM6 in-file distortion added next to the ILCE-7RM4A's, its lateral CA parsed but off by default (docs/sony-ilce7rm6-lens-corrections.md); the gap stays open (no lens database), hours unchanged |
+| 2026-10-14 | minor | Gap 10 shrinks: 97 Canon CR2, Pentax and Ricoh models verified on one CC0 file each (334 models, ~50% on a verified body) |
