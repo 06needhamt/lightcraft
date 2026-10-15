@@ -506,21 +506,34 @@ impl Session {
     }
 
     fn apply_catalog(&mut self, op: Op) -> Result<Op> {
-        let inv = self.catalog.apply(op.clone())?;
+        // Retain only cache IDs while the catalog consumes the operation. Cloning an import
+        // batch here also cloned every photo, although commit already keeps the journal copy.
+        let mut invalidated = Vec::new();
+        // photos whose file was replaced: the faces made from the old pixels go too (issue #1524)
+        let mut replaced = Vec::new();
         let mut pending = vec![&op];
         while let Some(op) = pending.pop() {
             match op {
                 Op::SetContent { id, .. } => {
-                    self.media.forget(*id);
-                    #[cfg(not(target_arch = "wasm32"))]
-                    self.faces.content_replaced(*id);
+                    invalidated.push(*id);
+                    replaced.push(*id);
                 }
-                Op::SetFile { id, .. } | Op::Relink { id, .. } | Op::RemovePhoto { id } => self.media.forget(*id),
-                Op::AddPhoto { photo } => self.media.forget(photo.id),
+                Op::SetFile { id, .. } | Op::Relink { id, .. } | Op::RemovePhoto { id } => invalidated.push(*id),
+                Op::AddPhoto { photo } => invalidated.push(photo.id),
                 Op::Batch { ops } => pending.extend(ops),
                 _ => {}
             }
         }
+        let inv = self.catalog.apply(op)?;
+        for id in invalidated {
+            self.media.forget(id);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        for id in replaced {
+            self.faces.content_replaced(id);
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = replaced;
         Ok(inv)
     }
 
