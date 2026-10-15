@@ -503,6 +503,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                     R::RedEye => continue,
                     _ => {}
                 }
+                // in an album, Delete takes the photos out of the album only, as in Lightroom: they
+                // stay in the library and their folder (issue #1805)
+                if crate::menus::delete_in_album(app, ctx) {
+                    continue;
+                }
                 if crate::menus::confirm_delete(app) {
                     continue;
                 }

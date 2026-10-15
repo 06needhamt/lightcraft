@@ -2118,6 +2118,32 @@ pub fn menu_entries(app: &LightcraftApp) -> Vec<MenuEntry> {
     v
 }
 
+/// The Delete key in an album: a normal album loses the selected photos (`album.removePhotos`),
+/// which stay in the library and their folder; a smart album keeps them (its rules decide) and
+/// says so. True when the key was handled here, false outside albums (then it deletes the photos
+/// from the library). Photo ▸ Delete Photo still deletes from the library everywhere.
+pub fn delete_in_album(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
+    let lightcraft_engine::LibrarySource::Album(aid) = app.session.source else { return false };
+    let Some(album) = app.session.catalog.album(aid) else { return false };
+    if album.is_smart() {
+        app.toast(ctx, crate::i18n::tr("Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo"));
+        return true;
+    }
+    if app.session.targets(&json!({})).is_empty() {
+        return true;
+    }
+    match app.run("album.removePhotos", json!({"id": aid.0})) {
+        Ok(r) => {
+            let n = r["removed"].as_u64().unwrap_or(0);
+            let name = r["album"].as_str().unwrap_or_default().to_string();
+            let what = crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n);
+            app.toast(ctx, crate::i18n::tr_format!("Removed {what} from {name}", what = what, name = name));
+        }
+        Err(e) => app.toast(ctx, e),
+    }
+    true
+}
+
 /// With Settings → General → "Confirm before deleting" on, open the confirmation dialog instead
 /// of deleting; true when it did (the dialog's OK runs `photo.delete`).
 pub fn confirm_delete(app: &mut LightcraftApp) -> bool {

@@ -8,6 +8,15 @@
   Lightroom stays inverted, and older Radial Filters keep their Effect Outside / Invert Mask setting. Photos imported
   before this keep the masks they got: Photo ▸ Read Metadata from File reads a sidecar's again.
 
+## 2026-10-15
+
+### Delete in an album removes from the album only
+- In an album, the Delete key now takes the selected photos out of the album, as in Lightroom. It used to move them
+  to Recently Deleted, so they also left their folder's view (issue #1805). They stay in the library and in their
+  folder; Edit ▸ Undo puts them back in the album. Photo ▸ Remove from Album does the same and now shows the key.
+  To delete photos from the library from an album, use Photo ▸ Delete Photo or right-click ▸ Delete Photo. In a smart
+  album, Delete changes nothing: its rules decide what it shows.
+
 ## 2026-10-14
 
 ### HDR merges of moving lights, and many brackets at once

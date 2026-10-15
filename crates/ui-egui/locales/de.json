@@ -2280,5 +2280,7 @@
   "Export to": "Exportieren nach",
   "Specific folder": "Bestimmter Ordner",
   "Same folder as original photo": "Im selben Ordner wie das Originalfoto",
-  "Tidying the thumbnail cache": "Miniaturcache wird aufgeräumt"
+  "Tidying the thumbnail cache": "Miniaturcache wird aufgeräumt",
+  "Reset all edits (Cmd+Shift+R)": "Alle Bearbeitungen zurücksetzen (⌘⇧R)",
+  "Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo": "Intelligente Alben aktualisieren sich selbst: Ändern Sie ihre Regeln oder verwenden Sie Foto → Foto löschen"
 }
