@@ -127,15 +127,6 @@
   #1236). The D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600,
   Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
   the area the camera itself frames, a few pixels smaller than before.
-### Nikon Z 6II colour profile
-- Raws from the Nikon Z 6II now start from a colour profile built from a few hundred Z 6II photos, the same way the
-  Sony and Fujifilm profiles were made, instead of fitting each photo's colour on its own. Colours that one photo
-  shows only a little of come out closer to the camera's JPEG.
-
-- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
-  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
-  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
-
 ### An empty library leads to Import
 - A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
   Detail view that pointed at an empty grid. The grid and Detail view offer Import Photos… and, in the desktop app,
@@ -155,11 +146,6 @@
 - In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
   brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
   choice is never the eye-catching default.
-### Closer camera colour for lens-corrected raws
-- Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
-  Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that
-  didn't line up with the raw near the edges. Photos you already imported pick this up when their previews are rebuilt.
-
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
