@@ -3101,6 +3101,48 @@ mod tests {
         assert!(heights.iter().any(|h| (h - first.height()).abs() > 20.0), "the tabs differ in height: {heights:?}");
     }
 
+    /// Settings → Import → "Show the import review when a camera or card is connected": a card that
+    /// was already in doesn't ask, a new one opens Import from Device (copying), and a busy window
+    /// asks once it's free.
+    #[test]
+    fn a_connected_card_opens_the_import_review() {
+        let mut h = demo([1200.0, 900.0]);
+        let t = Duration::from_secs(10);
+        let root = std::env::temp_dir().join(format!("lc-card-{}", std::process::id()));
+        let dcim = root.join("DCIM/100NIKON");
+        std::fs::create_dir_all(&dcim).unwrap();
+        let img = lightcraft_raster::Rgba8::from_fn(8, 8, |x, y| [(x * 9) as u8, (y * 12) as u8, 80, 255]);
+        let o = lightcraft_engine::export::ExportOptions { format: lightcraft_engine::export::ExportFormat::Png, ..Default::default() };
+        std::fs::write(dcim.join("DSC_0001.png"), lightcraft_engine::export::encode_image(&img, &o).unwrap()).unwrap();
+        let card = lightcraft_engine::devices::Device {
+            name: "NIKON Z 8".into(),
+            path: root.join("DCIM").to_string_lossy().to_string(),
+            root: root.to_string_lossy().to_string(),
+        };
+        h.app.ui.dialog = None;
+        // first look: the card was already in
+        crate::import::cards_seen(&mut h.app, vec![card.clone()]);
+        assert!(h.app.scan.is_none() && h.app.ui.dialog.is_none(), "a card that was already in doesn't ask");
+        crate::import::cards_seen(&mut h.app, vec![card.clone()]);
+        assert!(h.app.scan.is_none());
+        // taken out, then put back while another dialog is open: it waits
+        crate::import::cards_seen(&mut h.app, Vec::new());
+        h.app.ui.dialog = Some(crate::state::Dialog::About);
+        crate::import::cards_seen(&mut h.app, vec![card.clone()]);
+        assert!(h.app.scan.is_none(), "a busy window isn't interrupted");
+        h.app.ui.dialog = None;
+        crate::import::cards_seen(&mut h.app, vec![card.clone()]);
+        assert!(h.app.scan.is_some(), "the card is scanned once the window is free");
+        assert!(h.step_until(t, |h| matches!(h.app.ui.dialog, Some(crate::state::Dialog::Import { .. }))));
+        let Some(crate::state::Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("no import review") };
+        assert!(opts.copy, "a card is copied into the library");
+        // with the option off nothing is remembered, so turning it on again starts with a first look
+        assert!(!h.app.session.import_defaults.show_on_card);
+        h.step();
+        assert!(h.app.ui.known_cards.is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     /// The folder scan runs in the background: the request returns at once and the review opens
     /// when the scan finishes (a folder on a network share must not freeze the window).
     /// Clicking the folder being read again keeps the running read (and its progress).

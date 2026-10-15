@@ -81,6 +81,11 @@
   search by lens. LightCraft now reads the lens range Nikon keeps in its own maker note, the way Lightroom shows a
   lens it doesn't have a name for. Newly imported photos show it.
 
+### Import when a card is connected
+- Settings → Import → Cameras and Cards has an option to open the import review as soon as a camera or memory card
+  is connected, the same review File → Import from Device opens. It's off by default. A card that's already in when
+  LightCraft starts doesn't ask, and if a dialog is open or an import is running it waits until that's done.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
@@ -197,6 +202,8 @@
   with NVIDIA), LightCraft still stops, because its window can't keep drawing on the lost device, but it now says
   "LightCraft stopped unexpectedly" and why, instead of "could not open its window", and the next start renders
   on the CPU and explains how to turn the GPU back on.
+
+## 2026-10-13
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you

@@ -108,7 +108,7 @@ fn preferences_persist_with_the_library() {
         s.execute("library.xmpPreferences", &json!({"autoWrite": true})).unwrap();
         s.execute(
             "library.preferences",
-            &json!({"import": {"rawPreset": "user.rawlook", "perCamera": true}, "camera": {"camera": "Canon EOS R5", "preset": "user.canonlook"}, "cacheMb": 512}),
+            &json!({"import": {"rawPreset": "user.rawlook", "perCamera": true, "showOnCard": true}, "camera": {"camera": "Canon EOS R5", "preset": "user.canonlook"}, "cacheMb": 512}),
         )
         .unwrap();
         s.close_library().unwrap();
@@ -118,6 +118,7 @@ fn preferences_persist_with_the_library() {
     assert!(s.xmp.auto_write);
     assert_eq!(s.import_defaults.raw_preset.as_deref(), Some("user.rawlook"));
     assert!(s.import_defaults.per_camera);
+    assert!(s.import_defaults.show_on_card);
     assert_eq!(s.import_defaults.cameras.len(), 1);
     assert_eq!(s.import_defaults.preset_for(true, "Canon EOS R5"), Some("user.canonlook"));
     assert_eq!(s.cache_mb, 512);

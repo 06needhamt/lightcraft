@@ -734,6 +734,10 @@ pub struct UiState {
     pub sidecar_retry_at: f64,
     #[serde(skip)]
     pub sidecars_waiting: usize,
+    /// The cards and cameras already seen (volume roots) while Settings → Import → "Show the
+    /// import review when a camera or card is connected" is on; `None` = not looked yet.
+    #[serde(skip)]
+    pub known_cards: Option<Vec<String>>,
     /// The develop control whose slider is being dragged (geometry sliders show a grid).
     #[serde(skip)]
     pub dragging_control: Option<String>,
@@ -1273,6 +1277,7 @@ impl Default for UiState {
             auto_import_at: 0.0,
             sidecar_retry_at: 0.0,
             sidecars_waiting: 0,
+            known_cards: None,
             search: String::new(),
             focus_search: false,
             renaming_mask: None,
