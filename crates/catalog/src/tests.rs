@@ -425,6 +425,28 @@ fn empty_regions_are_not_serialized_and_default_when_missing() {
     assert_eq!(back, with);
 }
 
+/// The camera's focus point is optional camera data: absent from the catalog JSON when unknown (so a
+/// catalog from before it existed reads with none, and writes the same), kept exactly when known.
+#[test]
+fn focus_point_is_not_serialized_when_unknown_and_round_trips() {
+    let m = Meta { camera: "SONY ILCE-1".into(), ..Default::default() };
+    let v = serde_json::to_value(&m).unwrap();
+    assert!(v.get("focus").is_none(), "{v}");
+    let back: Meta = serde_json::from_value(v).unwrap();
+    assert!(back.focus.is_none());
+    let mut with = m.clone();
+    with.focus = Some(lightcraft_meta::FocusPoint {
+        rect: lightcraft_meta::Rect { x0: 0.36, y0: 0.33, x1: 0.38, y1: 0.36 },
+        mode: Some("AF-C".into()),
+        area: Some("Wide".into()),
+        tracking: None,
+    });
+    let json = serde_json::to_string(&with).unwrap();
+    assert!(json.contains("\"focus\"") && !json.contains("tracking"), "{json}");
+    let back: Meta = serde_json::from_str(&json).unwrap();
+    assert_eq!(back, with);
+}
+
 // ---- random sort: Given a seed, the order is a stable, reproducible shuffle of the matching photos
 
 fn many(c: &mut Catalog, n: usize) -> Vec<PhotoId> {

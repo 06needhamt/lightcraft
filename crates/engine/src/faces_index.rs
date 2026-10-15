@@ -238,7 +238,7 @@ const SCAN_MAX_FILE: u64 = 64 << 20;
 
 /// The photos the detector has already searched for faces, so each is searched once, however many times LightCraft
 /// starts. Kept beside the library (`face-scanned.bin`: a header naming the detector, then photo ids, appended to).
-#[derive(Default)]
+/// The focus-point backfill keeps its own record the same way ([`Scanned::new`] with its magic and decoder tag).
 pub(crate) struct Scanned {
     set: std::collections::HashSet<u64>,
     unsaved: Vec<u64>,
@@ -246,9 +246,23 @@ pub(crate) struct Scanned {
     file_matches: bool,
     /// A photo was taken out ([`Scanned::remove`]): the record is written fresh at the next save.
     rewrite: bool,
+    magic: [u8; 4],
+    /// What made the record: a file made by anything else is started afresh.
+    tag: String,
+}
+
+impl Default for Scanned {
+    fn default() -> Self {
+        Scanned::new(*SCAN_MAGIC, SCAN_TAG)
+    }
 }
 
 impl Scanned {
+    /// An empty record (in memory until [`Scanned::reset`] gives it a path) whose file starts with `magic` and `tag`.
+    pub fn new(magic: [u8; 4], tag: &str) -> Scanned {
+        Scanned { set: Default::default(), unsaved: Vec::new(), path: None, file_matches: false, rewrite: false, magic, tag: tag.to_string() }
+    }
+
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
@@ -292,12 +306,13 @@ impl Scanned {
         }
     }
 
-    fn header() -> Vec<u8> {
+    fn header(&self) -> Vec<u8> {
         let mut h = Vec::new();
-        h.extend_from_slice(SCAN_MAGIC);
+        h.extend_from_slice(&self.magic);
         h.push(SCAN_VERSION);
-        h.extend_from_slice(&(SCAN_TAG.len() as u16).to_le_bytes());
-        h.extend_from_slice(SCAN_TAG.as_bytes());
+        let tag = self.tag.as_bytes().get(..usize::from(u16::MAX)).unwrap_or(self.tag.as_bytes());
+        h.extend_from_slice(&(tag.len() as u16).to_le_bytes());
+        h.extend_from_slice(tag);
         h
     }
 
@@ -307,7 +322,7 @@ impl Scanned {
             return;
         }
         let Ok(bytes) = std::fs::read(path) else { return };
-        let head = Self::header();
+        let head = self.header();
         let Some(rest) = bytes.strip_prefix(head.as_slice()) else { return };
         self.file_matches = true;
         // a half-written last id (a crash while appending) is ignored
@@ -330,7 +345,7 @@ impl Scanned {
             let buf: Vec<u8> = self.unsaved.iter().flat_map(|id| id.to_le_bytes()).collect();
             f.write_all(&buf)?;
         } else {
-            let mut buf = Self::header();
+            let mut buf = self.header();
             buf.extend(self.set.iter().flat_map(|id| id.to_le_bytes()));
             let part = path.with_extension("part");
             std::fs::write(&part, &buf)?;
