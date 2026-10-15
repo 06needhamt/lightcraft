@@ -23,6 +23,12 @@
   raw whose tile claims far more samples than it holds, and an ARW6 with a broken tile are refused first. All 74
   files in the test corpus still decode.
 
+### Reliability
+- Thumbnails and previews are written to the cache on disk by one background writer instead of a new thread for
+  each image (issue #1522). When renders come in faster than the disk takes them, at most 128 MB of images wait;
+  past that a write is skipped (the image stays in memory and is written by a later render), so a slow disk can't
+  pile up threads and memory.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
