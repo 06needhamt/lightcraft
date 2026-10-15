@@ -369,8 +369,21 @@ pub fn cmp_name(a: &str, b: &str) -> std::cmp::Ordering {
 impl Catalog {
     /// Photos matching `filter`, in `sort` order (ties broken by file name, then id).
     pub fn query(&self, filter: &Filter, sort: &Sort) -> Vec<PhotoId> {
+        self.query_keeping(filter, sort, &std::collections::HashSet::new(), filter)
+    }
+
+    /// [`Catalog::query`], and with them the photos of `keep` that still match `within`, each at its place in `sort`
+    /// order: a view that holds the photos it showed when an edit makes them stop matching `filter` (a smart
+    /// album's rules, the filter bar), as long as they are still where the view looks (`within`: in the library,
+    /// the album, the folder; not deleted).
+    pub fn query_keeping(&self, filter: &Filter, sort: &Sort, keep: &std::collections::HashSet<PhotoId>, within: &Filter) -> Vec<PhotoId> {
         let root = filter.library_root();
-        let mut v: Vec<&Photo> = self.photos().map(|p| p.as_ref()).filter(|p| filter.matches_in(p, self, root.as_deref())).collect();
+        let within_root = within.library_root();
+        let mut v: Vec<&Photo> = self
+            .photos()
+            .map(|p| p.as_ref())
+            .filter(|p| filter.matches_in(p, self, root.as_deref()) || (keep.contains(&p.id) && within.matches_in(p, self, within_root.as_deref())))
+            .collect();
         v.sort_by(|a, b| {
             let o = match sort.key {
                 SortKey::CaptureDate => a.captured.cmp(&b.captured).then_with(|| a.imported.cmp(&b.imported)),

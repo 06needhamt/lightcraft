@@ -169,6 +169,8 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "@Stacks",
             "view.filterBar",
             "library.clearFilter",
+            "library.refresh",
+            "library.holdView",
             "---",
             "compare.swap",
             "compare.makeSelect",
@@ -344,6 +346,7 @@ pub fn checked(app: &LightcraftApp, id: &str) -> Option<bool> {
         "view.soloSections" => Some(u.single_panel),
         "view.navigator" => Some(u.navigator),
         "view.layoutImage" => Some(u.layout_image.show && !u.layout_image.path.trim().is_empty()),
+        "library.holdView" => Some(app.session.hold_view),
         "view.fullScreenPreview" => Some(u.fullscreen),
         "view.lightsOut" => Some(u.lights_out != crate::state::LightsOut::On),
         "view.enterFullScreen" => Some(app.window_is_fullscreen),
@@ -1062,6 +1065,17 @@ mod tests {
             MenuNode::Submenu { children, .. } => find(children, id),
             _ => None,
         })
+    }
+
+    #[test]
+    fn view_menu_offers_the_hold_and_the_refresh_and_checks_the_hold_while_it_is_on() {
+        let mut a = app();
+        let view = |a: &LightcraftApp| menu_bar(a).into_iter().find(|(t, _)| t == "View").expect("View menu").1;
+        let items = view(&a);
+        assert!(matches!(find(&items, "library.refresh"), Some(MenuNode::Item { enabled: true, .. })));
+        assert!(matches!(find(&items, "library.holdView"), Some(MenuNode::Item { checked: Some(false), .. })), "off unless asked for");
+        a.session.execute("library.holdView", &json!({"on": true})).expect("hold the view");
+        assert!(matches!(find(&view(&a), "library.holdView"), Some(MenuNode::Item { checked: Some(true), .. })));
     }
 
     /// The Sort submenu is expanded by hand: Reshuffle appears once (not again from the registry),
