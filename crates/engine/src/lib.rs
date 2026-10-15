@@ -1284,6 +1284,8 @@ mod tests_mask_effects;
 #[cfg(test)]
 mod tests_merge;
 #[cfg(test)]
+mod tests_move_to_share;
+#[cfg(test)]
 mod tests_organize;
 #[cfg(test)]
 mod tests_persist;

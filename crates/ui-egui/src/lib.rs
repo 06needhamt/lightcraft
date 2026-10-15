@@ -92,6 +92,8 @@ mod tests_filmstrip;
 #[cfg(test)]
 mod tests_focus_point;
 #[cfg(test)]
+mod tests_folder_drop;
+#[cfg(test)]
 mod tests_grading;
 #[cfg(test)]
 mod tests_grid;
