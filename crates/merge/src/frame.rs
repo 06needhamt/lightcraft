@@ -308,6 +308,7 @@ mod tests {
             wb_multipliers,
             linearized: false,
             opcodes: OpcodeLists::default(),
+            lens_metadata: Default::default(),
             metadata: Metadata::default(),
         }
     }
