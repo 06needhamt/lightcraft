@@ -533,3 +533,33 @@ Epson	R-D1	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1s	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1x	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Mamiya	ZD	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Apple	iPhone 6s Plus	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Apple	iPhone 7 Plus	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Apple	iPhone XS	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mavic 2 Pro (Hasselblad L1D-20c)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mavic 3 (Hasselblad L2D-20c)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mavic 4 Pro (DJI FC9287)	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+DJI	DJI Mini 2	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 4 XL	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 4a Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 6 Pro Rear Main Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Google	Pixel 8 Pro Wide Camera*	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Hasselblad	CFV-50c	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	H5D-40	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	H5D-50c	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	X1D	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	X1D II 50C	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Hasselblad	X2D 100C	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); decode verified, not colour calibration
+Nikon	D6	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
+Nikon	Z 6	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
+Nikon	Z 7	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); checked compressed NEF only; uncompressed remains preview-only (#671)
+Nikon	Z 8	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check); HE / HE* remain preview-only
+Parrot	Anafi	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S21 Ultra Rear Main Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S22 Ultra Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S23 Rear Wide Camera	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S7 Edge	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S8	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Samsung	Galaxy S8+	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Sigma	fp	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)
+Sigma	fp L	verified	corpus: crates/raw/tests/coverage_sweep_corpus.rs (pinned sensor hashes); bulk: docs/raw/coverage-sweep.tsv (CC0, SHA-256, camera-image check)

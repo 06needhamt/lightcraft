@@ -584,8 +584,10 @@ pub(crate) fn synthetic_dng_of(w: usize, h: usize, cfa: &str, data: Vec<u16>, xm
         },
         wb_multipliers: None,
         linearized: false,
+        pixel_aspect: 1.0,
         opcodes: OpcodeLists::default(),
         metadata,
+        lens_metadata: Default::default(),
     };
     write_dng(&raw, &DngWriteOptions { xmp: xmp.map(str::to_string), ..Default::default() }).unwrap()
 }
@@ -666,7 +668,7 @@ fn convert_raw_to_dng() {
     let r = s.execute("photo.convertToDng", &json!({})).unwrap();
     assert_eq!((r["converted"].as_array().unwrap().len(), r["skipped"].as_array().unwrap().len()), (0, 1));
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let nef = dir.join("shot.nef");
@@ -928,7 +930,7 @@ fn dng_export_compression_choices() {
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
         .join("raw/nef-nikon-d5100-uncompressed.nef");
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let mut s = Session::new().with_fs();
@@ -973,7 +975,7 @@ fn dngs_of_raws_without_colour_matrices_carry_the_colour_they_open_with() {
         std::fs::write(&path, &bytes).unwrap();
         let mut opened = lightcraft_raw::decode(&bytes).unwrap();
         assert!(!has_matrix(&opened.color));
-        let (_, want, look) = crate::camera_preview::starting_colour(&mut opened, &bytes);
+        let (_, want, look) = crate::camera_preview::starting_colour(&mut opened, &bytes, None);
         assert_eq!((want.matrix_is_fallback, look.is_none()), (!measured, true), "{model}");
 
         let mut s = Session::new().with_fs();
