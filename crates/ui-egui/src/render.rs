@@ -55,6 +55,12 @@ pub enum Slot {
     Import(u32),
     /// The second window's view of the active photo.
     Second,
+    /// A slideshow slide (the one up, the one fading out, the next ones prepared in advance; see
+    /// [`crate::panels::slideshow`]): a photo's, or a title screen.
+    Slide(lightcraft_engine::slideshow::Item),
+    /// The small composed slide in Settings ▸ Slideshow (the active photo with the layout being
+    /// edited).
+    SlidePreview,
     /// A slider drag's live HDR histogram: a small full-quality render of an HDR edit, beside the
     /// drafts (which have no HDR histogram), with no texture ([`Renderer::live_hdr_histogram`]).
     HdrHistogram,
@@ -225,6 +231,8 @@ pub struct Renderer {
     variant_want: usize,
     /// Frames polled so far.
     frame: u64,
+    /// Slideshow slides may be held ([`Self::release_slides`] has something to do).
+    slides_live: bool,
     /// Stage caches cleared to stay in budget (see [`stage_trim_order`]).
     stages_trimmed: u64,
     /// A budget other than the memory budget's share (tests).
@@ -288,6 +296,7 @@ impl Renderer {
             variant_used: HashMap::new(),
             variant_want: 0,
             frame: 0,
+            slides_live: false,
             stages_trimmed: 0,
             #[cfg(test)]
             stage_budget_override: None,
@@ -357,7 +366,15 @@ impl Renderer {
     fn renders_for_display(slot: Slot) -> bool {
         matches!(
             slot,
-            Slot::Main | Slot::Region | Slot::Before | Slot::RegionBefore | Slot::Hover | Slot::Compare(_) | Slot::CompareRegion(_) | Slot::Second
+            Slot::Main
+                | Slot::Region
+                | Slot::Before
+                | Slot::RegionBefore
+                | Slot::Hover
+                | Slot::Compare(_)
+                | Slot::CompareRegion(_)
+                | Slot::Second
+                | Slot::Slide(_)
         )
     }
 
@@ -433,6 +450,9 @@ impl Renderer {
 
     /// Request a render for `slot` (no-op if already current or pending at the same priority).
     pub fn request(&mut self, slot: Slot, job: RenderJob, priority: u32) {
+        if matches!(slot, Slot::Slide(_)) {
+            self.slides_live = true;
+        }
         let mut job = self.job_for(slot, job);
         if !self.request_needed(slot, job.key, priority) {
             return;
@@ -477,6 +497,24 @@ impl Renderer {
         self.pool.submit(slot, key, priority, Box::new(move || Self::run_for(|| job.run(), &display)));
     }
 
+    /// Render a slideshow title screen into `slot` (once per screen key, like [`Self::request`]):
+    /// a slide with no photo, composed on a worker (on wasm: the job pool's inline runs, not the
+    /// offload, which only knows photo renders).
+    pub fn request_title(&mut self, slot: Slot, compose: Arc<lightcraft_engine::slide_title::TitleCompose>, priority: u32) {
+        if matches!(slot, Slot::Slide(_)) {
+            self.slides_live = true;
+        }
+        let key = compose.key();
+        if !self.request_needed(slot, key, priority) {
+            return;
+        }
+        self.pending.insert(slot, (key, priority));
+        let request_id = lightcraft_preview::next_tick();
+        self.request_ids.insert(slot, request_id);
+        let display = self.display.clone();
+        self.pool.submit(slot, key, priority, Box::new(move || Self::run_for(|| compose.result(request_id), &display)));
+    }
+
     /// Prepare a photo in the background (a [`Slot::Prefetch`] job runs once per key; a newer one
     /// replaces it while queued). Memory stays bounded by the engine's source caches.
     pub fn prefetch(&mut self, slot: Slot, mut job: RenderJob, priority: u32) {
@@ -494,6 +532,23 @@ impl Renderer {
             priority,
             Box::new(move || Finished { result: lightcraft_engine::memory::in_background(|| job.run()), color: None }),
         );
+    }
+
+    /// Drop the slideshow slides other than `keep`: their textures and their requests that have
+    /// not started (a slide that is no longer near is not worth rendering).
+    pub fn release_slides(&mut self, keep: &[lightcraft_engine::slideshow::Item]) {
+        if !self.slides_live {
+            return;
+        }
+        let gone = |s: &Slot| matches!(s, Slot::Slide(id) if !keep.contains(id));
+        self.textures.retain(|s, _| !gone(s));
+        let _ = self.pool.reprioritize(|s, p| if gone(s) { None } else { Some(p) });
+        self.queue.retain(|q| !gone(&q.slot));
+        // (a render already running finishes unclaimed: its result is dropped)
+        self.pending.retain(|s, _| !gone(s));
+        self.request_ids.retain(|s, _| !gone(s));
+        self.failed.retain(|s, _| !gone(s));
+        self.slides_live = !keep.is_empty();
     }
 
     /// Is a request for `slot` queued or running?
@@ -980,6 +1035,7 @@ mod thumbnail_tests {
                 file_size: 99,
                 content_hash: Some("changed".into()),
                 preview_only: None,
+                preview_checked: String::new(),
             })
             .unwrap();
         assert!(!r.thumb_current(catalog.photo(PhotoId(1)).unwrap(), 384, 10));
