@@ -2962,6 +2962,29 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Switching Settings tabs keeps the window's top edge (and its tab row) where it is and never makes it
+    /// narrower, though the tabs are of different heights and widths.
+    #[test]
+    fn settings_tabs_keep_the_window_in_place() {
+        let mut h = demo([1300.0, 820.0]);
+        let t = Duration::from_secs(10);
+        let window = |h: &Headless| h.app.widgets.iter().find(|(w, _)| w == "dialog:window").map(|(_, r)| *r).expect("the dialog");
+        let r = h.request("engine.execute", json!({"command": "app.settings", "params": {"tab": "general"}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        let first = window(&h);
+        let mut heights = Vec::new();
+        for tab in ["display", "import", "performance", "general", "interface", "display"] {
+            h.request("ui.clickWidget", json!({"id": format!("button:settingsTab-{tab}")}), t);
+            h.settle(SETTLE);
+            let now = window(&h);
+            assert!((now.top() - first.top()).abs() < 1.0, "{tab}: top {} → {}", first.top(), now.top());
+            assert!(now.width() >= first.width() - 1.0, "{tab}: width {} → {}", first.width(), now.width());
+            heights.push(now.height());
+        }
+        assert!(heights.iter().any(|h| (h - first.height()).abs() > 20.0), "the tabs differ in height: {heights:?}");
+    }
+
     /// The folder scan runs in the background: the request returns at once and the review opens
     /// when the scan finishes (a folder on a network share must not freeze the window).
     /// Clicking the folder being read again keeps the running read (and its progress).
