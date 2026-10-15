@@ -5,6 +5,7 @@ use std::time::Duration;
 use serde_json::json;
 
 use crate::headless::Headless;
+use crate::panels::edit::ParametricCurve;
 use crate::{LightcraftApp, Services};
 
 const T: Duration = Duration::from_secs(20);
@@ -220,4 +221,177 @@ fn curve_points_from_an_agent_are_stored_in_order() {
     h.step();
     let c = pts(&develop(&h).curve.green);
     assert!(c[1].0 < c[2].0, "dragged up to its neighbour, not past it: {c:?}");
+}
+
+/// The settings the parametric graph is drawn from: two neighbouring regions pushed opposite ways,
+/// where the raw sum of their bumps folds back on itself before the renderer's running maximum
+/// straightens it out.
+fn folded_regions() -> lightcraft_develop::ToneCurve {
+    lightcraft_develop::ToneCurve { shadows: 90.0, darks: -80.0, lights: -70.0, highlights: 60.0, ..Default::default() }
+}
+
+/// The bare sum of the four region bumps is not monotone, so the drawn curve needs the renderer's
+/// running maximum: this is the shape that made the graph disagree with the sliders.
+#[test]
+fn the_parametric_model_is_monotone_where_the_bare_sum_of_bumps_is_not() {
+    let c = folded_regions();
+    let raw = |x: f64| {
+        let s = [0.0, c.split_shadows / 100.0, c.split_mid / 100.0, c.split_highlights / 100.0, 1.0];
+        let amounts = [c.shadows, c.darks, c.lights, c.highlights];
+        let mut d = 0.0;
+        for i in 0..4 {
+            let (a, b) = (s[i], s[i + 1]);
+            let (ctr, half) = ((a + b) / 2.0, (b - a) * 0.75 + 0.05);
+            let t = ((x - ctr) / half).clamp(-1.0, 1.0);
+            d += amounts[i] / 100.0 * 0.22 * (0.5 + 0.5 * (t * std::f64::consts::PI).cos());
+        }
+        x + d * 4.0 * x * (1.0 - x)
+    };
+    assert!((0..=64).any(|i| raw(i as f64 / 64.0) < raw((i + 1) as f64 / 64.0)), "the shape folds back, or it proves nothing");
+    let model = ParametricCurve::new(&c);
+    let mut prev = f64::MIN;
+    for i in 0..=256 {
+        let y = model.at(i as f64 / 256.0);
+        assert!(y >= prev - 1e-12, "the model never folds back, at {i}: {y} < {prev}");
+        prev = y;
+    }
+}
+
+/// What the graph *paints* is the model the renderer computes from the sliders. They used to be two
+/// copies of the formula and the panel's copy was missing the renderer's monotone pass, so the drawn
+/// line could fold back while the renderer straightened it: the graph and the sliders below it
+/// disagreed. This reads the painted line itself, not the function behind it.
+#[test]
+fn the_parametric_graph_paints_the_model_the_renderer_uses() {
+    let mut h = curve_open("parametric");
+    let c = folded_regions();
+    for (control, value) in [("curve.shadows", c.shadows), ("curve.darks", c.darks), ("curve.lights", c.lights), ("curve.highlights", c.highlights)] {
+        exec(&mut h, "develop.set", json!({"control": control, "value": value}));
+    }
+    h.step();
+    h.step();
+    let settings = develop(&h).curve;
+    assert_eq!(settings, c, "the sliders hold the folded shape");
+    let graph = curve_graph_rect(&mut h);
+    let painted = painted_param_curve(&h, graph);
+    let model = ParametricCurve::new(&c);
+    let mut checked = 0;
+    for i in 0..=24 {
+        let x = i as f64 / 24.0;
+        let want = model.at(x);
+        let got = painted(x);
+        assert!((got - want).abs() < 0.02, "the painted curve is the renderer's at {x}: painted {got}, model {want}");
+        checked += 1;
+    }
+    assert_eq!(checked, 25);
+    // and the shape really does fold back before the monotone pass, so this proves something
+    assert!(model.at(0.6) > model.at(0.3), "the region bumps still bend the curve");
+}
+
+/// The graph rect as `[left, top, width, height]` plus a reader for the painted curve's height at a
+/// graph fraction (0 = the bottom of the graph, 1 = the top).
+fn curve_graph_rect(h: &mut Headless) -> [f32; 4] {
+    let r = h.request("ui.widgets", json!({"filter": "curve"}), T);
+    let w = r["result"].as_array().unwrap().iter().find(|w| w["id"] == "curve").cloned().unwrap_or_else(|| panic!("curve widget on screen: {r}"));
+    let v = w["rect"].as_array().unwrap();
+    std::array::from_fn(|i| v[i].as_f64().unwrap() as f32)
+}
+
+/// A reader for the height of the painted parametric curve at a graph fraction. The curve is the
+/// wide grey path the graph draws; the histogram is a mesh and the grid lines are single segments.
+fn painted_param_curve(h: &Headless, r: [f32; 4]) -> impl Fn(f64) -> f64 {
+    let points = h
+        .view
+        .painted_shapes()
+        .into_iter()
+        .find_map(|s| match s {
+            egui::Shape::Path(p) if p.points.len() > 32 && (p.stroke.width - 2.0).abs() < 0.1 => Some(p.points),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("the parametric curve line is painted"));
+    move |x: f64| {
+        let want_x = r[0] + x as f32 * r[2];
+        let q = points
+            .iter()
+            .min_by(|a, b| (a.x - want_x).abs().total_cmp(&(b.x - want_x).abs()))
+            .copied()
+            .unwrap_or_else(|| panic!("the curve has points"));
+        ((r[1] + r[3] - q.y) / r[3]).clamp(0.0, 1.0) as f64
+    }
+}
+
+/// The tone the parametric graph paints at `x`, read by value from the painted line. Stepped first
+/// so the panel has drawn the state the command left behind.
+fn painted_tone(h: &mut Headless, x: f64) -> f64 {
+    h.step();
+    h.step();
+    let r = curve_graph_rect(h);
+    painted_param_curve(h, r)(x)
+}
+
+/// Where the midtones sit on a linear curve: a point well inside the Lights region, so lifting
+/// Lights bends the line there.
+const MID: f64 = 0.625;
+
+/// Reset restores the four sliders *and* puts the graph back to the straight diagonal, as one state.
+#[test]
+fn reset_clears_the_sliders_and_the_graph_together() {
+    let mut h = curve_open("parametric");
+    let straight = painted_tone(&mut h, MID);
+    assert!((straight - MID).abs() < 0.02, "a fresh parametric curve is the diagonal: {straight}");
+    exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 60}));
+    let bent = painted_tone(&mut h, MID);
+    assert!(bent > MID + 0.02, "the graph follows the slider up: {bent}");
+    let undo_before = h.app.session.undo.len();
+    click_widget(&mut h, "button:curveReset", 1);
+    let c = develop(&h).curve;
+    assert_eq!(c, lightcraft_develop::ToneCurve::default(), "Reset puts every slider and split back: {c:?}");
+    let flat = painted_tone(&mut h, MID);
+    assert!((flat - MID).abs() < 0.02, "and the graph is the diagonal again: {flat}");
+    assert_eq!(h.app.session.undo.len(), undo_before + 1, "Reset is one undo step");
+}
+
+/// Undo after a Reset brings back both the slider and the graph: the state the graph draws is the
+/// state Undo restores, so the two can never be left showing different things.
+#[test]
+fn undo_restores_the_slider_and_the_graph_together() {
+    let mut h = curve_open("parametric");
+    exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 60}));
+    let bent = painted_tone(&mut h, MID);
+    assert!(bent > MID + 0.02, "the graph is bent: {bent}");
+    click_widget(&mut h, "button:curveReset", 1);
+    assert_eq!(develop(&h).curve, lightcraft_develop::ToneCurve::default(), "reset first");
+    exec(&mut h, "edit.undo", json!({}));
+    let c = develop(&h).curve;
+    assert_eq!(c.lights, 60.0, "Undo brings the slider back: {c:?}");
+    let again = painted_tone(&mut h, MID);
+    assert!(again > MID + 0.02, "and the graph is bent with it, not left flat: {again}");
+    // redo puts the diagonal back, and the graph follows that too
+    exec(&mut h, "edit.redo", json!({}));
+    assert_eq!(develop(&h).curve, lightcraft_develop::ToneCurve::default(), "redo restores the reset");
+    let flat = painted_tone(&mut h, MID);
+    assert!((flat - MID).abs() < 0.02, "the graph is flat with the sliders: {flat}");
+}
+
+/// One graph drag that bends several regions at once is one undo step: Ctrl+Z takes back the whole
+/// gesture, not the last slider it happened to touch.
+#[test]
+fn one_graph_drag_that_moves_several_regions_is_one_undo_step() {
+    let mut h = curve_open("parametric");
+    exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": 40}));
+    exec(&mut h, "develop.set", json!({"control": "curve.darks", "value": -40}));
+    let before = develop(&h).curve;
+    let undo_before = h.app.session.undo.len();
+    // drag the Lights slider's own track, the way a graph handle writes it: begin, live updates, end
+    exec(&mut h, "develop.beginInteraction", json!({"label": "Parametric Curve"}));
+    for v in [45, 55, 70, 85] {
+        exec(&mut h, "develop.set", json!({"control": "curve.lights", "value": v}));
+    }
+    exec(&mut h, "develop.endInteraction", json!({}));
+    let after = develop(&h).curve;
+    assert_eq!(after.lights, 85.0, "the drag ended at its last value: {after:?}");
+    assert_ne!(after, before, "the drag changed the state");
+    assert_eq!(h.app.session.undo.len(), undo_before + 1, "the whole drag is one step, not one per frame");
+    exec(&mut h, "edit.undo", json!({}));
+    assert_eq!(develop(&h).curve, before, "undo takes back the whole gesture at once");
 }

@@ -4,7 +4,7 @@
 use egui::epaint::{Mesh, Vertex};
 use egui::{Align2, Color32, Pos2, Rect, RichText, Sense, Stroke, pos2, vec2};
 use lightcraft_catalog::PhotoId;
-use lightcraft_develop::{ControlSpec, DevelopSettings, Section, Track, WbMode, controls};
+use lightcraft_develop::{ControlSpec, DevelopSettings, Section, ToneCurve, Track, WbMode, controls};
 use lightcraft_geom::Point;
 use lightcraft_raster::Histogram;
 use serde_json::{Value, json};
@@ -929,6 +929,65 @@ fn draw_curve_histogram(p: &egui::Painter, r: Rect, h: &lightcraft_raster::Histo
     p.add(mesh);
 }
 
+/// The four shape controls of the parametric curve, in graph order: region 0 is the darkest.
+pub(crate) const PARAM_AMOUNTS: [&str; 4] = ["curve.shadows", "curve.darks", "curve.lights", "curve.highlights"];
+/// Resolution the parametric curve is sampled at, matching `lightcraft_pipeline::finish`'s table.
+const PARAM_LUT: usize = 1024;
+/// Segments the graph's curve line is drawn with.
+pub(crate) const CURVE_SAMPLES: i32 = 96;
+
+/// The parametric (region) curve of a [`ToneCurve`]: the four region amounts, each a cosine bump
+/// over its window between two splits, summed and then forced monotone.
+///
+/// This is the renderer's curve, not an approximation of it — `lightcraft_pipeline::finish::curve_luts`
+/// builds the same shape (its own table, whose `x` is the encoded level the curve sees). The graph
+/// draws this curve, so the line and the sliders can never disagree: both come from the settings,
+/// recomputed every frame, with no state of their own.
+///
+/// The running maximum is what makes the curve monotone. Two neighbouring regions pushed opposite
+/// ways can otherwise fold it back on itself, and a fold is exactly what a drawn line used to show
+/// while the renderer straightened it out.
+pub(crate) struct ParametricCurve {
+    lut: [f32; PARAM_LUT],
+}
+
+impl ParametricCurve {
+    pub(crate) fn new(c: &ToneCurve) -> ParametricCurve {
+        let s = [(c.split_shadows / 100.0) as f32, (c.split_mid / 100.0) as f32, (c.split_highlights / 100.0) as f32];
+        let amounts = [c.shadows, c.darks, c.lights, c.highlights];
+        let regions = [(0.0, s[0], amounts[0]), (s[0], s[1], amounts[1]), (s[1], s[2], amounts[2]), (s[2], 1.0, amounts[3])];
+        let mut lut = [0.0_f32; PARAM_LUT];
+        let mut prev = 0.0_f32;
+        for i in 0..PARAM_LUT {
+            let x = i as f32 / (PARAM_LUT - 1) as f32;
+            let mut d = 0.0_f32;
+            for (a, b, amt) in regions {
+                if amt == 0.0 {
+                    continue;
+                }
+                let (ctr, half) = ((a + b) / 2.0, (b - a) * 0.75 + 0.05);
+                let t = ((x - ctr) / half).clamp(-1.0, 1.0);
+                d += (amt / 100.0) as f32 * 0.22 * (0.5 + 0.5 * (t * std::f32::consts::PI).cos());
+            }
+            let y = (x + d * 4.0 * x * (1.0 - x)).clamp(0.0, 1.0);
+            // the running maximum: the renderer's own monotone pass
+            prev = prev.max(y);
+            lut[i] = prev;
+        }
+        ParametricCurve { lut }
+    }
+
+    /// The curve at `x` (0 = black, 1 = white), read off the table (so it never overshoots the ends).
+    pub(crate) fn at(&self, x: f64) -> f64 {
+        let x = x.clamp(0.0, 1.0) as f32;
+        let at = x * (PARAM_LUT - 1) as f32;
+        let i = at.floor().clamp(0.0, (PARAM_LUT - 1) as f32) as usize;
+        let next = self.lut.get(i + 1).copied().unwrap_or(self.lut[i]);
+        let f = at - i as f32;
+        (self.lut[i] + (next - self.lut[i]) * f) as f64
+    }
+}
+
 fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &DevelopSettings) {
     let t = Tokens::get(ui.ctx());
     // channel selector
@@ -1005,29 +1064,16 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
     let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
     let from_screen = |q: Pos2| (((q.x - r.left()) / r.width()).clamp(0.0, 1.0) as f64, ((r.bottom() - q.y) / r.height()).clamp(0.0, 1.0) as f64);
     if ch == "parametric" {
-        // draw the effective parametric curve by sampling the pipeline's region curve approximation
+        // The Effective curve: the model the renderer builds from the four region sliders, sampled
+        // here and rebuilt every frame. The graph holds no state of its own, so a slider moved by
+        // hand, a Reset or an Undo redraws it from the settings in the same frame it changes.
         let c = &d.curve;
-        let regions = [
-            (0.0, c.split_shadows / 100.0, c.shadows),
-            (c.split_shadows / 100.0, c.split_mid / 100.0, c.darks),
-            (c.split_mid / 100.0, c.split_highlights / 100.0, c.lights),
-            (c.split_highlights / 100.0, 1.0, c.highlights),
-        ];
-        let pts: Vec<Pos2> = (0..=64)
-            .map(|i| {
-                let x = i as f64 / 64.0;
-                let mut dd = 0.0;
-                for (a, b, amt) in regions {
-                    let (ctr, half) = ((a + b) / 2.0, (b - a) * 0.75 + 0.05);
-                    let tt = ((x - ctr) / half).clamp(-1.0, 1.0);
-                    dd += amt / 100.0 * 0.22 * (0.5 + 0.5 * (tt * std::f64::consts::PI).cos());
-                }
-                to_screen(x, (x + dd * 4.0 * x * (1.0 - x)).clamp(0.0, 1.0))
-            })
-            .collect();
+        let model = ParametricCurve::new(c);
+        let pts: Vec<Pos2> =
+            (0..=CURVE_SAMPLES).map(|i| to_screen(i as f64 / CURVE_SAMPLES as f64, model.at(i as f64 / CURVE_SAMPLES as f64))).collect();
         p.add(egui::Shape::line(pts, Stroke::new(2.0, Color32::from_gray(220))));
         curve_footer(app, ui, d);
-        for c in ["curve.highlights", "curve.lights", "curve.darks", "curve.shadows"] {
+        for c in PARAM_AMOUNTS {
             control(app, ui, d, c, true);
         }
         control(app, ui, d, "curve.refineSaturation", true);
