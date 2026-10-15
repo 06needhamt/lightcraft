@@ -503,7 +503,9 @@ fn packed(bytes: &[u8], info: &ImageInfo, rows: usize) -> Result<RawData> {
             "Nikon compressed NEF without a linearization table (maker note 0x96)".into()
         }));
     };
-    let src = lightcraft_tiff::image::chunk_bytes(bytes, c).ok_or_else(|| RawError::Corrupt("NEF: image data outside the file".into()))?;
+    let src = lightcraft_tiff::image::chunk_bytes(bytes, c)
+        .filter(|src| u64::try_from(src.len()).ok() == Some(c.len))
+        .ok_or_else(|| RawError::Corrupt("NEF: incomplete image strip".into()))?;
     if (w as u64).saturating_mul(h as u64) > crate::MAX_SAMPLES as u64 {
         return Err(RawError::Limit("image too large"));
     }
@@ -1159,5 +1161,29 @@ mod tests {
         let mut bytes = nef(34713, 12, vec![vec![0x55; 60 * 6]], 40, 6, 6);
         bytes.truncate(bytes.len() - 100);
         assert!(crate::decode(&bytes).is_err(), "a truncated packed strip is corrupt");
+    }
+    /// Keep every directory intact before a relocated tail strip, then remove its last rows.
+    fn truncated_tail_strip(mut bytes: Vec<u8>, keep: usize) -> Vec<u8> {
+        let tiff = Tiff::parse(&bytes).unwrap();
+        let raw = raw_ifd(&tiff).unwrap();
+        let info = raw.image().unwrap();
+        let chunk = info.chunks(bytes.len() as u64)[0];
+        let data = lightcraft_tiff::image::chunk_bytes(&bytes, &chunk).unwrap().to_vec();
+        let offset_entry = raw.get(t::STRIP_OFFSETS).unwrap().offset as usize;
+        let start = bytes.len() as u32;
+        bytes[offset_entry..offset_entry + 4].copy_from_slice(&start.to_be_bytes());
+        bytes.extend_from_slice(&data[..keep]);
+        bytes
+    }
+
+    #[test]
+    fn packed_rejects_tail_truncation_with_intact_directories() {
+        let bytes = nef(34713, 12, vec![vec![0x55; 360]], 40, 6, 6);
+        for keep in [0, 60, 359] {
+            let short = truncated_tail_strip(bytes.clone(), keep);
+            for mode in [Mode::Header, Mode::Full] {
+                assert!(matches!(decode(&short, mode), Err(RawError::Corrupt(_))));
+            }
+        }
     }
 }
