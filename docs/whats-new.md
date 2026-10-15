@@ -118,6 +118,13 @@
   Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
   the area the camera itself frames, a few pixels smaller than before.
 
+### An empty library leads to Import
+- A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
+  Detail view that pointed at an empty grid. The grid and Detail view offer Import Photos… and, in the desktop app,
+  Import Lightroom Catalog… as buttons, and say that photos (and, in the desktop app, folders) can be dropped into
+  the window. The shortcut they show is the one Import Photos… has now.
+- The top bar has an Import button, beside Export, in every library.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
