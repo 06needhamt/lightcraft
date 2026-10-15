@@ -160,11 +160,15 @@ const MAX_TAPER_STEPS: usize = 64;
 fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<BrushStroke> {
     let Some(&first) = to.points.first() else { return vec![to] };
     let same = |a: f64, b: f64| (a - b).abs() <= 1e-9;
+    // pen pressure along the line: the last dab's at its start, the click's at its end (none when neither has any)
+    let pressured = !last.pressure.is_empty() || !to.pressure.is_empty();
+    let (p_from, p_to) = (last.pressure_at(0), to.pressure_at(0));
     if same(last.size, to.size) && same(last.feather, to.feather) && same(last.flow, to.flow) {
         let mut points = Vec::with_capacity(to.points.len() + 1);
         points.push(from);
         points.extend(to.points.iter().copied());
-        return vec![BrushStroke { points, ..to }];
+        let pressure = if pressured { std::iter::once(p_from).chain((0..to.points.len()).map(|i| to.pressure_at(i))).collect() } else { Vec::new() };
+        return vec![BrushStroke { points, pressure, ..to }];
     }
     // about 5% of size, or 2 points of feather or flow, per piece
     let ratio = if last.size > 0.0 && to.size > 0.0 { (to.size / last.size).ln().abs() / 1.05f64.ln() } else { 0.0 };
@@ -178,11 +182,13 @@ fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<Br
     let mut out: Vec<BrushStroke> = (0..steps)
         .map(|i| {
             let (t0, t1) = (i as f64 / steps as f64, (i + 1) as f64 / steps as f64);
+            let p = |t: f64| (f64::from(p_from) + (f64::from(p_to) - f64::from(p_from)) * t) as f32;
             BrushStroke {
                 points: vec![at(t0), at(t1)],
                 size: lerp(last.size, to.size, t1),
                 feather: lerp(last.feather, to.feather, t1),
                 flow: lerp(last.flow, to.flow, t1),
+                pressure: if pressured { vec![p(t0), p(t1)] } else { Vec::new() },
                 ..to.clone()
             }
         })
@@ -221,11 +227,14 @@ pub fn specs() -> Vec<CommandSpec> {
                     return Ok(json!({"pending": true}));
                 }
                 let next = s.active().and_then(|id| s.develop_of(id)).map(|d| d.next_mask_id()).unwrap_or(1);
+                // the effect last applied to a mask of this kind
+                let adjust = super::mask_effects::new_mask_adjust(s, &kind);
                 let out = masks_edit(s, "mask.add", "Add Mask", |masks, active| {
                     masks.push(Mask {
                         id: next,
                         name: name.unwrap_or_else(|| format!("Mask {next}")),
                         components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape }],
+                        adjust,
                         ..Default::default()
                     });
                     *active = Some(next);
@@ -273,7 +282,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Brush Stroke",
             [],
             None,
-            "{id?: maskId, points: [[x,y],…] normalized, size?: fraction of long edge (0.03), feather?, flow?, density?, erase?: bool, autoMask?: bool, connect?: bool — start from the last point of the mask's last stroke (⇧-click), size / feather / flow tapering from that stroke's to these} → {activeMask, connected}",
+            "{id?: maskId, points: [[x,y],…] normalized, size?: fraction of long edge (0.03), feather?, flow?, density?, erase?: bool, autoMask?: bool, pressure?: [p,…] pen pressure 0..1 per point (scales each dab's size and flow; omitted: full), connect?: bool — start from the last point of the mask's last stroke (⇧-click), size / feather / flow tapering from that stroke's to these} → {activeMask, connected}",
             has_active,
             |s, p| {
                 let pts: Vec<Point> = p
@@ -283,6 +292,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     .iter()
                     .filter_map(|q| Some(Point::new(q.get(0)?.as_f64()?, q.get(1)?.as_f64()?)))
                     .collect();
+                let pts_len = pts.len();
                 let d = BrushStroke::default();
                 let stroke = BrushStroke {
                     points: pts,
@@ -292,16 +302,18 @@ pub fn specs() -> Vec<CommandSpec> {
                     density: f64_or(p, "density", d.density),
                     erase: bool_or(p, "erase", false),
                     auto_mask: bool_or(p, "autoMask", false),
+                    pressure: pressure_list(p.get("pressure"), pts_len)?,
                 };
                 let connect = bool_or(p, "connect", false);
                 let mut connected = false;
                 let next = s.active().and_then(|id| s.develop_of(id)).map(|d| d.next_mask_id()).unwrap_or(1);
                 let want = p.get("id").and_then(Value::as_u64).map(|v| v as u32).or(s.active_mask);
+                let adjust = super::mask_effects::new_mask_adjust(s, "brush");
                 let mut out = masks_edit(s, "mask.brushStroke", "Brush", |masks, active| {
                     let i = match want.and_then(|m| masks.iter().position(|x| x.id == m)) {
                         Some(i) => i,
                         None => {
-                            masks.push(Mask { id: next, name: format!("Mask {next}"), ..Default::default() });
+                            masks.push(Mask { id: next, name: format!("Mask {next}"), adjust, ..Default::default() });
                             *active = Some(next);
                             masks.len() - 1
                         }
@@ -314,7 +326,15 @@ pub fn specs() -> Vec<CommandSpec> {
                         let anchor = strokes.last().filter(|_| connect).and_then(|l| {
                             Some((
                                 *l.points.last()?,
-                                BrushStroke { points: Vec::new(), size: l.size, feather: l.feather, flow: l.flow, ..BrushStroke::default() },
+                                BrushStroke {
+                                    points: Vec::new(),
+                                    size: l.size,
+                                    feather: l.feather,
+                                    flow: l.flow,
+                                    // the pressure the last dab was painted with, when the stroke recorded any
+                                    pressure: if l.pressure.is_empty() { Vec::new() } else { vec![l.pressure_at(l.points.len().saturating_sub(1))] },
+                                    ..BrushStroke::default()
+                                },
                             ))
                         });
                         match anchor {
@@ -983,7 +1003,7 @@ pub fn specs() -> Vec<CommandSpec> {
             has_active,
             |s, p| {
                 let c = "redeye.catchlight";
-                let i = super::f64_req(p, "index", c)? as usize;
+                let i = super::index_req(p, "index", c)?;
                 let id = s.active().ok_or_else(|| bad(c, "no active photo"))?;
                 let mut dd = (*s.develop_of(id).unwrap_or_default()).clone();
                 let eye = dd.red_eye.get_mut(i).ok_or_else(|| bad(c, "no such eye"))?;
@@ -998,7 +1018,7 @@ pub fn specs() -> Vec<CommandSpec> {
         ),
         cmd!("redeye.delete", "Delete Red Eye Correction", [], None, "{index}", has_active, |s, p| {
             let c = "redeye.delete";
-            let i = super::f64_req(p, "index", c)? as usize;
+            let i = super::index_req(p, "index", c)?;
             let id = s.active().ok_or_else(|| bad(c, "no active photo"))?;
             let mut dd = (*s.develop_of(id).unwrap_or_default()).clone();
             if i >= dd.red_eye.len() {
@@ -1041,7 +1061,7 @@ fn pick_source(s: &mut Session, id: crate::PhotoId, d: &lightcraft_develop::Deve
     lightcraft_pipeline::spots::pick_source(&src, &info, d, spot, avoid)
 }
 
-fn clamp_local(mut a: LocalAdjustments) -> LocalAdjustments {
+pub(crate) fn clamp_local(mut a: LocalAdjustments) -> LocalAdjustments {
     let c = |v: &mut f64, lo: f64, hi: f64| *v = if v.is_finite() { v.clamp(lo, hi) } else { 0.0 };
     c(&mut a.exposure, -4.0, 4.0);
     for v in [
@@ -1068,4 +1088,18 @@ fn clamp_local(mut a: LocalAdjustments) -> LocalAdjustments {
     c(&mut a.color_sat, 0.0, 100.0);
     c(&mut a.amount, 0.0, 200.0);
     a
+}
+
+/// `mask.brushStroke`'s `pressure`: one number 0..1 per point (clamped), at most one per point; absent or `null`
+/// is no pressure data.
+fn pressure_list(v: Option<&Value>, points: usize) -> Result<Vec<f32>> {
+    let Some(v) = v.filter(|v| !v.is_null()) else { return Ok(Vec::new()) };
+    let list = v.as_array().ok_or_else(|| bad("mask.brushStroke", "pressure must be a list of numbers 0..1"))?;
+    if list.len() > points {
+        return Err(bad("mask.brushStroke", "pressure has more values than points"));
+    }
+    list.iter()
+        .map(|q| q.as_f64().filter(|f| f.is_finite()).map(|f| f.clamp(0.0, 1.0) as f32))
+        .collect::<Option<Vec<f32>>>()
+        .ok_or_else(|| bad("mask.brushStroke", "pressure must be a list of numbers 0..1"))
 }
