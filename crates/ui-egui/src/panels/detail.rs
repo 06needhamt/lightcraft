@@ -707,6 +707,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if app.ui.show_clipping && !show_before && !fullscreen {
         clipping_overlay(app, &p, img_rect);
     }
+    // View ▸ Loupe Overlay ▸ Layout Image, over the photo (the After view in a before/after)
+    super::layout_overlay::draw(app, &p, img_rect);
     register(ui.ctx(), "canvas:image", img_rect);
     let map = CanvasMap::new(&frame, img_rect);
     info_overlay(app, &p, canvas, &photo);

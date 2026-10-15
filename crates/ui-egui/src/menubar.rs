@@ -136,6 +136,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "view.histogram",
             "view.navigator",
             "view.infoOverlay",
+            "@Loupe Overlay",
             "@Appearance",
             "---",
             "view.fullScreenPreview",
@@ -330,6 +331,7 @@ pub fn checked(app: &LightcraftApp, id: &str) -> Option<bool> {
         "view.filterBar" => Some(u.filter_bar),
         "view.soloSections" => Some(u.single_panel),
         "view.navigator" => Some(u.navigator),
+        "view.layoutImage" => Some(u.layout_image.show && !u.layout_image.path.trim().is_empty()),
         "view.fullScreenPreview" => Some(u.fullscreen),
         "view.lightsOut" => Some(u.lights_out != crate::state::LightsOut::On),
         "view.enterFullScreen" => Some(app.window_is_fullscreen),
@@ -368,7 +370,7 @@ fn live_label(app: &LightcraftApp, id: &str, label: &str) -> String {
 }
 
 /// The parameterized submenus.
-fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
+pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
     let active = app.session.active().and_then(|id| app.session.catalog.photo(id).cloned());
     let has = active.is_some();
     Some(match name {
@@ -505,6 +507,36 @@ fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>> {
                     let on = if k.is_dark() { s.dark_theme.kind() == k } else { s.light_theme.kind() == k };
                     v.push(item("view.theme", json!({"theme": k.id()}), k.label(), None, true, Some(on)));
                 }
+            }
+            v
+        }
+        "Loupe Overlay" => {
+            // Lightroom Classic's View ▸ Loupe Overlay ▸ Layout Image: choose the graphic, show it,
+            // and how opaque it is and how dark the photo is outside it
+            let li = &app.ui.layout_image;
+            let chosen = !li.path.trim().is_empty();
+            let mut v = vec![
+                item("view.chooseLayoutImage", Value::Null, "Choose Layout Image…", None, true, None),
+                item(
+                    "view.layoutImage",
+                    Value::Null,
+                    "Show Layout Image",
+                    crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.layoutImage"),
+                    chosen,
+                    Some(li.show && chosen),
+                ),
+                MenuNode::Separator,
+            ];
+            let near = |a: f32, b: f32| (a - b).abs() < 0.005;
+            for step in crate::state::LayoutImage::OPACITY_STEPS {
+                let label = format!("{} {:.0}%", crate::i18n::tr("Opacity"), step * 100.0);
+                v.push(item("view.layoutImageOpacity", json!({"opacity": step}), label, None, chosen, Some(near(li.opacity, step))));
+            }
+            v.push(MenuNode::Separator);
+            for step in crate::state::LayoutImage::MATTE_STEPS {
+                let label =
+                    if step == 0.0 { crate::i18n::tr("No Matte").to_string() } else { format!("{} {:.0}%", crate::i18n::tr("Matte"), step * 100.0) };
+                v.push(item("view.layoutImageMatte", json!({"matte": step}), label, None, chosen, Some(near(li.matte, step))));
             }
             v
         }

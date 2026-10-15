@@ -116,6 +116,10 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.lightsOut", "Lights Out", Some("Shift+L"), "View"),
     ("view.enterFullScreen", "Enter Full Screen", Some("Cmd+Shift+F"), "View"),
     ("view.infoOverlay", "Cycle Info Overlay", Some("Cmd+I"), "View"),
+    ("view.chooseLayoutImage", "Choose Layout Image…", None, "View"),
+    ("view.layoutImage", "Show Layout Image", Some("Cmd+Alt+O"), "View"),
+    ("view.layoutImageOpacity", "Layout Image Opacity", None, ""),
+    ("view.layoutImageMatte", "Layout Image Matte", None, ""),
     ("view.navigator", "Navigator", None, "View"),
     ("panel.edit", "Edit", Some("E"), "Window"),
     ("panel.profiles", "Profile Browser", None, "Window"),
@@ -666,6 +670,54 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             };
             app.toast(&ctx, label);
             Ok(json!({"infoOverlay": app.ui.info_overlay}))
+        }
+        "view.chooseLayoutImage" => {
+            let path = match p.get("path").and_then(Value::as_str) {
+                Some(path) => path.trim().to_string(),
+                None => {
+                    let req = PickRequest::file(crate::i18n::tr("Choose Layout Image…"), "PNG", &["png"]);
+                    match crate::pick::ask(app, id, p, "path", req, |s| s.pick_files.as_mut().map(|f| f())) {
+                        Picked::Now(paths) => match paths.first() {
+                            Some(path) => path.trim().to_string(),
+                            None => return Some(Ok(Value::Null)),
+                        },
+                        Picked::Later => return Some(Ok(Value::Null)),
+                        Picked::Unavailable => return Some(Err("no file dialog on this platform; supply path".into())),
+                    }
+                }
+            };
+            if path.is_empty() {
+                return Some(Err("view.chooseLayoutImage: path is empty".into()));
+            }
+            let li = &mut app.ui.layout_image;
+            li.path = path;
+            li.show = true;
+            li.revision = li.revision.wrapping_add(1);
+            app.toast(&ctx, "Layout Image On");
+            Ok(json!({"layoutImage": app.ui.layout_image}))
+        }
+        "view.layoutImage" => {
+            let show = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.layout_image.show);
+            // nothing chosen yet: showing it chooses one first
+            if show && app.ui.layout_image.path.trim().is_empty() {
+                return run_ui_command(app, "view.chooseLayoutImage", &json!({}));
+            }
+            app.ui.layout_image.show = show;
+            app.toast(&ctx, if show { "Layout Image On" } else { "Layout Image Off" });
+            Ok(json!({"layoutImage": app.ui.layout_image}))
+        }
+        "view.layoutImageOpacity" | "view.layoutImageMatte" => {
+            let key = if id == "view.layoutImageOpacity" { "opacity" } else { "matte" };
+            let Some(v) = p.get(key).and_then(Value::as_f64).filter(|v| v.is_finite()) else {
+                return Some(Err(format!("{id}: {key} (0..1) is required")));
+            };
+            let v = v.clamp(0.0, 1.0) as f32;
+            if key == "opacity" {
+                app.ui.layout_image.opacity = v;
+            } else {
+                app.ui.layout_image.matte = v;
+            }
+            Ok(json!({"layoutImage": app.ui.layout_image}))
         }
         "view.navigator" => {
             app.ui.navigator = !app.ui.navigator;
