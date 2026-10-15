@@ -345,5 +345,15 @@ being processed finishes first: completed photos remain, each written with the e
 file writer, and there are no partial files to delete. Unrelated outputs and earlier exports
 are untouched. A failed export is an `isError` tool result. Transport mutexes recover poisoning.
 
+If a protocol write or flush fails, the CLI reports the output error and shuts down without
+waiting for stdin to close. Output failures are observable only when writing. An active direct
+headless export stops at the next photo boundary; a synchronous command and normal backend
+cleanup must finish first. Completed exports and library cleanup retain their usual guarantees.
+
+Library callers serving process stdin use `Server::serve_stdio(stdout())` once per process and
+exit after it returns. Its single stdin worker may remain blocked until process exit. The generic
+`Server::serve(input, output)` keeps borrowed input scoped: its caller must arrange input EOF or
+an input error, even when output fails.
+
 Connect mode and exports inside `command_batch` remain synchronous and do not report MCP
 progress or cancellation. Use a direct headless export call for this behavior.

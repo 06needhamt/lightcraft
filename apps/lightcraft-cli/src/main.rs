@@ -17,7 +17,7 @@
 
 mod alloc_release;
 
-use std::io::{BufReader, Write};
+use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -364,8 +364,7 @@ fn mcp(args: &[String]) -> Result<(), String> {
     };
     eprintln!("lightcraft-cli mcp: serving MCP on stdio ({})", backend.describe());
     let mut server = Server::new(backend).with_command_tools(!compact);
-    let stdin = std::io::stdin();
-    server.serve(BufReader::new(stdin), std::io::stdout()).map_err(|e| e.to_string())
+    server.serve_stdio(std::io::stdout()).map_err(|e| e.to_string())
 }
 
 fn merge(args: &[String]) -> Result<(), String> {
