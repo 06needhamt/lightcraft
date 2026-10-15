@@ -931,8 +931,12 @@ fn draw_curve_histogram(p: &egui::Painter, r: Rect, h: &lightcraft_raster::Histo
 
 /// The four shape controls of the parametric curve, in graph order: region 0 is the darkest.
 pub(crate) const PARAM_AMOUNTS: [&str; 4] = ["curve.shadows", "curve.darks", "curve.lights", "curve.highlights"];
+/// The three region boundaries between those four regions, in graph order.
+pub(crate) const PARAM_SPLITS: [&str; 3] = ["curve.splitShadows", "curve.splitMid", "curve.splitHighlights"];
 /// Resolution the parametric curve is sampled at, matching `lightcraft_pipeline::finish`'s table.
 const PARAM_LUT: usize = 1024;
+/// Radius (screen points) within which the pointer counts as being on a curve handle.
+pub(crate) const CURVE_HIT: f32 = 8.0;
 /// Segments the graph's curve line is drawn with.
 pub(crate) const CURVE_SAMPLES: i32 = 96;
 
@@ -948,13 +952,19 @@ pub(crate) const CURVE_SAMPLES: i32 = 96;
 /// ways can otherwise fold it back on itself, and a fold is exactly what a drawn line used to show
 /// while the renderer straightened it out.
 pub(crate) struct ParametricCurve {
+    /// The curve, sampled and already forced monotone.
     lut: [f32; PARAM_LUT],
+    /// The three region boundaries as fractions of the graph.
+    pub(crate) splits: [f64; 3],
+    /// The four region amounts, in graph order (0 = the darkest).
+    pub(crate) amounts: [f64; 4],
 }
 
 impl ParametricCurve {
     pub(crate) fn new(c: &ToneCurve) -> ParametricCurve {
-        let s = [(c.split_shadows / 100.0) as f32, (c.split_mid / 100.0) as f32, (c.split_highlights / 100.0) as f32];
+        let splits = [c.split_shadows / 100.0, c.split_mid / 100.0, c.split_highlights / 100.0];
         let amounts = [c.shadows, c.darks, c.lights, c.highlights];
+        let s = [splits[0] as f32, splits[1] as f32, splits[2] as f32];
         let regions = [(0.0, s[0], amounts[0]), (s[0], s[1], amounts[1]), (s[1], s[2], amounts[2]), (s[2], 1.0, amounts[3])];
         let mut lut = [0.0_f32; PARAM_LUT];
         let mut prev = 0.0_f32;
@@ -974,7 +984,7 @@ impl ParametricCurve {
             prev = prev.max(y);
             lut[i] = prev;
         }
-        ParametricCurve { lut }
+        ParametricCurve { lut, splits, amounts }
     }
 
     /// The curve at `x` (0 = black, 1 = white), read off the table (so it never overshoots the ends).
@@ -986,6 +996,233 @@ impl ParametricCurve {
         let f = at - i as f32;
         (self.lut[i] + (next - self.lut[i]) * f) as f64
     }
+
+    /// Where region `region`'s handle sits on the input axis: the middle of its own window, so a
+    /// handle never has to cross a split to be grabbed.
+    pub(crate) fn region_x(&self, region: usize) -> f64 {
+        let (a, b) = self.region_window(region);
+        (a + b) / 2.0
+    }
+
+    /// The window (two splits, as fractions of the graph) region `region` owns.
+    fn region_window(&self, region: usize) -> (f64, f64) {
+        let s = [self.splits[0], self.splits[1], self.splits[2]];
+        match region {
+            0 => (0.0, s[0]),
+            1 => (s[0], s[1]),
+            2 => (s[1], s[2]),
+            _ => (s[2], 1.0),
+        }
+    }
+
+    /// The half-width of region `region`'s own bump, as fraction of the graph.
+    fn region_half(&self, region: usize) -> f64 {
+        let (a, b) = self.region_window(region);
+        (b - a) * 0.75 + 0.05
+    }
+
+    /// The cosine window region `region` applies at `x` (1 at its centre, 0 at the window edges).
+    fn region_window_at(&self, region: usize, x: f64) -> f64 {
+        let ctr = self.region_x(region);
+        let t = ((x - ctr) / self.region_half(region)).clamp(-1.0, 1.0);
+        0.5 + 0.5 * (t * std::f64::consts::PI).cos()
+    }
+
+    /// The level region `region`'s bump puts the curve at when its slider holds `amount` — where the
+    /// region's handle is drawn. This is the region's *own* bump (the shape Lightroom draws a handle
+    /// on), not the monotone curve through it: the bump is linear in the amount and one-to-one, so a
+    /// drag inverts it exactly and the handle stays under the pointer.
+    pub(crate) fn handle_level(&self, region: usize, amount: f64) -> f64 {
+        let x = self.region_x(region);
+        let bump = amount / 100.0 * 0.22 * self.region_window_at(region, x) * 4.0 * x * (1.0 - x);
+        (x + bump).clamp(0.0, 1.0)
+    }
+
+    /// The amount that puts region `region`'s handle at `level` — the inverse of [`Self::handle_level`].
+    /// A drag that cannot reach the level asked for saturates at ±100 rather than jumping.
+    pub(crate) fn amount_at_level(&self, region: usize, level: f64) -> f64 {
+        let x = self.region_x(region);
+        let per_100 = 0.22 * self.region_window_at(region, x) * 4.0 * x * (1.0 - x);
+        if per_100.abs() <= f64::EPSILON {
+            return 0.0;
+        }
+        (((level.clamp(0.0, 1.0) - x) / per_100) * 100.0).clamp(-100.0, 100.0).round()
+    }
+
+    /// Where split `split` (0..3) sits on the input axis.
+    pub(crate) fn split_x(&self, split: usize) -> f64 {
+        self.splits.get(split).copied().unwrap_or(0.5)
+    }
+
+    /// The graph position split `split` may be dragged to: inside its own window, a step away from
+    /// the splits either side of it so the four regions keep a width.
+    pub(crate) fn split_x_limited(&self, split: usize, x: f64) -> f64 {
+        let lo = if split == 0 { 0.0 } else { self.split_x(split - 1) + SPLIT_MIN_GAP };
+        let hi = if split + 1 >= PARAM_SPLITS.len() { 1.0 } else { self.split_x(split + 1) - SPLIT_MIN_GAP };
+        if lo > hi { (lo + hi) / 2.0 } else { x.clamp(lo, hi) }
+    }
+
+    /// The value split `split`'s slider takes when its handle is dragged to graph position `x`: the
+    /// position read out in that slider's own range, the way its track reads.
+    pub(crate) fn split_value(&self, split: usize, x: f64) -> f64 {
+        let x = self.split_x_limited(split, x);
+        let id = PARAM_SPLITS.get(split).copied().unwrap_or(PARAM_SPLITS[0]);
+        controls::find(id).map_or(x * 100.0, |s| (s.min + x * (s.max - s.min)).round().clamp(s.min, s.max))
+    }
+
+    /// Screen position of a handle's own centre, the level a drag starts from.
+    fn handle_screen_start(&self, h: ParamHandle, r: Rect) -> Pos2 {
+        let (x, y) = match h {
+            ParamHandle::Region(region) => (self.region_x(region), self.handle_level(region, self.amounts[region])),
+            ParamHandle::Split(split) => (self.split_x(split), 0.0),
+        };
+        pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height())
+    }
+}
+
+/// Close a graph drag's `develop` interaction, as one undo step.
+///
+/// It is closed when the drag ends *or* the pointer comes up without egui reporting `drag_stopped`
+/// for this widget (released outside the window, over a popup, or on a frame the widget does not
+/// run). A dangling interaction would make every later edit a silent preview — Undo would then
+/// appear to do nothing at all. Returns whether the drag is over, so the caller clears its state.
+fn commit_interaction(app: &mut LightcraftApp, ui: &egui::Ui, dragging: bool, stopped: bool) -> bool {
+    let released = ui.input(|i| i.pointer.any_released()) || !ui.input(|i| i.pointer.primary_down());
+    if !dragging || !(stopped || released) {
+        return false;
+    }
+    let _ = app.run("develop.endInteraction", json!({}));
+    true
+}
+
+/// One graph drag of the parametric curve: begin the interaction, write the handle's slider on every
+/// frame of the drag, end it on release. Every write goes through `develop.set`, so the slider under
+/// the graph shows the value the handle holds — and the whole drag is one engine interaction, which
+/// is one undo step (Ctrl+Z takes the gesture back, not the last frame of it).
+fn param_handles(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect, resp: &egui::Response, d: &DevelopSettings) {
+    let t = Tokens::get(ui.ctx());
+    let model = ParametricCurve::new(&d.curve);
+    let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
+    let drag_id = egui::Id::new("curve-param-handle-drag");
+    let mut dragged: Option<ParamHandle> = ui.data(|dd| dd.get_temp::<Option<ParamHandle>>(drag_id)).flatten();
+    let hovered = if dragged.is_none() { resp.hover_pos().and_then(|q| param_handle_at(&model, r, q)) } else { None };
+    let mut set: Option<(&'static str, f64)> = None;
+    // The handle is the one under the *press*, not under where the pointer is once the drag
+    // threshold has passed: that can be most of a handle's own width away, so hit-testing the
+    // current position would grab the wrong control (or none at all on a short, quick drag).
+    let press = ui.input(|i| i.pointer.press_origin());
+    let grab = press.or(resp.interact_pointer_pos());
+    if resp.drag_started()
+        && let Some(h) = grab.and_then(|q| param_handle_at(&model, r, q))
+    {
+        let _ = app.run("develop.beginInteraction", json!({"label": "Parametric Curve"}));
+        dragged = Some(h);
+    }
+    if let Some(h) = dragged
+        && resp.dragged()
+    {
+        // The drag follows how far the pointer has moved, not where it is: the cursor it tracks is
+        // seeded at the handle's own centre (so grabbing a handle never makes its control jump by
+        // the distance between the pointer and that centre) and then advances by the pointer's
+        // motion. ⌥ = a tenth of the motion, as the point curve's drag does.
+        let cursor_id = egui::Id::new("curve-param-cursor");
+        let alt = ui.input(|i| i.modifiers.alt);
+        let dd = ui.input(|i| i.pointer.delta());
+        let step = if alt { vec2(dd.x * 0.1, dd.y * 0.1) } else { vec2(dd.x, dd.y) };
+        let start = model.handle_screen_start(h, r);
+        // seeded at the handle's centre (so the grab itself moves nothing) and advanced by the
+        // pointer's motion from there
+        let advanced = ui.data(|d| d.get_temp::<Pos2>(cursor_id)).unwrap_or(start) + step;
+        ui.data_mut(|d| d.insert_temp(cursor_id, advanced));
+        let level = ((r.bottom() - advanced.y) / r.height()).clamp(0.0, 1.0) as f64;
+        set = Some(match h {
+            ParamHandle::Region(region) => (h.control(), model.amount_at_level(region, level)),
+            ParamHandle::Split(split) => {
+                let x = ((advanced.x - r.left()) / r.width()).clamp(0.0, 1.0) as f64;
+                (h.control(), model.split_value(split, x))
+            }
+        });
+    }
+    if let Some((id, v)) = set {
+        let _ = app.run("develop.set", json!({"control": id, "value": v}));
+    }
+    if commit_interaction(app, ui, dragged.is_some(), resp.drag_stopped()) {
+        dragged = None;
+        // the next drag seeds its cursor from its own handle, not from where this one finished
+        ui.data_mut(|d| d.remove::<Pos2>(egui::Id::new("curve-param-cursor")));
+    }
+    ui.data_mut(|dd| dd.insert_temp(drag_id, dragged));
+    if dragged.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    } else if hovered.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+    }
+    // the handles: a region's on its own bump, a split's a notch on the bottom edge
+    let p = ui.painter();
+    for region in 0..PARAM_AMOUNTS.len() {
+        let at = to_screen(model.region_x(region), model.handle_level(region, model.amounts[region]));
+        let on = dragged == Some(ParamHandle::Region(region)) || hovered == Some(ParamHandle::Region(region));
+        p.circle_filled(at, if on { 5.5 } else { 4.0 }, Color32::from_gray(230));
+        p.circle_stroke(at, if on { 5.5 } else { 4.0 }, Stroke::new(1.0, t.canvas));
+    }
+    for split in 0..PARAM_SPLITS.len() {
+        let at = to_screen(model.split_x(split), 0.0);
+        let on = dragged == Some(ParamHandle::Split(split)) || hovered == Some(ParamHandle::Split(split));
+        let (w, h) = if on { (2.5, 9.0) } else { (1.5, 6.0) };
+        p.rect_filled(Rect::from_min_max(pos2(at.x - w / 2.0, at.y - h), pos2(at.x + w / 2.0, at.y + h)), 1.0, Color32::from_gray(190));
+    }
+    // what the handle in hand (or under the pointer) holds, as its slider below reads it
+    if let Some(h) = dragged.or(hovered) {
+        let label = controls::get(d, h.control()).map(|v| {
+            let name = controls::find(h.control()).map_or("", |s| s.label);
+            if v > 0.0 { format!("{name} {v:+.0}") } else { format!("{name} {v:.0}") }
+        });
+        if let Some(label) = label {
+            p.text(r.left_top() + vec2(6.0, 4.0), Align2::LEFT_TOP, label, t.font(11.0), t.text_dim);
+        }
+    }
+}
+
+/// Keeps a split clear of its neighbours on the graph.
+const SPLIT_MIN_GAP: f64 = 0.01;
+
+/// A region handle of the parametric graph: which of the four regions, or which of the three splits
+/// between them.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ParamHandle {
+    /// Region `0..4` (0 = the darkest), grabbed by its slider's amount.
+    Region(usize),
+    /// Split `0..3`, grabbed on the graph's bottom edge.
+    Split(usize),
+}
+
+impl ParamHandle {
+    /// The control this handle writes.
+    pub(crate) fn control(self) -> &'static str {
+        match self {
+            ParamHandle::Region(r) => PARAM_AMOUNTS.get(r).copied().unwrap_or(PARAM_AMOUNTS[0]),
+            ParamHandle::Split(s) => PARAM_SPLITS.get(s).copied().unwrap_or(PARAM_SPLITS[0]),
+        }
+    }
+}
+
+/// The handle under `q`, if any is within [`CURVE_HIT`].
+///
+/// A split's notch is looked for first. It lives on the graph's bottom edge, where the curve itself
+/// passes on the dark end of a shallow line, so on equal terms a region handle would always win and
+/// the notch could never be grabbed.
+fn param_handle_at(model: &ParametricCurve, r: Rect, q: Pos2) -> Option<ParamHandle> {
+    let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
+    let near = |at: Pos2| at.distance(q) <= CURVE_HIT;
+    for split in 0..PARAM_SPLITS.len() {
+        if near(to_screen(model.split_x(split), 0.0)) {
+            return Some(ParamHandle::Split(split));
+        }
+    }
+    let closest = (0..PARAM_AMOUNTS.len())
+        .map(|region| (region, to_screen(model.region_x(region), model.handle_level(region, model.amounts[region])).distance(q)))
+        .min_by(|a, b| a.1.total_cmp(&b.1))?;
+    (closest.1 <= CURVE_HIT).then_some(ParamHandle::Region(closest.0))
 }
 
 fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &DevelopSettings) {
@@ -1072,6 +1309,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
         let pts: Vec<Pos2> =
             (0..=CURVE_SAMPLES).map(|i| to_screen(i as f64 / CURVE_SAMPLES as f64, model.at(i as f64 / CURVE_SAMPLES as f64))).collect();
         p.add(egui::Shape::line(pts, Stroke::new(2.0, Color32::from_gray(220))));
+        param_handles(app, ui, r, &resp, d);
         curve_footer(app, ui, d);
         for c in PARAM_AMOUNTS {
             control(app, ui, d, c, true);
@@ -1205,9 +1443,11 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
         let arr: Vec<[f64; 2]> = v.iter().map(|p| [p.x, p.y]).collect();
         let _ = app.run("develop.curve", json!({"channel": ch, "points": arr}));
     }
-    if resp.drag_stopped() {
+    // the drag is over when egui says so, or when the pointer comes up without it saying so (a
+    // release outside the window would otherwise leave the interaction open, and every later edit a
+    // silent preview that Undo cannot take back)
+    if commit_interaction(app, ui, dragging.is_some(), resp.drag_stopped()) {
         dragging = None;
-        let _ = app.run("develop.endInteraction", json!({}));
     }
     ui.data_mut(|dd| dd.insert_temp(drag_id, dragging));
     curve_footer(app, ui, d);
