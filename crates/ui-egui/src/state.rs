@@ -1002,6 +1002,28 @@ pub enum Dialog {
         folder: String,
         catalog: Option<String>,
     },
+    /// Save the selected mask's sliders as a mask effect preset: which sliders (`FIELDS` names,
+    /// the colour as `color_sat`), whether it carries Amount and the brush settings.
+    SaveEffect {
+        name: String,
+        group: String,
+        fields: Vec<String>,
+        amount: bool,
+        brush: bool,
+    },
+    /// Manage Effect Presets: search, the selected effects, an inline rename (old, new),
+    /// a delete waiting for confirmation, a new group's name being typed.
+    ManageEffects {
+        search: String,
+        selected: Vec<String>,
+        rename: Option<(String, String)>,
+        confirm_delete: bool,
+        new_group: String,
+    },
+    /// Confirm deleting mask effect presets.
+    DeleteEffects {
+        names: Vec<String>,
+    },
     /// Confirm moving photos to Recently Deleted.
     ConfirmDelete {
         count: usize,

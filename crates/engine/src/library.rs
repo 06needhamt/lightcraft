@@ -215,6 +215,10 @@ struct PrefsFile {
     filter_presets: Vec<crate::cmd::filters::FilterPreset>,
     /// Point-curve presets.
     curve_presets: Vec<crate::cmd::curves::CurvePreset>,
+    /// Mask effect presets.
+    mask_effects: Vec<crate::cmd::mask_effects::MaskEffect>,
+    /// The effect new masks of each kind start with.
+    mask_tool_effects: std::collections::BTreeMap<String, String>,
     /// Colour-label name sets.
     label_sets: Vec<crate::cmd::manage::LabelSet>,
     /// Imported LUT profiles.
@@ -454,6 +458,8 @@ impl Session {
         self.metadata_presets = prefs.metadata_presets;
         self.filter_presets = prefs.filter_presets;
         self.curve_presets = prefs.curve_presets;
+        self.mask_effects = prefs.mask_effects;
+        self.mask_tool_effects = prefs.mask_tool_effects;
         self.label_sets = prefs.label_sets;
         self.lut_profiles = prefs.lut_profiles;
         crate::cmd::lut_profiles::register_all(self);
@@ -702,6 +708,8 @@ impl Session {
             metadata_presets: self.metadata_presets.clone(),
             filter_presets: self.filter_presets.clone(),
             curve_presets: self.curve_presets.clone(),
+            mask_effects: self.mask_effects.clone(),
+            mask_tool_effects: self.mask_tool_effects.clone(),
             label_sets: self.label_sets.clone(),
             lut_profiles: self.lut_profiles.clone(),
             keyword_sets: self.keyword_sets.clone(),

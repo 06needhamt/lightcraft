@@ -1526,3 +1526,30 @@ fn a_fast_brush_stroke_shows_without_gaps_before_the_button_is_released() {
         assert!((0..3).all(|i| (l[i] - k[i]).abs() < 24.0), "live {l:?} vs committed {k:?} at ({x}, {y})");
     }
 }
+
+#[test]
+fn effect_dropdown_applies_saves_and_shows_the_matching_effect() {
+    let mut h = detail("panel.masking");
+    exec(&mut h, "mask.add", json!({"kind": "radial"}));
+    exec(&mut h, "mask.adjust", json!({"values": {"exposure": 0.7, "shadows": 25, "amount": 80}}));
+    h.step();
+    // save the mask's sliders from the menu (the New Effect Preset dialog)
+    click(&mut h, "dropdown:maskEffect");
+    click(&mut h, "maskEffectMenu:save");
+    let mut dlg = h.app.ui.dialog.take().expect("the save dialog opens");
+    match &mut dlg {
+        crate::state::Dialog::SaveEffect { name, .. } => *name = "Lift".into(),
+        d => panic!("the save dialog opens: {d:?}"),
+    }
+    let r = crate::panels::dialogs::confirm_dialog(&mut h.app, &dlg);
+    assert!(r.is_ok(), "{r:?}");
+    assert_eq!(h.app.session.mask_effects.len(), 1);
+    // change the sliders, then pick the effect again: sliders back, Amount kept
+    exec(&mut h, "mask.adjust", json!({"values": {"exposure": -1, "clarity": 40, "amount": 50}}));
+    h.step();
+    click(&mut h, "dropdown:maskEffect");
+    click(&mut h, "maskEffect:Lift");
+    let a = develop(&h).masks.last().expect("a mask").adjust;
+    assert_eq!((a.exposure, a.shadows, a.clarity, a.amount), (0.7, 25.0, 0.0, 50.0));
+    assert_eq!(exec(&mut h, "mask.effects", json!({}))["current"], "Lift");
+}
