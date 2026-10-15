@@ -37,6 +37,11 @@ commands:
   corpus [--download]
                   show where test corpora live; --download fetches PngSuite and CC0 raw samples (raw.pixls.us) into corpus/ and checks their sha256
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
+  raw-frame [--json] FILE…
+                  measure where each raw's embedded camera JPEG sits in its sensor data, which edge bands hold no
+                  picture and what the decoder's crop keeps beyond the camera frame (any make with a full-size
+                  embedded JPEG); print image-area entries for Nikon bodies that record no crop (MEASURED_BODIES in
+                  crates/raw/src/vendor/nef.rs)
 ";
 
 fn main() -> ExitCode {
@@ -54,6 +59,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("corpus") => cmd_corpus(rest.contains(&"--download")),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
+        Some("raw-frame") => cmd_raw_frame(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())
@@ -67,6 +73,20 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `cargo xtask raw-frame FILE…`: runs the `raw_frame` example of `lightcraft-engine` on the files.
+fn cmd_raw_frame(files: &[&str]) -> Result<(), String> {
+    if files.is_empty() {
+        return Err("raw-frame needs one or more raw files (several per camera, with detail across the frame)".into());
+    }
+    eprintln!("$ cargo run --release -p lightcraft-engine --example raw_frame -- {}", files.join(" "));
+    let status = cargo()
+        .args(["run", "--release", "-q", "-p", "lightcraft-engine", "--example", "raw_frame", "--"])
+        .args(files)
+        .status()
+        .map_err(|e| format!("raw_frame: {e}"))?;
+    if status.success() { Ok(()) } else { Err("raw_frame failed".into()) }
 }
 
 /// Workspace root (parent of the xtask crate).

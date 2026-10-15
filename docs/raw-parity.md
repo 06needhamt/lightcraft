@@ -1,6 +1,6 @@
 # RAW parity: cameras, formats, demosaic, colour and lens profiles
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (Nikon Z 6II / Z 8 / Z f in-file distortion correction; Leica Q3 verified by a recorded check of 38 private DNGs; EOS R5 Mark II decoded and verified: CRX QP-map escape, odd-height planes) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6 (Camera Raw 18.7)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (Nikon image areas of bodies without CropArea surveyed and measured, issues #976 / #914 / #1236; NEF decode gaps listed; Nikon Z 6II / Z 8 / Z f in-file distortion correction; Leica Q3 verified by a recorded check of 38 private DNGs; EOS R5 Mark II decoded and verified: CRX QP-map escape, odd-height planes) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6 (Camera Raw 18.7)
 
 Raw processing is the deepest single dimension of Lightroom parity: a photographer whose camera
 does not decode, or decodes with the wrong colour, cannot switch. This document measures it model by
@@ -93,7 +93,7 @@ committed table is stale.
 |---|---:|---:|---:|---|
 | Canon | 33% | 73% | 19% | 18 of the 22 popular bodies write CR3; 4 of them verified (M50, R8, R100, R5 Mark II), the rest at 0.6 |
 | Sony | 27% | 98% | 91% | bulk-checked |
-| Nikon | 16% | 91% | 12% | decoders cover every NEF coding but HE; few bodies verified |
+| Nikon | 16% | 91% | 12% | decoders cover NEF codings but HE and the compressed NEFs without a linearization table (D100, D1X, Coolpix P330 / P7700 / P7800, D4S and D810 small raw); few bodies verified; image area of every body without `CropArea` surveyed |
 | Fujifilm | 10% | 91% | 45% | |
 | Panasonic | 4% | 100% | 98% | bulk-checked |
 | OM / Olympus | 3% | 3% | 1% | compressed ORF |
@@ -125,6 +125,8 @@ checked, and Canon, the largest bucket, is the weakest of the big four.
 | NEF | uncompressed, lossless, lossy type 1 / 2, lossy after split | ✅ | D5100, D7000, D7500, Z f corpus; ~60 NEFs by hand; #633; D4 and D90 image area and white level measured against the camera JPEG |
 | NEF | packed 14-bit stored under a compressed tag (Z 6II uncompressed) | ⬜ | #769; fix in PR #671 (not merged) |
 | NEF | High Efficiency / HE★ (JPEG XS) | ⬜ | named, preview (#193); needs a JPEG XS decoder |
+| NEF | compressed without a linearization table (D100, D1X, Coolpix P330 / P7700 / P7800 NRW, D4S and D810 small raw) | ⬜ | refused as unsupported; one raw.pixls.us sample each |
+| NEF | image area of bodies without `CropArea` | 🟡 | 47 model / size / depth groups cropped to their measured camera frame (D800 #914, D7000 #976, Df, D3, D300, D600, D3200 …); the D3100, D5000, D40, D50, D70 and D70s on best-guess frames until more samples confirm them (evidence in each entry's comment, `MEASURED_BODIES` in `crates/raw/src/vendor/nef.rs`). Checked and needing no entry, their data holding only picture beyond the camera frame: D750, D5300, D5500, D3300, D2X, D2Hs, D3X, D5200, Coolpix P6000, Nikon 1 AW1 / J3 / V2 / V3 and the D800's DX / 1.2x / 5:4 modes. `cargo xtask raw-frame FILE…` measures a body |
 | ARW | uncompressed, cRAW (ARW2), lossless LJ92 (L / M / S) | ✅ | 86 bodies (#535); M/S black level 1024; the Hasselblad Lunar, a NEX-7 under Make HASSELBLAD, routed by Sony's raw coding (#1275) |
 | ARW | packed 12-bit (A900) | ✅ | one CC0 file; A850 unmeasured |
 | ARW | ARW6 Compressed / HQ (compression 32766; ILCE-7RM6) | ✅ | 8 CC0 files; 12-bit mode unsupported; `docs/arw6-compression.md` |
@@ -278,6 +280,7 @@ Beyond decoding:
 | 2026-10-12 | minor | Olympus E-10: as-shot white balance (`0x1017`/`0x1018`) and black level (`0x1012` in `0x102c` ValidBits units) from the main maker note, issue #1273; ΔE76 against its thumbnail 18.5 → 11.5, camera-look fit now accepted; counts unchanged |
 | 2026-10-13 | minor | Nikon D90 image area (4288 × 2848 at 10, 10) and white level (3830) measured on 10 of 550 NEFs from one body: its 42 filler columns no longer develop as a pink band |
 | 2026-10-12 | minor | Hasselblad Lunar verified (a Sony NEX-7 ARW under Make HASSELBLAD, now decoded): 236 verified, 232 preview; an uncompressed Leaf MOS is recognised as a raw (preview only) instead of opening as a greyscale image of its mosaic (#1275) |
+| 2026-10-14 | minor | Nikon: every body without `CropArea` on raw.pixls.us surveyed; 44 more model / size / depth groups cropped to their measured camera frame (#976, #914, #1236), 6 of them on best-guess frames; NEF row no longer claims every coding but HE decodes (compressed NEFs without a linearization table listed) |
 | 2026-10-10 | minor | Compressed ORF: pointer to the two Olympus patents that describe the method, as a clean-room starting point |
 | 2026-10-12 | minor | PEF without area tags: masked border rows and columns trimmed against the BlackPoint (issue #1271; KP, KF, K-3 Mark III, K-70, K-1, K-1 Mark II, K-S1, K-S2, 645Z); counts unchanged |
 | 2026-10-13 | minor | Lens profiles: Nikon in-file distortion (NikonNEFInfo `0xc7d5`) for the Z 6II, Z 8 and Z f, validated on 83 frames from three lenses and the CC0 Z f sample (`docs/nikon-lens-corrections.md`); lens score unchanged |
