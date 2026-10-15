@@ -1102,7 +1102,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             ];
             let key = if d.organize.is_empty() { "date".to_string() } else { d.organize.clone() };
             let cur = opts.iter().find(|o| o.0 == key).map_or(opts[0].1, |o| o.1);
-            let combo = egui::ComboBox::from_id_salt("import-organize").selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
+            let combo = crate::widgets::combo_box("import-organize").selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
                 for (k, label) in opts {
                     let r = ui.selectable_label(key == k, crate::i18n::tr(label));
                     register(ui.ctx(), format!("button:importOrganize-{k}"), r.rect);
@@ -1185,7 +1185,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
                 _ => "Leave them",
             };
             let mut pick = None;
-            egui::ComboBox::from_id_salt("import-on-deleted").selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
+            crate::widgets::combo_box("import-on-deleted").selected_text(crate::i18n::tr(cur)).show_ui(ui, |ui| {
                 for (v, label) in [("restore", "Restore them"), ("fresh", "Import as new"), ("", "Leave them")] {
                     if ui.selectable_label(d.on_deleted == v, crate::i18n::tr(label)).clicked() {
                         pick = Some(v);
@@ -1215,7 +1215,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             None if !d.new_album.is_empty() => crate::i18n::tr("New album").into(),
             None => crate::i18n::tr("None").into(),
         };
-        egui::ComboBox::from_id_salt("import-album").selected_text(cur).show_ui(ui, |ui| {
+        crate::widgets::combo_box("import-album").selected_text(cur).show_ui(ui, |ui| {
             if ui.selectable_label(d.album.is_none() && d.new_album.is_empty(), crate::i18n::tr("None")).clicked() {
                 d.album = None;
                 d.new_album.clear();
@@ -1246,7 +1246,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             .find(|p| p.id == d.preset)
             .map(|p| crate::i18n::builtin_label(&p.name, p.builtin).to_string())
             .unwrap_or_else(|| crate::i18n::tr("None").into());
-        egui::ComboBox::from_id_salt("import-preset").selected_text(cur).height(300.0).show_ui(ui, |ui| {
+        crate::widgets::combo_box("import-preset").selected_text(cur).height(300.0).show_ui(ui, |ui| {
             if ui.selectable_label(d.preset.is_empty(), crate::i18n::tr("None")).clicked() {
                 d.preset.clear();
             }
@@ -1259,7 +1259,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     if !app.session.metadata_presets.is_empty() {
         field(ui, "Metadata", |ui| {
             let cur = if d.metadata_preset.is_empty() { crate::i18n::tr("None").to_string() } else { d.metadata_preset.clone() };
-            egui::ComboBox::from_id_salt("import-metadata").selected_text(cur).show_ui(ui, |ui| {
+            crate::widgets::combo_box("import-metadata").selected_text(cur).show_ui(ui, |ui| {
                 if ui.selectable_label(d.metadata_preset.is_empty(), crate::i18n::tr("None")).clicked() {
                     d.metadata_preset.clear();
                 }

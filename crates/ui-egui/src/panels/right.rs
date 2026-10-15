@@ -777,7 +777,7 @@ fn human_size(bytes: u64) -> String {
 fn copyright_status(app: &mut LightcraftApp, ui: &mut egui::Ui, current: lightcraft_catalog::CopyrightStatus) {
     let t = Tokens::get(ui.ctx());
     ui.label(egui::RichText::new(crate::i18n::tr("Copyright Status")).size(11.5).color(t.text_dim));
-    let r = egui::ComboBox::from_id_salt("info-copyright-status").selected_text(crate::i18n::tr(current.label())).show_ui(ui, |ui| {
+    let r = crate::widgets::combo_box("info-copyright-status").selected_text(crate::i18n::tr(current.label())).show_ui(ui, |ui| {
         for st in lightcraft_catalog::CopyrightStatus::ALL {
             if ui.selectable_label(st == current, crate::i18n::tr(st.label())).clicked() && st != current {
                 let _ = app.run("photo.setMeta", json!({"copyrightStatus": st.id()}));
@@ -911,7 +911,7 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let current = sets["current"].as_str().unwrap_or_default().to_string();
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(crate::i18n::tr("Keyword Set")).color(t.text_dim));
-        let combo = egui::ComboBox::from_id_salt("kw-set")
+        let combo = crate::widgets::combo_box("kw-set")
             .selected_text(crate::i18n::builtin_label(&current, current == lightcraft_engine::cmd::keywords::RECENT))
             .show_ui(ui, |ui| {
                 for set in sets["sets"].as_array().into_iter().flatten() {

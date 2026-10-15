@@ -173,17 +173,17 @@ fn row_need(indent: f32, name_w: f32, mark_w: f32, count_w: Option<f32>) -> f32 
     42.0 + indent + name_w.min(MAX_NAME_NEED) + 18.0 + mark_w + count_w.map_or(0.0, |w| w + 16.0)
 }
 
-/// The disclosure triangle at the left of a tree row (`indent` is the row's): right-pointing
+/// The disclosure chevron at the left of a tree row (`indent` is the row's): right-pointing
 /// when closed, down when open, registered as widget `widget` for the control channel. Returns
 /// its response: the caller flips the open state on `clicked()`.
-fn disclosure_triangle(ui: &mut egui::Ui, row: &egui::Response, indent: f32, open: bool, id: egui::Id, widget: String) -> egui::Response {
+fn disclosure_chevron(ui: &mut egui::Ui, row: &egui::Response, indent: f32, open: bool, id: egui::Id, widget: String) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let c = pos2(row.rect.left() + 10.0 + indent, row.rect.center().y);
-    let tri = Rect::from_center_size(c, vec2(14.0, 14.0));
+    let tri = Rect::from_center_size(c, vec2(16.0, 16.0));
     let tr = ui.interact(tri, id, Sense::click());
     register(ui.ctx(), widget, tri);
     let col = if tr.hovered() { t.text } else { t.text_dim };
-    ui.painter().add(egui::Shape::convex_polygon(triangle_points(c, open), col, egui::Stroke::NONE));
+    paint(ui.painter(), Rect::from_center_size(c, vec2(16.0, 16.0)), if open { Icon::ChevronDown } else { Icon::ChevronRight }, col);
     tr
 }
 
@@ -197,11 +197,11 @@ fn set_tree_open(ui: &egui::Ui, key: egui::Id, open: bool) {
     ui.data_mut(|d| d.insert_temp(key, open));
 }
 
-/// The triangle of a tree row that has rows inside it (Albums' folders, Local, By Date, Folders,
-/// Keywords): a click flips `open` and remembers it under `key`. Returns the triangle's response
+/// The chevron of a tree row that has rows inside it (Albums' folders, Local, By Date, Folders,
+/// Keywords): a click flips `open` and remembers it under `key`. Returns the chevron's response
 /// (it sits on the row and takes its clicks, so a row's context menu is attached to it too).
 fn tree_toggle(ui: &mut egui::Ui, row: &egui::Response, indent: f32, key: egui::Id, open: &mut bool, widget: String) -> egui::Response {
-    let tri = disclosure_triangle(ui, row, indent, *open, key.with("triangle"), widget);
+    let tri = disclosure_chevron(ui, row, indent, *open, key.with("triangle"), widget);
     if tri.clicked() {
         *open = !*open;
         set_tree_open(ui, key, *open);
@@ -209,15 +209,6 @@ fn tree_toggle(ui: &mut egui::Ui, row: &egui::Response, indent: f32, key: egui::
     let label = if *open { crate::i18n::tr("Collapse") } else { crate::i18n::tr("Expand") };
     tri.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
     tri
-}
-
-/// A disclosure triangle around `c`: pointing down when open, right when closed.
-fn triangle_points(c: egui::Pos2, open: bool) -> Vec<egui::Pos2> {
-    if open {
-        vec![c + vec2(-4.0, -2.0), c + vec2(4.0, -2.0), c + vec2(0.0, 3.0)]
-    } else {
-        vec![c + vec2(-2.0, -4.0), c + vec2(3.0, 0.0), c + vec2(-2.0, 4.0)]
-    }
 }
 
 /// Space above a section's header.
@@ -399,7 +390,7 @@ pub fn section_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
 }
 
 /// A section's header in `r`: a disclosure chevron in the gutter (where tree rows have their
-/// triangle), then the bold title; a click folds or unfolds the section (kept in the UI state, so
+/// chevron), then the bold title; a click folds or unfolds the section (kept in the UI state, so
 /// it survives restarts), and what the section adds to its header (its button, see `header_button`) sits at
 /// the visible edge. A folded section says how many rows it holds (`rows`, with View ▸ Show Photo
 /// Counts). `pinned`: this is the copy kept at the top of the sidebar (see `pinned_header`).
@@ -433,9 +424,9 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
         ui.painter().rect_filled(bar, 4.0, t.hover.gamma_multiply(0.6));
     }
     let c = pos2(r.left() + 10.0, r.center().y);
-    register(ui.ctx(), format!("{widget}Chevron:{id}"), Rect::from_center_size(c, vec2(14.0, 14.0)));
+    register(ui.ctx(), format!("{widget}Chevron:{id}"), Rect::from_center_size(c, vec2(16.0, 16.0)));
     let col = if hovered { t.text } else { t.text_dim };
-    ui.painter().add(egui::Shape::convex_polygon(triangle_points(c, open), col, egui::Stroke::NONE));
+    paint(ui.painter(), Rect::from_center_size(c, vec2(16.0, 16.0)), if open { Icon::ChevronDown } else { Icon::ChevronRight }, col);
     ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
     let button = header_button(section);
     // (an album being dragged puts "Top Level" in the Albums header)
@@ -1549,7 +1540,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
     resp.context_menu(|ui| {
         if a.folder {
             // the same commands as File ▸ New…, aimed at this folder
-            ui.menu_button(crate::i18n::tr("New"), |ui| {
+            crate::widgets::menu_button(ui, crate::i18n::tr("New"), |ui| {
                 for (label, command) in [
                     ("Create Album…", "dialog.newAlbum"),
                     ("Create Smart Album…", "dialog.smartAlbum"),
@@ -1582,7 +1573,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
                 }
             }
             // File ▸ Import's ways in; the import review opens with this album chosen
-            let menu = ui.menu_button(crate::i18n::tr("Import"), |ui| {
+            let menu = crate::widgets::menu_button(ui, crate::i18n::tr("Import"), |ui| {
                 let mut entry = |ui: &mut egui::Ui, label: String, widget: String, command: &str, params: serde_json::Value| {
                     let r = ui.button(label);
                     crate::widgets::register(ui.ctx(), widget, r.rect);
@@ -1600,7 +1591,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
                     entry(ui, crate::i18n::tr(label).into(), widget.into(), command, json!({"album": a.id.0}));
                 }
                 // like File ▸ Import from Device: one entry per camera or card found
-                let device = ui.menu_button(crate::i18n::tr("Import from Device"), |ui| {
+                let device = crate::widgets::menu_button(ui, crate::i18n::tr("Import from Device"), |ui| {
                     let devices = lightcraft_engine::devices::devices();
                     if devices.is_empty() {
                         ui.add_enabled(false, egui::Button::new(crate::i18n::tr("No Camera or Card Found")));
@@ -1649,7 +1640,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
                 let _ = app.run("dialog.export", json!({}));
             }
             ui.add_enabled_ui(has_photos, |ui| {
-                ui.menu_button(crate::i18n::tr("Export Album with Preset"), |ui| {
+                crate::widgets::menu_button(ui, crate::i18n::tr("Export Album with Preset"), |ui| {
                     for (p, _) in app.session.all_export_presets() {
                         if ui.button(&p.name).clicked() {
                             show_all(app);
@@ -1666,7 +1657,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
         let mut folders: Vec<(u64, String)> =
             app.session.catalog.albums().filter(|f| f.folder && !is_within(app, f.id, a.id)).map(|f| (f.id.0, f.name.clone())).collect();
         folders.sort_by_key(|(_, n)| n.to_lowercase());
-        ui.menu_button(crate::i18n::tr("Move to"), |ui| {
+        crate::widgets::menu_button(ui, crate::i18n::tr("Move to"), |ui| {
             if ui.add_enabled(a.parent.is_some(), egui::Button::new(crate::i18n::tr("Top Level"))).clicked() {
                 let _ = app.run("album.move", json!({"id": a.id.0, "parent": null}));
             }
@@ -1879,7 +1870,7 @@ fn synchronize_item(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &FolderNode, 
 /// Set Color Label ▸ of a Folders row (`folder.label`; the submenu is widget `folderLabelMenu`,
 /// its colours `folderLabel:<colour>`).
 fn folder_label_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &FolderNode) {
-    let menu = ui.menu_button(crate::i18n::tr("Set Color Label"), |ui| {
+    let menu = crate::widgets::menu_button(ui, crate::i18n::tr("Set Color Label"), |ui| {
         if let Some(l) = crate::panels::grid::label_items(app, ui, n.label, "folderLabel") {
             if let Err(e) = app.run("folder.label", json!({"path": n.path, "label": crate::panels::grid::label_param(l)})) {
                 app.toast(ui.ctx(), e);

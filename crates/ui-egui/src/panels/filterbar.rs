@@ -280,7 +280,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let _ = app.run("library.clearFilter", json!({}));
     }
     // filter presets: apply one, save the current filter, delete
-    let presets = ui.button(egui::RichText::new(crate::i18n::tr("Presets ▾")).font(t.font(12.5)));
+    let presets = crate::widgets::dropdown(ui, "filterPresets", crate::i18n::tr("Presets"), t.font(12.5), t.text);
     register(ui.ctx(), "button:filterPresets", presets.rect);
     egui::Popup::menu(&presets).show(|ui| {
         let names: Vec<String> = app.session.filter_presets.iter().map(|f| f.name.clone()).collect();

@@ -8,6 +8,42 @@ use lightcraft_develop::{ControlSpec, Track};
 use crate::icons::{Icon, paint};
 use crate::theme::Tokens;
 
+/// Standard dropdown chevrons, including settings, import/export and rule editors.
+pub fn combo_box(id: impl egui::AsIdSalt) -> egui::ComboBox {
+    egui::ComboBox::from_id_salt(id).icon(|ui, rect, visuals, _| {
+        paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(16.0, 16.0)), Icon::ChevronDown, visuals.fg_stroke.color);
+    })
+}
+
+/// A native button with a vector arrow beside its text; egui reserves the icon's space.
+pub fn arrow_button<'a>(ui: &mut Ui, text: impl egui::IntoAtoms<'a>, icon: Icon, leading: bool) -> Response {
+    let id = ui.next_auto_id().with("arrow");
+    let mut atoms = text.into_atoms();
+    let arrow = egui::Atom::custom(id, vec2(16.0, 16.0));
+    if leading {
+        atoms.push_left(arrow);
+    } else {
+        atoms.push_right(arrow);
+    }
+    let r = egui::Button::new(atoms).atom_ui(ui);
+    if let Some(rect) = r.rect(id) {
+        paint(ui.painter(), rect, icon, ui.style().interact(&r.response).fg_stroke.color);
+    }
+    r.response
+}
+
+/// Keep egui's submenu interaction and layout, using our vector chevron instead of a font glyph.
+pub fn menu_button<'a, R>(ui: &mut Ui, atoms: impl egui::IntoAtoms<'a>, contents: impl FnOnce(&mut Ui) -> R) -> egui::InnerResponse<Option<R>> {
+    if !egui::containers::menu::is_in_menu(ui) {
+        return ui.menu_button(atoms, contents);
+    }
+    let button = egui::Button::new(atoms.into_atoms()).right_text("    ");
+    let (response, inner) = egui::containers::menu::SubMenuButton::from_button(button).ui(ui, contents);
+    let center = pos2(response.rect.right() - ui.spacing().button_padding.x - 8.0, response.rect.center().y);
+    paint(ui.painter(), Rect::from_center_size(center, vec2(16.0, 16.0)), Icon::ChevronRight, ui.style().interact(&response).fg_stroke.color);
+    egui::InnerResponse::new(inner.map(|r| r.inner), response)
+}
+
 // ------------------------------------------------------------------ automation registry
 
 #[derive(Clone, Default)]
@@ -441,7 +477,7 @@ pub fn section_header(ui: &mut Ui, id: &str, title: &str, open: bool, enabled: O
     if ui.rect_contains_pointer(r) {
         p.rect_filled(r, 0.0, t.chrome.gamma_multiply(1.06));
     }
-    let chev = Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(14.0, 14.0));
+    let chev = Rect::from_center_size(pos2(r.left() + 30.0, r.center().y), vec2(16.0, 16.0));
     paint(p, chev, if open { Icon::ChevronDown } else { Icon::ChevronRight }, t.text_label);
     p.text(pos2(r.left() + 44.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(14.0), t.text);
     let mut toggled = None;
@@ -491,8 +527,8 @@ pub fn flyout_row(ui: &mut Ui, id: &str, title: &str, icon: Icon, open: bool) ->
     p.text(pos2(tile.right() + 10.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.0), t.text_label);
     paint(
         p,
-        Rect::from_center_size(pos2(r.right() - 14.0, r.center().y), vec2(12.0, 12.0)),
-        if open { Icon::ChevronDown } else { Icon::TriangleLeft },
+        Rect::from_center_size(pos2(r.right() - 14.0, r.center().y), vec2(16.0, 16.0)),
+        if open { Icon::ChevronDown } else { Icon::ChevronLeft },
         t.text_label,
     );
     resp
@@ -629,7 +665,7 @@ pub fn dropdown(ui: &mut Ui, id: &str, text: &str, font: egui::FontId, color: Co
     register(ui.ctx(), format!("dropdown:{id}"), r);
     let c = if resp.hovered() { t.text } else { color };
     ui.painter().galley(pos2(r.left(), r.center().y - galley.size().y / 2.0), galley, c);
-    paint(ui.painter(), Rect::from_center_size(pos2(r.right() - 7.0, r.center().y + 1.0), vec2(12.0, 12.0)), Icon::ChevronDown, c);
+    paint(ui.painter(), Rect::from_center_size(pos2(r.right() - 10.0, r.center().y), vec2(16.0, 16.0)), Icon::ChevronDown, c);
     resp
 }
 
