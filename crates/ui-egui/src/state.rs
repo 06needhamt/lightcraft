@@ -719,10 +719,9 @@ pub struct UiState {
     /// A keyword being dragged in the Keyword List (onto another to nest it).
     #[serde(skip)]
     pub dragging_keyword: Option<String>,
-    /// A running slideshow (full screen): seconds per photo, when the next one is due (egui
-    /// time), paused.
+    /// A running slideshow (full screen; see [`crate::panels::slideshow`]).
     #[serde(skip)]
-    pub slideshow: Option<(f64, f64, bool)>,
+    pub slideshow: Option<Box<crate::panels::slideshow::Run>>,
     /// Info overlay on the loupe.
     pub info_overlay: InfoOverlay,
     /// Navigator mini map in the loupe while zoomed in.

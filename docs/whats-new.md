@@ -284,6 +284,41 @@
   preset pickers in Import and Settings ▸ Import scroll the same way.
 - Importing a large collection and opening its library no longer compare every preset with every other.
 
+### Slideshow overlays
+- Slides can now carry Lightroom Classic's Slideshow overlays: an identity plate (a line of text in a colour, or an
+  image file such as a PNG logo with transparency, at a size and opacity, optionally drawn behind the photo), the
+  photo's rating as stars, and any number of text overlays (up to 16) built from tokens: `{caption}`, `{title}`,
+  `{file}`, `{date}`, `{exposure}` ("1/250 s at f/8"), `{iso}`, `{focal}`, `{camera}`, `{lens}`, `{rating}` and the
+  other file-naming tokens, with a size, colour, opacity and an optional soft shadow (opacity, offset, radius, angle).
+  Each sits at one of nine anchors of the slide or of the photo, moved by an offset, and never leaves the slide.
+- The export watermark can be drawn on every slide's photo too ("Use export watermark" takes the one you last
+  exported with).
+- Set them in Settings ▸ Slideshow ▸ Overlays; the slide preview there and View ▸ Slideshow show them. Sizes are a
+  share of the slide, so slides look the same on any screen. They are saved with the library. Agents use
+  `slideshow.overlays`; `slideshow.preview` now also returns where each overlay landed.
+
+### Slideshow layout, options and backdrop
+- Slides can now be laid out like Lightroom Classic's Slideshow Layout, Options and Backdrop panels: margins (all four
+  linked, or each on its own), Zoom to Fill Frame (crop the photo to fill its cell), a stroke border (colour, width),
+  a cast shadow (opacity, offset, radius, angle), and a backdrop colour with an optional colour wash (a gradient from a
+  second colour, at an angle and opacity) and a background image (a photo from the library, at an opacity).
+- Set them in Settings ▸ Slideshow, which now shows the selected photo as a slide as you change them (with the margin
+  guides, at the screen's aspect or 16:9 / 4:3). Sizes are a share of the slide, so a slide looks the same on any
+  screen. They are saved with the library.
+- View ▸ Slideshow plays the composed slides, prepared ahead off the UI thread like before, so fades and the playback
+  controls work as they did. With the default layout (no margins, border, shadow or backdrop) it plays the photos as
+  before. Agents use `slideshow.layout`, and `slideshow.preview` returns one composed slide as a PNG.
+
+### Slideshow playback
+- View ▸ Slideshow (⌥⌘↩) now plays with Lightroom Classic's Playback settings: how long each slide stays up, a fade
+  between slides (a crossfade, or through black, white or any colour; 0 cuts), random order (every photo once per
+  pass, a new order each time round), repeat (off: the slideshow ends after the last photo) and preparing previews in
+  advance (the next two slides render while the current one is up, so a fade never waits or flashes).
+- Change them in Settings ▸ Slideshow (View ▸ Slideshow Options…); they are saved with the library. Agents use
+  `slideshow.playback`; `view.slideshow` takes any of them for one run (`interval` still sets the slide duration).
+- While it plays, moving the pointer shows a small control bar: previous, play / pause, next, the slide number and
+  end. Space pauses, ← / → step (a cut), Esc ends. A slide's time starts once it is shown sharp.
+
 ## 2026-10-10
 
 ### Dialogs fit the window

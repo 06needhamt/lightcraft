@@ -292,6 +292,11 @@ impl Headless {
         self.frames
     }
 
+    /// The simulated clock (seconds) the next frame runs at.
+    pub fn time(&self) -> f64 {
+        self.time
+    }
+
     /// Every piece of text the last frame painted ([`HeadlessView::painted_text`]).
     pub fn painted_text(&self) -> Vec<String> {
         self.view.painted_text()

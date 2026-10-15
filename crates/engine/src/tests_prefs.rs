@@ -317,3 +317,43 @@ fn reopening_a_library_retires_the_old_cache_so_its_jobs_cannot_write_after_a_cl
     drop(s);
     let _ = std::fs::remove_dir_all(&lib);
 }
+
+#[test]
+fn slideshow_playback_settings_persist_with_the_library() {
+    let lib = temp_dir("slideshow");
+    {
+        let mut s = Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        let r = s.execute("slideshow.playback", &json!({})).unwrap();
+        assert_eq!(r["slideDuration"], 4.0, "defaults: {r}");
+        let r = s
+            .execute(
+                "slideshow.playback",
+                &json!({"slideDuration": 6, "fadeDuration": 2.5, "fadeColor": "#000000", "randomOrder": true, "repeat": false}),
+            )
+            .unwrap();
+        assert_eq!(r["fadeColor"], "#000000");
+        // a hostile value changes nothing
+        assert!(s.execute("slideshow.playback", &json!({"slideDuration": "soon", "repeat": true})).is_err());
+        assert!(!s.slideshow.repeat);
+        drop(s);
+    }
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    let r = s.execute("slideshow.playback", &json!({})).unwrap();
+    assert_eq!(
+        r,
+        json!({"slideDuration": 6.0, "fadeDuration": 2.5, "fadeColor": "#000000", "randomOrder": true, "repeat": false, "preparePreviews": true})
+    );
+    drop(s);
+    // out-of-range values written by hand are clamped when the library opens
+    std::fs::write(lib.join("prefs.json"), r#"{"slideshow": {"slideDuration": 1e9, "fadeDuration": -3}}"#).unwrap();
+    let s = {
+        let mut s = Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        s
+    };
+    assert_eq!((s.slideshow.slide_duration, s.slideshow.fade_duration), (120.0, 0.0));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&lib);
+}

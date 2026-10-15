@@ -752,6 +752,8 @@ pub struct RenderJob {
     pub view_cache: Option<(Arc<PreviewCache>, Hash128)>,
     /// Render for this monitor profile ([`Self::with_display`]).
     pub display: Option<Arc<crate::display::Display>>,
+    /// Compose the render into a slideshow slide ([`Self::with_slide`]).
+    pub slide: Option<Arc<crate::slide::SlideCompose>>,
     /// A face tile that can be cut from the raw's embedded preview, tried before `source`
     /// ([`crate::Session::face_job`]; `None` for every other job).
     pub preview_cut: Option<crate::face_tiles::PreviewCut>,
@@ -849,7 +851,8 @@ impl RenderJob {
     /// Gets its own result key. Thumbnail jobs (rendered-thumbnail cache) are left as they are:
     /// [`crate::display::present`] converts their sRGB results.
     pub fn with_display(mut self, display: Option<Arc<crate::display::Display>>) -> Self {
-        if self.cache.is_some() || self.request.depth != lightcraft_pipeline::OutputDepth::U8 {
+        // (a slide is composed in sRGB, backdrop colours included; the frontend presents it)
+        if self.cache.is_some() || self.slide.is_some() || self.request.depth != lightcraft_pipeline::OutputDepth::U8 {
             return self;
         }
         let k = |d: &Option<Arc<crate::display::Display>>| d.as_ref().map_or(0, |d| d.id()).wrapping_mul(0xd6e8_feb8_6659_fd93);
@@ -883,7 +886,30 @@ impl RenderJob {
         }
     }
 
+    /// Compose the render into a slideshow slide (layout, options, backdrop): the result is the
+    /// slide, not the photo. Gets its own result key; the photo's cached view preview stays the
+    /// photo. The slide stays sRGB ([`Self::with_display`] leaves it alone).
+    pub fn with_slide(mut self, slide: Arc<crate::slide::SlideCompose>) -> Self {
+        let k = |s: &Option<Arc<crate::slide::SlideCompose>>| s.as_ref().map_or(0, |s| s.key()).wrapping_mul(0xa24b_aed4_963e_e407);
+        self.key ^= k(&self.slide);
+        self.key ^= k(&Some(slide.clone()));
+        self.slide = Some(slide);
+        self
+    }
+
+    /// [`Self::run_photo`], composed into its slide when this is a slide job (inside [`Self::run`]'s guard).
     fn run_unguarded(self) -> RenderResult {
+        let slide = self.slide.clone();
+        let mut r = self.run_photo();
+        if let (Some(slide), Ok(rendered)) = (slide, r.rendered.as_mut()) {
+            rendered.image = slide.compose(&rendered.image);
+            rendered.deep = None;
+        }
+        r
+    }
+
+    /// The photo's render (without slide composition).
+    fn run_photo(self) -> RenderResult {
         if let Some((cache, key)) = &self.cache
             && let Some(img) = cache.get_at(self.cache_generation, *key)
         {
@@ -1227,6 +1253,7 @@ impl crate::Session {
             stages: None,
             view_cache: None,
             display: None,
+            slide: None,
             preview_cut: None,
         })
     }
@@ -1279,6 +1306,7 @@ impl crate::Session {
             stages: None,
             view_cache: None,
             display: None,
+            slide: None,
             preview_cut: None,
         })
     }
@@ -1332,6 +1360,7 @@ impl crate::Session {
             stages: None,
             view_cache: None,
             display: None,
+            slide: None,
             preview_cut,
         })
     }

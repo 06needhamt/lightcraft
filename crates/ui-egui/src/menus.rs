@@ -148,6 +148,12 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.sidebarMoveSection", "Move Sidebar Section", None, ""),
     ("view.sidebarReset", "Reset Sidebar Sections", None, ""),
     ("view.slideshow", "Slideshow", Some("Cmd+Alt+Enter"), "View"),
+    ("view.slideshowOptions", "Slideshow Options…", None, "View"),
+    // the slideshow's playback controls (Space, ←/→ and Esc while it plays)
+    ("slideshow.togglePause", "Pause / Resume Slideshow", None, ""),
+    ("slideshow.next", "Next Slide", None, ""),
+    ("slideshow.previous", "Previous Slide", None, ""),
+    ("slideshow.end", "End Slideshow", None, ""),
     ("view.secondWindow", "Second Window", Some("Cmd+F11"), "Window"),
     ("tool.keywordPainter", "Keyword Painter", None, ""),
     ("view.gridInfo", "Grid Info", None, ""),
@@ -586,25 +592,21 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "view.slideshow" => {
-            // {interval?: seconds (4)}: the photos in view, full screen, one after another
-            let interval = p.get("interval").and_then(Value::as_f64).unwrap_or(4.0).clamp(0.5, 120.0);
-            if app.session.active().is_none() {
-                let first = app.session.visible_cloned().first().copied();
-                match first {
-                    Some(f) => {
-                        let _ = app.run("library.select", json!({"ids": [f.0]}));
-                    }
-                    None => return Some(Err("no photos to show".into())),
-                }
-            }
+            // the photos in view, full screen, with the playback settings (see panels::slideshow)
             let now = ctx.input(|i| i.time);
-            app.ui.slideshow = Some((interval, now + interval, false));
-            app.ui.fullscreen = true;
-            app.ui.zoom = Zoom::Fit;
-            app.ui.tool.clear();
-            let _ = app.session.end_interaction();
-            app.toast(&ctx, crate::i18n::tr("Slideshow · Space pauses · Esc ends"));
-            Ok(json!({"interval": interval}))
+            let r = crate::panels::slideshow::start(app, p, now);
+            if r.is_ok() {
+                app.toast(&ctx, crate::i18n::tr("Slideshow · Space pauses · Esc ends"));
+            }
+            r
+        }
+        "slideshow.togglePause" | "slideshow.next" | "slideshow.previous" | "slideshow.end" => {
+            let now = ctx.input(|i| i.time);
+            crate::panels::slideshow::command(app, id, now)
+        }
+        "view.slideshowOptions" => {
+            app.ui.dialog = Some(Dialog::Settings { tab: "slideshow".into() });
+            Ok(Value::Null)
         }
         "view.fullScreenPreview" => {
             app.ui.fullscreen = !app.ui.fullscreen;
@@ -1931,6 +1933,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
         "file.restoreLibrary" => app.services.restore_library.is_some(),
         "app.clearRecentLibraries" => !app.ui.settings.recent_libraries.is_empty(),
         "compare.swap" | "compare.makeSelect" | "compare.set" => app.ui.view == ViewMode::Compare,
+        "slideshow.togglePause" | "slideshow.next" | "slideshow.previous" | "slideshow.end" => app.ui.slideshow.is_some(),
         s if s.starts_with("dialog.merge") || (s.starts_with("merge.") && s.ends_with("Last")) => {
             app.session.targets(&serde_json::json!({})).len() >= 2 && app.merge.final_task.is_none()
         }

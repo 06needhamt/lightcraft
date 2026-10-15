@@ -115,6 +115,8 @@ mod tests_sam_setup;
 #[cfg(test)]
 mod tests_scroll;
 #[cfg(test)]
+mod tests_slideshow;
+#[cfg(test)]
 mod tests_switch_library;
 #[cfg(test)]
 mod tests_sync;
@@ -645,28 +647,9 @@ impl LightcraftApp {
     }
 
     /// Show a transient toast at the bottom of the canvas (like the reference app's HUD).
-    /// Advance a running slideshow (wrapping around at the end).
+    /// Advance a running slideshow.
     fn slideshow_tick(&mut self, ctx: &egui::Context) {
-        let Some((interval, due, paused)) = self.ui.slideshow else { return };
-        if !self.ui.fullscreen {
-            self.ui.slideshow = None;
-            return;
-        }
-        if paused {
-            return;
-        }
-        let now = ctx.input(|i| i.time);
-        if now >= due {
-            let vis = self.session.visible_cloned();
-            if let Some(cur) = self.session.active()
-                && !vis.is_empty()
-            {
-                let i = vis.iter().position(|x| *x == cur).map_or(0, |i| (i + 1) % vis.len());
-                let _ = self.run("library.select", serde_json::json!({"ids": [vis[i].0]}));
-            }
-            self.ui.slideshow = Some((interval, now + interval, false));
-        }
-        ctx.request_repaint_after(std::time::Duration::from_secs_f64((due - now).clamp(0.05, interval)));
+        panels::slideshow::tick(self, ctx);
     }
 
     /// Announce the end of a Build Previews run.
@@ -1329,7 +1312,9 @@ impl LightcraftApp {
         self.place_names_outcome(&ctx);
         if self.ui.fullscreen {
             // full-screen preview: the photo alone on black
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| panels::detail::show(self, ui));
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
+                .show(ui, |ui| if self.ui.slideshow.is_some() { panels::slideshow::show(self, ui) } else { panels::detail::show(self, ui) });
             panels::second::show(self, &ctx);
             panels::notices::show(self, &ctx);
             panels::dialogs::show(self, &ctx);

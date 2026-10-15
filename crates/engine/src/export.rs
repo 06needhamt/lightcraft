@@ -293,58 +293,8 @@ fn turn(turns: u8, x: f32, y: f32, w: f32, h: f32) -> (f32, f32) {
     }
 }
 
-/// Inter SemiBold (OFL, see assets/ATTRIBUTION.md).
-static WATERMARK_FONT: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf");
-
-/// The watermark faces: Inter first, then the craft-fonts CJK faces (Mincho first, the watermark's
-/// serif look; then any other CJK face — a watermark has no UI language, so every CJK script is
-/// offered). Without craft-fonts that is Inter alone, and CJK characters draw as Inter's
-/// missing-glyph box.
-fn watermark_fonts(craft: &'static [crate::fonts::CraftFont]) -> Vec<ab_glyph::FontRef<'static>> {
-    let mut cjk: Vec<_> = crate::fonts::cjk(craft).collect();
-    cjk.sort_by_key(|f| !f.is_mincho());
-    std::iter::once(WATERMARK_FONT)
-        .chain(cjk.into_iter().map(|f| f.bytes))
-        .filter_map(|bytes| ab_glyph::FontRef::try_from_slice(bytes).ok())
-        .collect()
-}
-
-/// Shape a whole grapheme in one cell. CJK uses vertical origins and forms; Latin stays upright.
-/// Unlike Unicode presentation-form characters, GSUB works with BIZ UD fonts too.
-fn watermark_cell_glyphs(
-    font: &ab_glyph::FontRef<'_>,
-    data: &harfrust::ShaperData,
-    text: &str,
-    vertical: bool,
-    px: f32,
-    left: f32,
-    top: f32,
-) -> Option<Vec<ab_glyph::Glyph>> {
-    use ab_glyph::{Font, ScaleFont};
-    let face = harfrust::FontRef::new(font.font_data()).ok()?;
-    let mut buf = harfrust::UnicodeBuffer::new();
-    buf.push_str(text);
-    buf.set_direction(if vertical { harfrust::Direction::TopToBottom } else { harfrust::Direction::LeftToRight });
-    buf.guess_segment_properties();
-    let shaped = data.shaper(&face).build().shape(buf, harfrust::ShapeOptions::new());
-    if shaped.glyph_infos().is_empty() {
-        return None;
-    }
-    let sf = font.as_scaled(px);
-    let (sx, sy) = (sf.h_scale_factor(), sf.v_scale_factor());
-    let advance_x = shaped.glyph_positions().iter().map(|p| p.x_advance as f32 * sx).sum::<f32>();
-    let advance_y = shaped.glyph_positions().iter().map(|p| -(p.y_advance as f32) * sy).sum::<f32>();
-    let (mut x, mut y) = if vertical { (left + px / 2.0, top + (px - advance_y) / 2.0) } else { (left + (px - advance_x) / 2.0, top + sf.ascent()) };
-    let mut glyphs = Vec::new();
-    for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
-        let gid = u16::try_from(info.glyph_id).ok().filter(|g| *g != 0)?;
-        let pen = ab_glyph::point(x + pos.x_offset as f32 * sx, y - pos.y_offset as f32 * sy);
-        glyphs.push(ab_glyph::GlyphId(gid).with_scale_and_position(px, pen));
-        x += pos.x_advance as f32 * sx;
-        y -= pos.y_advance as f32 * sy;
-    }
-    Some(glyphs)
-}
+#[cfg(test)]
+use crate::text::{TEXT_FONT as WATERMARK_FONT, cell_glyphs as watermark_cell_glyphs, faces as watermark_fonts};
 
 /// Draw `wm` onto `img` (straight alpha blending of the encoded values).
 pub fn draw_watermark(img: &mut Rgba8, wm: &Watermark) {
@@ -365,6 +315,23 @@ fn blend_watermark(img: &mut Rgba8, wm: &Watermark, floor_scale: f32) {
         let p = &mut img.data[y * width + x];
         for c in 0..3 {
             p[c] = (p[c] as f32 + (col[c] as f32 - p[c] as f32) * k).round() as u8;
+        }
+    });
+}
+
+/// Draw `wm` into the `w × h` area of `img` whose top-left corner is (`x0`, `y0`), sized and
+/// anchored as on an image of that size (a slideshow slide's photo). The area is clipped to `img`.
+pub fn draw_watermark_in(img: &mut Rgba8, wm: &Watermark, x0: usize, y0: usize, w: usize, h: usize) {
+    let (width, height) = (img.width, img.height);
+    watermark_coverage(w, h, wm, crate::fonts::CRAFT_FONTS, 1.0, |x, y, k, col| {
+        let (px, py) = (x0.saturating_add(x), y0.saturating_add(y));
+        if px >= width || py >= height {
+            return;
+        }
+        if let Some(p) = img.data.get_mut(py * width + px) {
+            for c in 0..3 {
+                p[c] = (p[c] as f32 + (col[c] as f32 - p[c] as f32) * k).round() as u8;
+            }
         }
     });
 }
@@ -403,7 +370,6 @@ fn watermark_coverage(
     floor_scale: f32,
     mut blend_px: impl FnMut(usize, usize, f32, [u8; 3]),
 ) {
-    use ab_glyph::{Font, PxScale, ScaleFont, point};
     if !wm.image.trim().is_empty() {
         logo_coverage(width, height, wm, blend_px);
         return;
@@ -412,97 +378,10 @@ fn watermark_coverage(
     if text.is_empty() || width == 0 || height == 0 {
         return;
     }
-    let fonts = watermark_fonts(craft);
-    let Some(latin) = fonts.first() else { return };
-    let vertical_data: Vec<_> = if wm.vertical {
-        fonts.iter().map(|font| harfrust::FontRef::new(font.font_data()).ok().map(|face| harfrust::ShaperData::new(&face))).collect()
-    } else {
-        Vec::new()
-    };
     let short = width.min(height) as f32;
     let px = (wm.size.clamp(0.005, 0.5) * short).max(6.0 * floor_scale);
-    let mut glyphs = Vec::new();
-    let mut x = 0.0f32;
-    let mut y = 0.0f32;
-    let mut tw = 0.0f32;
-    let mut prev = None;
-    let columns = text.split('\n').count();
-    let mut column = 0usize;
-    use unicode_segmentation::UnicodeSegmentation;
-    // Horizontal watermarks retain scalar layout and kerning; only vertical cells use graphemes.
-    let cells: Box<dyn Iterator<Item = &str>> =
-        if wm.vertical { Box::new(text.graphemes(true)) } else { Box::new(text.char_indices().filter_map(|(i, c)| text.get(i..i + c.len_utf8()))) };
-    for cell in cells {
-        let Some(original) = cell.chars().next() else { continue };
-        if cell == "\n" || (wm.vertical && cell == "\r\n") {
-            if wm.vertical {
-                column = column.saturating_add(1);
-                tw = tw.max(y);
-                y = 0.0;
-            } else {
-                tw = tw.max(x);
-                x = 0.0;
-                y += px;
-            }
-            prev = None;
-            continue;
-        }
-        let cjk = matches!(original as u32, 0x3000..=0x30FF | 0x3400..=0x9FFF | 0xFF01..=0xFF60);
-        if wm.vertical && (cjk || cell.chars().count() > 1) {
-            let left = columns.saturating_sub(column.saturating_add(1)) as f32 * px;
-            let shaped = fonts.iter().zip(&vertical_data).enumerate().find_map(|(face, (font, data))| {
-                let data = data.as_ref()?;
-                let cluster = watermark_cell_glyphs(font, data, cell, cjk, px, left, y)?;
-                let substituted = cluster.len() != 1 || cluster.first().is_some_and(|g| g.id != font.glyph_id(original));
-                if cjk && !substituted && matches!(original, '、' | '。' | 'ー' | '（' | '）' | '「' | '」' | '『' | '』' | '【' | '】') {
-                    return None;
-                }
-                Some((face, cluster))
-            });
-            if let Some((face, cluster)) = shaped {
-                glyphs.extend(cluster.into_iter().map(|g| (face, g, None)));
-                y += px;
-                continue;
-            }
-        }
-        let vertical_form = match original {
-            '、' => '︑',
-            '。' => '︒',
-            '（' => '︵',
-            '）' => '︶',
-            '「' => '﹁',
-            '」' => '﹂',
-            '『' => '﹃',
-            '』' => '﹄',
-            '【' => '︻',
-            '】' => '︼',
-            '…' => '︙',
-            other => other,
-        };
-        let has = |font: &ab_glyph::FontRef<'_>, c: char| font.glyph_id(c).0 != 0;
-        let ch = if wm.vertical && fonts.iter().skip(1).any(|f| has(f, vertical_form)) { vertical_form } else { original };
-        // The first face with the glyph; Inter (its missing-glyph box) when none has it.
-        let face = fonts.iter().position(|f| has(f, ch)).unwrap_or(0);
-        let sf = fonts.get(face).unwrap_or(latin).as_scaled(PxScale::from(px));
-        let id = sf.glyph_id(ch);
-        if wm.vertical {
-            let left = columns.saturating_sub(column.saturating_add(1)) as f32 * px;
-            let pen = point(left + (px - sf.h_advance(id)) / 2.0, y + sf.ascent());
-            let rotation = matches!(original, 'ー' | '—' | '–').then_some((left + px / 2.0, y + px / 2.0));
-            glyphs.push((face, id.with_scale_and_position(px, pen), rotation));
-            y += px;
-        } else {
-            if let Some((previous_face, previous)) = prev
-                && previous_face == face
-            {
-                x += sf.kern(previous, id);
-            }
-            glyphs.push((face, id.with_scale_and_position(px, point(x, y + sf.ascent())), None));
-            x += sf.h_advance(id);
-            prev = Some((face, id));
-        }
-    }
-    let (tw, th) = if wm.vertical { (columns as f32 * px, tw.max(y)) } else { (tw.max(x), y + px) };
+    let Some(layout) = crate::text::TextLayout::new(text, px, wm.vertical, craft) else { return };
+    let (tw, th) = (layout.width, layout.height);
     // laid out unturned in a tw × th box, placed by the box it becomes
     let turns = wm.quarter_turns();
     let (bw, bh) = if turns % 2 == 1 { (th, tw) } else { (tw, th) };
@@ -520,35 +399,29 @@ fn watermark_coverage(
         BottomLeft | Bottom | BottomRight => h - iy - bh,
     };
     let alpha = wm.opacity.clamp(0.0, 1.0);
-    let mut blend = |gx: i32, gy: i32, cov: f32, col: [u8; 3], a: f32| {
-        if gx < 0 || gy < 0 || gx >= width as i32 || gy >= height as i32 {
-            return;
-        }
-        blend_px(gx as usize, gy as usize, (cov * a).clamp(0.0, 1.0), col);
-    };
     let passes: &[(f32, [u8; 3], f32)] =
         if wm.shadow { &[((px * 0.05).max(floor_scale), [0, 0, 0], 0.45), (0.0, wm.color, 1.0)] } else { &[(0.0, wm.color, 1.0)] };
     for &(off, col, a) in passes {
-        for (face, g, rotation) in &glyphs {
-            if let Some(o) = fonts.get(*face).and_then(|font| font.outline_glyph(g.clone())) {
-                let b = o.px_bounds();
-                o.draw(|gx, gy, cov| {
-                    let (sx, sy) = (b.min.x + gx as f32, b.min.y + gy as f32);
-                    let (sx, sy) = match rotation {
-                        Some((cx, cy)) => (cx - (sy - cy), cy + (sx - cx)),
-                        None => (sx, sy),
-                    };
-                    // turned with the box; the shadow still falls down and to the right
-                    let (sx, sy) = turn(turns, sx, sy, tw, th);
-                    blend((ox + off + sx) as i32, (oy + off + sy) as i32, cov, col, a * alpha);
-                });
+        let mut put = |gx: i32, gy: i32, cov: f32| {
+            if gx < 0 || gy < 0 || gx >= width as i32 || gy >= height as i32 {
+                return;
             }
+            blend_px(gx as usize, gy as usize, (cov * a * alpha).clamp(0.0, 1.0), col);
+        };
+        if turns == 0 {
+            layout.draw_in(ox + off, oy + off, w, h, &mut put);
+        } else {
+            // turned with the box; the shadow still falls down and to the right
+            layout.draw_points(|x, y, cov| {
+                let (x, y) = turn(turns, x, y, tw, th);
+                put((ox + off + x) as i32, (oy + off + y) as i32, cov);
+            });
         }
     }
 }
 
 /// A watermark graphic, decoded once per file (and again when the file changes).
-fn watermark_logo(path: &str) -> Option<std::sync::Arc<Rgba8>> {
+pub(crate) fn watermark_logo(path: &str) -> Option<std::sync::Arc<Rgba8>> {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     static CACHE: Mutex<Option<HashMap<String, (std::time::SystemTime, Arc<Rgba8>)>>> = Mutex::new(None);
@@ -995,7 +868,7 @@ impl ExportOptions {
     }
 
     /// A `watermark` value: text, or an object of [`WATERMARK_PARAMS`] (issue #183).
-    fn validate_watermark(cmd: &str, v: &serde_json::Value) -> crate::Result<()> {
+    pub(crate) fn validate_watermark(cmd: &str, v: &serde_json::Value) -> crate::Result<()> {
         use serde_json::Value;
         let bad = |msg: String| crate::cmd::bad(cmd, msg);
         let obj = match v {

@@ -403,13 +403,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
     };
     for (id, params) in aliased {
-        // Space pauses / resumes a slideshow
-        if id == "view.zoomToggle"
-            && let Some((interval, _, paused)) = app.ui.slideshow
-        {
-            let now = ctx.input(|i| i.time);
-            app.ui.slideshow = Some((interval, now + interval, !paused));
-            app.toast(ctx, if paused { "Slideshow resumed" } else { "Slideshow paused" });
+        // a slideshow: Space pauses / resumes
+        if id == "view.zoomToggle" && app.ui.slideshow.is_some() {
+            if let Ok(v) = app.run("slideshow.togglePause", json!({})) {
+                app.toast(ctx, if v["paused"] == true { "Slideshow paused" } else { "Slideshow resumed" });
+            }
             continue;
         }
         // flag/rate aliases (Shift+X…) go through the culling path: active photo in Compare/Survey,
@@ -429,6 +427,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
     }
     for f in fire {
+        // a slideshow: ←/→ step (a cut)
+        if app.ui.slideshow.is_some() && matches!(f.as_str(), "library.next" | "library.previous") {
+            let _ = app.run(if f == "library.next" { "slideshow.next" } else { "slideshow.previous" }, json!({}));
+            continue;
+        }
         if let Some(rest) = f.strip_prefix("rate:") {
             let (n, adv) = rest.split_once(':').unwrap_or(("0", "0"));
             cull(app, "photo.rate", json!({"rating": n.parse::<u8>().unwrap_or(0)}), adv == "1");

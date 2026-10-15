@@ -1,12 +1,14 @@
-//! The Settings dialog (⌘,): General, Import, Performance, Display, Interface, Faces, AI Denoise.
+//! The Settings dialog (⌘,): General, Import, Performance, Display, Interface, Slideshow, Faces,
+//! AI Denoise.
 //!
 //! Changes apply immediately (no OK/Cancel). Where they are stored:
 //! - **app settings** ([`crate::state::AppSettings`]: startup view, delete confirmation, GPU,
 //!   preview size, filmstrip/grid badges, last library, monitor profile) and Auto Advance live in
 //!   the UI state,
 //!   saved by the host in its config folder (`ui.json`);
-//! - **library settings** (import defaults, XMP sidecars, thumbnail cache size) go through the
-//!   `library.preferences` / `library.xmpPreferences` commands into the library's `prefs.json`,
+//! - **library settings** (import defaults, XMP sidecars, thumbnail cache size, slideshow
+//!   playback) go through the `library.preferences` / `library.xmpPreferences` /
+//!   `slideshow.playback` commands into the library's `prefs.json`,
 //!   so they travel with the library.
 
 use egui::RichText;
@@ -24,6 +26,7 @@ pub const TABS: &[(&str, &str)] = &[
     ("performance", "Performance"),
     ("display", "Display"),
     ("interface", "Interface"),
+    ("slideshow", "Slideshow"),
     ("faces", "Faces"),
     ("denoise", "AI Denoise"),
 ];
@@ -52,6 +55,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String) {
         "performance" => performance_tab(app, ui, &t),
         "display" => display_tab(app, ui, &t),
         "interface" => interface_tab(app, ui, &t),
+        "slideshow" => slideshow_tab(app, ui, &t),
         "faces" => super::faces::settings_tab(app, ui, &t),
         "denoise" => super::denoise::settings_tab(app, ui, &t),
         _ => general_tab(app, ui, &t),
@@ -63,7 +67,7 @@ pub(super) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
 }
 
-fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.horizontal(|ui| {
         ui.allocate_ui_with_layout(egui::vec2(LABEL_W, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_min_width(LABEL_W);
@@ -661,6 +665,122 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         use crate::state::InfoOverlay as I;
         choices(ui, "settingsInfo", &[(I::Off, "Off"), (I::Basic, "File & date"), (I::Exposure, "Exposure")], &mut app.ui.info_overlay);
     });
+}
+
+// ----------------------------------------------------------------------------------- Slideshow
+
+/// A playback duration slider (`slider:{id}`). While it is dragged the value changes in memory
+/// (the slideshow reads it); letting go saves it through `slideshow.playback`.
+fn duration_slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &str, value: f64, range: std::ops::RangeInclusive<f64>) {
+    let mut v = value;
+    let r = ui.add(egui::Slider::new(&mut v, range).logarithmic(key == "slideDuration").suffix(" s").max_decimals(1));
+    register(ui.ctx(), format!("slider:{id}"), r.rect);
+    if r.changed()
+        && let Ok(next) = app.session.slideshow.merged(&json!({ key: v }))
+    {
+        app.session.slideshow = next;
+    }
+    if r.drag_stopped() || (r.changed() && !r.dragged()) {
+        let _ = app.run("slideshow.playback", json!({ key: v }));
+    }
+}
+
+/// Width of the Slideshow tab's settings column (the slide preview is beside it).
+const SLIDESHOW_COLUMN_W: f32 = 480.0;
+
+fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    // the settings scroll on the left, the composed slide stays in view on the right
+    let top_down = egui::Layout::top_down(egui::Align::Min);
+    // as tall as the window allows (the dialog's title, tabs and Close button take ~260 pt)
+    let tall = (ui.ctx().content_rect().height() - 260.0).clamp(300.0, 760.0);
+    ui.horizontal_top(|ui| {
+        ui.allocate_ui_with_layout(egui::vec2(SLIDESHOW_COLUMN_W, tall), top_down, |ui| {
+            ui.set_width(SLIDESHOW_COLUMN_W);
+            egui::ScrollArea::vertical().id_salt("settingsSlideshowScroll").max_height(tall).auto_shrink([false, true]).show(ui, |ui| {
+                playback_section(app, ui, t);
+                ui.add_space(6.0);
+                super::slide_layout::sections(app, ui, t);
+                ui.add_space(6.0);
+                super::slide_overlays::sections(app, ui, t);
+            });
+        });
+        ui.add_space(12.0);
+        ui.allocate_ui_with_layout(egui::vec2(super::slide_layout::PREVIEW_W, tall), top_down, |ui| {
+            ui.set_width(super::slide_layout::PREVIEW_W);
+            super::slide_layout::preview(app, ui, t)
+        });
+    });
+}
+
+fn playback_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    use lightcraft_engine::slideshow::{FADE_MAX, SLIDE_MAX, SLIDE_MIN};
+    heading(ui, t, crate::i18n::tr("Playback"));
+    let s = app.session.slideshow.clone();
+    row(ui, t, crate::i18n::tr("Slide duration"), |ui| {
+        duration_slider(app, ui, "slideshowSlide", "slideDuration", s.slide_duration, SLIDE_MIN..=SLIDE_MAX)
+    });
+    row(ui, t, crate::i18n::tr("Fade duration"), |ui| {
+        duration_slider(app, ui, "slideshowFade", "fadeDuration", s.fade_duration, 0.0..=FADE_MAX.min(s.slide_duration))
+    });
+    hint(ui, t, crate::i18n::tr("A slide stays up for its duration, its fade in included. A fade of 0 cuts."));
+    row(ui, t, crate::i18n::tr("Fade"), |ui| {
+        #[derive(Clone, Copy, PartialEq)]
+        enum Fade {
+            Cross,
+            Black,
+            White,
+            Color,
+        }
+        let mut f = match s.fade_color {
+            None => Fade::Cross,
+            Some([0, 0, 0]) => Fade::Black,
+            Some([255, 255, 255]) => Fade::White,
+            Some(_) => Fade::Color,
+        };
+        let opts = [(Fade::Cross, "Crossfade"), (Fade::Black, "Through black"), (Fade::White, "Through white"), (Fade::Color, "Through a colour")];
+        if choices(ui, "settingsSlideshowFade", &opts, &mut f) {
+            let c = match f {
+                Fade::Cross => Value::Null,
+                Fade::Black => json!("#000000"),
+                Fade::White => json!("#ffffff"),
+                Fade::Color => json!([64, 64, 64]),
+            };
+            let _ = app.run("slideshow.playback", json!({"fadeColor": c}));
+        }
+        if f == Fade::Color
+            && let Some(mut c) = s.fade_color
+        {
+            let r = egui::color_picker::color_edit_button_srgb(ui, &mut c);
+            register(ui.ctx(), "button:slideshowFadeColor", r.rect);
+            if r.changed() {
+                let _ = app.run("slideshow.playback", json!({"fadeColor": c}));
+            }
+        }
+    });
+    let mut v = s.random_order;
+    if check(ui, "settings.slideshowRandom", &mut v, "Random order") {
+        let _ = app.run("slideshow.playback", json!({"randomOrder": v}));
+    }
+    let mut v = s.repeat;
+    if check(ui, "settings.slideshowRepeat", &mut v, "Repeat (off: the slideshow ends after the last photo)") {
+        let _ = app.run("slideshow.playback", json!({"repeat": v}));
+    }
+    let mut v = s.prepare_previews;
+    if check(ui, "settings.slideshowPrepare", &mut v, "Prepare previews in advance") {
+        let _ = app.run("slideshow.playback", json!({"preparePreviews": v}));
+    }
+    hint(
+        ui,
+        t,
+        crate::i18n::tr(
+            "Renders the next slides while the current one is up, so fades never wait. Off: each slide renders when it is due (less memory and work).",
+        ),
+    );
+    hint(
+        ui,
+        t,
+        crate::i18n::tr("Slideshow in the View menu plays the photos in view from the selected one. These settings are saved with the library."),
+    );
 }
 
 /// Appearance Mode (`button:settingsAppearance-{0,1,2}`: Auto, Dark, Light) above the light and

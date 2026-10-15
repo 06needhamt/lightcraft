@@ -3239,6 +3239,7 @@ dependencies = [
  "lightcraft-raw",
  "lightcraft-scenes",
  "lightcraft-segment",
+ "lightcraft-slideshow",
  "lightcraft-tiff",
  "log",
  "miniz_oxide 0.8.9",
@@ -3461,6 +3462,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lightcraft-slideshow"
+version = "0.7.1"
+dependencies = [
+ "lightcraft-raster",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lightcraft-sysmem"
 version = "0.8.0"
 
@@ -3493,6 +3503,7 @@ dependencies = [
  "lightcraft-pipeline",
  "lightcraft-preview",
  "lightcraft-raster",
+ "lightcraft-slideshow",
  "log",
  "serde",
  "serde_json",
