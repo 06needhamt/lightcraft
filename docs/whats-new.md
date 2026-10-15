@@ -130,6 +130,12 @@
   script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
   or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
 
+### One kind of button
+- Dialogs' buttons and About's Discord link are drawn by one button component: primary (filled with the accent),
+  secondary, danger (filled red) and ghost, in three sizes, with an icon or without, and an icon alone (named for
+  screen readers). Each darkens a little when hovered and more when pressed, shows a ring where the keyboard is, and
+  its text reads at 4.5:1 or more on its fill in every theme. Dialog buttons are 30 points tall, like the welcome's.
+
 ### A dialog's confirm button says it's the next step
 - In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
   brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
