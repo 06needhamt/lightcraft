@@ -38,3 +38,7 @@ sync_github_name = true
 [people.FooVoo]
 real_name = "Aleksandr Batyrev"
 sync_github_name = true
+
+[people.Silvertree2010]
+display_name = "Netter"
+sync_github_name = false
