@@ -103,8 +103,12 @@
   keywords, dates, people and counts; a keyword leaves the folders, the dates and the counts as they are. With both
   side panels open, the frame after a keyword went from about 156 ms to about 54 ms in that library (2 ms with the
   panels closed, from 71 ms).
-- Still tallied from every photo on each edit: the count beside each album and smart album in the left panel (about
-  25 ms for a smart album in that library), and the filter bar's lists of cameras, lenses and keywords.
+- The count beside each smart album in the left panel follows an edit the same way: the album asks only the photos
+  the edit touched, where it asked every photo of the library after each edit (about 25 ms an album in that library).
+  With that, the frame after a keyword is at about 29 ms there. New rules, a change to an album or the keyword list,
+  an edit to more than 256 photos, and each new minute for an album that asks about "the last N days" are still
+  counted from every photo.
+- Still tallied from every photo on each edit: the filter bar's lists of cameras, lenses and keywords.
 
 ### A view can hold its photos until you refresh it
 - View ▸ Hold View Until Refreshed (off unless you turn it on; kept with the library). With it on, an edit that makes

@@ -25,6 +25,7 @@ pub mod rules;
 pub mod safe_file;
 pub mod stacks;
 pub mod store;
+pub mod tally;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
