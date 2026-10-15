@@ -1467,7 +1467,7 @@ pub(crate) fn tag_help(ui: &mut egui::Ui, key: &str, text: &mut String, edit_id:
                 for (i, tok) in TOKENS.iter().enumerate() {
                     let r = ui.add(egui::Button::new(egui::RichText::new(tok.tag).monospace().color(t.text)).small()).on_hover_text(
                         if tok.aliases.is_empty() {
-                            "Insert at the cursor".to_string()
+                            crate::i18n::tr("Insert at the cursor").to_string()
                         } else {
                             crate::i18n::tr_format!("Insert at the cursor (also written {})", tok.aliases.join(", "))
                         },
