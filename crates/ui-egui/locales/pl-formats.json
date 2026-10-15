@@ -278,5 +278,10 @@
   "{s} s of AV1 video": "{s} s of AV1 video",
   "Slideshow exported: {what}": "Slideshow exported: {what}",
   " · {n} skipped (could not be rendered)": " · {n} skipped (could not be rendered)",
-  "{n} raws can now be developed from their raw data": "{n} raws can now be developed from their raw data"
+  "{n} raws can now be developed from their raw data": "{n} raws can now be developed from their raw data",
+  "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.": "The XMP sidecars of {n} photos couldn't be written (is their folder offline?). LightCraft keeps trying.",
+  "Create the keyword “{name}”": "Create the keyword “{name}”",
+  "new, inside {parent}": "new, inside {parent}",
+  "Keywords of {n} selected photos": "Keywords of {n} selected photos",
+  "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back."
 }
