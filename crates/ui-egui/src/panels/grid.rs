@@ -236,7 +236,14 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     };
     let mut visible_ids = HashSet::new();
     let mut visited = 0u64;
+    // a wheel notch scrolls a third of the grid's height
+    let scroll_rect = ui.available_rect_before_wrap();
+    crate::widgets::register(ui.ctx(), "grid:scroll", scroll_rect);
+    let wheel = wheel_step(ui, egui::Id::new("grid-wheel"), scroll_rect, scroll_rect.height(), false);
     egui::ScrollArea::vertical().id_salt("grid-scroll").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        if wheel != egui::Vec2::ZERO {
+            ui.scroll_with_delta_animation(wheel, egui::style::ScrollAnimation::none());
+        }
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), total_h), Sense::hover());
         let origin = area.min;
         app.grid_scroll = Some(viewport.top());
@@ -316,6 +323,43 @@ pub(crate) fn follow_changed(
     pass: u64,
 ) -> bool {
     was != active || where_was != source || drawn + 1 < pass
+}
+
+/// How far a mouse wheel scrolls a photo strip this frame (`key`: the grid, the filmstrip; `area`: its
+/// rect on screen; `span`: its visible height, or width when `sideways`), for `Ui::scroll_with_delta_animation`
+/// inside its `ScrollArea`. A notch scrolls [`crate::theme::WHEEL_STRIP_SHARE`] (a third) of `span`, as in
+/// Lightroom (about two rows of a six-row grid), instead of the [`crate::theme::WHEEL_LINE_POINTS`] a side
+/// panel scrolls. Not whole rows: the photos land somewhere else after each notch, so the move shows. It
+/// jumps at once instead of gliding, so the photos stay sharp while scrolling; egui's glide of the notch is
+/// swallowed until it ends. Trackpads report points and scroll as before. A vertical wheel scrolls a
+/// `sideways` strip.
+pub(crate) fn wheel_step(ui: &egui::Ui, key: egui::Id, area: Rect, span: f32, sideways: bool) -> egui::Vec2 {
+    if !ui.rect_contains_pointer(area) || !span.is_finite() {
+        ui.data_mut(|d| d.remove_temp::<bool>(key));
+        return egui::Vec2::ZERO;
+    }
+    let (notches, gliding) = ui.input(|i| {
+        let notches = i.events.iter().fold(egui::Vec2::ZERO, |sum, e| match e {
+            egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta, modifiers, .. }
+                if *modifiers == egui::Modifiers::NONE && delta.is_finite() =>
+            {
+                sum + *delta
+            }
+            _ => sum,
+        });
+        (notches, i.smooth_scroll_delta != egui::Vec2::ZERO)
+    });
+    if notches != egui::Vec2::ZERO {
+        ui.data_mut(|d| d.insert_temp(key, true));
+    } else if !gliding {
+        ui.data_mut(|d| d.remove_temp::<bool>(key));
+    }
+    if !ui.data(|d| d.get_temp::<bool>(key)).unwrap_or(false) {
+        return egui::Vec2::ZERO;
+    }
+    ui.ctx().input_mut(|i| i.smooth_scroll_delta = egui::Vec2::ZERO);
+    let step = span * crate::theme::WHEEL_STRIP_SHARE;
+    if sideways { egui::vec2((notches.x + notches.y) * step, 0.0) } else { egui::vec2(0.0, notches.y * step) }
 }
 
 /// Height of a date header row (points).
