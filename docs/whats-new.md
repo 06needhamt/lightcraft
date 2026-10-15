@@ -117,6 +117,11 @@
   "Canon CRX adaptive QP value 172" or "175". They now decode from the sensor data. Photos imported before this
   switch over with Photo ▸ Reload from Disk.
 
+### A dialog's confirm button says it's the next step
+- In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
+  brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
+  choice is never the eye-catching default.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
