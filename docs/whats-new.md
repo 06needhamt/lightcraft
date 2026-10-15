@@ -20,6 +20,11 @@
   #1447), or keeps the photo you had when the folder holds it. Before, the photo from the previous view stayed active:
   Photo Grid marked nothing, and Detail, the histogram and the photo info showed a photo that isn't in the folder.
 
+### Closer camera colour for lens-corrected raws
+- Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
+  Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that
+  didn't line up with the raw near the edges. Photos you already imported pick this up when their previews are rebuilt.
+
 ### HDR merges of moving lights, and many brackets at once
 - A star, the moon or a light that moves between the photos of a bracket (a night bracket on a tripod) no longer
   leaves a black hole where the middle photo had it clipped. With Deghost, the brightest photo's copy of it in a
