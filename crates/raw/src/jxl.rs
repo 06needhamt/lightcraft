@@ -14,9 +14,12 @@
 //! sRGB primaries; the codestream's declared encoding is then restored by hand: its primaries with a
 //! plain 3×3 matrix, then its transfer curve. The samples of a lossy tile mean what they would in a
 //! lossless one with the same header, so a declared transfer curve is part of the stored values, not a
-//! display hint: Lightroom Classic's lossy LinearRaw DNGs (e.g. from Denoise) label their linear samples
-//! with the sRGB curve, presumably so XYB spends its bits perceptually, and decoding them to linear
-//! instead squares the shadows away. We never let jxl-oxide convert to the declared encoding itself:
+//! display hint. Lightroom Classic's lossy LinearRaw DNGs (Convert to DNG with lossy compression) store
+//! perceptually shaped samples, label them with the sRGB curve and linearise them with a cubic
+//! `MapPolynomial` per plane in `OpcodeList2`. Measured against Lightroom's own preview of two such
+//! files, the polynomial applied to the samples in the declared encoding tracks Lightroom's rendering
+//! (midtone log-log slope 0.98 and 1.38, about 1 EV apart); applied to the decoder's linear output it is
+//! 3.6 EV too dark. We never let jxl-oxide convert to the declared encoding itself:
 //! that step gamut-maps and clips to [0, 1], which destroys raw values above 1.0 (a `WhiteLevel` of
 //! 32768 puts them far above) and desaturates. The result is the sample space the DNG's `WhiteLevel`
 //! refers to, up to the codec's loss, and can exceed 1.0 or dip below 0.
