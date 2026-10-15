@@ -825,6 +825,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-12 | minor | LR-VIEW-ZOOM: slider-drag drafts are timed with the frame that shows them, drop to 0.6 mid-drag when far over budget, stay 0.6 under a zoom window; workers convert texture pixels (issue #330); status unchanged |
 | 2026-10-11 | minor | LR-VIEW-ZOOM: a slider drag keeps the loupe's full resolution where the GPU draws the view and keeps up (0.6 drafts on the CPU, with soft proofing or the HDR range, or after over-budget drags; issue #330); status unchanged |
 | 2026-10-11 | minor | LR-EXP-LOCATION: Export to "Same folder as original photo" (`destinationMode`), issue #956; status unchanged (✅) |
+| 2026-10-12 | minor | LR-IMP-CAMERA-COVERAGE: 117 Nikon and Fujifilm Adobe models verified on one CC0 file each; COOLPIX 5700 / 8400 / 8800 found decoding wrongly; status unchanged (🟡) |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |

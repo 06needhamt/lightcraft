@@ -121,6 +121,9 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
   V1): one CC0 file each pinned and checked against the camera JPEG; all 110 CC0 CR3s on raw.pixls.us
   decode. The EOS R6 Mark III gets its as-shot white balance (`ColorData` 66). 259 models verified; RAW
   decoding 77% → 83%; mainstream ~49% → ~51%, essentials ~64% → ~65%, full ~61%.
+- 2026-10-12: 117 Nikon and Fujifilm bodies verified, one CC0 raw.pixls.us file each pinned and checked
+  against the camera JPEG (`crates/raw/tests/body_corpus.rs`); the sweep found COOLPIX 5700 / 8400 / 8800
+  decoding wrongly. 354 models verified, ~58% of photographers on a verified body; headline numbers unchanged.
 - 2026-10-11: Canon EOS R5 Mark II C-RAW decodes from sensor data (57% of its files opened as a
   preview): the CRX QP map's first-symbol literal and limited-length escape; four CC0 R5 Mark II files
   pinned, the QP maps of 33,665 private C-RAW files decode exactly ([cr3.md](docs/cr3.md)). 235 models
@@ -174,6 +177,7 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 | 2026-10-14 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
 | 2026-10-12 | minor | 22 more CR3 bodies verified, EOS R6 Mark III white balance: RAW decoding 77% → 83%, RAW ~56% → ~60%; mainstream 49% → 51%, essentials 64% → 65%; full unchanged at ~61% |
+| 2026-10-12 | minor | 117 Nikon and Fujifilm bodies verified (354 models, 24%); headline numbers unchanged |
 | 2026-10-11 | minor | EOS R5 Mark II CR3 verified: CR3 on four verified bodies, RAW decoding 76% → 77%; headline numbers unchanged |
 | 2026-10-10 | minor | RAW measured model by model; RAW decode and colour as explicit rows: full 59% → 61%, mainstream 51% → 49%, essentials 63% → 64%; beta ~14 points |
 | 2026-10-10 | minor | Full ready restored to the additive weighted sum (~59%; method aligned with the standard, no new evidence); hours per audience; beta ~16 points away |
