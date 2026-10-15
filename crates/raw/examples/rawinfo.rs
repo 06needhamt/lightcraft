@@ -228,6 +228,7 @@ mod tests {
             opcodes: OpcodeLists::default(),
             metadata: Default::default(),
             lens_metadata: Default::default(),
+            pixel_aspect: 1.0,
         };
         let path = dir.path("valid.dng");
         std::fs::write(&path, write_dng(&raw, &DngWriteOptions::default()).expect("encode generated fixture")).expect("write fixture");

@@ -112,6 +112,7 @@ pub fn write_linear_dng(
         color: cd,
         wb_multipliers: None,
         linearized: false,
+        pixel_aspect: 1.0,
         opcodes: OpcodeLists { list3: lens.to_vec(), ..Default::default() },
         metadata: meta,
         lens_metadata: Default::default(),

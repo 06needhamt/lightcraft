@@ -124,6 +124,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         opcodes: OpcodeLists::default(),
         metadata,
         lens_metadata: Default::default(),
+        pixel_aspect: 1.0,
     };
     img.validate_for(mode)?;
     Ok(img)

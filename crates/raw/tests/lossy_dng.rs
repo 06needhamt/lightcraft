@@ -38,6 +38,7 @@ fn mosaic(w: usize, h: usize) -> RawImage {
         opcodes: OpcodeLists::default(),
         metadata: Default::default(),
         lens_metadata: Default::default(),
+        pixel_aspect: 1.0,
     }
 }
 

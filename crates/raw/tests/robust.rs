@@ -24,6 +24,7 @@ fn sample(comp: DngCompression) -> Vec<u8> {
         color: ColorData::default(),
         wb_multipliers: None,
         linearized: false,
+        pixel_aspect: 1.0,
         opcodes: OpcodeLists::default(),
         metadata: Default::default(),
         lens_metadata: Default::default(),
@@ -165,6 +166,7 @@ fn non_finite_black_levels_and_samples_develop() {
         opcodes: OpcodeLists::default(),
         metadata: Default::default(),
         lens_metadata: Default::default(),
+        pixel_aspect: 1.0,
     };
     for img in [raw.clone(), lightcraft_raw::decode(&lightcraft_raw::write_dng(&raw, &DngWriteOptions::default()).unwrap()).unwrap()] {
         let rgb = img.develop(Method::Ahd).unwrap();
