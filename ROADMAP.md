@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (RAW: 82% of Adobe's models decode, 36% verified) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -45,7 +45,7 @@ Hours are calibrated on this repo's PR history; see
 | Dimension | Ready | Breadth | Remaining | Doc |
 |---|---:|---:|---:|---|
 | Features | ~61% | ~77% (checklist 81.1%) | 600–1,100 h | [target-app-parity](docs/target-app-parity.md#features) |
-| ↳ RAW cameras, colour, lens profiles | ~60% | 81% of 1,446 Adobe models decode, 18% verified | 255–480 h | [raw-parity](docs/raw-parity.md) |
+| ↳ RAW cameras, colour, lens profiles | ~60% | 82% of 1,446 Adobe models decode, 36% verified | 255–480 h | [raw-parity](docs/raw-parity.md) |
 | UI/UX fidelity | ~70% | ~85% | 34–58 h | [ui-parity](docs/ui-parity.md) |
 | File formats (non-raw) | ~70% | ~85% | 30–55 h | [file-format-parity](docs/file-format-parity.md) |
 | Hardware | ~40% | ~50% | 40–80 h | [hardware-parity](docs/hardware-parity.md) |
@@ -200,3 +200,4 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 | 2026-10-02 | major | Parity estimate and effort table |
 | 2026-09-30 | major | Created |
 | 2026-10-14 | minor | 97 Canon CR2, Pentax and Ricoh models verified (334 models, 23%); headline numbers unchanged |
+| 2026-10-14 | minor | RAW: 82% of Adobe's models decode, 36% verified (integration batch 36's CC0 per-model checks) |

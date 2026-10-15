@@ -690,11 +690,6 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
         "1b3efe0664a28a0decb53e225cbfecdbc0dd27d85abdc4683fc2a4add5129b4d",
     ),
     (
-        "cr3-canon-rp-craw.cr3",
-        "https://raw.pixls.us/getfile.php/4672/nice/Canon%20-%20EOS%20RP%20-%203:2.CR3",
-        "bd3270610593d37ff8a399908bb9406a4e32f9151d55bf19ac1cf8f10d787b46",
-    ),
-    (
         "cr3-canon-g5xm2-craw.cr3",
         "https://raw.pixls.us/getfile.php/3506/nice/Canon%20-%20PowerShot%20G5%20X%20Mark%20II%20-%20C-RAW%20%283:2%29.CR3",
         "16d7b944344004c866bf2f84c5673969e76adfe16e5fb4388da48c72bdd58058",

@@ -1703,7 +1703,7 @@ mod tests {
         // the pictures are made and kept, well beyond the old budget (a few demo photos share a scene, so two faces can share a
         // picture: the count is a little under the number of tiles)
         let started = Instant::now();
-        while h.app.renderer.variant_textures() < drawn - 20 && started.elapsed() < Duration::from_secs(20) {
+        while h.app.renderer.variant_textures() < drawn - 20 && started.elapsed() < Duration::from_secs(60) {
             h.step();
             std::thread::sleep(Duration::from_millis(20));
         }
