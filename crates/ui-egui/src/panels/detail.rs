@@ -125,7 +125,16 @@ pub(crate) fn fit_rect(area: Rect, aspect: f32, zoom: Zoom, img_px: [usize; 2], 
     };
     let pan = bounded_pan(area, vec2(w, h), pan);
     let c = pos2(area.center().x - (pan.0 - 0.5) * w, area.center().y - (pan.1 - 0.5) * h);
-    Rect::from_center_size(c, vec2(w, h))
+    let rect = Rect::from_center_size(c, vec2(w, h));
+    // At 100 % the texture maps texel for texel to screen pixels, so its corner must sit on a whole
+    // physical pixel: half a pixel off and the GPU's bilinear filter blurs the view (an odd-width
+    // canvas on a 2x display does this). Other zooms resample anyway, and a pinch must not jump.
+    let one_to_one = ppp.is_finite() && ppp > 0.0 && (w * ppp - img_px[0] as f32).abs() < 0.5;
+    if matches!(zoom, Zoom::Percent(_)) && one_to_one {
+        let snap = |v: f32| (v * ppp).round() / ppp;
+        return Rect::from_min_size(pos2(snap(rect.min.x), snap(rect.min.y)), rect.size());
+    }
+    rect
 }
 
 /// Fit a decoded image inside the frame calculated from catalog metadata. Unsupported RAWs can
@@ -2604,6 +2613,22 @@ mod preview_geometry_tests {
         assert!((image.width() / image.height() - 0.5).abs() < 1e-6);
         assert_eq!(image.center(), frame.center());
         assert!(frame.contains_rect(image));
+    }
+
+    /// A 100 % view must put the photo's corner on a whole physical pixel, or the GPU's bilinear
+    /// filter softens it (a 1279.5 pt canvas on a 2x display centred the photo half a pixel off).
+    #[test]
+    fn percent_zoom_lands_on_whole_physical_pixels() {
+        let area = Rect::from_min_size(pos2(0.0, 42.0), vec2(1279.5, 726.0));
+        for ppp in [1.0, 1.25, 2.0, 3.0] {
+            for pan in [(0.5, 0.5), (0.3, 0.7), (0.4999, 0.5001)] {
+                let image = fit_rect(area, 5152.0 / 7728.0, Zoom::Percent(100.0), [5152, 7728], ppp, pan);
+                for v in [image.min.x, image.min.y] {
+                    assert!((v * ppp - (v * ppp).round()).abs() < 1e-3, "{v} pt is not a whole pixel at {ppp}x, pan {pan:?}");
+                }
+                assert!((image.width() * ppp - 5152.0).abs() < 1e-3, "size stays the photo's own pixels");
+            }
+        }
     }
 
     #[test]
