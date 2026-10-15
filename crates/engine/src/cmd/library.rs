@@ -1276,8 +1276,10 @@ pub fn specs() -> Vec<CommandSpec> {
                 let (targets, skipped) = album_targets_or_err(s, "album.addPhotos", targets)?;
                 let mut photos = al.photos.clone();
                 let before = photos.len();
+                // looked up, not searched for: adding thousands to a big album stays linear
+                let mut held: std::collections::HashSet<PhotoId> = photos.iter().copied().collect();
                 for t in targets {
-                    if !photos.contains(&t) {
+                    if held.insert(t) {
                         photos.push(t);
                     }
                 }
@@ -1308,11 +1310,14 @@ pub fn specs() -> Vec<CommandSpec> {
                     }
                 };
                 let al = s.catalog.album(id).ok_or_else(|| bad("album.toggleTarget", "no target album"))?;
-                let all_in = !targets.is_empty() && targets.iter().all(|t| al.photos.contains(t));
+                // looked up, not searched for: thousands toggled in a big album stay linear
+                let mut held: std::collections::HashSet<PhotoId> = al.photos.iter().copied().collect();
+                let all_in = !targets.is_empty() && targets.iter().all(|t| held.contains(t));
                 let photos: Vec<PhotoId> = if all_in {
+                    let targets: std::collections::HashSet<PhotoId> = targets.iter().copied().collect();
                     al.photos.iter().copied().filter(|x| !targets.contains(x)).collect()
                 } else {
-                    al.photos.iter().copied().chain(targets.iter().copied().filter(|t| !al.photos.contains(t))).collect()
+                    al.photos.iter().copied().chain(targets.iter().copied().filter(|t| held.insert(*t))).collect()
                 };
                 let name = al.name.clone();
                 let cover = al.cover.filter(|c| photos.contains(c)).or(photos.first().copied());
@@ -1463,6 +1468,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     return Err(bad("album.removePhotos", "album folders don't hold photos"));
                 }
                 let name = al.name.clone();
+                let targets: std::collections::HashSet<PhotoId> = targets.into_iter().collect();
                 let photos: Vec<PhotoId> = al.photos.iter().copied().filter(|x| !targets.contains(x)).collect();
                 let removed = al.photos.len().saturating_sub(photos.len());
                 if removed > 0 {

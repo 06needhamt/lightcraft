@@ -135,6 +135,12 @@ fn shuffle_rank(seed: u64, id: PhotoId) -> u64 {
     mix64(mix64(seed) ^ id.0)
 }
 
+/// What [`Filter::prepare`] works out once for a pass over many photos.
+pub(crate) struct Prepared {
+    root: Option<String>,
+    only: Option<std::collections::HashSet<PhotoId>>,
+}
+
 fn token_matches(p: &Photo, tok: &str) -> bool {
     let t = tok.to_lowercase();
     if let Some((field, val)) = t.split_once(':') {
@@ -257,7 +263,18 @@ impl Filter {
     }
 
     pub fn matches(&self, p: &Photo, cat: &Catalog) -> bool {
-        self.matches_in(p, cat, self.library_root().as_deref())
+        self.matches_in(p, cat, &self.prepare_one())
+    }
+
+    /// [`Filter::prepare`] for testing one photo (the `only` ids are looked through, not hashed).
+    pub(crate) fn prepare_one(&self) -> Prepared {
+        Prepared { root: self.library_root(), only: None }
+    }
+
+    /// What [`Filter::matches_in`] needs worked out once for a pass over many photos rather than
+    /// once per photo: the library folder's identity and the `only` ids as a set.
+    pub(crate) fn prepare(&self) -> Prepared {
+        Prepared { root: self.library_root(), only: (!self.only.is_empty()).then(|| self.only.iter().copied().collect()) }
     }
 
     /// [`Filter::library_folder`] as a folder identity ([`folder_key`]); `None` without a choice.
@@ -267,9 +284,9 @@ impl Filter {
         self.library_folder.as_deref().filter(|d| !d.trim().is_empty()).map(folder_key)
     }
 
-    /// [`Filter::matches`] with the library folder already turned into its identity, so a query
-    /// over a big library does that once, not once per photo.
-    fn matches_in(&self, p: &Photo, cat: &Catalog, root: Option<&str>) -> bool {
+    /// [`Filter::matches`] with what [`Filter::prepare`] works out done already, so a query over a
+    /// big library does that once, not once per photo.
+    pub(crate) fn matches_in(&self, p: &Photo, cat: &Catalog, prepared: &Prepared) -> bool {
         if p.deleted != self.deleted {
             return false;
         }
@@ -308,7 +325,7 @@ impl Filter {
         if !self.labels.is_empty() && !p.label.is_some_and(|l| self.labels.contains(&l)) {
             return false;
         }
-        if !self.only.is_empty() && !self.only.contains(&p.id) {
+        if !self.only.is_empty() && !prepared.only.as_ref().map_or_else(|| self.only.contains(&p.id), |only| only.contains(&p.id)) {
             return false;
         }
         if let Some(want) = &self.merged {
@@ -348,7 +365,7 @@ impl Filter {
         {
             return false;
         }
-        if let Some(root) = root
+        if let Some(root) = prepared.root.as_deref()
             && !photo_in_root(p, root)
         {
             return false;
@@ -398,12 +415,13 @@ impl Catalog {
     /// album's rules, the filter bar), as long as they are still where the view looks (`within`: in the library,
     /// the album, the folder; not deleted).
     pub fn query_keeping(&self, filter: &Filter, sort: &Sort, keep: &std::collections::HashSet<PhotoId>, within: &Filter) -> Vec<PhotoId> {
-        let root = filter.library_root();
-        let within_root = within.library_root();
+        let prepared = filter.prepare();
+        // `within` only decides for the few kept photos: worked out per photo, not hashed
+        let within_prepared = within.prepare_one();
         let mut v: Vec<&Photo> = self
             .photos()
             .map(|p| p.as_ref())
-            .filter(|p| filter.matches_in(p, self, root.as_deref()) || (keep.contains(&p.id) && within.matches_in(p, self, within_root.as_deref())))
+            .filter(|p| filter.matches_in(p, self, &prepared) || (keep.contains(&p.id) && within.matches_in(p, self, &within_prepared)))
             .collect();
         v.sort_by(|a, b| sort.order(a, b));
         v.into_iter().map(|p| p.id).collect()
@@ -417,11 +435,11 @@ impl Catalog {
     pub fn follow(&self, was: &[PhotoId], touched: &[PhotoId], filter: &Filter, sort: &Sort, within: Option<&Filter>) -> Vec<PhotoId> {
         let listed: std::collections::HashSet<PhotoId> = was.iter().copied().filter(|id| touched.binary_search(id).is_ok()).collect();
         let mut ids: Vec<PhotoId> = was.iter().copied().filter(|id| !listed.contains(id)).collect();
-        let (root, within_root) = (filter.library_root(), within.and_then(Filter::library_root));
+        let (prepared, within_prepared) = (filter.prepare_one(), within.map(Filter::prepare_one));
         for id in touched {
             let Some(p) = self.photo(*id) else { continue };
-            let kept = within.is_some_and(|w| listed.contains(id) && w.matches_in(p, self, within_root.as_deref()));
-            if filter.matches_in(p, self, root.as_deref()) || kept {
+            let kept = within.zip(within_prepared.as_ref()).is_some_and(|(w, wp)| listed.contains(id) && w.matches_in(p, self, wp));
+            if filter.matches_in(p, self, &prepared) || kept {
                 // (the list is in order without the touched photos, and stays so as each is put back)
                 let at = ids.partition_point(|other| self.photo(*other).is_some_and(|o| sort.order(o, p).is_lt()));
                 ids.insert(at, *id);
@@ -432,8 +450,8 @@ impl Catalog {
 
     /// How many photos match `filter`: [`Catalog::query`]'s length without its sorting.
     pub fn count(&self, filter: &Filter) -> usize {
-        let root = filter.library_root();
-        self.photos().filter(|p| filter.matches_in(p, self, root.as_deref())).count()
+        let prepared = filter.prepare();
+        self.photos().filter(|p| filter.matches_in(p, self, &prepared)).count()
     }
 
     /// Year → month → day counts for the "By Date" section (newest first).
@@ -489,8 +507,8 @@ impl Catalog {
     pub fn people_in(&self, filter: &Filter) -> Vec<Person> {
         let filter = Filter { person: None, ..filter.clone() };
         let mut m: std::collections::HashMap<String, (Person, f64)> = Default::default();
-        let root = filter.library_root();
-        for p in self.photos().filter(|p| filter.matches_in(p, self, root.as_deref())) {
+        let prepared = filter.prepare();
+        for p in self.photos().filter(|p| filter.matches_in(p, self, &prepared)) {
             let mut seen: Vec<String> = Vec::new();
             for r in p.meta.regions.iter().filter(|r| r.kind == lightcraft_meta::RegionKind::Face) {
                 let Some(name) = r.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) else { continue };

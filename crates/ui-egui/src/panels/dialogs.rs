@@ -463,7 +463,13 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         confirm = true;
                     }
                     let rules = app.session.view_rules();
-                    let n = app.session.catalog.query(&rules, &Default::default()).len();
+                    // counted when the library or the rules change (or, for "in the last…" rules, the minute), not every frame
+                    let now = (app.session.clock)();
+                    let minute = if rules.depends_on_now() { now.get(..16).unwrap_or(&now) } else { "" };
+                    let n = app.caches.dialog_count(&app.session.catalog, ("smartAlbum", format!("{rules:?}"), minute), || {
+                        lightcraft_catalog::rules::set_now(Some(now.clone()));
+                        app.session.catalog.query(&rules, &Default::default()).len()
+                    });
                     ui.label(egui::RichText::new(crate::i18n::tr_format!("Matches: {}", crate::i18n::filter_label(&rules, &app.session.catalog))).color(t.text_label));
                     ui.label(
                         egui::RichText::new(crate::i18n::tr_format!("{n} photo{} now · updates automatically as photos change", if n == 1 { "" } else { "s" }, n = n))
@@ -637,7 +643,9 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     }
                 }
                 Dialog::RenameKeyword { from, to } => {
-                    let n = app.session.catalog.photos().filter(|p| p.meta.keywords.iter().any(|k| lightcraft_catalog::keywords::is_under(k, from))).count();
+                    let n = app.caches.dialog_count(&app.session.catalog, ("renameKeyword", from.as_str()), || {
+                        app.session.catalog.photos().filter(|p| p.meta.keywords.iter().any(|k| lightcraft_catalog::keywords::is_under(k, from))).count()
+                    });
                     if dialog_field(ui, "field:keywordName", to, "New name") {
                         confirm = true;
                     }
@@ -653,11 +661,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         confirm = true;
                     }
                     let options: Vec<String> = app
-                        .session
-                        .catalog
-                        .keyword_suggestions(from, into, 12)
-                        .into_iter()
+                        .caches
+                        .suggestions(&app.session.catalog, from, into, 12)
+                        .iter()
                         .filter(|k| !from.iter().any(|f| lightcraft_catalog::keywords::is_under(k, f)))
+                        .cloned()
                         .collect();
                     ui.horizontal_wrapped(|ui| {
                         for k in options {
