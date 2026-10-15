@@ -672,6 +672,8 @@ pub struct UiState {
     pub brush_erase: bool,
     /// Brush Auto Mask: dabs stick to areas like the one under the brush centre.
     pub brush_auto_mask: bool,
+    /// Brush Pen Pressure: a pen's pressure scales each dab's size and flow (a mouse paints at full pressure).
+    pub brush_pressure: bool,
     /// Remove tool brush: size (fraction of the long edge), feather and opacity (0..100).
     pub remove_size: f32,
     pub remove_feather: f32,
@@ -1138,6 +1140,7 @@ impl Default for UiState {
             brush_flow: 60.0,
             brush_erase: false,
             brush_auto_mask: false,
+            brush_pressure: true,
             remove_size: 0.02,
             remove_feather: 50.0,
             remove_opacity: 100.0,

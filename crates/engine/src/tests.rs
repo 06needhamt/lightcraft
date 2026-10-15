@@ -314,6 +314,23 @@ fn permanently_deleting_explicit_targets_keeps_the_surviving_selection() {
 }
 
 #[test]
+fn brush_strokes_keep_pen_pressure_and_refuse_bad_lists() {
+    let mut s = demo();
+    s.execute("mask.add", &json!({"kind": "brush"})).unwrap();
+    s.execute("mask.brushStroke", &json!({"points": [[0.2, 0.2], [0.3, 0.3]], "pressure": [0.25, 7.0]})).unwrap();
+    let lightcraft_develop::MaskShape::Brush { strokes } = &active_dev(&s).masks[0].components[0].shape else { panic!("a brush") };
+    assert_eq!(strokes[0].pressure, vec![0.25, 1.0], "kept, clamped to 0..1");
+    for bad in [json!([0.5, 0.5, 0.5]), json!("hard"), json!([0.5, "x"])] {
+        assert!(s.execute("mask.brushStroke", &json!({"points": [[0.2, 0.2], [0.3, 0.3]], "pressure": bad})).is_err(), "{bad}");
+    }
+    s.execute("mask.brushStroke", &json!({"points": [[0.4, 0.4]]})).unwrap();
+    let lightcraft_develop::MaskShape::Brush { strokes } = &active_dev(&s).masks[0].components[0].shape else { panic!("a brush") };
+    assert!(strokes[1].pressure.is_empty(), "a mouse stroke has no pressure data");
+    let json = serde_json::to_string(&strokes[1]).unwrap();
+    assert!(!json.contains("pressure"), "and stores none: {json}");
+}
+
+#[test]
 fn masks_crop_and_render() {
     let mut s = demo();
     s.execute("mask.add", &json!({"kind": "radial", "center": [0.5, 0.5]})).unwrap();

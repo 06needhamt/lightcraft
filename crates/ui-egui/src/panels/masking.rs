@@ -849,6 +849,14 @@ fn brush_settings(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         {
             app.ui.brush_auto_mask = auto;
         }
+        let mut pressure = app.ui.brush_pressure;
+        if ui
+            .checkbox(&mut pressure, crate::i18n::tr("Pen Pressure"))
+            .on_hover_text(crate::i18n::tr("A pen's pressure sets the size and flow of the brush"))
+            .changed()
+        {
+            app.ui.brush_pressure = pressure;
+        }
     });
     for (id, label, min, max, get) in [
         ("ui.brushSize", "Size", 1.0, 100.0, (app.ui.brush_size * 400.0) as f64),

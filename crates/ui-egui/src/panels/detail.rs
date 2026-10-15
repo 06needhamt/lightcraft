@@ -19,6 +19,9 @@ use crate::widgets::register;
 pub enum Gesture {
     Brush {
         points: Vec<Point>,
+        /// Pen pressure (0..1) at each point; empty when no pen pressure was reported (a mouse) or the
+        /// brush's Pen Pressure switch is off.
+        pressure: Vec<f32>,
     },
     Spot {
         points: Vec<Point>,
@@ -1972,16 +1975,24 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             && (resp.drag_started() || resp.dragged() || resp.clicked())
         {
             let n = map.norm(q);
+            let force = if app.ui.brush_pressure { ui.input(pen_force) } else { None };
             match &mut app.gesture {
                 // a held, unmoving pointer records nothing: coverage builds by passes, not time (#518)
-                Some(Gesture::Brush { points }) if points.last() == Some(&n) => {}
-                Some(Gesture::Brush { points }) => points.push(n),
-                _ => app.gesture = Some(Gesture::Brush { points: vec![n] }),
+                Some(Gesture::Brush { points, .. }) if points.last() == Some(&n) => {}
+                Some(Gesture::Brush { points, pressure }) => {
+                    record_pressure(pressure, points.len(), force);
+                    points.push(n);
+                }
+                _ => {
+                    let mut pressure = Vec::new();
+                    record_pressure(&mut pressure, 0, force);
+                    app.gesture = Some(Gesture::Brush { points: vec![n], pressure });
+                }
             }
         }
         // the stroke being painted (the render shows it once it's committed), with the committed
         // stroke's dab spacing, feather and flow (issue #517)
-        if let Some(Gesture::Brush { points }) = &app.gesture {
+        if let Some(Gesture::Brush { points, pressure }) = &app.gesture {
             let screen: Vec<Pos2> = points.iter().map(|q| map.screen(*q)).collect();
             let opacity = if app.ui.mask_overlay && app.ui.mask_overlay_opacity > 0.0 { app.ui.mask_overlay_opacity / 100.0 } else { 110.0 / 255.0 };
             let params = crate::brush_live::LiveParams {
@@ -1994,12 +2005,12 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
                 color: app.ui.mask_overlay_color,
                 opacity: opacity.clamp(0.0, 1.0),
             };
-            crate::brush_live::paint(&mut app.brush_live, ui.ctx(), p, params, &screen);
+            crate::brush_live::paint(&mut app.brush_live, ui.ctx(), p, params, &screen, pressure);
         } else {
             app.brush_live = None;
         }
         if (resp.drag_stopped() || resp.clicked())
-            && let Some(Gesture::Brush { points }) = app.gesture.take()
+            && let Some(Gesture::Brush { points, pressure }) = app.gesture.take()
         {
             app.brush_live = None;
             let pts: Vec<[f64; 2]> = points.iter().map(|q| [q.x, q.y]).collect();
@@ -2008,7 +2019,7 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             let _ = app.run(
                 "mask.brushStroke",
                 json!({"points": pts, "size": app.ui.brush_size, "feather": app.ui.brush_feather, "flow": app.ui.brush_flow,
-                       "erase": erase, "autoMask": app.ui.brush_auto_mask}),
+                       "erase": erase, "autoMask": app.ui.brush_auto_mask, "pressure": pressure}),
             );
         }
         return;
@@ -2677,6 +2688,58 @@ mod wheel_zoom_tests {
         assert_eq!(wheel_notches(&[wheel(egui::MouseWheelUnit::Point, 40.0, m)]), 0.0);
         assert_eq!(wheel_notches(&[wheel(egui::MouseWheelUnit::Line, 1.0, egui::Modifiers::CTRL)]), 0.0);
         assert_eq!(wheel_notches(&[wheel(egui::MouseWheelUnit::Line, f32::NAN, m)]), 0.0);
+    }
+}
+
+/// The pen pressure (0..1) reported this frame: the force of the latest touch or pen event that carries one (winit
+/// reports a pen's pressure as a touch force, on the platforms that give it), `None` for a mouse.
+pub(crate) fn pen_force(i: &egui::InputState) -> Option<f32> {
+    i.events.iter().rev().find_map(|e| match e {
+        egui::Event::Touch { force: Some(f), .. } if f.is_finite() => Some(f.clamp(0.0, 1.0)),
+        _ => None,
+    })
+}
+
+/// Record the pressure of the stroke's point `index`: `force` when the pen reported one this frame, else the last
+/// known one. Points before the first reported force take it too; a stroke without any keeps no pressure list.
+pub(crate) fn record_pressure(pressure: &mut Vec<f32>, index: usize, force: Option<f32>) {
+    match (force, pressure.last().copied()) {
+        (Some(f), _) if pressure.is_empty() => pressure.extend(std::iter::repeat_n(f, index + 1)),
+        (Some(f), _) => pressure.push(f),
+        (None, Some(last)) => pressure.push(last),
+        (None, None) => {}
+    }
+}
+
+#[cfg(test)]
+mod pen_tests {
+    use super::*;
+
+    #[test]
+    fn pen_pressure_is_recorded_per_point_and_absent_for_a_mouse() {
+        let mut p = Vec::new();
+        record_pressure(&mut p, 0, None);
+        record_pressure(&mut p, 1, None);
+        assert!(p.is_empty(), "a mouse: no pressure list");
+        // the first force covers the points before it, a frame without one repeats the last
+        record_pressure(&mut p, 2, Some(0.4));
+        record_pressure(&mut p, 3, None);
+        record_pressure(&mut p, 4, Some(0.9));
+        assert_eq!(p, vec![0.4, 0.4, 0.4, 0.4, 0.9]);
+
+        let mut i = egui::InputState::default();
+        assert_eq!(pen_force(&i), None);
+        let touch = |force| egui::Event::Touch {
+            device_id: egui::TouchDeviceId(1),
+            id: egui::TouchId(1),
+            phase: egui::TouchPhase::Move,
+            pos: egui::pos2(1.0, 1.0),
+            force,
+        };
+        i.events = vec![touch(Some(0.3)), touch(Some(f32::NAN)), touch(None)];
+        assert_eq!(pen_force(&i), Some(0.3), "the latest usable force");
+        i.events = vec![touch(Some(4.0))];
+        assert_eq!(pen_force(&i), Some(1.0));
     }
 }
 
