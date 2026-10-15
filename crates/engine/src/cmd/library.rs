@@ -167,6 +167,19 @@ fn album_targets_or_err(s: &Session, command: &str, targets: Vec<PhotoId>) -> Re
     Ok((kept, skipped))
 }
 
+/// Move to Recently Deleted and drop the photos from stacks so leftover members do not keep
+/// showing `i/n` (issue #1493).
+fn mark_deleted(s: &mut Session, ids: &[PhotoId], label: &str) -> Result<usize> {
+    let mut ops: Vec<Op> = ids.iter().map(|id| Op::SetDeleted { id: *id, deleted: true }).collect();
+    let n = ops.len();
+    if n == 0 {
+        return Ok(0);
+    }
+    ops.extend(s.catalog.remove_from_stacks_ops(ids));
+    s.commit(label, Op::Batch { ops })?;
+    Ok(n)
+}
+
 /// Apply one op per target as a single undo step.
 fn for_targets(s: &mut Session, p: &Value, label: &str, f: impl Fn(PhotoId) -> Option<Op>) -> Result<Value> {
     let targets = s.targets(p);
@@ -459,8 +472,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 if covers_other_disks(s, path, &ids) && !bool_or(p, "disk", false) {
                     return Err(bad(C, format!("{path} holds whole disks: pass `disk: true` to remove everything on them")));
                 }
-                let ops = ids.iter().map(|id| Op::SetDeleted { id: *id, deleted: true }).collect();
-                s.commit("Remove Folder from Library", Op::Batch { ops })?;
+                mark_deleted(s, &ids, "Remove Folder from Library")?;
                 if s.filter.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path)) {
                     s.filter.library_folder = None;
                 }
@@ -874,9 +886,10 @@ pub fn specs() -> Vec<CommandSpec> {
         // ---- delete / restore
         cmd!("photo.delete", "Delete Photo", ["Photo"], Some("Delete"), "{ids?} — moves to Recently Deleted", has_selection, |s, p| {
             let before = s.visible_cloned();
-            let v = for_targets(s, p, "Delete", |id| Some(Op::SetDeleted { id, deleted: true }))?;
+            let targets = s.targets(p);
+            let n = mark_deleted(s, &targets, "Delete")?;
             select_after_deletion(s, &before);
-            Ok(v)
+            Ok(json!({"changed": n}))
         }),
         cmd!("photo.restore", "Restore", ["Photo"], None, "{ids?}", has_selection, |s, p| for_targets(s, p, "Restore", |id| Some(Op::SetDeleted {
             id,
