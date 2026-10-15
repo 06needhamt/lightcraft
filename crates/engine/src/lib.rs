@@ -62,6 +62,7 @@ pub mod presets;
 pub mod print;
 pub mod print_color;
 pub mod print_pdf;
+pub mod profile_refs;
 pub mod proof;
 pub mod rename;
 pub mod segment;
