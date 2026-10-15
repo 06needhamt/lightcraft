@@ -204,6 +204,9 @@ pub const ALIASES: &[(&str, &str, &str)] = &[
     ("F6", "view.filmstrip", "{}"),
     ("F7", "view.leftPanel", "{}"),
     ("Shift+M", "version.create", "{}"),
+    // grid thumbnail size: Classic's key is `=`; `+` (keypad, or Shift+= reported as Plus) agrees
+    ("Plus", "view.thumbSizeUp", "{}"),
+    ("Shift+Plus", "view.thumbSizeUp", "{}"),
     ("Shift+X", "photo.flag", r#"{"flag": "reject", "advance": true}"#),
     ("Shift+Z", "photo.flag", r#"{"flag": "pick", "advance": true}"#),
     ("Shift+U", "photo.flag", r#"{"flag": "none", "advance": true}"#),

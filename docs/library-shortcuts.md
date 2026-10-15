@@ -58,7 +58,17 @@ commit `4e012a59a6d2442ba749f109ea27aadb5c0b11a5` by Gardy, and addresses the ca
 [issue #283](https://github.com/storytold/lightcraft/issues/283). That PR was open when checked
 on 2026-10-08; this work extends its fix with library culling bindings and tests.
 
-Public behaviour references, checked 2026-10-08:
+## Grid thumbnail size
+
+`=` makes the grid thumbnails larger and `-` smaller (`+` also enlarges), as in Lightroom Classic. Each
+press moves the bottom-bar slider by 30 pt within its 90–480 pt range and stops at either end. The keys
+work in Photo Grid, Square Grid and People (the views with the slider), do nothing in Detail, Compare,
+Survey and Reference, and leave text fields alone, so the search box still types `-` and `=`. `⌘=` /
+`⌘−` remain Zoom In / Out. The same steps are the View ▸ Increase / Decrease Grid Thumbnail Size
+commands (`view.thumbSizeUp`, `view.thumbSizeDown`, reachable from the control channel and MCP, which
+return `{"size"}`); the size is saved with the other interface settings.
+
+Public behaviour references, checked 2026-10-08 (thumbnail size: 2026-10-13):
 
 - [Lightroom Classic keyboard shortcuts](https://helpx.adobe.com/lightroom-classic/help/keyboard-shortcuts.html)
 - [Lightroom Classic flagging, labelling and rating](https://helpx.adobe.com/lightroom-classic/help/flag-label-rate-photos.html)
