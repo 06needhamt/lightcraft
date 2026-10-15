@@ -103,6 +103,19 @@ impl crate::Session {
     /// (the photo `settings.background_image` names, when it is in the catalog) and the library's
     /// overlays resolved for `photo`.
     pub fn slide_compose(&mut self, settings: &SlideSettings, width: usize, height: usize, photo: Option<PhotoId>) -> Arc<SlideCompose> {
+        let overlays = self.slide_overlays.clone();
+        self.slide_compose_with(settings, &overlays, width, height, photo)
+    }
+
+    /// [`Self::slide_compose`] with `overlays` in place of the library's (a template's preview).
+    pub fn slide_compose_with(
+        &mut self,
+        settings: &SlideSettings,
+        overlays: &crate::slide_overlay::OverlaySettings,
+        width: usize,
+        height: usize,
+        photo: Option<PhotoId>,
+    ) -> Arc<SlideCompose> {
         let settings = settings.clone().sanitized();
         let backdrop = settings.background_image.filter(|_| settings.background_opacity > 0.0).and_then(|bid| {
             let id = PhotoId(bid);
@@ -113,9 +126,9 @@ impl crate::Session {
             let job = self.render_job(id, w, h, false, true)?;
             Some(Backdrop { photo: id, job: Box::new(job), cache: self.slide_backdrop.clone() })
         });
-        let overlays = self.slide_overlays.any().then(|| {
+        let overlays = overlays.any().then(|| {
             let p = photo.and_then(|id| self.catalog.photo(id));
-            Arc::new(crate::slide_overlay::SlideOverlays::resolve(&self.slide_overlays, p.map(|p| &**p)))
+            Arc::new(crate::slide_overlay::SlideOverlays::resolve(overlays, p.map(|p| &**p)))
         });
         Arc::new(SlideCompose { settings, width, height, backdrop, overlays })
     }
@@ -140,6 +153,22 @@ impl crate::Session {
         photo_edge: Option<usize>,
         view: bool,
     ) -> Option<RenderJob> {
+        let overlays = self.slide_overlays.clone();
+        self.slide_job_look(settings, &overlays, id, width, height, photo_edge, view)
+    }
+
+    /// [`Self::slide_job_with`] with `overlays` in place of the library's (a template's preview).
+    #[allow(clippy::too_many_arguments)]
+    pub fn slide_job_look(
+        &mut self,
+        settings: &SlideSettings,
+        overlays: &crate::slide_overlay::OverlaySettings,
+        id: PhotoId,
+        width: usize,
+        height: usize,
+        photo_edge: Option<usize>,
+        view: bool,
+    ) -> Option<RenderJob> {
         let aspect = self.slide_photo_aspect(id)?;
         let (mut w, mut h) = lightcraft_slideshow::photo_size(settings, aspect, width, height);
         if let Some(edge) = photo_edge.filter(|e| *e > 0 && w.max(h) > *e) {
@@ -147,13 +176,26 @@ impl crate::Session {
             (w, h) = (((w as f64 * k).round() as usize).max(1), ((h as f64 * k).round() as usize).max(1));
         }
         let job = if view { self.loupe_job(id, w.max(8), h.max(8), true)? } else { self.render_job(id, w.max(8), h.max(8), false, true)? };
-        let compose = self.slide_compose(settings, width, height, Some(id));
+        let compose = self.slide_compose_with(settings, overlays, width, height, Some(id));
         Some(job.with_slide(compose))
     }
 
     /// Photo `id`'s slide at `width × height` with `settings`, rendered now on this thread.
     pub fn slide_now(&mut self, settings: &SlideSettings, id: PhotoId, width: usize, height: usize) -> Result<Rgba8, String> {
-        let job = self.slide_job_with(settings, id, width, height, None, false).ok_or("no such photo")?;
+        let overlays = self.slide_overlays.clone();
+        self.slide_now_look(settings, &overlays, id, width, height)
+    }
+
+    /// [`Self::slide_now`] with `overlays` in place of the library's.
+    pub fn slide_now_look(
+        &mut self,
+        settings: &SlideSettings,
+        overlays: &crate::slide_overlay::OverlaySettings,
+        id: PhotoId,
+        width: usize,
+        height: usize,
+    ) -> Result<Rgba8, String> {
+        let job = self.slide_job_look(settings, overlays, id, width, height, None, false).ok_or("no such photo")?;
         let r = job.run();
         self.accept(&r);
         r.rendered.map(|r| r.image)

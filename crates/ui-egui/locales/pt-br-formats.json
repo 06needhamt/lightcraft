@@ -250,5 +250,14 @@
   "· {in_source} identical copies": "· {in_source} cópias idênticas",
   "{count} more warnings.": "Mais {count} avisos.",
   "{photos} catalog records processed; {collections} collections.": "{photos} registros do catálogo processados; {collections} coleções.",
-  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originais estão ausentes. Seus registros no catálogo estão disponíveis; use Encontrar fotos ausentes para vinculá-los novamente."
+  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originais estão ausentes. Seus registros no catálogo estão disponíveis; use Encontrar fotos ausentes para vinculá-los novamente.",
+  "Applied {name}": "{name} aplicado",
+  "Delete “{name}”?": "Excluir “{name}”?",
+  "Updated {name}": "{name} atualizado",
+  "Exported to {path}": "Exportado para {path}",
+  "Saved template {name}": "Modelo {name} salvo",
+  "Imported {name}": "{name} importado",
+  "Skipped {problem}": "Ignorado: {problem}",
+  "…and {more} more": "…e mais {more}",
+  "Template preview: {name}": "Prévia do modelo: {name}"
 }

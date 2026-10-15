@@ -212,7 +212,11 @@ overlays drawn on every slide (identity plate text or image, rating stars, text 
 `{caption}` or `{exposure}`, the export watermark); its reply lists `warnings` (an unreadable plate image, tags that
 aren't tokens), and `cmd_slideshow_preview` returns each overlay's box. `cmd_slideshow_titles` sets the intro and ending
 screens (colour, the identity plate or a line of text, scale, duration), and `cmd_slideshow_preview {title: "intro"}`
-renders one.
+renders one. Templates bundle all four: `cmd_slideshow_templates_list` lists the built-in and user templates (and files
+it skipped), `cmd_slideshow_templates_apply {id}` replaces the settings with one (the replaced ones stay available as
+`{id: "previous"}` for the session), `cmd_slideshow_preview {template: id}` previews one without applying it, and
+`cmd_slideshow_templates_save` / `update` / `rename` / `delete` / `import` / `export` manage the user's own (JSON files
+in `<settings>/slideshow-templates`).
 
 ## Resources
 

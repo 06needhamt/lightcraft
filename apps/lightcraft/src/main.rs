@@ -603,6 +603,24 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
                 .save_file()
                 .map(|p| p.to_string_lossy().to_string())
         })),
+        pick_slideshow_templates: Some(Box::new(|| {
+            rfd::FileDialog::new()
+                .set_title(lightcraft_ui_egui::i18n::tr("Import Slideshow Templates"))
+                .add_filter_nocase(lightcraft_ui_egui::i18n::tr("Slideshow Templates"), &["json"])
+                .pick_files()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|p| p.to_string_lossy().to_string())
+                .collect()
+        })),
+        save_slideshow_template: Some(Box::new(|name: &str| {
+            rfd::FileDialog::new()
+                .set_title(lightcraft_ui_egui::i18n::tr("Export Slideshow Template"))
+                .add_filter_nocase(lightcraft_ui_egui::i18n::tr("Slideshow Templates"), &["json"])
+                .set_file_name(name)
+                .save_file()
+                .map(|p| p.to_string_lossy().to_string())
+        })),
         // atomic (temp file + sync + rename): a failed write never leaves a truncated file
         write_shared: Some(std::sync::Arc::new(lightcraft_engine::export::write_file)),
         write: Some(Box::new(lightcraft_engine::export::write_file)),
@@ -616,10 +634,12 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
     }
 }
 
-/// The library session with the folder face models are kept in (`<config>/models`).
+/// The library session with the folders face models (`<config>/models`) and slideshow templates
+/// (`<config>/slideshow-templates`) are kept in.
 fn open_session(in_memory: bool, dir: Option<std::path::PathBuf>, seed_demo: bool) -> (Session, Option<LibraryProblem>) {
     let (mut s, problem) = open_library_session(in_memory, dir, seed_demo);
     s.face_models_dir = lightcraft_engine::config::default_face_models_dir();
+    s.slide_templates_dir = lightcraft_engine::config::config_dir().map(|d| d.join(lightcraft_engine::slide_template::DIR_NAME));
     // Control requests are answered on the UI thread: Add to Apple Photos must not wait there
     s.apple_photos_background = true;
     (s, problem)

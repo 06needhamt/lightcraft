@@ -10,6 +10,7 @@
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, pos2, vec2};
 use lightcraft_engine::slide::{Aspect, SlideSettings};
+use lightcraft_engine::slide_template::SlideLook;
 use lightcraft_slideshow::{MARGIN_MAX, SHADOW_OFFSET_MAX, SHADOW_RADIUS_MAX, STROKE_MAX};
 use serde_json::{Value, json};
 
@@ -164,7 +165,11 @@ fn screen_aspect(ctx: &egui::Context) -> f64 {
 /// The small composed slide of the active photo, with the margin guides when they are on.
 pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     heading(ui, t, "Preview");
-    let s = app.session.slide_layout.clone();
+    // the template the pointer is over in the Template Browser, else the settings
+    let template = super::slide_templates::hovered(ui.ctx()).and_then(|id| app.session.slide_template(&id).ok());
+    let look = template.as_ref().map_or_else(|| SlideLook::of(&app.session), |t| t.look.clone());
+    let s = look.layout.clone();
+    let overlays = look.overlays.clone();
     let ratio = s.aspect.ratio(screen_aspect(ui.ctx())) as f32;
     let h = (PREVIEW_W / ratio).clamp(80.0, 320.0);
     let (rect, _) = ui.allocate_exact_size(vec2(PREVIEW_W, h), Sense::hover());
@@ -172,8 +177,15 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let p = ui.painter_at(rect.expand(1.0));
     p.rect_stroke(rect, 0.0, Stroke::new(1.0, t.text_dim.gamma_multiply(0.5)), egui::StrokeKind::Outside);
     super::slide_titles::preview_choice(ui);
+    if let Some(tpl) = &template {
+        let name = if tpl.builtin { crate::i18n::tr(&tpl.name).to_string() } else { tpl.name.clone() };
+        ui.label(egui::RichText::new(crate::i18n::tr_format!("Template preview: {name}", name = name)).size(11.0).color(t.accent));
+        if !tpl.description.is_empty() {
+            hint(ui, t, &tpl.description);
+        }
+    }
     if let Some(title) = super::slide_titles::preview_shows(ui.ctx()) {
-        title_preview(app, ui, t, rect, title);
+        title_preview(app, ui, t, rect, title, &look);
         return;
     }
     let Some(id) = app.session.active() else {
@@ -184,15 +196,15 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let ppp = ui.ctx().pixels_per_point();
     let (pw, ph) = (((PREVIEW_W * ppp).round() as usize).max(16), ((h * ppp).round() as usize).max(16));
     // the overlays and what they show of the photo (its rating, its metadata) change it too
-    let shown = app.session.catalog.photo(id).filter(|_| app.session.slide_overlays.any()).map_or(0, |p| {
+    let shown = app.session.catalog.photo(id).filter(|_| overlays.any()).map_or(0, |p| {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         p.rating.hash(&mut h);
         serde_json::to_string(&p.meta).unwrap_or_default().hash(&mut h);
         h.finish()
     });
-    let overlays = if app.session.slide_overlays.any() { app.session.slide_overlays.pixel_key() ^ shown.rotate_left(5) } else { 0 };
-    let key = s.pixel_key() ^ id.0.rotate_left(17) ^ ((pw as u64) << 32 | ph as u64) ^ overlays.rotate_left(29);
+    let overlay_key = if overlays.any() { overlays.pixel_key() ^ shown.rotate_left(5) } else { 0 };
+    let key = s.pixel_key() ^ id.0.rotate_left(17) ^ ((pw as u64) << 32 | ph as u64) ^ overlay_key.rotate_left(29);
     let now = ui.input(|i| i.time);
     let mem = egui::Id::new("settingsSlideshowPreviewKey");
     let (last, since) = ui.ctx().data(|d| d.get_temp::<(u64, f64)>(mem)).unwrap_or((0, f64::NEG_INFINITY));
@@ -205,7 +217,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     if current.is_none() || still >= DEBOUNCE {
         let side = super::detail::texture_side(ui.ctx());
         let edge = app.ui.settings.loupe_edge(pw.max(ph) as f32, usize::MAX, side);
-        if let Some(job) = app.session.slide_job_with(&s, id, pw, ph, Some(edge), false) {
+        if let Some(job) = app.session.slide_job_look(&s, &overlays, id, pw, ph, Some(edge), false) {
             app.renderer.request(Slot::SlidePreview, job, 90);
         }
     } else {
@@ -238,10 +250,10 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 
 /// The preview showing title screen `title` (composed off the UI thread like the photo's slide,
 /// once its settings have been still for [`DEBOUNCE`] seconds).
-fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: Rect, title: lightcraft_engine::slideshow::Title) {
+fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: Rect, title: lightcraft_engine::slideshow::Title, look: &SlideLook) {
     let ppp = ui.ctx().pixels_per_point();
     let (pw, ph) = (((rect.width() * ppp).round() as usize).max(16), ((rect.height() * ppp).round() as usize).max(16));
-    let compose = app.session.title_compose(title, pw, ph);
+    let compose = std::sync::Arc::new(lightcraft_engine::slide_title::TitleCompose::new(&look.titles, &look.overlays, title, pw, ph));
     let key = compose.key();
     let now = ui.input(|i| i.time);
     let mem = egui::Id::new("settingsSlideshowTitlePreviewKey");
@@ -264,12 +276,12 @@ fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: R
             p.image(tex.tex.id(), drawn, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
         None => {
-            let c = app.session.slide_titles.screen(title).color;
+            let c = look.titles.screen(title).color;
             p.rect_filled(rect, 0.0, Color32::from_rgb(c[0], c[1], c[2]));
             p.text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr("Rendering…"), t.font(11.5), Color32::from_gray(200));
         }
     }
-    let hint_text = match (title, app.session.slide_titles.screen(title).enabled) {
+    let hint_text = match (title, look.titles.screen(title).enabled) {
         (_, false) => "This screen is off: turn it on under Titles to play it.",
         (lightcraft_engine::slideshow::Title::Intro, true) => "The intro screen, before the first photo.",
         (lightcraft_engine::slideshow::Title::Ending, true) => "The ending screen, after the last photo.",

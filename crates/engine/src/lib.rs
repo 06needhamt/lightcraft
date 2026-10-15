@@ -64,6 +64,7 @@ pub mod segment;
 pub mod sidecar;
 pub mod slide;
 pub mod slide_overlay;
+pub mod slide_template;
 pub mod slide_title;
 pub mod slideshow;
 pub mod smart;
@@ -316,6 +317,14 @@ pub struct Session {
     pub slide_overlays: slide_overlay::OverlaySettings,
     /// Slideshow intro and ending screens (`slideshow.titles`; persisted in prefs.json).
     pub slide_titles: slide_title::TitleSettings,
+    /// Where user slideshow templates are kept (`<config>/slideshow-templates`;
+    /// [`Session::with_default_slide_templates`]). `None`: the built-in templates only.
+    pub slide_templates_dir: Option<std::path::PathBuf>,
+    /// The slideshow settings before the last template was applied ("Previous settings"; this
+    /// session only: library preferences have no undo).
+    pub slide_templates_previous: Option<slide_template::SlideLook>,
+    /// The templates as last listed.
+    pub(crate) slide_templates_cache: slide_template::Cache,
     /// The background image the slides last rendered (shared by slide jobs: rendered once).
     pub slide_backdrop: std::sync::Arc<slide::BackdropCache>,
     /// Where smart previews are kept when not in the library folder (persisted in prefs.json).
@@ -420,6 +429,9 @@ impl Session {
             slide_layout: slide::SlideSettings::default(),
             slide_overlays: slide_overlay::OverlaySettings::default(),
             slide_titles: slide_title::TitleSettings::default(),
+            slide_templates_dir: None,
+            slide_templates_previous: None,
+            slide_templates_cache: None,
             slide_backdrop: Default::default(),
             smart_previews_dir: None,
             forget_local_days: lightcraft_catalog::DEFAULT_FORGET_DAYS,

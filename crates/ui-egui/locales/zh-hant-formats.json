@@ -250,5 +250,14 @@
   "· {in_source} identical copies": "· {in_source} 個相同副本",
   "{count} more warnings.": "另有 {count} 則警告。",
   "{photos} catalog records processed; {collections} collections.": "已處理 {photos} 筆目錄記錄；{collections} 個收藏集。",
-  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "有 {missing} 個原始檔案遺失。其目錄記錄可用；請使用「尋找遺失相片」重新連結檔案。"
+  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "有 {missing} 個原始檔案遺失。其目錄記錄可用；請使用「尋找遺失相片」重新連結檔案。",
+  "Applied {name}": "已套用 {name}",
+  "Delete “{name}”?": "刪除「{name}」？",
+  "Updated {name}": "已更新 {name}",
+  "Exported to {path}": "已匯出到 {path}",
+  "Saved template {name}": "已儲存範本 {name}",
+  "Imported {name}": "已匯入 {name}",
+  "Skipped {problem}": "已略過：{problem}",
+  "…and {more} more": "…還有 {more} 個",
+  "Template preview: {name}": "範本預覽：{name}"
 }

@@ -250,5 +250,14 @@
   "· {in_source} identical copies": "・同一のコピー {in_source} 件",
   "{count} more warnings.": "ほかに{count}件の警告があります。",
   "{photos} catalog records processed; {collections} collections.": "カタログの{photos}件のレコードを処理しました。コレクションは{collections}件です。",
-  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing}件のオリジナルが見つかりません。カタログのレコードは利用できます。「見つからない写真を検索」で再リンクしてください。"
+  "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing}件のオリジナルが見つかりません。カタログのレコードは利用できます。「見つからない写真を検索」で再リンクしてください。",
+  "Applied {name}": "{name} を適用しました",
+  "Delete “{name}”?": "「{name}」を削除しますか？",
+  "Updated {name}": "{name} を更新しました",
+  "Exported to {path}": "{path} に書き出しました",
+  "Saved template {name}": "テンプレート {name} を保存しました",
+  "Imported {name}": "{name} を読み込みました",
+  "Skipped {problem}": "スキップ: {problem}",
+  "…and {more} more": "…ほか {more} 件",
+  "Template preview: {name}": "テンプレートのプレビュー: {name}"
 }
