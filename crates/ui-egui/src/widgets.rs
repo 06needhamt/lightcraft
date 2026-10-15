@@ -222,10 +222,14 @@ pub(crate) fn shown_value(spec: &ControlSpec, v: f64) -> String {
 /// scrub rather than a click that types a value.
 const SCRUB_START: f32 = 3.0;
 
+/// The radius of a slider's hollow ring thumb.
+const THUMB_RING: f32 = 7.0;
+
 /// A Lightroom slider row (label + value above a track with a hollow ring thumb).
-/// Double-click the label or thumb to reset. Shift-drag = fine adjustment. Scroll sideways over
-/// it to nudge it. Click the value to type one: Return or clicking away applies it, Esc keeps the
-/// old one. Drag the value sideways to scrub it, as if dragging the thumb (Shift: a tenth as far).
+/// Double-click the label or thumb to reset (hovering either says so). Shift-drag = fine adjustment.
+/// Scroll sideways over it to nudge it. Click the value to type one: Return or clicking away applies it,
+/// Esc keeps the old one. Drag the value sideways to scrub it, as if dragging the thumb (Shift: a tenth
+/// as far).
 pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_override: Option<&str>) -> SliderOut {
     let t = Tokens::get(ui.ctx());
     let w = ui.available_width();
@@ -261,8 +265,13 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
             node.add_action(egui::accesskit::Action::Decrement);
         }
     });
-    let label_resp = ui.interact(label_rect, id.with("label"), Sense::click());
+    // the name: double-click it to reset, as the thumb (a disabled slider's name is only text)
+    let label_resp = ui.interact(label_rect, id.with("label"), if enabled { Sense::click() } else { Sense::hover() });
+    // say how to reset (issue #1436: the double-click was hard to discover), as the curve channels do
+    let reset_hint = crate::i18n::tr_format!("{name} — double-click to reset it", name = label_text);
+    let label_resp = if enabled { label_resp.on_hover_text(reset_hint.as_str()) } else { label_resp };
     crate::widgets::announce(&label_resp, crate::i18n::tr_format!("Reset {name}", name = label_text.clone()));
+    register(ui.ctx(), format!("sliderLabel:{}", spec.id), label_rect);
     register(ui.ctx(), format!("slider:{}", spec.id), track_rect);
     // the value: click it to type an exact one, drag it sideways to scrub (over the label, so it
     // takes the click)
@@ -314,6 +323,12 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // value ↔ track position: linear, except for the Kelvin temperature (`ControlSpec::position`)
     let to_x = |v: f64| track_rect.left() + spec.position(v) as f32 * track_rect.width();
     let from_x = |x: f32| spec.value_at(f64::from((x - track_rect.left()) / track_rect.width()));
+    // the thumb: a click there doesn't move the value, and resting on it says how to reset (the rest
+    // of the track, which is clicked and dragged, gets no tooltip)
+    let on_thumb = |p: egui::Pos2| (p.x - to_x(value)).abs() <= THUMB_RING + 1.0;
+    if enabled && !resp.dragged() && resp.hover_pos().is_some_and(on_thumb) {
+        resp.clone().on_hover_text(reset_hint.as_str());
+    }
     let mut v = value;
     if let Some(mut pos) = scrub {
         // scrubbing the value moves it as dragging the thumb would: the pointer's sideways travel
@@ -407,6 +422,9 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
             }
         } else if resp.clicked()
             && let Some(p) = resp.interact_pointer_pos()
+            // a click on the thumb leaves it there, so the first click of a double-click on it isn't a
+            // history step of its own before the reset
+            && !on_thumb(p)
         {
             let step = spec.step.max(1e-9);
             let nv = ((from_x(p.x) / step).round() * step).clamp(spec.min, spec.max);
@@ -508,7 +526,7 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
             ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
         }
     }
-    let ring = 7.0;
+    let ring = THUMB_RING;
     let tx = to_x(v);
     paint_track(ui, track_rect, &spec.track, &t, tx, ring);
     let p = ui.painter();
@@ -986,6 +1004,10 @@ pub(crate) fn elide_head(text: &str, max: f32, width: impl Fn(&str) -> f32) -> S
 #[cfg(test)]
 #[path = "widgets/tests_numeric_entry.rs"]
 mod numeric_entry_tests;
+
+#[cfg(test)]
+#[path = "widgets/tests_slider_reset.rs"]
+mod slider_reset_tests;
 
 fn focused_slider_key() -> egui::Id {
     egui::Id::new("lightcraft-focused-slider")
