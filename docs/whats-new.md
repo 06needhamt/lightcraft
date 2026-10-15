@@ -17,6 +17,13 @@
   To delete photos from the library from an album, use Photo ▸ Delete Photo or right-click ▸ Delete Photo. In a smart
   album, Delete changes nothing: its rules decide what it shows.
 
+## 2026-10-15
+
+### Local folders select a photo
+- Showing a Local folder now makes its first photo the active one, as albums and the other sources do (issue
+  #1447), or keeps the photo you had when the folder holds it. Before, the photo from the previous view stayed active:
+  Photo Grid marked nothing, and Detail, the histogram and the photo info showed a photo that isn't in the folder.
+
 ## 2026-10-14
 
 ### HDR merges of moving lights, and many brackets at once

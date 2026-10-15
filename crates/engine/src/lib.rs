@@ -1144,6 +1144,21 @@ impl Session {
         self.visible().to_vec()
     }
 
+    /// After the source changes, the active photo follows the rule every source shares: it stays
+    /// when the view shows it, else the view's first photo becomes the active (and only selected)
+    /// one, or nothing when the view is empty. A view never keeps an active photo it doesn't show
+    /// (issue #1447: a Local folder kept a library photo active, so Detail and the info showed a
+    /// photo the grid didn't).
+    pub fn keep_active_in_view(&mut self) {
+        let active = self.selection.active;
+        let vis = self.visible();
+        if active.is_some_and(|a| vis.contains(&a)) {
+            return;
+        }
+        let first = vis.first().copied();
+        self.selection = first.map(Selection::single).unwrap_or_default();
+    }
+
     /// The visible photos without copying them, with their generation: equal generations mean
     /// the very same list (same catalog revision, source, filter, sort), so a frontend can cache
     /// whatever it derives from the list under that number.

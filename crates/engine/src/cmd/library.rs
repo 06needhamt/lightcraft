@@ -398,11 +398,8 @@ pub fn specs() -> Vec<CommandSpec> {
                     }
                     other => return Err(bad("library.source", format!("unknown source `{other}`"))),
                 };
-                let vis = s.visible_cloned();
-                if s.selection.active.is_none_or(|a| !vis.contains(&a)) {
-                    s.selection = vis.first().map(|f| Selection::single(*f)).unwrap_or_default();
-                }
-                Ok(json!({"count": vis.len()}))
+                s.keep_active_in_view();
+                Ok(json!({"count": s.visible().len()}))
             }
         ),
         cmd!(

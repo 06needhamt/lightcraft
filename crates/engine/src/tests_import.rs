@@ -917,6 +917,26 @@ fn missing_photos_skip_local_browse_records() {
     assert_eq!(s.visible_cloned().len(), 4, "the view lists what the count counts");
 }
 
+/// `library.browse` follows `library.source`'s rule for the active photo (issue #1447): a library
+/// photo the folder doesn't show gives way to the folder's first photo; one it shows stays.
+#[test]
+fn browsing_a_folder_keeps_or_picks_the_active_photo() {
+    let dir = temp_dir("browse-active");
+    write_png(&dir.join("a.png"), 1);
+    write_png(&dir.join("b.png"), 2);
+    let mut s = Session::with_demo().with_fs();
+    let library = s.visible_cloned()[0];
+    s.execute("library.select", &json!({"ids": [library.0]})).unwrap();
+    s.execute("library.browse", &json!({"path": dir.to_string_lossy()})).unwrap();
+    let vis = s.visible_cloned();
+    assert_eq!(vis.len(), 2);
+    assert_eq!(s.selection.active, Some(vis[0]), "the folder's first photo, not {library:?}");
+    s.execute("library.select", &json!({"ids": [vis[1].0]})).unwrap();
+    s.execute("library.browse", &json!({"path": dir.to_string_lossy()})).unwrap();
+    assert_eq!(s.selection.active, Some(vis[1]), "a photo the folder shows stays active");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Import a file that is in Recently Deleted (issues #298, #706): by default the photo comes
 /// back with its edits; `onDeleted: skip` leaves it there but the report says it is in the trash;
 /// `onDeleted: fresh` replaces the trashed record with a new one.
