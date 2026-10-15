@@ -538,6 +538,7 @@ pub fn write_rendered_dng(
         color,
         wb_multipliers: None,
         linearized: false,
+        pixel_aspect: 1.0,
         opcodes: crate::OpcodeLists::default(),
         metadata: metadata.clone(),
     };
