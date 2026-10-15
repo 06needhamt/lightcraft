@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-18
+
+### Fewer false "not imported" warnings for Lightroom raws
+- Importing raws with Lightroom XMP sidecars no longer lists settings Lightroom writes only for itself as adjustments
+  that weren't imported: `CompatibleVersion`, the camera and lens profile checksums, the lens profile's name, file and
+  setup, the crop's "constrain to image" option, and the lens profile's strength when it is at its default of 100 %.
+  A raw sidecar used to name all of them for every photo. Settings LightCraft really doesn't apply, such as `Look`,
+  are still reported.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
