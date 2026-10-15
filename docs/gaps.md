@@ -60,6 +60,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 ## Closed recently (kept for calibration)
 
 - 2026-10-11: Sony ILCA-99M2 profile.
+- 2026-10-11: Nikon edge bars on bodies without CropArea (#976, #914): 36 model / size / depth groups measured.
 - 2026-10-10: Nikon lossy-after-split NEF (#633), ORF 12.8 bpp (#651), HDR gain map / PQ AVIF / float
   TIFF export (#646), activity stack (#345), JPEG XL export (#247).
 - 2026-10-09: EOS R7 C-RAW with an odd-height QP map (a45c2b66; part of gap 2), HEIC in release builds (#609), Samsung uncompressed SRW (#459), contact-sheet PDF (#563),
@@ -93,6 +94,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-12 | minor | Gap 22: pen pressure scales brush size and flow (Brush ▸ Pen Pressure) where winit reports a pen force |
 | 2026-10-12 | minor | Gaps 2 and 10 shrink: 22 more CR3 bodies verified on one CC0 file each (every CC0 CR3 on raw.pixls.us decodes), EOS R6 Mark III white balance read; Canon 34 verified, 259 models, ~59% on a verified body; CR3 gain +6.2 → +0.3 points |
 | 2026-10-12 | minor | Gap 10 shrinks: 117 Nikon and Fujifilm bodies verified on one CC0 file each (354 models, ~58% on a verified body); COOLPIX 5700 / 8400 / 8800 decode wrongly; #702 is fixed |
+| 2026-10-11 | minor | Nikon edge bars on bodies without CropArea fixed for 36 model / size / depth groups (#976, #914; [nikon-bodies.md](nikon-bodies.md)); gap 10 notes the survey and the pending bodies; gap not closed |
 | 2026-10-11 | minor | Reviewed against main after 0.6.0: CR3 entry names the CRX variants `crx.rs` still refuses and the R7 / R6 Mark II C-RAW state (decoding, not verified, so the measured numbers don't move); CI and Windows / Linux entries note the riscv64 release build (#844); R7 fix added to Closed recently. Panel docking (UI.9, #869) closes no listed gap |
 | 2026-10-11 | minor | Camera colour entry: raws with a black-and-white camera JPEG take its tone curve (#577); gap not closed |
 | 2026-10-11 | minor | Gap 4: Compare and Reference views get zoom windows per pane (1:1 was a 2,560 px render magnified); overlays and soft proofing remain, 8–15 h → 4–8 h |
