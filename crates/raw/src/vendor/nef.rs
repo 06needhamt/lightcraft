@@ -589,7 +589,9 @@ fn small_raw(bytes: &[u8], tiff: &Tiff, info: &ImageInfo, strip: lightcraft_tiff
     let (w, h) = (info.width as usize, info.height as usize);
     let stride = w.checked_mul(3).ok_or(RawError::Limit("image too large"))?;
     let count = stride.checked_mul(h).filter(|n| *n > 0 && *n <= crate::MAX_SAMPLES).ok_or(RawError::Limit("image too large"))?;
-    let src = lightcraft_tiff::image::chunk_bytes(bytes, &strip).ok_or_else(|| RawError::Corrupt("NEF: image data outside the file".into()))?;
+    let src = lightcraft_tiff::image::chunk_bytes(bytes, &strip)
+        .filter(|src| u64::try_from(src.len()).ok() == Some(strip.len))
+        .ok_or_else(|| RawError::Corrupt("NEF: incomplete image strip".into()))?;
     let data = match mode {
         Mode::Full => {
             let mut data = vec![0u16; count];
@@ -1407,6 +1409,17 @@ mod tests {
     fn packed_rejects_tail_truncation_with_intact_directories() {
         let bytes = nef(34713, 12, vec![vec![0x55; 360]], 40, 6, 6);
         for keep in [0, 60, 359] {
+            let short = truncated_tail_strip(bytes.clone(), keep);
+            for mode in [Mode::Header, Mode::Full] {
+                assert!(matches!(decode(&short, mode), Err(RawError::Corrupt(_))));
+            }
+        }
+    }
+
+    #[test]
+    fn small_raw_rejects_tail_truncation_with_intact_directories() {
+        let bytes = nef(34713, 12, vec![vec![0x55; 72]], 8, 3, 3);
+        for keep in [0, 24, 71] {
             let short = truncated_tail_strip(bytes.clone(), keep);
             for mode in [Mode::Header, Mode::Full] {
                 assert!(matches!(decode(&short, mode), Err(RawError::Corrupt(_))));
