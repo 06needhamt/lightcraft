@@ -45,21 +45,6 @@ fn nrw_black(mn: Option<&makernote::MakerNote>, bits: u32) -> Option<f32> {
     (u64::from(v) < (1u64 << bits.min(16)) / 4).then_some(v as f32)
 }
 
-/// As-shot white balance from the NRW data block, for bodies whose maker note has no `0x000c`: the first entry of the
-/// block's colour-temperature table (byte `0x34`) is five `u32`s, kelvin, R, G, G, B, in the same 1/256 units as
-/// `0x000c` (the same R and B values in the P950, B700, P1000 and P1100 files, which carry both). Only used when the
-/// table's fourth entry, a kelvin-only slot, repeats the first entry's kelvin (the P7000); the P7100 keeps its
-/// as-shot kelvin there (3195) while entry 0 is the 3000 K preset, so that body gets no white balance from here.
-fn nrw_wb(mn: Option<&makernote::MakerNote>) -> Option<[f32; 3]> {
-    let (b, order) = nrw_data(mn)?;
-    let at = |i: usize| -> Option<u32> { Some(order.u32(b.get(0x34 + 4 * i..0x38 + 4 * i)?.try_into().ok()?)) };
-    let (kelvin, r, g1, g2, bl) = (at(0)?, at(1)?, at(2)?, at(3)?, at(4)?);
-    let sane = |v: u32| (64..=2560).contains(&v);
-    let mirrored = at(15)? == kelvin;
-    (mirrored && (2000..=12000).contains(&kelvin) && g1 == 512 && g2.abs_diff(512) <= 8 && sane(r) && sane(bl))
-        .then(|| [r as f32 / 256.0, 1.0, bl as f32 / 256.0])
-}
-
 /// Nikon CropArea is `[left, top, width, height]` in sensor pixels (maker-note tag documentation).
 /// Keep the active area/CFA origin unchanged: the default crop is applied after demosaicing.
 fn default_crop(mn: Option<&makernote::MakerNote>, w: usize, h: usize) -> Rect {
@@ -74,8 +59,7 @@ fn default_crop(mn: Option<&makernote::MakerNote>, w: usize, h: usize) -> Rect {
 
 /// A body that records no CropArea, measured on its own files: the image area inside the sensor data (where the
 /// camera's full-size JPEG sits when the two are aligned) and, when the data's own top would be wrong, the level
-/// where its channels clip. Without that level, the white is measured inside the image area only, so what lies
-/// beyond it can't pass for saturation.
+/// where its channels clip.
 struct MeasuredBody {
     model: &'static str,
     /// Sensor data size and sample depth of the measured files.
@@ -108,30 +92,19 @@ struct MeasuredBody {
 ///   columns sit above the dark-column trim's threshold, so without this area they show as a coloured bar on the right
 ///   edge (the top in portrait; issue #976). The camera's 4928 × 3264 JPEG sits at (8, 8): in the D5100's 3 CC0
 ///   samples, and in the D7000's one clean one, with the D5100 and Coolpix A as siblings (see below).
-/// * **The other bodies** below keep masked or dark lines inside the whole data (the survey in `docs/nikon-bodies.md`):
-///   each crop is its camera JPEG's frame as `cargo xtask raw-frame` measures it on raw.pixls.us CC0 samples, with at
-///   least 3 clean files agreeing: of the model (bit depths pooled: both read out the same area), or, with at least
+/// * **The other bodies** below keep masked or dark lines inside the whole data (a survey of every Nikon raw on raw.pixls.us):
+///   each crop is its camera JPEG's frame as `cargo xtask raw-frame` measures it on raw.pixls.us CC0 samples (the
+///   D200, D3200 and Nikon 1 V1 also on other publicly posted sample files), with at least 3 clean
+///   files agreeing: of the model (bit depths pooled: both read out the same area), or, with at least
 ///   one of its own, together with models of the same readout (data and JPEG size) that agree on the same frame
 ///   (*siblings*). The D4's 12-bit mode reads out the 14-bit area measured above; the Df, the same readout, agrees on
 ///   (8, 6) in 6 files. Bodies whose crop holds only picture beyond the camera frame have no entry (no change).
-/// * **NIKON D5000** (issue #1627; 2 CC0 compressed 12-bit NEFs from raw.pixls.us): the D90's sensor, with the
-///   same 4352 × 2868 data and the same flat ~255 filler from column 4310, which shows as a band on the right. Both
-///   samples had Auto Distortion Control on, which warps their JPEGs around the centre, so only the centre aligns:
-///   a 200 px patch there sits where the D90's area puts it, (10, 10), on both. Green tops out at the D90's 3840.
-/// * **NIKON D600 and D610** (issue #1627; 4 CC0 NEFs of each from raw.pixls.us, 12- and 14-bit, lossless and
-///   lossy): the data is 6080 × 4028. Columns 6034–6041 are filler at a flat 150 (12-bit) or 601 (14-bit),
-///   6042–6047 hold noise up to the top of the range, and only the last 32 are dark, so the masked-column test keeps
-///   the first 14 and they develop as a bright band on the right. The camera's 6016 × 4016 JPEG sits at (8, 6) in
-///   all 8 files. The noise columns also read as a saturation plateau: the white measured from the whole data came
-///   out at 3174–3182 (12-bit) and 12707–12729 (14-bit) on the D600's files while their pictures reach 3450–3731 and
-///   14902–16308, so their brightest samples were cut off as clipped. Measured inside the image area it is the
-///   data's top, or the real plateau where the picture clips (4080 and 16320 on the D610's).
 const MEASURED_BODIES: &[MeasuredBody] = &[
     MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: Some(15520.0) },
+    MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON D7100", size: (6036, 4020), bits: 14, crop: (18, 10, 6000, 4000), white: None },
     MeasuredBody { model: "NIKON D7100", size: (4812, 3212), bits: 14, crop: (6, 6, 4800, 3200), white: None },
     MeasuredBody { model: "NIKON D90", size: (4352, 2868), bits: 12, crop: (10, 10, 4288, 2848), white: Some(3830.0) },
-    MeasuredBody { model: "NIKON D4", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON D7000", size: (4992, 3280), bits: 14, crop: (8, 8, 4928, 3264), white: None },
     MeasuredBody { model: "NIKON D7000", size: (4992, 3280), bits: 12, crop: (8, 8, 4928, 3264), white: None },
     MeasuredBody { model: "NIKON D5100", size: (4992, 3280), bits: 14, crop: (8, 8, 4928, 3264), white: None },
@@ -156,6 +129,25 @@ const MEASURED_BODIES: &[MeasuredBody] = &[
     MeasuredBody { model: "NIKON D40X", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
     MeasuredBody { model: "NIKON D60", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
     MeasuredBody { model: "NIKON D80", size: (3904, 2616), bits: 12, crop: (14, 9, 3872, 2592), white: None },
+    // 3 files; masked: left 1, right 3 (the D80's data size, framed elsewhere)
+    MeasuredBody { model: "NIKON D200", size: (3904, 2616), bits: 12, crop: (16, 12, 3872, 2592), white: None },
+    // 22 files; masked: right 46
+    MeasuredBody { model: "NIKON D3200", size: (6080, 4012), bits: 12, crop: (8, 6, 6016, 4000), white: None },
+    // 8 clean of 19, the rest ~0.3 px between pixels on the same frame; dark: bottom 2
+    MeasuredBody { model: "NIKON 1 V1", size: (3904, 2606), bits: 12, crop: (12, 6, 3872, 2592), white: None },
+    // Best guesses, short of the evidence rule; every frame below keeps the masked lines out by several pixels.
+    // D3100: 3 of 4 clean files at (24, 6), the 4th at (22, 7); masked: left 6, right 22
+    MeasuredBody { model: "NIKON D3100", size: (4672, 3084), bits: 12, crop: (24, 6, 4608, 3072), white: None },
+    // D5000: 4 of 5 clean files at (11, 10), the 5th at (11, 12); the D90's sensor, whose own files also align at
+    // x = 11; masked: right 42 (the same filler as the D90's)
+    MeasuredBody { model: "NIKON D5000", size: (4352, 2868), bits: 12, crop: (11, 10, 4288, 2848), white: None },
+    // D40: 2 of 2 clean files at (16, 9); masked: right 1. The D50 / D70 / D70s share its data size but not its frame
+    MeasuredBody { model: "NIKON D40", size: (3040, 2014), bits: 12, crop: (16, 9, 3008, 2000), white: None },
+    // D50, D70, D70s (one readout): one clean D50 and one clean D70 file at (15, 7); the D70s's 2 files align
+    // between pixels next to it, at (15.4, 6.9) and (15.6, 6.4); masked: right 1
+    MeasuredBody { model: "NIKON D50", size: (3040, 2014), bits: 12, crop: (15, 7, 3008, 2000), white: None },
+    MeasuredBody { model: "NIKON D70", size: (3040, 2014), bits: 12, crop: (15, 7, 3008, 2000), white: None },
+    MeasuredBody { model: "NIKON D70s", size: (3040, 2014), bits: 12, crop: (15, 7, 3008, 2000), white: None },
     // 3 files; dark: bottom 4
     MeasuredBody { model: "NIKON D4S", size: (4936, 3288), bits: 12, crop: (4, 4, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON D4S", size: (4936, 3288), bits: 14, crop: (4, 4, 4928, 3280), white: None },
@@ -177,26 +169,10 @@ const MEASURED_BODIES: &[MeasuredBody] = &[
     // 6 files; masked: left 2, right 42 (the D4's readout)
     MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 12, crop: (8, 6, 4928, 3280), white: None },
     MeasuredBody { model: "NIKON Df", size: (4992, 3292), bits: 14, crop: (8, 6, 4928, 3280), white: None },
-    MeasuredBody { model: "NIKON D5000", size: (4352, 2868), bits: 12, crop: (10, 10, 4288, 2848), white: Some(3830.0) },
 ];
 
 fn measured_body(model: &str, w: usize, h: usize, bits: u32) -> Option<&'static MeasuredBody> {
     MEASURED_BODIES.iter().find(|b| b.model == model.trim() && b.size == (w, h) && b.bits == bits)
-}
-
-/// The samples of the image area `crop`, every few rows (an odd step, so both rows of the CFA are in), for measuring
-/// the white level where the picture is.
-fn area_samples(d: &[u16], w: usize, crop: Rect) -> Vec<u16> {
-    let step = (crop.width.saturating_mul(crop.height) / 2_000_000).max(1) | 1;
-    (crop.y..crop.y.saturating_add(crop.height))
-        .step_by(step)
-        .filter_map(|y| {
-            let at = y.checked_mul(w)?.checked_add(crop.x)?;
-            d.get(at..at.checked_add(crop.width)?)
-        })
-        .flatten()
-        .copied()
-        .collect()
 }
 
 fn raw_ifd(tiff: &Tiff) -> Option<&Ifd> {
@@ -273,8 +249,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         .as_ref()
         .and_then(|m| m.ifd.f64s(WB_RB_LEVELS))
         .filter(|v| v.len() >= 2 && v[0] > 0.1 && v[1] > 0.1 && v[0] < 10.0 && v[1] < 10.0)
-        .map(|v| [v[0] as f32, 1.0, v[1] as f32])
-        .or_else(|| nrw_wb(mn.as_ref()));
+        .map(|v| [v[0] as f32, 1.0, v[1] as f32]);
     let cfa = match (raw.u64s(t::CFA_REPEAT_PATTERN_DIM).as_deref(), raw.bytes(t::CFA_PATTERN_EP)) {
         (Some([2, 2]), Some(p)) if p.len() == 4 && p.iter().all(|&c| c <= 2) => Cfa { width: 2, height: 2, pattern: p.to_vec() },
         _ => Cfa::bayer_static("RGGB"),
@@ -282,18 +257,16 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     let model = ifd0.string(t::MODEL).unwrap_or_default();
     let body = measured_body(&model, w, h, bits);
     let active_w = trailing_masked_columns(samples, w, bits);
-    let measured = match body {
-        Some(&MeasuredBody { crop: (x, y, cw, ch), .. }) if x + cw <= active_w && y + ch <= h => Some(Rect::new(x, y, cw, ch)),
-        _ => None,
+    // the white level is measured from the whole image (or known for a measured body); the probe (no samples in its
+    // result) takes the nominal one
+    let white = match (body.and_then(|b| b.white), mode) {
+        (Some(white), _) => white,
+        (None, Mode::Full) => white_from_data(samples, bits),
+        (None, Mode::Header) => ((1u32 << bits.clamp(1, 16)) - 1) as f32,
     };
-    let crop = measured.unwrap_or_else(|| default_crop(mn.as_ref(), active_w, h));
-    // the white level is measured from the whole image (only its measured area, for a body with one), or known for a
-    // measured body; the probe (no samples in its result) takes the nominal one
-    let white = match (body.and_then(|b| b.white), mode, measured) {
-        (Some(white), _, _) => white,
-        (None, Mode::Full, Some(area)) => white_from_data(&area_samples(samples, w, area), bits),
-        (None, Mode::Full, None) => white_from_data(samples, bits),
-        (None, Mode::Header, _) => ((1u32 << bits.clamp(1, 16)) - 1) as f32,
+    let crop = match body {
+        Some(&MeasuredBody { crop: (x, y, cw, ch), .. }) if x + cw <= active_w && y + ch <= h => Rect::new(x, y, cw, ch),
+        _ => default_crop(mn.as_ref(), active_w, h),
     };
     let mut metadata = lightcraft_meta::from_tiff(&tiff);
     metadata.width = Some(crop.width as u32);
@@ -341,8 +314,7 @@ fn uncompressed(bytes: &[u8], info: &ImageInfo, order: ByteOrder, mn: Option<&ma
     let packing = if bytes_per_row >= row_samples * 2 {
         Packing::Word16
     } else if bits == 12 && bytes_per_row * 8 >= row_samples * 12 && bytes_per_row * 8 < row_samples * 13 {
-        // the row's own size (a strip may be padded past the last row, which skews `bytes_per_row`)
-        if nrw_data(mn).is_some() && (row_samples * 12).div_ceil(8).is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
+        if nrw_data(mn).is_some() && bytes_per_row.is_multiple_of(4) { Packing::Words32Msb } else { Packing::Msb }
     } else if info.compression == 1 && bits != 8 && bits != 16 {
         return Err(RawError::Unsupported(format!("NEF uncompressed packing ({bytes_per_row} bytes per {row_samples}-sample row)")));
     } else {
@@ -609,6 +581,33 @@ mod tests {
         }
     }
 
+    /// The D200, D3200 and Nikon 1 V1 keep masked or dark lines in their whole data (the D200 shares the D80's data
+    /// size but frames it elsewhere), measured on public sample files beyond the CC0 ones; the D3100, D5000, D40, D50,
+    /// D70 and D70s get best-guess frames (the D40 shares the D50 / D70 / D70s data size but not their frame).
+    #[test]
+    fn measured_older_dx_bodies_image_area() {
+        let decode_as = |model: &str, (w, h): (usize, usize)| {
+            let nef = nef_model_in(ByteOrder::Big, model, 1, 12, vec![vec![0x10; w * h * 2]], w as u32, h as u32, h as u32, None);
+            crate::decode(&nef).unwrap()
+        };
+        for (model, size, crop) in [
+            ("NIKON D200", (3904, 2616), Rect::new(16, 12, 3872, 2592)),
+            ("NIKON D80", (3904, 2616), Rect::new(14, 9, 3872, 2592)),
+            ("NIKON D3200", (6080, 4012), Rect::new(8, 6, 6016, 4000)),
+            ("NIKON 1 V1", (3904, 2606), Rect::new(12, 6, 3872, 2592)),
+            ("NIKON D3100", (4672, 3084), Rect::new(24, 6, 4608, 3072)),
+            ("NIKON D5000", (4352, 2868), Rect::new(11, 10, 4288, 2848)),
+            ("NIKON D40", (3040, 2014), Rect::new(16, 9, 3008, 2000)),
+            ("NIKON D50", (3040, 2014), Rect::new(15, 7, 3008, 2000)),
+            ("NIKON D70", (3040, 2014), Rect::new(15, 7, 3008, 2000)),
+            ("NIKON D70s", (3040, 2014), Rect::new(15, 7, 3008, 2000)),
+        ] {
+            assert_eq!(decode_as(model, size).crop, crop, "{model}");
+        }
+        // the V1's area on the V2's data size: no entry, the whole data
+        assert_eq!(decode_as("NIKON 1 V1", (4620, 3084)).crop, Rect::new(0, 0, 4620, 3084));
+    }
+
     /// Every measured entry is a crop inside its data, once per model, data size and depth, with a white level (if
     /// any) inside its bit range.
     #[test]
@@ -664,41 +663,6 @@ mod tests {
         assert!(d90.crop.x + d90.crop.width <= 4310, "the filler columns are outside the image");
         assert_eq!(d90.white, vec![3830.0]);
         assert_eq!((d90.metadata.width, d90.metadata.height), (Some(4288), Some(2848)));
-    }
-
-    /// Issue #1627: the D600's and D610's data runs 14 columns of filler and noise past the image before the dark
-    /// ones; they develop as a bright band on the right unless the measured area leaves them out, and the noise must
-    /// not read as the white level. The D5000 has the D90's filler.
-    #[test]
-    fn measured_d600_d610_and_d5000_drop_the_columns_past_the_image() {
-        let file = |model: &str, (w, h): (usize, usize), bits: u16, row: &dyn Fn(&mut [u16])| {
-            let mut px = vec![0u16; w * h];
-            px.chunks_mut(w).for_each(row);
-            let mut nef = nef(1, bits, vec![px.iter().flat_map(|v| v.to_be_bytes()).collect()], w as u32, h as u32, h as u32);
-            let at = nef.windows(11).position(|b| b == b"NIKON TEST\0").unwrap();
-            nef[at..at + 11].copy_from_slice(format!("{model:\0<11}").as_bytes());
-            crate::decode(&nef).unwrap()
-        };
-        for (model, bits, fill, top) in [("NIKON D610", 12, 150, 4095), ("NIKON D610", 14, 601, 16383), ("NIKON D600", 14, 601, 16383)] {
-            let d = file(model, (6080, 4028), bits, &|row| {
-                row[..6034].fill(fill * 2);
-                row[6034..6042].fill(fill);
-                // the noise columns: often at the top of the range, which made a saturation plateau of their own
-                row[6042..6048].fill(top);
-            });
-            assert_eq!(d.crop, Rect::new(8, 6, 6016, 4016), "{model} {bits}");
-            assert_eq!((d.metadata.width, d.metadata.height), (Some(6016), Some(4016)));
-            assert_eq!(d.white, vec![top as f32], "{model} {bits}: the white is measured inside the image, which isn't clipped");
-            let developed = d.develop(crate::Method::Bilinear).unwrap();
-            assert_eq!((developed.width, developed.height), (6016, 4016));
-        }
-        let d5000 = file("NIKON D5000", (4352, 2868), 12, &|row| {
-            row.fill(40);
-            row[4310..].fill(255);
-        });
-        assert_eq!(d5000.crop, Rect::new(10, 10, 4288, 2848));
-        assert_eq!(d5000.white, vec![3830.0]);
-        assert_eq!(file("NIKON D5100", (4352, 2868), 12, &|row| row.fill(40)).crop, Rect::new(0, 0, 4352, 2868));
     }
 
     /// Issue #708: the active width is judged from the first [`MASK_ROWS`] rows in both modes, so the header probe
@@ -817,41 +781,6 @@ mod tests {
         let mut both = nrw_note(200);
         both.set(BLACK_LEVEL, Value::Short(vec![400, 404, 408, 412]));
         assert_eq!(decode(Some(both)).black.values, vec![100.0, 101.0, 102.0, 103.0]);
-    }
-
-    #[test]
-    fn nrw_padded_strip_keeps_32_bit_word_packing() {
-        // 16 x 6 12-bit samples are 24 bytes a row; a strip padded past the last row must not change the packing
-        let (w, h) = (16usize, 6usize);
-        let px: Vec<u16> = (0..w * h).map(|i| (200 + i * 131 % 3800) as u16).collect();
-        let mut packed = words32(&px, w, ByteOrder::Little);
-        packed.extend_from_slice(&[0u8; 6]);
-        let r = crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![packed], w as u32, h as u32, h as u32, Some(nrw_note(0)))).unwrap();
-        assert_eq!(r.data, RawData::U16(px));
-    }
-
-    #[test]
-    fn nrw_block_supplies_the_as_shot_white_balance_when_the_maker_note_has_none() {
-        let note = |kelvin: u32, r: u32, g1: u32, g2: u32, b: u32, mirror: Option<u32>| {
-            let mut block = b"NRW 0101".to_vec();
-            block.resize(0x34, 0);
-            for v in [kelvin, r, g1, g2, b] {
-                block.extend_from_slice(&v.to_le_bytes());
-            }
-            block.resize(0x34 + 60, 0);
-            block.extend_from_slice(&mirror.unwrap_or(kelvin).to_le_bytes());
-            block.resize(0x80, 0);
-            let mut mn = IfdBuilder::new();
-            mn.set(NRW_DATA, Value::Undefined(block));
-            mn
-        };
-        let wb = |mn| crate::decode(&nef_in(ByteOrder::Little, 1, 12, vec![vec![0; 144]], 16, 6, 6, Some(mn))).unwrap().wb_multipliers;
-        assert_eq!(wb(note(5236, 430, 512, 510, 567, None)), Some([430.0 / 256.0, 1.0, 567.0 / 256.0]));
-        // an implausible entry is not a white balance
-        assert_eq!(wb(note(0, 430, 512, 510, 567, None)), None);
-        assert_eq!(wb(note(5236, 430, 300, 510, 567, None)), None);
-        // the P7100 layout: entry 0 is a preset, the as-shot kelvin sits in the fourth entry
-        assert_eq!(wb(note(3000, 278, 512, 510, 868, Some(3195))), None);
     }
 
     #[test]

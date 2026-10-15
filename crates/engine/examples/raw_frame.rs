@@ -1,7 +1,7 @@
 //! Measure where a camera's own JPEG sits inside its raw sensor data, and which edge bands of that data hold no
 //! picture: `cargo xtask raw-frame [--json] FILE…` (or `cargo run --release -p lightcraft-engine --example raw_frame --
 //! [--json] FILE…`). It checks the crop any decoder applies against the camera's own framing, and measures the entries
-//! of Nikon `MEASURED_BODIES` (`crates/raw/src/vendor/nef.rs`; survey in `docs/nikon-bodies.md`) for bodies that record
+//! of Nikon `MEASURED_BODIES` (`crates/raw/src/vendor/nef.rs`) for bodies that record
 //! no crop. It works for any colour-filter raw that embeds a full-size camera JPEG (checked on Nikon, Sony, Canon CR2 /
 //! CR3, Pentax and Samsung files, where it finds the decoder's crop); bodies with a smaller embedded preview (most
 //! Fujifilm, Panasonic and Olympus files) get the edge bands only.
@@ -18,7 +18,8 @@
 //!
 //! **Edge bands.** From each edge inwards (at most 128 lines) it counts lines that hold no picture: *empty or dark*
 //! (mean below 1% of the range over black) or *masked* (flat, patternless and above black: even and odd samples
-//! alike within 4 standard errors, spread no more than the line's own neighbour noise and under 0.4% of white). A
+//! alike within 4 standard errors or within 0.4% of white, since some filler holds a small fixed offset between the
+//! two, as on the D90 and D5000; spread no more than the line's own neighbour noise and under 0.4% of white). A
 //! band that the decoder's crop still includes is developed as picture: the coloured bars of issue #976. This is a
 //! survey aid: a dark band can also be deep shadow, so read it with the frame.
 use std::collections::BTreeMap;
@@ -363,7 +364,8 @@ fn kind(l: &Line, black: f64, white: f64) -> Kind {
         Kind::Dark
     } else if l.mean > black + range * 0.02
         && l.mean < white * 0.25
-        && l.pattern < 4.0 * l.noise * (2.0 / l.pairs.max(1.0)).sqrt() + slack
+        // patternless within the noise, or with a small fixed offset between the CFA phases (D90 / D5000 filler)
+        && (l.pattern < 4.0 * l.noise * (2.0 / l.pairs.max(1.0)).sqrt() + slack || l.pattern < white * 0.004)
         && l.spread < 1.5 * l.noise + slack
         && l.spread < white * 0.004
     {

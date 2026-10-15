@@ -111,6 +111,13 @@
   "Canon CRX adaptive QP value 172" or "175". They now decode from the sensor data. Photos imported before this
   switch over with Photo ▸ Reload from Disk.
 
+### Nikon raws without coloured edge bars
+- Raws from older Nikon bodies no longer show a thin coloured or dark bar along one edge (the right edge, or the top
+  of a portrait photo): masked sensor columns were being developed as part of the picture (issues #976, #914,
+  #1236). The D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600,
+  Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
+  the area the camera itself frames, a few pixels smaller than before.
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.

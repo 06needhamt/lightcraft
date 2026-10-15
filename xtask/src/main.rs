@@ -34,15 +34,14 @@ commands:
                   build the browser app (apps/lightcraft-web) into <target>/web-site/;
                   --serve serves it on http://127.0.0.1:<port> (default 8080)
   ci              fmt --check, clippy -D warnings, heif, test, parity refs, layers, assets, wasm (stops at first failure)
-  corpus [--download [nikon]]
-                  show where test corpora live; --download fetches PngSuite and CC0 raw samples (raw.pixls.us) into corpus/ and checks their sha256;
-                  --download nikon fetches the Nikon survey's 138 CC0 samples (docs/nikon-bodies/samples.json, ~2.7 GB)
+  corpus [--download]
+                  show where test corpora live; --download fetches PngSuite and CC0 raw samples (raw.pixls.us) into corpus/ and checks their sha256
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   raw-frame [--json] FILE…
                   measure where each raw's embedded camera JPEG sits in its sensor data, which edge bands hold no
                   picture and what the decoder's crop keeps beyond the camera frame (any make with a full-size
                   embedded JPEG); print image-area entries for Nikon bodies that record no crop (MEASURED_BODIES in
-                  crates/raw/src/vendor/nef.rs; survey in docs/nikon-bodies.md)
+                  crates/raw/src/vendor/nef.rs)
 ";
 
 fn main() -> ExitCode {
@@ -58,7 +57,7 @@ fn main() -> ExitCode {
         Some("wasm") => cmd_wasm(),
         Some("web") => web::run(&rest),
         Some("ci") => cmd_ci(),
-        Some("corpus") => cmd_corpus(rest.contains(&"--download"), rest.contains(&"nikon")),
+        Some("corpus") => cmd_corpus(rest.contains(&"--download")),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("raw-frame") => cmd_raw_frame(&rest),
         Some("-h" | "--help" | "help") | None => {
@@ -2369,7 +2368,7 @@ const RAW_SAMPLES: &[(&str, &str, &str)] = &[
     ),
 ];
 
-fn cmd_corpus(download: bool, nikon: bool) -> Result<(), String> {
+fn cmd_corpus(download: bool) -> Result<(), String> {
     let corpus = root().join("corpus");
     println!(
         "Test corpora live under {} (git-ignored, never committed).
@@ -2377,26 +2376,17 @@ Tests that use a corpus skip cleanly when it is absent.
 
   corpus/raw/        raw.pixls.us samples (CC0) — lightcraft-raw decodes every file.
   corpus/images/     CC0 / public-domain JPEG/PNG/TIFF/HEIC samples (optional)
-  corpus/raw/nikon-inventory/
-                     the Nikon survey's CC0 samples (docs/nikon-bodies/samples.json; `--download nikon`)
 ",
         corpus.display()
     );
     if !download {
         return Ok(());
     }
-    let (dest, samples) = if nikon {
-        (corpus.join("raw/nikon-inventory"), nikon_samples()?)
-    } else {
-        (corpus.join("raw"), RAW_SAMPLES.iter().map(|(n, u, s)| (n.to_string(), u.to_string(), s.to_string())).collect())
-    };
+    let dest = corpus.join("raw");
     std::fs::create_dir_all(&dest).map_err(|e| format!("create {}: {e}", dest.display()))?;
     let mut bad = Vec::new();
-    for (name, url, sha256) in &samples {
+    for (name, url, sha256) in RAW_SAMPLES {
         let out = dest.join(name);
-        if let Some(dir) = out.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
-        }
         if !out.exists() {
             let mut curl = Command::new("curl");
             curl.args(["-fsSL", "-o"]).arg(&out).arg(url);
@@ -2421,28 +2411,6 @@ Tests that use a corpus skip cleanly when it is absent.
   "
         )
     ))
-}
-
-/// The Nikon survey's samples: (file under `corpus/raw/nikon-inventory/`, URL, sha256) from
-/// `docs/nikon-bodies/samples.json`.
-fn nikon_samples() -> Result<Vec<(String, String, String)>, String> {
-    let path = root().join("docs/nikon-bodies/samples.json");
-    let text = std::fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let json: serde_json::Value = serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    let files = json.get("files").and_then(|f| f.as_array()).ok_or_else(|| format!("{}: no `files` list", path.display()))?;
-    files
-        .iter()
-        .map(|f| {
-            let field =
-                |k: &str| f.get(k).and_then(|v| v.as_str()).map(str::to_string).ok_or_else(|| format!("{}: an entry has no `{k}`", path.display()));
-            let file = field("file")?;
-            // a relative path inside the folder: no `..`, no root
-            if file.split('/').any(|c| c.is_empty() || c == "." || c == "..") {
-                return Err(format!("{}: unsafe file name {file:?}", path.display()));
-            }
-            Ok((file, field("url")?, field("sha256")?))
-        })
-        .collect()
 }
 
 fn file_sha256(path: &Path) -> Result<String, String> {
