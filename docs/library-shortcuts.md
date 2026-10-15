@@ -41,6 +41,14 @@ The separate Decrease Rating / Increase Rating commands can also be assigned in 
 
 Flag cycling and raise/lower use each photo's own flag, so a mixed selection steps together without being made uniform. Adobe's shortcut list names the backtick "Cycle flag settings" but does not state the order; unflagged → pick → reject is LightCraft's choice. The key is the logical grave key, so it follows the keyboard layout (on layouts where it is a dead accent key, assign another key in Help → Keyboard Shortcuts to `photo.cycleFlag`).
 
+`Home` and `End` make the first or last photo of the view the active, selected one. `Shift` + `←` /
+`→` add the previous or next photo of the view to the selection and make the added photo active; the
+key never removes a photo from the selection, and at either end of the view it does nothing. These
+four keys work in Photo Grid and Square Grid only. They wait in Detail, Compare and Survey, in the
+full-screen preview (which covers the grid), while a text field or a dialog has the keyboard, and
+when you gave the same key to a command in Help → Keyboard Shortcuts, where they are listed under
+Fixed keys.
+
 Grid actions apply to all selected photos and support Undo / Redo. In Compare and Survey, culling
 actions apply to the active photo. Auto Advance moves forward after an action; holding Shift with
 Auto Advance on still advances only once. The last photo stays selected. Text fields keep their

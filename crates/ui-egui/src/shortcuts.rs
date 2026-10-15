@@ -362,6 +362,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     let mut aliased: Vec<(&str, serde_json::Value)> = Vec::new();
     let keymap = &app.ui.settings.keymap;
     let grid = library_grid(app);
+    // The grid navigation keys act on the photos in view, so they wait while the full-screen preview
+    // covers the grid: a key must not move the selection onto photos nobody can see.
+    let grid_navigation = grid && !app.ui.fullscreen;
     // keys the user gave to a command: the fixed bindings below (aliases, ratings) yield to them
     let taken: Vec<(Modifiers, Key)> = keymap.values().filter_map(|s| parse(s)).collect();
     // an open popup (a menu, a date picker's calendar) closes on Esc itself: Esc's command (Back,
@@ -412,6 +415,20 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         for (label, key, sc) in [("red", Key::Num6, "6"), ("yellow", Key::Num7, "7"), ("green", Key::Num8, "8"), ("blue", Key::Num9, "9")] {
             if matches(i, Modifiers::NONE, key) && !native(sc) && !taken.contains(&(Modifiers::NONE, key)) {
                 fire.push(format!("label:{label}"));
+            }
+        }
+        if grid_navigation {
+            // Home / End: the first / last photo of the view
+            for (key, id) in [(Key::Home, "grid:first"), (Key::End, "grid:last")] {
+                if matches(i, Modifiers::NONE, key) && !taken.contains(&(Modifiers::NONE, key)) {
+                    fire.push(id.to_string());
+                }
+            }
+            // Shift+← / Shift+→: the previous / next photo of the view joins the selection
+            for (key, step) in [(Key::ArrowLeft, -1i64), (Key::ArrowRight, 1)] {
+                if matches(i, Modifiers::SHIFT, key) && !taken.contains(&(Modifiers::SHIFT, key)) {
+                    fire.push(format!("grid:extend:{step}"));
+                }
             }
         }
     });
@@ -474,6 +491,29 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         } else if f == "view.softProof" && matches!(app.ui.view, crate::state::ViewMode::PhotoGrid | crate::state::ViewMode::SquareGrid) {
             // S in a grid: expand / collapse the stack (Lightroom's Library binding)
             let _ = app.run("stack.toggle", json!({}));
+        } else if f == "grid:first" || f == "grid:last" {
+            // Home / End in a grid: make the first / last photo of the view the active, selected one
+            let vis = app.session.visible_cloned();
+            let edge = if f == "grid:first" { vis.first() } else { vis.last() };
+            if let Some(id) = edge {
+                let _ = app.run("library.select", json!({"ids": [id.0], "active": id.0}));
+            }
+        } else if let Some(step) = f.strip_prefix("grid:extend:") {
+            // Shift+← / Shift+→ in a grid: the neighbour of the active photo joins the selection and
+            // becomes the active one. At either end of the view the key does nothing.
+            let step = step.parse::<i64>().unwrap_or(0);
+            let vis = app.session.visible_cloned();
+            let neighbour = app
+                .session
+                .active()
+                .and_then(|active| vis.iter().position(|p| *p == active))
+                .and_then(|pos| i64::try_from(pos).ok())
+                .and_then(|pos| pos.checked_add(step))
+                .and_then(|pos| usize::try_from(pos).ok())
+                .and_then(|pos| vis.get(pos));
+            if let Some(id) = neighbour {
+                let _ = app.run("library.select", json!({"ids": [id.0], "mode": "add"}));
+            }
         } else if compare::culling(app) && (f == "library.next" || f == "library.previous") {
             let d = if f == "library.next" { 1 } else { -1 };
             let _ = if app.ui.view == crate::state::ViewMode::Compare { compare::compare_step(app, d) } else { compare::survey_step(app, d) };

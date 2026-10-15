@@ -83,6 +83,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-14 | minor | Gap 10: 21 Sony and Leica models verified on one CC0 file each (258 models) |
 | 2026-10-12 | minor | Gap 20 shrinks: Mamiya MEF decodes (`vendor/mef.rs`) and is imported; gap 10 count 240 → 241 |
 | 2026-10-12 | minor | Gap 20 shrinks: Epson ERF decodes (`vendor/erf.rs`), 3 bodies verified; gap 10 count 237 → 240 |
+| 2026-10-13 | minor | Gap 28: F6 (filmstrip) and F7 (left panel) are bound, so the entry no longer lists them as missing; hours unchanged |
 | 2026-10-11 | minor | Gap 10 shrinks: Leica Q3 verified by a recorded check of 38 private DNGs (236 models verified; Leica 14); gap not closed |
 | 2026-10-12 | minor | Camera-look deep shadows follow the JPEG toe (#1307); camera calibration remains partial |
 | 2026-10-12 | minor | Gap 23 (accessibility): crop handles, spots, gradient handles and mask pins by keyboard; 4–8 h → 2–4 h; gap not closed |

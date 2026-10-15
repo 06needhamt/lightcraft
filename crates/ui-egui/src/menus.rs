@@ -95,7 +95,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.thumbSizeUp", "Increase Grid Thumbnail Size", Some("="), "View"),
     ("view.thumbSizeDown", "Decrease Grid Thumbnail Size", Some("-"), "View"),
     ("view.clipping", "Show Clipping", Some("J"), "View"),
-    ("view.visualizeHdr", "Visualize HDR", None, "View"),
+    ("view.visualizeHdr", "Visualize HDR", Some("Shift+H"), "View"),
     // in grids S expands/collapses stacks (the engine command it shadows)
     ("view.softProof", "Soft Proofing", Some("S"), "View"),
     ("view.histogram", "Histogram", Some("Cmd+Shift+H"), "View"),
@@ -228,7 +228,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("file.exportCurvePresets", "Export Point Curve Presets…", None, ""),
     ("app.settings", "Settings…", Some("Cmd+,"), "Edit"),
     ("app.newLibrary", "New Library…", None, "File"),
-    ("app.openLibrary", "Open Library…", None, "File"),
+    ("app.openLibrary", "Open Library…", Some("Cmd+O"), "File"),
     ("app.recentLibraries", "Recent Libraries", None, ""),
     ("app.clearRecentLibraries", "Clear Recent Libraries", None, ""),
     // Settings ▸ Display
