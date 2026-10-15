@@ -157,6 +157,13 @@
   file that hold the focus point (about 100 photos a second from a spinning disk), with a *Reading focus points* row
   in the activity stack you can stop. Photo ▸ Read Focus Points runs it by hand.
 
+### Cleaner HDR merges
+- Bright windows in an HDR made with Photo ▸ Photo Merge ▸ HDR no longer take a magenta tinge from the brighter
+  photos along the areas they clipped: right next to a clipped area, a photo's colour isn't used. It showed most when
+  the highlights were darkened or saturated.
+- The same photos give the same HDR whatever order they are selected in; before, a different order could change a
+  few pixels.
+
 ### HDR merges keep the white balance
 - An HDR merged from raws that LightCraft colours from the camera's JPEG (CR2, NEF, ARW…) now opens at the same
   As Shot temperature and tint as its photos, and changing the white balance no longer turns it green. Sony ARW
