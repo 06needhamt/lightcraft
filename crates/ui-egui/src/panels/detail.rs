@@ -426,9 +426,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let resp = ui.interact(canvas, egui::Id::new("loupe"), Sense::click_and_drag());
     let mut target_rect = fit_rect(main_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan);
     let mut img_rect = animated_rect(ui.ctx(), &mut app.ui.zoom_anim, target_rect);
+    let in_pane = |pane: Rect, image: Rect| image.translate(pane.center() - main_area.center());
     let mut navigating = false;
     for &view_area in &areas {
-        let view_img = if view_area == main_area { img_rect } else { fit_rect(view_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan) };
+        let view_img = in_pane(view_area, img_rect);
         if navigate_gesture(app, ui, &resp, view_area, view_img, native) {
             navigating = true;
             target_rect = fit_rect(main_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan);
@@ -436,6 +437,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             break;
         }
     }
+    let before_img = in_pane(areas[0], img_rect);
+    let before_target = in_pane(areas[0], target_rect);
     app.image_rect = Some(img_rect);
     // request renders: the loupe at display resolution (drafts during drags)
     let interacting = app.session.interaction.is_some();
@@ -551,11 +554,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // (slot, before side?, rect to draw in, rect it is requested for, area whose pixels show)
     let mut window_views: Vec<WindowView> = Vec::new();
     if window_ctx.frame_edge.is_some() {
-        let before_rect = |r: Rect, area: Rect| WindowView { slot: Slot::RegionBefore, before: true, img: r, target: r, visible: area };
         let after = WindowView { slot: Slot::Region, before: false, img: img_rect, target: target_rect, visible: main_area };
         if split {
-            let br = fit_rect(areas[0], aspect, app.ui.zoom, native, ppp, app.ui.pan);
-            window_views.push(before_rect(br, areas[0]));
+            window_views.push(WindowView { slot: Slot::RegionBefore, before: true, img: before_img, target: before_target, visible: areas[0] });
             window_views.push(after);
         } else if show_before {
             window_views.push(WindowView { slot: Slot::RegionBefore, before: true, img: img_rect, target: target_rect, visible: canvas });
@@ -612,7 +613,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if split {
         // each view stays in its pane: zoomed in, a photo reaches past it (and would cover the
         // other view's margins with its whole-frame render, magnified and blurred)
-        let br = fit_rect(areas[0], aspect, app.ui.zoom, native, ppp, app.ui.pan);
+        let br = before_img;
         draw(Slot::Before, br, areas[0]);
         shown = draw(Slot::Main, img_rect, main_area);
         // the labels under each photo, or under its pane when the photo reaches past it
@@ -753,10 +754,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 // A click-zoom there centres both views on the point clicked (#1742).
                 let pointer = resp.interact_pointer_pos().or(resp.hover_pos());
                 let (map, img, pane) = match (split, areas.first(), pointer) {
-                    (true, Some(before), Some(q)) if before.contains(q) => {
-                        let br = fit_rect(*before, aspect, app.ui.zoom, native, ppp, app.ui.pan);
-                        (CanvasMap::new(&frame, br), br, *before)
-                    }
+                    (true, Some(before), Some(q)) if before.contains(q) => (CanvasMap::new(&frame, before_img), before_img, *before),
                     _ => (map, img_rect, main_area),
                 };
                 general_interaction(app, ui, &resp, &map, img, pane, native, aspect)
