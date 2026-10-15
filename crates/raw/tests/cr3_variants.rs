@@ -11,7 +11,7 @@
 //! documented gate.
 //!
 //! The accepted ranges are the ones in `vendor/crx.rs`: uniform quantization values 4..=44 and
-//! adaptive QP values 131..=168. Odd QP-map heights are not a rejected variant any more (the last
+//! adaptive QP values 131..=175. Odd QP-map heights are not a rejected variant any more (the last
 //! QP row is used on its own); the unit tests in `vendor/crx.rs` cover them. The deeper
 //! `"Canon CRX adaptive low-frequency quantization"` dequantization gate is unreachable through
 //! this API: plane validation rejects any gain on the low-frequency bands first. It is defence in
@@ -351,9 +351,9 @@ fn uniform_quantization_edges_of_the_accepted_range_decode() {
 // --- qp_map gate ------------------------------------------------------------
 
 #[test]
-fn adaptive_qp_outside_131_to_168_is_unsupported() {
-    // Literal 260 → 130 and 338 → 169 sit just outside the accepted range; literal 5 → −3 is far outside.
-    for (literal, value) in [(260u32, 130i32), (338, 169), (5, -3)] {
+fn adaptive_qp_outside_131_to_175_is_unsupported() {
+    // Literal 260 → 130 and 352 → 176 sit just outside the accepted range; literal 5 → −3 is far outside.
+    for (literal, value) in [(260u32, 130i32), (352, 176), (5, -3)] {
         assert_rejected(
             &format!("QP {value}"),
             &cr3_file(&adaptive_coding(), &adaptive_stream(&ADAPTIVE_GAINS, 0, 0, qp_with_literal(literal))),
@@ -364,8 +364,9 @@ fn adaptive_qp_outside_131_to_168_is_unsupported() {
 
 #[test]
 fn adaptive_qp_edges_of_the_accepted_range_decode() {
-    // Literal 262 → QP 131 and 336 → QP 168; zero coefficients decode to the mid level whatever the step.
-    for (literal, value) in [(262u32, 131i32), (336, 168)] {
+    // Literal 262 → QP 131 and 350 → QP 175 (the EOS R6 Mark II's highest); zero coefficients decode to the mid
+    // level whatever the step.
+    for (literal, value) in [(262u32, 131i32), (350, 175)] {
         let file = cr3_file(&adaptive_coding(), &adaptive_stream(&ADAPTIVE_GAINS, 0, 0, qp_with_literal(literal)));
         let raw = decode(&file).unwrap();
         assert_eq!(raw.data, RawData::U16(vec![8192; 256]), "QP {value}");

@@ -95,7 +95,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.thumbSizeUp", "Increase Grid Thumbnail Size", Some("="), "View"),
     ("view.thumbSizeDown", "Decrease Grid Thumbnail Size", Some("-"), "View"),
     ("view.clipping", "Show Clipping", Some("J"), "View"),
-    ("view.visualizeHdr", "Visualize HDR", Some("Shift+H"), "View"),
+    ("view.visualizeHdr", "Visualize HDR", None, "View"),
     // in grids S expands/collapses stacks (the engine command it shadows)
     ("view.softProof", "Soft Proofing", Some("S"), "View"),
     ("view.histogram", "Histogram", Some("Cmd+Shift+H"), "View"),

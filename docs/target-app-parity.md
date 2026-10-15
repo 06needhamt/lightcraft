@@ -1,6 +1,6 @@
 # Target-app parity: LightCraft vs Adobe Lightroom
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (localization ~52% → ~55%: de, es, fr, ja, uk catalogs filled) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (RAW: 82% of Adobe's models decode, 36% verified) · **Target:** Adobe Lightroom Classic 15.5 (August 2026) and Lightroom 9.6 (desktop)
 
 The authoritative assessment of how close LightCraft is to Lightroom. The row-by-row checklist is
 [parity-checklist.md](parity-checklist.md); the ranked work list is [gaps.md](gaps.md); deep areas
@@ -47,7 +47,7 @@ phase #85, duplicate Local entries #22, black GPU exports on an Intel iGPU #78).
 | Dimension | Breadth | Ready for real work | Remaining | Doc |
 |---|---:|---:|---:|---|
 | Features (weighted areas below) | ~77% (checklist 81.1%, measured) | ~61% | 600–1,100 h | [Features](#features) |
-| ↳ RAW cameras, colour and lens profiles (part of features) | 81% of Adobe's 1,446 models decode (16% verified), measured | ~56% | 255–480 h | [raw-parity.md](raw-parity.md) |
+| ↳ RAW cameras, colour and lens profiles (part of features) | 82% of Adobe's 1,446 models decode (36% verified), measured | ~56% | 255–480 h | [raw-parity.md](raw-parity.md) |
 | UI/UX fidelity | ~85% | ~70% | 32–54 h | [ui-parity.md](ui-parity.md) |
 | File formats (non-raw: images, sidecars, presets, catalogs) | ~85% | ~70% | 30–55 h | [file-format-parity.md](file-format-parity.md) |
 | Hardware | ~50% | ~40% | 40–80 h (+ tethering and printing, counted under Classic modules) | [hardware-parity.md](hardware-parity.md) |
@@ -312,3 +312,4 @@ P2 items 12–25 h; look tuning, performance, packaging, hardening 25–45 h.
 | 2026-10-10 | minor | Added mainstream practitioner (~51%) and essentials user (~63%) numbers; full ready re-derived from written weights × discounts (55% → 46%); user-issue evidence; beta hours 340–600 |
 | 2026-10-10 | minor | Stage re-checked against the core-workflow alpha gate: passes, stays alpha |
 | 2026-10-10 | major | Created per the progress-docs standard: full re-measure (checklist recount, installed Lightroom 9.6 bundle listing, code counts, catalogs, CI), feature areas with weights, dimensions, AI, stage, calibration; merged ROADMAP's *Where we stand* and *Parity estimate* |
+| 2026-10-14 | minor | RAW: 82% of Adobe's models decode, 36% verified (integration batch 36) |

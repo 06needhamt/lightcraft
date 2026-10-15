@@ -14,6 +14,9 @@ const T: Duration = Duration::from_secs(20);
 fn detail(panel: &str) -> Headless {
     let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
     let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    // pins on whatever the pointer does: these tests move handles with the keyboard, and a headless
+    // pointer is never over the photo, where the Tool Overlay's default Auto shows them
+    h.app.ui.tool_overlay = crate::state::ToolOverlay::Always;
     let r = h.request("ui.set", json!({"view": "detail"}), T);
     assert_eq!(r["ok"], true, "{r}");
     let r = h.request("engine.execute", json!({"command": panel}), T);

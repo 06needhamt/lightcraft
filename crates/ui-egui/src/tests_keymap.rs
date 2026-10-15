@@ -282,16 +282,16 @@ fn count_folder_picks(h: &mut Headless) -> std::sync::Arc<std::sync::atomic::Ato
     calls
 }
 
-/// The declared keys of the two commands these tests bind.
+/// The declared key of Open Library. Visualize HDR has none by default: ⇧H cycles the Tool Overlay
+/// (issue #224); the user can give Visualize HDR a key in the keymap.
 #[test]
 fn open_library_and_visualize_hdr_keys_are_declared() {
     use crate::shortcuts::{Keymap, parse, shortcut_of};
 
     let keymap = Keymap::new();
-    for (id, want) in [("view.visualizeHdr", "Shift+H"), ("app.openLibrary", "Cmd+O")] {
-        assert_eq!(shortcut_of(&keymap, id), Some(want), "{id}");
-        assert!(parse(want).is_some(), "{want} does not parse");
-    }
+    assert_eq!(shortcut_of(&keymap, "app.openLibrary"), Some("Cmd+O"));
+    assert!(parse("Cmd+O").is_some());
+    assert_eq!(shortcut_of(&keymap, "view.visualizeHdr"), None);
 }
 
 /// Opening a library uses the same folder picker as File > Open Library. Cancelling it
@@ -306,19 +306,6 @@ fn cmd_o_opens_the_library_picker_once() {
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1, "one picker for Cmd+O");
     assert_eq!(h.app.session.active(), active);
     assert_eq!(h.app.session.catalog.len(), photos);
-}
-
-/// Shift+H toggles View > Visualize HDR; Cmd+Shift+H (Histogram) is untouched.
-#[test]
-fn shift_h_toggles_the_hdr_view() {
-    let mut h = demo();
-    assert!(!h.app.ui.hdr_visualize);
-    let histogram = h.app.ui.histogram;
-    press(&mut h, "H", &["shift"]);
-    assert!(h.app.ui.hdr_visualize, "Shift+H turns Visualize HDR on");
-    assert_eq!(h.app.ui.histogram, histogram, "Shift+H leaves the Histogram unchanged");
-    press(&mut h, "H", &["shift"]);
-    assert!(!h.app.ui.hdr_visualize, "Shift+H turns it back off");
 }
 
 /// Home / End make the first / last photo of the view the active one, only in the library grids,
@@ -412,10 +399,6 @@ fn navigation_open_library_and_hdr_keys_wait_for_a_text_field() {
     assert_eq!(h.app.session.selection.ids.len(), 2, "Shift+Right extends");
     press(&mut h, "O", &["cmd"]);
     assert_eq!(picks(), 1, "Cmd+O asks for a folder");
-    press(&mut h, "H", &["shift"]);
-    assert!(h.app.ui.hdr_visualize, "Shift+H turns Visualize HDR on");
-    press(&mut h, "H", &["shift"]);
-    assert!(!h.app.ui.hdr_visualize);
     select(&mut h, middle);
 
     // with the search box focused, none does

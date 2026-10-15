@@ -48,7 +48,7 @@ only come from the gate named here.
 | Variant | Status | Gate | Exact rejection |
 |---|---|---|---|
 | Version `0x100`, four Bayer planes, encoding 0, wavelet levels 0 (lossless) or 3 (C-RAW, horizontal tiles) | Supported | `supports()` in `vendor/crx.rs` | none |
-| Version `0x200`: single-tile 14-bit three-level C-RAW with adaptive quantization, QP map of any height (an odd height leaves the last QP row without a partner and it is used on its own), QP values 131–168 | Supported | `supports()`, `qp_map()` | none |
+| Version `0x200`: single-tile 14-bit three-level C-RAW with adaptive quantization, QP map of any height (an odd height leaves the last QP row without a partner and it is used on its own), QP values 131–175 (169–175: EOS R6 Mark II) | Supported | `supports()`, `qp_map()` | none |
 | Version other than `0x100`/`0x200`, or wavelet levels other than 0 and 3 | Rejected | `supports()` | `Canon CRX version {version:#x}, encoding {encoding}, {planes} planes, {levels} wavelet levels` |
 | Bit depth outside 8–16 (the `CMP1` parser only accepts 1–16, so 1–7 is what can arrive) | Rejected | `supports()` | `Canon CRX {bits}-bit samples` |
 | C-RAW with vertical tiles (tile height below the image height, three levels) | Rejected | `supports()` | `Canon CRX C-RAW with vertical tiles` |
@@ -58,7 +58,7 @@ only come from the gate named here.
 | Partial-subband coding | Rejected | `validate_planes()` | `Canon CRX partial subband coding` |
 | Adaptive quantization gain on a low-frequency band (bands 0–3) | Rejected | `validate_planes()` | `Canon CRX adaptive quantization subband parameters` |
 | Uniform quantization value outside 4–44 | Rejected | `quant_step()`, called from `validate_planes()` | `Canon CRX quantization value {value}` |
-| Adaptive QP value outside 131–168 | Rejected | `qp_map()` | `Canon CRX adaptive QP value {value}` |
+| Adaptive QP value outside 131–175 | Rejected | `qp_map()` | `Canon CRX adaptive QP value {value}` |
 | `ff11`/`ff12`/`ff13` markers in a `0x100` stream | Rejected | `layout()` | `Canon CRX ff11/ff12/ff13 marker family` |
 | Marker header of the wrong length (8 bytes expected for `ff01`, `ff02`, `ff03` and `ff12`, 16 for `ff11` and `ff13`) | Rejected | `layout()` | `Canon CRX marker {marker:#x} header length {size}` |
 | `0x200` tile header with a wrong magic, a nonzero reserved field, an empty QP map or QP padding above 7 | Rejected | `layout()` | `Canon CRX adaptive quantization tile header` |
@@ -200,9 +200,9 @@ hashes pin LightCraft's own decode, and the check is black-box against the camer
 The EOS R6 Mark III (`ColorData` version 66) reads its as-shot white balance and black level as described at
 the top of this page; its white level comes from the data.
 
-Not every C-RAW file of a verified body decodes: the decoder accepts adaptive QP values 131–168 only, and a
-user reports 3 of 40 EOS R6 Mark II C-RAW files with QP 172 or 175 ("Canon CRX adaptive QP value 172"), which
-open as their preview. EOS R7 C-RAW (the odd-height QP map above) has only been checked on six paired RAW /
+Not every C-RAW file of a verified body decodes: the decoder accepts adaptive QP values 131–175 only. The 3 of
+40 EOS R6 Mark II C-RAW files with QP 172 or 175 a user reported (they opened as their preview with "Canon CRX
+adaptive QP value 172") now decode (#1694). EOS R7 C-RAW (the odd-height QP map above) has only been checked on six paired RAW /
 C-RAW captures; the pinned R7 file is lossless, so R7 C-RAW still has no black-box reference.
 
 ## White level

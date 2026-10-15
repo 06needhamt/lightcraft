@@ -1,8 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (catalog import: persistent result, offline Local promotion and library-switch dismissal; integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 35: KEYC-SELECTONLYACTIVE, Select Only Active Photo ⌘⇧D; LR-BEHAV-AUTOSAVE, damaged snapshots repaired on open; LR-EDIT-OPTICS-PROFILE, Nikon Z 6II / Z 8 / Z f in-file distortion; LRC-LIB-CATALOG-IMPORT, WAL-only catalogs open; LR-EXP-DIM, enlargements stop at 512 MP; LR-IMP-CAMERA-COVERAGE, Canon EOS RP CR3 verified; model folder retry; LR-IMP-FORMATS: preview-only raws rechecked after an update, #662) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-12 · **Change:** minor (LR-VIEW-ZOOM: full-size slider-drag drafts on the GPU, timed with their frame, issue #330; rapid slider entry; LR-PROF-CAMERACOLOR: tone curve from black-and-white camera JPEGs; LR-VIEW-ZOOM, LR-VIEW-COMPARE: Compare and Reference zoom windows; LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: EOS R5 Mark II CR3 decodes; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md; filesystem history retry/Undo/Redo evidence; renamed from `parity.md`; Top gaps moved to gaps.md, shortcut notes to ui-parity.md) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (integration batch 36: slideshow module, print-ready PDF fixes, local adjustment presets, Layout Image loupe overlay, Delete in an album removes from it, new languages Czech, Polish, Italian-ready catalogs; many rows' notes updated by their PRs) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -38,7 +36,7 @@ cited here still exists. Formerly docs/parity.md.
 | H. Crop & rotate (CROP) | 9 | 0 | 0 | 1 | 6/6 (100%) | 3/3 (100%) |
 | I. Remove / healing (REM) | 8 | 1 | 2 | 2 | 4/4 (100%) | 2/3 (67%) |
 | J. Red eye (EYE) | 2 | 0 | 0 | 0 | — | 1/1 (100%) |
-| K. Masking (MASK) | 14 | 5 | 5 | 0 | 7/8 (88%) | 6/6 (100%) |
+| K. Masking (MASK) | 15 | 5 | 5 | 0 | 7/8 (88%) | 7/7 (100%) |
 | L. Presets (PRE) | 6 | 0 | 1 | 1 | 2/2 (100%) | 2/2 (100%) |
 | M. Versions & history (VER) | 5 | 0 | 0 | 0 | 1/1 (100%) | 3/3 (100%) |
 | N. Copy / paste / sync (SYNC) | 5 | 0 | 0 | 0 | 3/3 (100%) | 1/1 (100%) |
@@ -51,13 +49,13 @@ cited here still exists. Formerly docs/parity.md.
 | U. Map & location (MAP) | 0 | 1 | 1 | 0 | — | 0/1 (0%) |
 | V. Preferences (PREF) | 6 | 2 | 2 | 2 | 1/1 (100%) | 4/5 (80%) |
 | W. Cloud & AI infrastructure (CLOUD / AI) | 1 | 0 | 1 | 2 | — | — |
-| X. Cross-cutting behaviours (BEHAV) | 23 | 7 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
+| X. Cross-cutting behaviours (BEHAV) | 23 | 6 | 1 | 1 | 8/8 (100%) | 7/10 (70%) |
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
-| Z. Keyboard shortcuts (desktop) | 76 | 4 | 3 | 1 | 49/52 (94%) | 23/25 (92%) |
-| Lightroom Classic extras | 36 | 22 | 27 | 8 | — | 24/26 (92%) |
-| **Total** | 411 | 59 | 64 | 35 | 193/201 (96%) | 146/159 (92%) |
+| Z. Keyboard shortcuts (desktop) | 77 | 4 | 2 | 1 | 49/52 (94%) | 23/25 (92%) |
+| Lightroom Classic extras | 36 | 23 | 27 | 8 | — | 24/26 (92%) |
+| **Total** | 413 | 61 | 63 | 35 | 193/201 (96%) | 147/160 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **82.5%** of 534 in-scope rows — P0 98.0% of 201 · P1 95.0% of 159 · P2 52.9% of 173.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **82.6%** of 537 in-scope rows — P0 98.0% of 201 · P1 95.0% of 160 · P2 53.4% of 175.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -371,7 +369,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 |---|---|---|---|---|---|
 | LR-HDR-EDIT | HDR editing | P2 | 🟡 | `cmd:develop.hdr`, `crates/pipeline/src/tone.rs` (`ToneMap::hdr`), `crates/pipeline/src/tests_hdr.rs` | HDR tone map (SDR curve through the midtones, highlights up to the headroom limit) and float HDR render, CPU only; no on-screen HDR display yet (LR-VIEW-HDR-DISPLAY); `crs:HDREditMode` from XMP / Lightroom catalogs turns HDR editing on or off (the headroom limit and SDR rendition aren't read from crs yet) |
 | LR-HDR-SDRPREVIEW | SDR preview of HDR | P2 | 🟡 | `ctl:hdr.sdr*` | SDR rendition sliders (brightness, contrast, highlights, shadows, whites, clarity) used by every SDR view and export; no separate SDR-preview toggle until HDR display lands |
-| LR-HDR-VISUALIZE | Visualize HDR range | P2 | ✅ | `cmd:view.visualizeHdr`, `crates/pipeline/src/visualize.rs` (`hdr_range`), `crates/ui-egui/src/tests_keymap.rs` (`shift_h_toggles_the_hdr_view`) | grey below SDR white, four colour bands by stops above it; ⇧H toggles it (⌘⇧H stays the Histogram panel), and a text field with the focus keeps the key |
+| LR-HDR-VISUALIZE | Visualize HDR range | P2 | ✅ | `cmd:view.visualizeHdr`, `crates/pipeline/src/visualize.rs` (`hdr_range`) | grey below SDR white, four colour bands by stops above it; ⇧H toggles it (⌘⇧H stays the Histogram panel), and a text field with the focus keeps the key |
 | LR-HDR-LIMIT | HDR headroom limit | P2 | ✅ | `ctl:hdr.maxEv`, `cmd:develop.hdr` | 0 to 5 stops; marked on the HDR histogram (whose scale stays at 5 stops) |
 | LR-HDR-EXPORT | HDR export | P2 | 🟡 | `cmd:app.export`, `crates/codecs/src/gainmap.rs`, `crates/engine/src/export.rs` (`encode_gain_map_jpeg`) | `hdr` export option: ISO 21496-1 gain map JPEG (plus Adobe hdrgm and Apple XMP), 10-bit Rec. 2020 AVIF with PQ or HLG (`hdrTransfer`, BT.2100 / BT.2408, SDR white at signal 0.75), 16-bit Rec. 2020 PQ PNG (`cICP` + `cLLI`; `crates/codecs/src/encode.rs` `encode_png_pq`), 16-bit Rec. 2020 PQ JPEG XL, 32-bit float TIFF; no HEIC (no permissive HEVC encoder) |
 

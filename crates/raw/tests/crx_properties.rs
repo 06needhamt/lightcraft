@@ -945,7 +945,7 @@ fn every_qp_value_in_the_supported_band_dequantizes_within_the_bit_depth() {
     let bases = [8, 8, 8, 8, 2, 2, 2, 2, 2, 2];
     let mut first_hash = 0u64;
     let mut last_hash = 0u64;
-    for value in 131i32..=168 {
+    for value in 131i32..=175 {
         let fixture = v200_constant_bands_file(16, 16, value, 400, Some((4, 8)), gains, bases);
         let image = decode(&fixture.file).unwrap();
         let RawData::U16(samples) = &image.data else { panic!("u16 sensor data expected") };
@@ -957,7 +957,7 @@ fn every_qp_value_in_the_supported_band_dequantizes_within_the_bit_depth() {
         last_hash = sensor_hash(&image);
     }
     assert_ne!(first_hash, last_hash, "the QP value must reach the dequantization step");
-    for value in [130i32, 169] {
+    for value in [130i32, 176] {
         let fixture = v200_constant_bands_file(16, 16, value, 400, None, gains, bases);
         assert!(matches!(decode(&fixture.file), Err(RawError::Unsupported(_))), "QP {value}");
         assert!(matches!(probe_info(&fixture.file), Err(RawError::Unsupported(_))));

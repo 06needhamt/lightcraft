@@ -1,14 +1,12 @@
 # What's new in LightCraft
 
-## 2026-10-15
+## 2026-10-14
 
 ### Lightroom radial masks on the right side
 - Radial masks brought over from Lightroom Classic (catalog import, XMP sidecars, edits inside DNGs and presets) now
   apply their effect inside the circle, as Lightroom does, instead of outside it (issue #1815). A mask inverted in
   Lightroom stays inverted, and older Radial Filters keep their Effect Outside / Invert Mask setting. Photos imported
   before this keep the masks they got: Photo ▸ Read Metadata from File reads a sidecar's again.
-
-## 2026-10-15
 
 ### Delete in an album removes from the album only
 - In an album, the Delete key now takes the selected photos out of the album, as in Lightroom. It used to move them
@@ -17,14 +15,10 @@
   To delete photos from the library from an album, use Photo ▸ Delete Photo or right-click ▸ Delete Photo. In a smart
   album, Delete changes nothing: its rules decide what it shows.
 
-## 2026-10-15
-
 ### Local folders select a photo
 - Showing a Local folder now makes its first photo the active one, as albums and the other sources do (issue
   #1447), or keeps the photo you had when the folder holds it. Before, the photo from the previous view stayed active:
   Photo Grid marked nothing, and Detail, the histogram and the photo info showed a photo that isn't in the folder.
-
-## 2026-10-14
 
 ### HDR merges of moving lights, and many brackets at once
 - A star, the moon or a light that moves between the photos of a bracket (a night bracket on a tripod) no longer
@@ -280,8 +274,6 @@
   with NVIDIA), LightCraft still stops, because its window can't keep drawing on the lost device, but it now says
   "LightCraft stopped unexpectedly" and why, instead of "could not open its window", and the next start renders
   on the CPU and explains how to turn the GPU back on.
-
-## 2026-10-13
 
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you

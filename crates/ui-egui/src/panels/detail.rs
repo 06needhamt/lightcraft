@@ -2228,7 +2228,10 @@ fn frame_long_norm(map: &CanvasMap) -> (f64, f64) {
 /// Auto's condition for the Tool Overlay (Shift+H): the pointer is over the photo, or a pin is
 /// being dragged.
 fn pins_live(app: &LightcraftApp, resp: &egui::Response, map: &CanvasMap) -> bool {
-    resp.hover_pos().is_some_and(|q| map.rect.contains(q)) || matches!(app.gesture, Some(Gesture::SpotMove { .. } | Gesture::MaskHandle { .. }))
+    resp.hover_pos().is_some_and(|q| map.rect.contains(q))
+        || matches!(app.gesture, Some(Gesture::SpotMove { .. } | Gesture::MaskHandle { .. }))
+        // a handle moved with the keyboard stays shown while it has the focus
+        || crate::canvas_keys::has_focus(&resp.ctx)
 }
 
 fn pin(p: &egui::Painter, c: Pos2, sel: bool) {
