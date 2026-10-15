@@ -125,6 +125,23 @@ pub(crate) fn starting_colour_tags(raw: &mut RawImage, bytes: &[u8]) -> Option<C
     dng_colour(&raw.color, &t, look.as_ref())
 }
 
+/// Give a raw about to be written as a DNG of its own (Export as DNG, Convert / Copy as DNG) the colour it opens
+/// with, when the file has no colour matrices (issue #1745: a Z 9 NEF's DNG had no `ColorMatrix1`, and other raw
+/// converters refused it). The lens corrections stay in the DNG; only the fit sees the raw without them, as when
+/// the photo opens.
+pub(crate) fn with_starting_colour(raw: &mut RawImage, bytes: &[u8]) {
+    if lightcraft_raw::color::has_matrix(&raw.color) {
+        return;
+    }
+    let list3 = raw.opcodes.list3.clone();
+    raw.opcodes.list3.retain(|op| !op.is_lens_correction());
+    let tags = starting_colour_tags(raw, bytes);
+    raw.opcodes.list3 = list3;
+    if let Some(tags) = tags {
+        raw.color = tags;
+    }
+}
+
 /// DNG tags that render white-balanced camera RGB at its as-shot white as `t` with `look` on top does: one forward
 /// matrix (with a colour matrix and as-shot neutral that agree with it at that white), the look's hue/saturation
 /// table as `ProfileHueSatMap` and its tone curve as `ProfileToneCurve`. Not quite the same render: a DNG table

@@ -951,6 +951,56 @@ fn dng_export_compression_choices() {
     assert!(sizes[3].1 < sizes[0].1 / 2, "lossy is much smaller than lossless: {sizes:?}");
 }
 
+/// Issue #1745: the DNG of a raw without colour matrices of its own (a Nikon Z 9 NEF) had no `ColorMatrix1`, and
+/// other raw converters refused it. Export as DNG and Convert / Copy as DNG now write the colour the raw opens with:
+/// the measured matrices of a camera that has them (Z f), the neutral fallback of one that doesn't (Z 9, whose
+/// look is fitted to its JPEG when there is one).
+#[test]
+fn dngs_of_raws_without_colour_matrices_carry_the_colour_they_open_with() {
+    use lightcraft_raw::color::{as_shot_white_xy, camera_transform, has_matrix};
+    let dir = temp_dir("dng-colour");
+    let samples = [[0.2, 0.3, 0.1], [0.05, 0.02, 0.4], [0.6, 0.6, 0.6], [0.01, 0.5, 0.03]];
+    let render = |t: &lightcraft_raw::color::CameraTransform, c: [f64; 3]| {
+        t.matrix.apply(std::array::from_fn(|i| c[i] * t.wb[i] as f64)).map(|v| v * t.baseline_exposure.exp2())
+    };
+    for (model, measured) in [("NIKON Z f", true), ("NIKON Z 9", false)] {
+        let metadata = lightcraft_meta::Metadata { make: Some("NIKON CORPORATION".into()), model: Some(model.into()), ..Default::default() };
+        let mut raw = lightcraft_raw::decode(&synthetic_dng_with(None, metadata)).unwrap();
+        // a vendor raw's colour: a white balance, no matrices
+        raw.color = lightcraft_raw::ColorData { as_shot_neutral: Some([0.5, 1.0, 0.7]), ..Default::default() };
+        let bytes = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+        let path = dir.join(format!("{model}.dng"));
+        std::fs::write(&path, &bytes).unwrap();
+        let mut opened = lightcraft_raw::decode(&bytes).unwrap();
+        assert!(!has_matrix(&opened.color));
+        let (_, want, look) = crate::camera_preview::starting_colour(&mut opened, &bytes);
+        assert_eq!((want.matrix_is_fallback, look.is_none()), (!measured, true), "{model}");
+
+        let mut s = Session::new().with_fs();
+        s.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+        let id = s.active().unwrap();
+        let o = crate::export::ExportOptions::from_json(&json!({"format": "dng"}));
+        let mut exported = Vec::new();
+        let mut write = |_: &str, b: &[u8]| {
+            exported = b.to_vec();
+            Ok(())
+        };
+        crate::export::export_batch(&mut s, &[id], &o, &crate::export::Destination { dir: "x".into(), exact: None }, &mut write, &|_| false).unwrap();
+        let converted = crate::cmd::convert::write_dng_with(None, &path.to_string_lossy(), String::new()).unwrap();
+        for (how, dng) in [("export", exported), ("convert", std::fs::read(&converted).unwrap())] {
+            let back = lightcraft_raw::decode(&dng).unwrap();
+            assert!(back.color.color_matrix[0].is_some() && back.color.illuminant[0] != 0, "{model} {how}: {:?}", back.color);
+            let got = camera_transform(&back, as_shot_white_xy(&back));
+            for c in samples {
+                let (a, b) = (render(&want, c), render(&got, c));
+                assert!(a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-3), "{model} {how} {c:?}: {a:?} vs {b:?}");
+            }
+        }
+        std::fs::remove_file(&converted).unwrap();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 fn write_jpeg(path: &Path, capture: Option<&str>) {
     let (w, h) = (32usize, 24usize);
     let data: Vec<[u8; 4]> = (0..w * h).map(|i| [(i % w * 7) as u8, (i / w * 9) as u8, 90, 255]).collect();
