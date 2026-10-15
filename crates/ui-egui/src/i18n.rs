@@ -128,6 +128,7 @@ language_table! {
     Uk, "uk", "Українська", "Cyrl", include_str!("../locales/uk.json");
     Pl, "pl", "Polski", "Latn", include_str!("../locales/pl.json");
     Cs, "cs", "Čeština", "Latn", include_str!("../locales/cs.json");
+    Sv, "sv", "Svenska", "Latn", include_str!("../locales/sv.json");
 }
 
 // The settings file stores the BCP-47 code (`"zh-hans"`), never the Rust variant name, so a
@@ -517,6 +518,46 @@ mod tests {
     }
 
     #[test]
+    fn swedish_switches_persists_and_formats_without_changing_user_values() {
+        use crate::control::{ControlRequest, Outcome};
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.run("app.language.swedish", serde_json::json!({})).unwrap();
+        assert_eq!(app.ui.language, Locale::Sv);
+        assert_eq!(Locale::Sv.name(), "Svenska");
+        assert_eq!(Locale::Sv.script(), "Latn");
+        assert_eq!(crate::menubar::checked(&app, "app.language.swedish"), Some(true));
+        assert_eq!(tr("File"), "Fil");
+        assert_eq!(tr("Develop"), "Framkalla");
+        assert_eq!(tr("Exposure"), "Exponering");
+        assert_eq!(date_group_label("2026", false), "2026");
+        assert!(date_group_label("2026-09-20", false).starts_with("Söndag 20 "), "{}", date_group_label("2026-09-20", false));
+        assert_eq!(builtin_label("Warm Glow", false), "Warm Glow");
+        assert_eq!(tr("photo-{title}.jpg"), "photo-{title}.jpg");
+        let saved = serde_json::to_string(&app.ui).unwrap();
+        assert!(saved.contains("\"sv\""), "{saved}");
+        assert_eq!(serde_json::from_str::<crate::state::UiState>(&saved).unwrap().language, Locale::Sv);
+        let ctx = egui::Context::default();
+        for tag in ["sv", "sv-SE", "sv_SE.UTF-8", "sv-FI"] {
+            assert_eq!(Locale::parse_tag(tag), Some(Locale::Sv), "{tag}");
+            let (request, _) = ControlRequest::new("ui.set", serde_json::json!({"language": tag}));
+            let Outcome::Done(reply) = crate::control::handle(&mut app, &ctx, &request) else { panic!("expected reply") };
+            assert_eq!(reply["ok"], true);
+            assert_eq!(language(), Locale::Sv);
+        }
+        let text = painted_text(&ctx, &mut app, Locale::Sv);
+        assert!(text.contains("Fil") && text.contains("Exponering"), "{text}");
+        ctx.fonts_mut(|fonts| {
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into())] {
+                let font = egui::FontId::new(13.0, family);
+                for ch in "åäöÅÄÖé”’".chars() {
+                    assert!(fonts.has_glyph(&font, ch), "missing Swedish glyph {ch}");
+                }
+            }
+        });
+        set_language(Locale::En);
+    }
+
+    #[test]
     fn every_language_has_a_catalog_covering_the_source() {
         assert!(crate::i18n::Locale::En.catalog().is_empty(), "the source language needs no catalog");
         for language in Locale::ALL {
@@ -753,6 +794,7 @@ mod tests {
             ("app.language.ukrainian", Locale::Uk),
             ("app.language.polish", Locale::Pl),
             ("app.language.czech", Locale::Cs),
+            ("app.language.swedish", Locale::Sv),
         ];
         // One command per language, and every command reachable from the menu table.
         assert_eq!(commands.len(), Locale::ALL.len());
