@@ -265,6 +265,9 @@ fn bad_files_are_reported_and_skipped() {
     // out-of-range numbers in a hand-edited file are clamped, never applied as they are
     std::fs::write(folder.join("wild.json"), doc(json!({"layout": {"margins": 9, "shadowAngle": 1e300}, "playback": {"slideDuration": 1e9}})))
         .unwrap();
+    // written by hand, not through LightCraft: the folder's time may not have moved since the
+    // listing above (same clock tick), so the cached listing is dropped as a write would drop it
+    s.slide_templates_cache = None;
     let t = s.slide_template("user:wild").unwrap();
     assert_eq!(t.look.layout.margin_left, lightcraft_slideshow::MARGIN_MAX);
     assert_eq!(t.look.playback.slide_duration, crate::slideshow::SLIDE_MAX);
