@@ -1612,3 +1612,51 @@ fn upper_and_mixed_case_extensions_are_found_by_import_browse_and_sidecar_lookup
     }
     let _ = std::fs::remove_dir_all(&src);
 }
+/// Sidecars are found and read whatever their name's case, header or byte-order mark, so a
+/// raw's rating and crop never silently stay behind while the file's own IPTC comes in (fork #43).
+#[test]
+fn raw_sidecar_rating_and_crop_survive_naming_and_encoding_variants() {
+    use lightcraft_codecs::{ChromaSubsampling, EncodeImage, EncodeMeta, Samples, encode_jpeg};
+    let px: Vec<u8> = (0..60 * 40).flat_map(|i| [(i % 251) as u8, 90, 200]).collect();
+    let j = encode_jpeg(&EncodeImage::new(60, 40, 3, Samples::U8(&px)), 90, ChromaSubsampling::S444, &EncodeMeta::default()).unwrap();
+    let mut nef = b"II*\0\x08\0\0\0\x02\0".to_vec();
+    for (tag, v) in [(513u16, 38u32), (514, j.len() as u32)] {
+        nef.extend_from_slice(&tag.to_le_bytes());
+        nef.extend_from_slice(&[4, 0, 1, 0, 0, 0]);
+        nef.extend_from_slice(&v.to_le_bytes());
+    }
+    nef.extend_from_slice(&[0, 0, 0, 0]);
+    nef.extend_from_slice(&j);
+    let body = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" xmp:Rating="3" crs:HasCrop="True" crs:CropLeft="0.2" crs:CropTop="0.1" crs:CropRight="0.8" crs:CropBottom="0.9" crs:CropAngle="1.5"/></rdf:RDF></x:xmpmeta>"#;
+    let cases = [
+        ("darktable-full", "DSC_0001.NEF.xmp", body.to_string()),
+        ("lower-full", "DSC_0001.nef.xmp", body.to_string()),
+        ("upper-full", "DSC_0001.NEF.XMP", body.to_string()),
+        ("mixed-stem", "DSC_0001.Xmp", body.to_string()),
+        ("bom-and-decl", "DSC_0001.xmp", format!("\u{feff}<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!-- written by another app -->\n{body}")),
+    ];
+    for (name, file, text) in cases {
+        let src = temp_dir(&format!("sc-variant-{name}"));
+        std::fs::write(src.join("DSC_0001.NEF"), &nef).unwrap();
+        std::fs::write(src.join(file), text).unwrap();
+        let mut s = Session::new().with_fs();
+        let r = s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+        assert_eq!((ids(&r, "imported"), r["sidecars"].as_u64()), (1, Some(1)), "{name}: {r}");
+        let p = s.catalog.photos().next().unwrap();
+        assert_eq!(p.rating, 3, "{name}");
+        let c = p.develop.to_json()["crop"]["geometry"].clone();
+        assert!((c["rect"]["x0"].as_f64().unwrap_or(0.0) - 0.2).abs() < 1e-6, "{name}: {c}");
+        if name == "lower-full" {
+            // a move takes that sidecar along
+            let dest = temp_dir("sc-variant-dest");
+            let mut s = Session::new().with_fs();
+            let args = json!({"paths": [src.to_string_lossy()], "mode": "move", "destination": dest.to_string_lossy(), "organize": "flat"});
+            let r = s.execute("library.import", &args).unwrap();
+            assert_eq!(s.catalog.photos().next().unwrap().rating, 3, "{r}");
+            assert!(std::fs::read_dir(&dest).unwrap().flatten().any(|e| e.file_name().to_string_lossy().to_lowercase().ends_with(".xmp")), "{r}");
+            assert!(!src.join(file).exists(), "no sidecar left behind: {r}");
+            let _ = std::fs::remove_dir_all(&dest);
+        }
+        let _ = std::fs::remove_dir_all(&src);
+    }
+}

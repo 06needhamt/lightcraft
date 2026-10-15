@@ -63,16 +63,24 @@ pub fn sidecar_path(original: &str, naming: SidecarNaming) -> PathBuf {
 }
 
 /// An existing sidecar for `original`: the preferred naming first, then the other one (also
-/// accepting an upper-case `.XMP`).
+/// accepting `.XMP` and `.Xmp`, and a full name whose photo extension differs in case, such as
+/// `IMG_1.cr3.xmp` beside `IMG_1.CR3`, which a case-sensitive file system would otherwise miss).
 pub fn find_sidecar(original: &str, naming: SidecarNaming) -> Option<PathBuf> {
     let other = if naming == SidecarNaming::Stem { SidecarNaming::Full } else { SidecarNaming::Stem };
+    let ext = Path::new(original).extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+    let base = Path::new(original).with_extension("");
+    let recased = |e: String| (e != ext).then(|| format!("{}.{e}", base.to_string_lossy()));
+    let full_variants: Vec<String> = [recased(ext.to_lowercase()), recased(ext.to_uppercase())].into_iter().flatten().collect();
     [naming, other]
         .into_iter()
         .flat_map(|n| {
-            let p = sidecar_path(original, n);
-            let upper = p.with_extension("XMP");
-            [p, upper]
+            let mut v = vec![sidecar_path(original, n)];
+            if n == SidecarNaming::Full {
+                v.extend(full_variants.iter().map(|o| sidecar_path(o, n)));
+            }
+            v
         })
+        .flat_map(|p| [p.clone(), p.with_extension("XMP"), p.with_extension("Xmp")])
         .find(|p| p.is_file())
 }
 
