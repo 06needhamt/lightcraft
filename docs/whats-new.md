@@ -173,6 +173,13 @@
   LightCraft: an enlargement stops at 512 megapixels, as in Lightroom, and one that needs more memory than the
   computer has is refused with the size it would take, before it starts.
 
+### Noise reduction looks the same at every size
+- Luminance and colour noise reduction no longer look much stronger in grid thumbnails and the filmstrip than in
+  the loupe (issue #960). Their radii are now set in the original photo's pixels, so a thumbnail, the fitted loupe
+  and a smaller export look like the full-size result scaled down; 1:1 views and full-size exports are unchanged.
+  Like in Lightroom, judge noise reduction at 1:1: at small sizes the noise it removes is mostly averaged away.
+  Cached thumbnails are redrawn.
+
 ### Slider drags on large raws
 - Dragging a slider no longer re-renders the edited photo's filmstrip thumbnail on every frame; it follows once you
   let go. On a 64 MP raw the first of those renders decoded the whole file again, which held up the loupe's

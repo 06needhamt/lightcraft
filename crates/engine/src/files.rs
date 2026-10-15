@@ -496,6 +496,8 @@ fn load_bytes_now(
                 camera_tone,
                 mattes,
                 local_tone,
+                // (the catalog knows the original's size: `media::source_info`)
+                native_long: None,
             },
         ));
     }
@@ -2163,7 +2165,7 @@ pub(crate) mod tests {
         assert_eq!(p.kind, MediaKind::Raw, "still a raw file (filters, Convert to DNG…)");
         assert!(!p.develops_raw());
         // rendered like the JPEG it is: relative white balance, display tone curve, no raw defaults
-        assert_eq!(crate::media::source_info(&p), SourceInfo::default());
+        assert_eq!(SourceInfo { native_long: None, ..crate::media::source_info(&p) }, SourceInfo::default());
         assert_eq!(*p.develop, lightcraft_develop::DevelopSettings::default());
         assert!(s.render_job(id, 48, 48, false, true).unwrap().run().rendered.is_ok());
         // agents see it
