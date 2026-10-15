@@ -117,6 +117,9 @@
   #1236). The D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600,
   Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
   the area the camera itself frames, a few pixels smaller than before.
+- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
+  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
+  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
 
 ### An empty library leads to Import
 - A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
