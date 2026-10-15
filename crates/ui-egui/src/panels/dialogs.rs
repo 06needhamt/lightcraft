@@ -708,18 +708,18 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     options.columns = options.columns.clamp(1, 8);
                     options.rows = options.rows.clamp(1, 10);
                     let n = app.session.targets(&json!({})).len();
-                    ui.label(format!("{n} selected photos · {} pages", n.div_ceil(options.columns * options.rows)));
+                    ui.label(crate::i18n::tr_format!("{n} selected photos · {pages} pages", n = n, pages = n.div_ceil(options.columns * options.rows)));
                     field(ui, "Paper", |ui| {
                         crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
                             ui.selectable_value(&mut options.paper, "a4".into(), "A4");
-                            ui.selectable_value(&mut options.paper, "letter".into(), "Letter");
+                            ui.selectable_value(&mut options.paper, "letter".into(), crate::i18n::tr("Letter"));
                         });
                     });
-                    ui.checkbox(&mut options.landscape, "Landscape");
+                    ui.checkbox(&mut options.landscape, crate::i18n::tr("Landscape"));
                     field(ui, "Columns", |ui| { ui.add(egui::DragValue::new(&mut options.columns).range(1..=8)); });
                     field(ui, "Rows", |ui| { ui.add(egui::DragValue::new(&mut options.rows).range(1..=10)); });
-                    ui.checkbox(&mut options.captions, "Filename captions");
-                    ui.label("150 dpi · sRGB · current edits · fit without cropping");
+                    ui.checkbox(&mut options.captions, crate::i18n::tr("Filename captions"));
+                    ui.label(crate::i18n::tr("150 dpi · sRGB · current edits · fit without cropping"));
                     ui.label(crate::i18n::tr("Choose a PDF destination after confirming. Print the PDF from your viewer."));
                 }
                 Dialog::Export { opts, full_size, resize, preset_name, limit_kb, dir } => {
@@ -789,8 +789,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         opts.bit_depth = Some(bd);
                     }
                     if matches!(opts.format, F::Jpeg | F::Tiff | F::Avif | F::Png | F::Jxl) {
-                        let tip = "Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float";
-                        ui.checkbox(&mut opts.hdr, "HDR output").on_hover_text(tip);
+                        let tip = crate::i18n::tr("Photos edited in HDR: JPEG with an HDR gain map (looks right everywhere, brighter highlights on HDR displays), AVIF as 10-bit, PNG and JPEG XL as 16-bit Rec. 2020 PQ; TIFF needs 32-bit float");
+                        ui.checkbox(&mut opts.hdr, crate::i18n::tr("HDR output")).on_hover_text(tip);
                         if opts.hdr && !opts.hdr_output() {
                             ui.label(egui::RichText::new(crate::i18n::tr("HDR TIFF needs 32-bit float.")).color(t.text_dim));
                         }
