@@ -2069,5 +2069,6 @@
   "No lens data embedded in this file (DNG lens opcodes only).": "このファイルにレンズ情報は含まれていません（DNGのレンズ情報のみ対応）",
   "Export to": "書き出し先",
   "Specific folder": "指定フォルダー",
-  "Same folder as original photo": "元の写真と同じフォルダー"
+  "Same folder as original photo": "元の写真と同じフォルダー",
+  "Tidying the thumbnail cache": "サムネールキャッシュを整理中"
 }

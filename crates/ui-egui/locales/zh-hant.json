@@ -2067,5 +2067,6 @@
   "No lens data embedded in this file (DNG lens opcodes only).": "此檔案未內嵌鏡頭資料（僅支援 DNG 鏡頭操作碼）。",
   "Export to": "輸出至",
   "Specific folder": "指定資料夾",
-  "Same folder as original photo": "與原始照片相同的資料夾"
+  "Same folder as original photo": "與原始照片相同的資料夾",
+  "Tidying the thumbnail cache": "正在整理縮圖快取"
 }

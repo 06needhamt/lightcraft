@@ -2105,5 +2105,6 @@
   "No lens data embedded in this file (DNG lens opcodes only).": "此文件中未嵌入镜头数据 (仅支持 DNG 镜头操作码)。",
   "Export to": "导出到",
   "Specific folder": "指定文件夹",
-  "Same folder as original photo": "与原始照片相同的文件夹"
+  "Same folder as original photo": "与原始照片相同的文件夹",
+  "Tidying the thumbnail cache": "正在整理缩略图缓存"
 }

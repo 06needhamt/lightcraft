@@ -2259,5 +2259,6 @@
   "No lens data embedded in this file (DNG lens opcodes only).": "У цьому файлі немає даних об’єктива (лише інструкції об’єктива DNG).",
   "Export to": "Експорт до",
   "Specific folder": "Вказана папка",
-  "Same folder as original photo": "Та сама папка, що й оригінал"
+  "Same folder as original photo": "Та сама папка, що й оригінал",
+  "Tidying the thumbnail cache": "Упорядкування кешу мініатюр"
 }

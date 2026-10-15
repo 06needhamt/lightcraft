@@ -2065,5 +2065,6 @@
   "No lens data embedded in this file (DNG lens opcodes only).": "Aucune donnée d'objectif intégrée à ce fichier (opcodes d'objectif DNG uniquement).",
   "Export to": "Exporter vers",
   "Specific folder": "Dossier spécifique",
-  "Same folder as original photo": "Même dossier que la photo d’origine"
+  "Same folder as original photo": "Même dossier que la photo d’origine",
+  "Tidying the thumbnail cache": "Rangement du cache des miniatures"
 }
