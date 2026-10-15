@@ -42,7 +42,7 @@ fn corpus_raw_decodes() {
         let preview = embedded_preview(&bytes);
         let tp = t0.elapsed().as_secs_f64() * 1e3;
         // DNG previews are optional (and some carry only an uncompressed RGB thumbnail); vendor raws embed a JPEG,
-        // except the Panasonic `.RAW` files of 2005–2007 and Canon's explicit HEVC preview tracks.
+        // except the Panasonic `.RAW` files of 2005–2007, Canon's explicit HEVC preview tracks and Mamiya MEF.
         if let Some(p) = &preview {
             let jpeg = p.starts_with(&[0xff, 0xd8]) && p.ends_with(&[0xff, 0xd9]);
             let jxl = p.starts_with(&[0xff, 0x0a]) || p.starts_with(b"\0\0\0\x0cJXL ");
@@ -51,7 +51,11 @@ fn corpus_raw_decodes() {
             let hevc_preview = fmt == RawFormat::Cr3
                 && lightcraft_meta::cr3::parse_cr3(&bytes)
                     .is_some_and(|c| c.tracks.iter().any(|t| t.kind == lightcraft_meta::cr3::Cr3TrackKind::Other(*b"HEVC") && t.data.is_some()));
-            assert!(fmt == RawFormat::Dng || name.starts_with("raw-panasonic-") || hevc_preview, "{name}: no embedded preview");
+            // the Mamiya ZD's previews are uncompressed RGB sub-IFDs, not JPEGs
+            assert!(
+                fmt == RawFormat::Dng || fmt == RawFormat::Mef || name.starts_with("raw-panasonic-") || hevc_preview,
+                "{name}: no embedded preview"
+            );
         }
         let preview_kb = preview.as_ref().map_or(0, |p| p.len() / 1024);
         let t1 = Instant::now();
@@ -1281,4 +1285,26 @@ fn corpus_epson_erf() {
         checked += 1;
     }
     eprintln!("ERF: {checked} corpus files checked");
+}
+
+/// Mamiya MEF (`crates/raw/src/vendor/mef.rs`): the uncompressed 12-bit strip decodes to a smooth 4016 x 5344 RGGB
+/// mosaic, the crop is the preview's window and the white balance comes from the RGB preview. Skips when absent.
+#[test]
+fn corpus_mamiya_mef() {
+    let Ok(bytes) = std::fs::read(corpus_root().join("raw").join("mef-mamiya-zd.mef")) else {
+        eprintln!("skip: mef-mamiya-zd.mef absent");
+        return;
+    };
+    assert_eq!(probe(&bytes), Some(RawFormat::Mef));
+    let img = decode(&bytes).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!((img.width, img.height, img.bits), (4016, 5344, 12));
+    assert_eq!((img.crop.x, img.crop.y, img.crop.width, img.crop.height), (24, 12, 3968, 5312));
+    assert_eq!(img.cfa.as_ref().map(|c| c.name()).as_deref(), Some("RGGB"));
+    assert_eq!(img.orientation, lightcraft_geom::Orientation::from_exif(6));
+    let wb = img.wb_multipliers.expect("white balance");
+    eprintln!("MEF wb {wb:?}");
+    assert!(wb.iter().all(|g| (0.5..=4.0).contains(g)), "{wb:?}");
+    let lightcraft_raw::RawData::U16(d) = &img.data else { panic!("float data") };
+    let step: f64 = d.chunks(4016).take(400).flat_map(|r| r.windows(3).map(|w| f64::from(w[0].abs_diff(w[2])))).sum::<f64>() / (400.0 * 4014.0);
+    assert!(step < 40.0, "rough {step}");
 }

@@ -532,3 +532,4 @@ Sony	DSC-F828	unsupported	issue #702 (SRF refused); SRF not in the import list
 Epson	R-D1	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1s	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Epson	R-D1x	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Mamiya	ZD	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
