@@ -363,6 +363,16 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // Esc that just took a text field's focus away (it gives back the field's text) does nothing else
     let popup_open = popup_open || app.text_focus;
     ctx.input(|i| {
+        // Enter opens the active grid photo; widgets, popups and custom bindings keep the key.
+        if grid
+            && app.session.active().is_some()
+            && !popup_open
+            && !native("Enter")
+            && !taken.contains(&(Modifiers::NONE, Key::Enter))
+            && matches(i, Modifiers::NONE, Key::Enter)
+        {
+            fire.push("view.detail".to_string());
+        }
         for b in bindable() {
             if let Some(sc) = binding(keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
@@ -1016,6 +1026,175 @@ mod tests {
                 let contextual = CONTEXTUAL.iter().any(|(x, y)| (x == a && y == b) || (x == b && y == a));
                 assert!(k != k2 || contextual, "{a} and {b} share a key");
             }
+        }
+    }
+    mod issue1771 {
+        use super::*;
+        use crate::state::{Dialog, ViewMode};
+        use lightcraft_catalog::PhotoId;
+
+        fn grid(view: ViewMode) -> crate::headless::Headless {
+            let mut h = library();
+            h.app.ui.view = view;
+            h.app.session.execute("library.select", &json!({"ids": [1, 2, 3], "active": 2})).unwrap();
+            for _ in 0..3 {
+                h.step();
+            }
+            h
+        }
+
+        #[test]
+        fn issue1771_photo_grid_enter_opens_active_preserving_multiselection() {
+            opens(ViewMode::PhotoGrid);
+        }
+
+        #[test]
+        fn issue1771_square_grid_enter_opens_active_preserving_multiselection() {
+            opens(ViewMode::SquareGrid);
+        }
+
+        fn opens(view: ViewMode) {
+            let mut h = grid(view);
+            key(&mut h, "Enter", false);
+            assert_eq!(h.app.ui.view, ViewMode::Detail, "Enter from {view:?}");
+            assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+            assert_eq!(h.app.session.selection.ids, vec![PhotoId(1), PhotoId(2), PhotoId(3)]);
+            key(&mut h, "Enter", false);
+            assert_eq!(h.app.ui.view, ViewMode::Detail, "second Enter remains in Detail");
+            assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+        }
+
+        #[test]
+        fn issue1771_no_selection_and_modifier_chords_do_not_open() {
+            for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+                let mut h = grid(view);
+                for modifiers in [json!({"shift":true}), json!({"cmd":true}), json!({"alt":true}), json!({"ctrl":true})] {
+                    let mut args = modifiers;
+                    args["key"] = json!("Enter");
+                    assert_eq!(h.request("ui.key", args, std::time::Duration::from_secs(20))["ok"], true);
+                    assert_eq!(h.app.ui.view, view);
+                }
+                h.app.session.selection = Default::default();
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view);
+                assert!(h.app.session.selection.ids.is_empty());
+                assert_eq!(h.app.session.active(), None);
+            }
+        }
+
+        #[test]
+        fn issue1771_search_dialog_and_shortcut_recording_keep_enter() {
+            for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+                let mut h = grid(view);
+                assert_eq!(h.request("ui.clickWidget", json!({"id":"field:search"}), std::time::Duration::from_secs(20))["ok"], true);
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view, "focused search");
+                h.app.run("app.shortcuts", json!({})).unwrap();
+                h.step();
+                h.step();
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view, "shortcut dialog");
+                assert!(matches!(h.app.ui.dialog, Some(Dialog::Shortcuts)));
+                h.app.recording_shortcut = Some("view.survey".into());
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view, "recording owns Enter");
+                assert_eq!(super::super::shortcut_of(&h.app.ui.settings.keymap, "view.survey"), Some("Enter"));
+            }
+        }
+
+        #[test]
+        fn issue1771_custom_binding_and_native_menu_keep_enter() {
+            for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+                let mut h = grid(view);
+                h.app.run("app.setShortcut", json!({"id":"view.survey", "shortcut":"Enter"})).unwrap();
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, ViewMode::Survey, "custom binding wins");
+                assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+                assert_eq!(h.app.session.selection.ids.len(), 3);
+                let mut h = grid(view);
+                h.app.native_shortcuts.insert("Enter".into());
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view, "native menu owns Enter");
+            }
+        }
+
+        #[test]
+        fn issue1771_popup_keeps_enter() {
+            for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+                let mut h = grid(view);
+                let ctx = egui::Context::default();
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        events: vec![egui::Event::Key {
+                            key: egui::Key::Enter,
+                            physical_key: None,
+                            pressed: true,
+                            repeat: false,
+                            modifiers: egui::Modifiers::NONE,
+                        }],
+                        ..Default::default()
+                    },
+                    |ui| {
+                        let ctx = ui.ctx();
+                        egui::Popup::open_id(ctx, egui::Id::new("issue1771-menu"));
+                        assert!(egui::Popup::is_any_open(ctx));
+                        super::super::handle(&mut h.app, ctx);
+                    },
+                );
+                output.textures_delta.clear();
+                assert_eq!(h.app.ui.view, view);
+            }
+        }
+
+        #[test]
+        fn issue1771_detail_enter_keeps_active_and_multiselection() {
+            let mut h = grid(ViewMode::Detail);
+            key(&mut h, "Enter", false);
+            assert_eq!(h.app.ui.view, ViewMode::Detail);
+            assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+            assert_eq!(h.app.session.selection.ids, vec![PhotoId(1), PhotoId(2), PhotoId(3)]);
+        }
+
+        #[test]
+        fn issue1771_open_file_menu_keeps_enter() {
+            for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+                let mut h = grid(view);
+                assert_eq!(h.request("ui.clickWidget", json!({"id":"menu:File"}), std::time::Duration::from_secs(20))["ok"], true);
+                h.step();
+                assert!(egui::Popup::is_any_open(&h.view.ctx), "File menu open before Enter");
+                key(&mut h, "Enter", false);
+                assert_eq!(h.app.ui.view, view);
+                assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+                assert_eq!(h.app.session.selection.ids.len(), 3);
+            }
+        }
+
+        #[test]
+        fn issue1771_repeat_event_opens_once_and_detail_keeps_selection() {
+            let mut h = grid(ViewMode::PhotoGrid);
+            h.events.push(egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: true,
+                modifiers: egui::Modifiers::NONE,
+            });
+            h.step();
+            h.step();
+            assert_eq!(h.app.ui.view, ViewMode::Detail);
+            assert_eq!(h.app.session.active(), Some(PhotoId(2)));
+            assert_eq!(h.app.session.selection.ids.len(), 3);
+            h.events.push(egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: true,
+                modifiers: egui::Modifiers::NONE,
+            });
+            h.step();
+            h.step();
+            assert_eq!(h.app.ui.view, ViewMode::Detail);
+            assert_eq!(h.app.session.selection.ids.len(), 3);
         }
     }
 }
