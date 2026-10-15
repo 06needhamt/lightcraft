@@ -175,6 +175,16 @@ fn measured_body(model: &str, w: usize, h: usize, bits: u32) -> Option<&'static 
     MEASURED_BODIES.iter().find(|b| b.model == model.trim() && b.size == (w, h) && b.bits == bits)
 }
 
+/// Pixel height over width from the raw IFD's resolution tags: the D1X and D1H write 600 x 300 per inch for a
+/// 4028 x 1324 frame, rows twice as tall as the columns are wide. Only ratios from 1.5 to 4 count (a frame
+/// squashed 3:1 or 2:1), the rest is rounding or a stray tag.
+pub(crate) fn pixel_aspect_of(raw: &Ifd) -> f32 {
+    match (raw.f64(t::X_RESOLUTION), raw.f64(t::Y_RESOLUTION)) {
+        (Some(x), Some(y)) if x > 0.0 && y > 0.0 && (1.5..=4.0).contains(&(x / y)) => (x / y).round() as f32,
+        _ => 1.0,
+    }
+}
+
 fn raw_ifd(tiff: &Tiff) -> Option<&Ifd> {
     tiff.all_ifds()
         .into_iter()
@@ -268,9 +278,10 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         Some(&MeasuredBody { crop: (x, y, cw, ch), .. }) if x + cw <= active_w && y + ch <= h => Rect::new(x, y, cw, ch),
         _ => default_crop(mn.as_ref(), active_w, h),
     };
+    let pixel_aspect = pixel_aspect_of(raw);
     let mut metadata = lightcraft_meta::from_tiff(&tiff);
     metadata.width = Some(crop.width as u32);
-    metadata.height = Some(crop.height as u32);
+    metadata.height = Some(crate::stretched_height(crop.height, pixel_aspect) as u32);
     let img = RawImage {
         format: RawFormat::Nef,
         width: w,
@@ -290,12 +301,14 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         color: ColorData::default(),
         wb_multipliers: wb,
         linearized: false,
+        pixel_aspect,
         // Nikon's in-file distortion correction, about the optical centre (which follows the sensor shift)
         opcodes: OpcodeLists {
             list3: super::nef_lens::distortion(&model, raw, Rect::new(0, 0, active_w, h), crop).into_iter().collect(),
             ..Default::default()
         },
         metadata,
+        lens_metadata: Default::default(),
     };
     img.validate_for(mode)?;
     Ok(img)

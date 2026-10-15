@@ -117,6 +117,29 @@
   #1236). The D7000, D5100, D800, D800E, Df, D4, D3, D3S, D700, D300, D300S, D600, D610, D810, D4S, D5600,
   Coolpix A, D3000, D40X, D60, D80, D2Xs, D200, D3200, D3100, D5000, D40, D50, D70, D70s and Nikon 1 V1 now show
   the area the camera itself frames, a few pixels smaller than before.
+- A command given photos it can't read as photo ids (`"id": "5"`, or a list with something else in it) from a
+  script, the control channel or MCP is now refused (issue #1506). It used to act on the selected photos instead,
+  or on the part of the list it could read, so a mistyped id could rate, move or delete the wrong photos.
+
+### An empty library leads to Import
+- A library with no photos now opens on the Photo Grid with the sidebar (Square Grid stays as it is), instead of a
+  Detail view that pointed at an empty grid. The grid and Detail view offer Import Photos… and, in the desktop app,
+  Import Lightroom Catalog… as buttons, and say that photos (and, in the desktop app, folders) can be dropped into
+  the window. The shortcut they show is the one Import Photos… has now.
+- The top bar has an Import button, beside Export, in every library.
+
+### Reliability
+
+### One kind of button
+- Dialogs' buttons and About's Discord link are drawn by one button component: primary (filled with the accent),
+  secondary, danger (filled red) and ghost, in three sizes, with an icon or without, and an icon alone (named for
+  screen readers). Each darkens a little when hovered and more when pressed, shows a ring where the keyboard is, and
+  its text reads at 4.5:1 or more on its fill in every theme. Dialog buttons are 30 points tall, like the welcome's.
+
+### A dialog's confirm button says it's the next step
+- In dialogs, the confirm button is on the right with Cancel to its left, and filled with the accent when it makes or
+  brings in something (Import N Photos, Merge, Save, Create, Download…). Delete and Remove stay plain, so a destructive
+  choice is never the eye-catching default.
 ### Closer camera colour for lens-corrected raws
 - Raws from cameras that correct their own JPEG for lens distortion (Panasonic and Fujifilm with that setting on, the
   Sony A7R IVA) now start from colours closer to the camera's. The starting look was being fitted against a JPEG that

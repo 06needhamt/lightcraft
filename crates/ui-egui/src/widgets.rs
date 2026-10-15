@@ -691,8 +691,15 @@ fn star_lit(i: u8, rating: u8, hover: Option<u8>) -> bool {
 
 /// A borderless dropdown button: `text` followed by a painted chevron (no font glyph needed).
 pub fn dropdown(ui: &mut Ui, id: &str, text: &str, font: egui::FontId, color: Color32) -> Response {
+    dropdown_within(ui, id, text, font, color, f32::INFINITY)
+}
+
+/// [`dropdown`] at most `max` wide, chevron included: a longer `text` is cut short with …, and
+/// shown in full on hover.
+pub fn dropdown_within(ui: &mut Ui, id: &str, text: &str, font: egui::FontId, color: Color32, max: f32) -> Response {
     let t = Tokens::get(ui.ctx());
-    let galley = ui.painter().layout_no_wrap(text.to_string(), font, color);
+    let galley = one_line(ui.painter(), text, font, color, max - 20.0);
+    let elided = galley.elided;
     let size = vec2(galley.size().x + 20.0, galley.size().y.max(20.0));
     let (r, resp) = ui.allocate_exact_size(size, Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::ComboBox, true, text));
@@ -700,7 +707,7 @@ pub fn dropdown(ui: &mut Ui, id: &str, text: &str, font: egui::FontId, color: Co
     let c = if resp.hovered() { t.text } else { color };
     ui.painter().galley(pos2(r.left(), r.center().y - galley.size().y / 2.0), galley, c);
     paint(ui.painter(), Rect::from_center_size(pos2(r.right() - 10.0, r.center().y), vec2(16.0, 16.0)), Icon::ChevronDown, c);
-    resp
+    if elided { resp.on_hover_text(text) } else { resp }
 }
 
 #[cfg(test)]
