@@ -167,9 +167,7 @@ fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<Br
         let mut points = Vec::with_capacity(to.points.len() + 1);
         points.push(from);
         points.extend(to.points.iter().copied());
-        // (the joining point takes the pen pressure of the stroke's first one)
-        let pressure =
-            if to.pressure.is_empty() { Vec::new() } else { std::iter::once(to.pressure_at(0)).chain(to.pressure.iter().copied()).collect() };
+        let pressure = if pressured { std::iter::once(p_from).chain((0..to.points.len()).map(|i| to.pressure_at(i))).collect() } else { Vec::new() };
         return vec![BrushStroke { points, pressure, ..to }];
     }
     // about 5% of size, or 2 points of feather or flow, per piece
@@ -190,8 +188,7 @@ fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<Br
                 size: lerp(last.size, to.size, t1),
                 feather: lerp(last.feather, to.feather, t1),
                 flow: lerp(last.flow, to.flow, t1),
-                // (one pressure for the whole piece: the stroke's first point's)
-                pressure: if to.pressure.is_empty() { Vec::new() } else { vec![to.pressure_at(0)] },
+                pressure: if pressured { vec![p(t0), p(t1)] } else { Vec::new() },
                 ..to.clone()
             }
         })
