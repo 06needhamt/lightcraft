@@ -16,10 +16,16 @@
 //! plain layout, else the slide composed with the library's layout (`slideshow.layout`: margins,
 //! zoom to fill, stroke, shadow, backdrop) by `lightcraft-slideshow` on the render worker. A
 //! composed slide is a screen-sized texture; the playback (fades, controls) is the same.
+//!
+//! Title screens (`slideshow.titles`: the intro before the first photo, the ending after the last
+//! one) are slides of the same timeline ([`Item::Title`]): composed at the screen's pixels on a
+//! render worker ([`crate::render::Renderer::request_title`]), prepared ahead, waited for and
+//! faded like photo slides. They never move the selection, and the controls show "Intro" / "End"
+//! in place of "n / N" while one is up (titles aren't photos, so N stays the number of photos).
 
 use egui::{Align2, Color32, Pos2, Rect, pos2, vec2};
 use lightcraft_catalog::PhotoId;
-use lightcraft_engine::slideshow::{Playback, Tick};
+use lightcraft_engine::slideshow::{Item, Playback, Tick, Title};
 use lightcraft_pipeline::geometry::Frame;
 use serde_json::{Value, json};
 
@@ -43,13 +49,15 @@ pub struct Run {
     pub pointer: Option<Pos2>,
     /// Slides no render can be made for (gone from the catalog, nothing to read): shown with
     /// whatever stand-in there is, never waited for.
-    pub unrenderable: Vec<PhotoId>,
+    pub unrenderable: Vec<Item>,
 }
 
 /// `view.slideshow {interval?, seed?, slideDuration?, fadeDuration?, fadeColor?, randomOrder?,
 /// repeat?, preparePreviews?}`: play the photos in view from the selected one with the library's
 /// playback settings; the keys given change them for this run only (`interval` = slideDuration,
-/// `seed` fixes the random order).
+/// `seed` fixes the random order). The intro and ending screens that are on (`slideshow.titles`)
+/// play before the first photo and after the last one. With no photos in view there is nothing
+/// to show (titles alone don't make a slideshow).
 pub fn start(app: &mut LightcraftApp, p: &Value, now: f64) -> Result<Value, String> {
     let mut overrides = p.as_object().cloned().unwrap_or_default();
     if let Some(i) = overrides.remove("interval") {
@@ -61,11 +69,13 @@ pub fn start(app: &mut LightcraftApp, p: &Value, now: f64) -> Result<Value, Stri
     };
     let settings = app.session.slideshow.merged(&Value::Object(overrides)).map_err(|e| format!("view.slideshow: {e}"))?;
     let photos = app.session.visible_cloned();
+    let (intro, ending) = app.session.slide_titles.durations(settings.slide_duration);
     let Some(play) = Playback::new(photos, app.session.active(), settings, seed, now) else {
         return Err("no photos to show".into());
     };
-    let first = play.current();
-    if app.session.active() != Some(first) {
+    let play = play.with_titles(intro, ending);
+    let first = play.current_photo().or_else(|| play.upcoming(1).first().and_then(|i| i.photo()));
+    if let Some(first) = first.filter(|f| app.session.active() != Some(*f)) {
         let _ = app.run("library.select", json!({"ids": [first.0]}));
     }
     let (_, slides) = play.position();
@@ -109,13 +119,14 @@ pub fn state(play: &Playback, now: f64) -> Value {
     let (n, of) = play.position();
     let f = play.frame(now);
     json!({
-        "current": play.current().0,
+        "current": play.current_photo().map(|p| p.0),
+        "title": play.title().map(Title::id),
         "slide": n,
         "of": of,
         "paused": play.is_paused(),
         "fading": f.from.is_some(),
         "progress": f.progress,
-        "waitingFor": play.waiting_for().map(|p| p.0),
+        "waitingFor": play.waiting_for().map(|i| i.photo().map_or_else(|| json!(i.title().map(Title::id)), |p| json!(p.0))),
         "remaining": play.remaining(now),
     })
 }
@@ -123,7 +134,7 @@ pub fn state(play: &Playback, now: f64) -> Value {
 /// Act on what the timeline did: follow the slide with the selection, or end.
 fn after(app: &mut LightcraftApp, t: Tick) {
     match t {
-        Tick::Advanced(id) if app.session.active() != Some(id) => {
+        Tick::Advanced(Item::Photo(id)) if app.session.active() != Some(id) => {
             let _ = app.run("library.select", json!({"ids": [id.0]}));
         }
         Tick::Ended => end(app),
@@ -131,13 +142,15 @@ fn after(app: &mut LightcraftApp, t: Tick) {
     }
 }
 
-/// Can `id` be shown as a slide now: its texture exists (or it can't be rendered at all, and its
-/// stand-in is all there will be: playback goes on rather than waiting forever).
-pub fn ready(app: &LightcraftApp, id: PhotoId) -> bool {
-    app.renderer.textures.get(&Slot::Slide(id)).is_some_and(|t| t.photo == id)
-        || app.renderer.failure(Slot::Slide(id)).is_some()
-        || app.session.catalog.photo(id).is_none()
-        || app.ui.slideshow.as_ref().is_some_and(|r| r.unrenderable.contains(&id))
+/// Can `item` be shown as a slide now: its texture exists (or it can't be rendered at all, and
+/// its stand-in is all there will be: playback goes on rather than waiting forever).
+pub fn ready(app: &LightcraftApp, item: Item) -> bool {
+    let slot = Slot::Slide(item);
+    let rendered = match item {
+        Item::Photo(id) => app.renderer.textures.get(&slot).is_some_and(|t| t.photo == id) || app.session.catalog.photo(id).is_none(),
+        Item::Title(_) => app.renderer.textures.contains_key(&slot),
+    };
+    rendered || app.renderer.failure(slot).is_some() || app.ui.slideshow.as_ref().is_some_and(|r| r.unrenderable.contains(&item))
 }
 
 /// Advance a running slideshow (every frame, before drawing).
@@ -211,7 +224,7 @@ pub fn slide_px(area: Rect, ppp: f32, texture_side: usize) -> (usize, usize) {
 }
 
 /// The slides to keep rendered now, most wanted first, with their render priority.
-fn wanted(play: &Playback, now: f64) -> Vec<(PhotoId, u32)> {
+fn wanted(play: &Playback, now: f64) -> Vec<(Item, u32)> {
     let f = play.frame(now);
     let mut v = vec![(f.current, 100)];
     if let Some(from) = f.from {
@@ -234,12 +247,14 @@ fn wanted(play: &Playback, now: f64) -> Vec<(PhotoId, u32)> {
     v
 }
 
-/// The texture to draw for slide `id`: its own render, else the loupe's or a thumbnail (a slide
-/// stepped to with ←/→ shows at once, sharp when its render lands).
-fn texture(app: &LightcraftApp, id: PhotoId) -> Option<&crate::render::Tex> {
+/// The texture to draw for slide `item`: its own render, else (a photo) the loupe's or a
+/// thumbnail (a slide stepped to with ←/→ shows at once, sharp when its render lands). A title
+/// screen has nothing to stand in for it: the black canvas shows until it lands.
+fn texture(app: &LightcraftApp, item: Item) -> Option<&crate::render::Tex> {
+    let Item::Photo(id) = item else { return app.renderer.textures.get(&Slot::Slide(item)) };
     app.renderer
         .textures
-        .get(&Slot::Slide(id))
+        .get(&Slot::Slide(item))
         .filter(|t| t.photo == id)
         .or_else(|| app.renderer.textures.get(&Slot::Main).filter(|t| t.photo == id))
         .or_else(|| app.renderer.thumb(id))
@@ -284,10 +299,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let want = wanted(&run.play, now);
     let frame = run.play.frame(now);
     let mut unrenderable = Vec::new();
-    for (id, priority) in &want {
-        match slide_job(app, *id, canvas, ppp, side) {
-            Some(job) => app.renderer.request(Slot::Slide(*id), job, *priority),
-            None => unrenderable.push(*id),
+    for (item, priority) in &want {
+        match *item {
+            Item::Title(t) => {
+                let (w, h) = slide_px(canvas, ppp, side);
+                let compose = app.session.title_compose(t, w, h);
+                app.renderer.request_title(Slot::Slide(*item), compose, *priority);
+            }
+            Item::Photo(id) => match slide_job(app, id, canvas, ppp, side) {
+                Some(job) => app.renderer.request(Slot::Slide(*item), job, *priority),
+                None => unrenderable.push(*item),
+            },
         }
     }
     if let Some(run) = app.ui.slideshow.as_mut() {
@@ -297,12 +319,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
         }
     }
-    let keep: Vec<PhotoId> = want.iter().map(|(id, _)| *id).collect();
+    let keep: Vec<Item> = want.iter().map(|(id, _)| *id).collect();
     app.renderer.release_slides(&keep);
     let p = ui.painter_at(canvas);
     p.rect_filled(canvas, 0.0, Color32::BLACK);
     let rect_of = |t: &crate::render::Tex| super::detail::fit_texture_rect(canvas, t.size);
-    let draw = |id: PhotoId, alpha: f32| -> Option<Rect> {
+    let draw = |id: Item, alpha: f32| -> Option<Rect> {
         let t = texture(app, id)?;
         let r = rect_of(t);
         p.image(t.tex.id(), r, full_uv(), Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
@@ -369,6 +391,7 @@ fn controls(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, now: f64) 
     }
     let paused = run.play.is_paused();
     let (n, of) = run.play.position();
+    let title = run.play.title();
     // fade out over the last half second
     let alpha = (left / 0.5).clamp(0.0, 1.0) as f32;
     let p = ui.painter_at(canvas);
@@ -390,7 +413,11 @@ fn controls(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, now: f64) 
         fire = Some("slideshow.next");
     }
     let (r, _) = child.allocate_exact_size(vec2(118.0, 36.0), egui::Sense::hover());
-    let label = format!("{n} / {of}");
+    let label = match title {
+        Some(Title::Intro) => crate::i18n::tr("Intro").to_string(),
+        Some(Title::Ending) => crate::i18n::tr("End").to_string(),
+        None => format!("{n} / {of}"),
+    };
     child.painter().text(r.center(), Align2::CENTER_CENTER, label, t.font(13.0), Color32::from_gray(230).gamma_multiply(alpha));
     if icon_button(&mut child, "slideshowEnd", Icon::Close, size, false, true, "End slideshow (Esc)").clicked() {
         fire = Some("slideshow.end");

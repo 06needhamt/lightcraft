@@ -29,6 +29,7 @@ pub mod second;
 pub mod settings;
 pub mod slide_layout;
 pub mod slide_overlays;
+pub mod slide_titles;
 pub mod slideshow;
 pub mod strip;
 pub mod topbar;

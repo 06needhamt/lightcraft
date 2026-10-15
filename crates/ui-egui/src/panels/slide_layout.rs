@@ -171,6 +171,11 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     register(ui.ctx(), "slideshow:preview", rect);
     let p = ui.painter_at(rect.expand(1.0));
     p.rect_stroke(rect, 0.0, Stroke::new(1.0, t.text_dim.gamma_multiply(0.5)), egui::StrokeKind::Outside);
+    super::slide_titles::preview_choice(ui);
+    if let Some(title) = super::slide_titles::preview_shows(ui.ctx()) {
+        title_preview(app, ui, t, rect, title);
+        return;
+    }
     let Some(id) = app.session.active() else {
         p.rect_filled(rect, 0.0, Color32::from_rgb(s.backdrop_color[0], s.backdrop_color[1], s.backdrop_color[2]));
         p.text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr("Select a photo to preview its slide"), t.font(11.5), Color32::from_gray(200));
@@ -229,6 +234,47 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
     }
     hint(ui, t, "The selected photo as a slide. Playback fills the screen; the aspect preview only changes this preview.");
+}
+
+/// The preview showing title screen `title` (composed off the UI thread like the photo's slide,
+/// once its settings have been still for [`DEBOUNCE`] seconds).
+fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: Rect, title: lightcraft_engine::slideshow::Title) {
+    let ppp = ui.ctx().pixels_per_point();
+    let (pw, ph) = (((rect.width() * ppp).round() as usize).max(16), ((rect.height() * ppp).round() as usize).max(16));
+    let compose = app.session.title_compose(title, pw, ph);
+    let key = compose.key();
+    let now = ui.input(|i| i.time);
+    let mem = egui::Id::new("settingsSlideshowTitlePreviewKey");
+    let (last, since) = ui.ctx().data(|d| d.get_temp::<(u64, f64)>(mem)).unwrap_or((0, f64::NEG_INFINITY));
+    if last != key {
+        ui.ctx().data_mut(|d| d.insert_temp(mem, (key, now)));
+    }
+    let still = if last == key { now - since } else { 0.0 };
+    // a title render in the slot (a photo's has its id): shown until the new one lands
+    let current = app.renderer.textures.get(&Slot::SlidePreview).filter(|tex| tex.photo == lightcraft_catalog::PhotoId(0));
+    if current.is_none() || still >= DEBOUNCE {
+        app.renderer.request_title(Slot::SlidePreview, compose, 90);
+    } else {
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64((DEBOUNCE - still).clamp(0.01, DEBOUNCE)));
+    }
+    let p = ui.painter_at(rect.expand(1.0));
+    match app.renderer.textures.get(&Slot::SlidePreview).filter(|tex| tex.photo == lightcraft_catalog::PhotoId(0)) {
+        Some(tex) => {
+            let drawn = super::detail::fit_texture_rect(rect, tex.size);
+            p.image(tex.tex.id(), drawn, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        }
+        None => {
+            let c = app.session.slide_titles.screen(title).color;
+            p.rect_filled(rect, 0.0, Color32::from_rgb(c[0], c[1], c[2]));
+            p.text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr("Rendering…"), t.font(11.5), Color32::from_gray(200));
+        }
+    }
+    let hint_text = match (title, app.session.slide_titles.screen(title).enabled) {
+        (_, false) => "This screen is off: turn it on under Titles to play it.",
+        (lightcraft_engine::slideshow::Title::Intro, true) => "The intro screen, before the first photo.",
+        (lightcraft_engine::slideshow::Title::Ending, true) => "The ending screen, after the last photo.",
+    };
+    hint(ui, t, hint_text);
 }
 
 /// The default layout (for the Reset button).

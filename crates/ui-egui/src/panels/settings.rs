@@ -702,6 +702,8 @@ fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 super::slide_layout::sections(app, ui, t);
                 ui.add_space(6.0);
                 super::slide_overlays::sections(app, ui, t);
+                ui.add_space(6.0);
+                super::slide_titles::sections(app, ui, t);
             });
         });
         ui.add_space(12.0);

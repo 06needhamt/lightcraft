@@ -1,5 +1,6 @@
 //! Slideshow playback: the settings of Lightroom Classic's Playback panel and the timeline that
-//! plays the photos in view (durations, fades, random order, repeat, pause, stepping).
+//! plays the photos in view (durations, fades, random order, repeat, pause, stepping), between an
+//! optional intro and ending screen (the Titles panel, [`crate::slide_title`]).
 //!
 //! No UI here: [`Playback`] is a pure state machine driven with injected times (seconds on any
 //! monotonic clock), so the desktop app, a later Slideshow module and tests run the same timeline.
@@ -131,15 +132,72 @@ fn color(v: &Value) -> std::result::Result<Option<[u8; 3]>, String> {
     }
 }
 
+/// A title screen (Lightroom Classic's Titles panel): the intro before the first slide, the
+/// ending after the last one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Title {
+    Intro,
+    Ending,
+}
+
+impl Title {
+    pub const ALL: [Title; 2] = [Title::Intro, Title::Ending];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Title::Intro => "intro",
+            Title::Ending => "ending",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Title> {
+        Title::ALL.into_iter().find(|t| t.id().eq_ignore_ascii_case(s.trim()))
+    }
+}
+
+/// One slide of the timeline: a photo, or a title screen (not a photo: it shows no photo, never
+/// moves the selection and isn't counted in "n of N").
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Item {
+    Title(Title),
+    Photo(PhotoId),
+}
+
+impl From<PhotoId> for Item {
+    fn from(p: PhotoId) -> Item {
+        Item::Photo(p)
+    }
+}
+
+impl Item {
+    pub const INTRO: Item = Item::Title(Title::Intro);
+    pub const ENDING: Item = Item::Title(Title::Ending);
+
+    /// The photo this slide shows (`None` for a title screen).
+    pub fn photo(self) -> Option<PhotoId> {
+        match self {
+            Item::Photo(p) => Some(p),
+            Item::Title(_) => None,
+        }
+    }
+
+    pub fn title(self) -> Option<Title> {
+        match self {
+            Item::Title(t) => Some(t),
+            Item::Photo(_) => None,
+        }
+    }
+}
+
 /// What a tick did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tick {
     /// Nothing changed (the slide is up, paused, or a transition is running).
     Idle,
     /// The next slide is due but not ready: the current one is held.
-    Waiting(PhotoId),
+    Waiting(Item),
     /// A new slide came up (its transition starts now).
-    Advanced(PhotoId),
+    Advanced(Item),
     /// The last slide was shown and repeat is off.
     Ended,
 }
@@ -147,34 +205,51 @@ pub enum Tick {
 /// What to draw at a moment of playback.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Frame {
-    pub current: PhotoId,
+    pub current: Item,
     /// The slide being faded out, while a transition runs.
-    pub from: Option<PhotoId>,
+    pub from: Option<Item>,
     /// How far the transition is (0–1; 1 when there is none).
     pub progress: f32,
     pub fade_color: Option<[u8; 3]>,
 }
 
-/// One run of a slideshow over a fixed list of photos.
+/// Where the timeline is: the intro, the photos, or the ending.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Phase {
+    Intro,
+    Photos,
+    Ending,
+}
+
+/// One run of a slideshow over a fixed list of photos, with an optional intro and ending.
+///
+/// **Titles:** the intro plays once, before the first photo; the ending once, after the last photo
+/// when repeat is off (with repeat on the show only ends when it is stopped, so the ending never
+/// comes up; passes follow each other without titles between them). Random order shuffles the
+/// photos only: titles keep their places.
 #[derive(Clone, Debug)]
 pub struct Playback {
     settings: PlaybackSettings,
     photos: Vec<PhotoId>,
     /// This pass's order (indices into `photos`).
     order: Vec<usize>,
-    /// Index into `order` of the slide up now.
+    /// Index into `order` of the photo up now (the last one while the ending is up).
     pos: usize,
+    phase: Phase,
     pass: u64,
     seed: u64,
+    /// How long the intro and the ending stay up (`None`: no such screen).
+    intro: Option<f64>,
+    ending: Option<f64>,
     /// When the current slide came up (its transition started).
     started: f64,
     /// The slide fading out (until the transition ends).
-    from: Option<PhotoId>,
+    from: Option<Item>,
     /// Paused at this time.
     paused_at: Option<f64>,
     ended: bool,
     /// The next slide was due but not ready at the last tick.
-    held: Option<PhotoId>,
+    held: Option<Item>,
 }
 
 /// SplitMix64: a small, well-mixed generator for the shuffle (deterministic per seed).
@@ -216,7 +291,36 @@ impl Playback {
             (first..n).chain(0..first).collect()
         };
         let now = if now.is_finite() { now } else { 0.0 };
-        Some(Playback { settings, photos, order, pos: 0, pass: 0, seed, started: now, from: None, paused_at: None, ended: false, held: None })
+        Some(Playback {
+            settings,
+            photos,
+            order,
+            pos: 0,
+            phase: Phase::Photos,
+            pass: 0,
+            seed,
+            intro: None,
+            ending: None,
+            started: now,
+            from: None,
+            paused_at: None,
+            ended: false,
+            held: None,
+        })
+    }
+
+    /// With an intro and / or an ending screen, each up for its duration in seconds (clamped like
+    /// a slide's; a non-finite one takes the slide duration). Call it right after [`Self::new`]:
+    /// the show then starts at the intro.
+    pub fn with_titles(mut self, intro: Option<f64>, ending: Option<f64>) -> Self {
+        let slide = self.settings.slide_duration;
+        let dur = |d: f64| if d.is_finite() { d.clamp(SLIDE_MIN, SLIDE_MAX) } else { slide };
+        self.intro = intro.map(dur);
+        self.ending = ending.map(dur);
+        if self.intro.is_some() && self.pass == 0 && self.pos == 0 && self.phase == Phase::Photos {
+            self.phase = Phase::Intro;
+        }
+        self
     }
 
     pub fn settings(&self) -> &PlaybackSettings {
@@ -241,14 +345,53 @@ impl Playback {
         order.get(pos).and_then(|i| self.photos.get(*i)).copied()
     }
 
-    /// The slide up now.
-    pub fn current(&self) -> PhotoId {
-        self.photo_at(&self.order, self.pos).or_else(|| self.photos.first().copied()).unwrap_or(PhotoId(0))
+    fn item_at(&self, phase: Phase, order: &[usize], pos: usize) -> Option<Item> {
+        match phase {
+            Phase::Intro => Some(Item::INTRO),
+            Phase::Ending => Some(Item::ENDING),
+            Phase::Photos => self.photo_at(order, pos).map(Item::Photo),
+        }
     }
 
-    /// (slide number from 1, slides per pass).
+    /// The place after (`phase`, `pos`, `pass`); `order` is that pass's order and becomes the next
+    /// pass's when it wraps. `None`: the show ends there.
+    fn following(&self, phase: Phase, pos: usize, pass: u64, order: &mut Vec<usize>) -> Option<(Phase, usize, u64)> {
+        match phase {
+            Phase::Intro => Some((Phase::Photos, 0, pass)),
+            Phase::Photos if pos + 1 < order.len() => Some((Phase::Photos, pos + 1, pass)),
+            Phase::Photos if self.settings.repeat => {
+                *order = self.order_after(pass + 1, order);
+                Some((Phase::Photos, 0, pass + 1))
+            }
+            Phase::Photos if self.ending.is_some() => Some((Phase::Ending, pos, pass)),
+            Phase::Photos | Phase::Ending => None,
+        }
+    }
+
+    /// The slide up now.
+    pub fn current(&self) -> Item {
+        self.item_at(self.phase, &self.order, self.pos).or_else(|| self.photos.first().copied().map(Item::Photo)).unwrap_or(Item::Photo(PhotoId(0)))
+    }
+
+    /// The photo up now (`None` while a title screen is up).
+    pub fn current_photo(&self) -> Option<PhotoId> {
+        self.current().photo()
+    }
+
+    /// (photo number from 1, photos per pass). Titles aren't photos: (0, N) while the intro is up,
+    /// (N, N) while the ending is; [`Self::title`] says which.
     pub fn position(&self) -> (usize, usize) {
-        (self.pos + 1, self.order.len())
+        let n = self.order.len();
+        match self.phase {
+            Phase::Intro => (0, n),
+            Phase::Photos => (self.pos + 1, n),
+            Phase::Ending => (n, n),
+        }
+    }
+
+    /// The title screen up now, if one is.
+    pub fn title(&self) -> Option<Title> {
+        self.current().title()
     }
 
     pub fn is_paused(&self) -> bool {
@@ -260,7 +403,7 @@ impl Playback {
     }
 
     /// The slide that was due but not ready at the last tick (the current one is held for it).
-    pub fn waiting_for(&self) -> Option<PhotoId> {
+    pub fn waiting_for(&self) -> Option<Item> {
         self.held
     }
 
@@ -270,9 +413,23 @@ impl Playback {
         self.paused_at.map_or(now, |p| p.min(now))
     }
 
+    /// How long `item` stays up (seconds).
+    pub fn duration(&self, item: Item) -> f64 {
+        match item {
+            Item::Title(Title::Intro) => self.intro.unwrap_or(self.settings.slide_duration),
+            Item::Title(Title::Ending) => self.ending.unwrap_or(self.settings.slide_duration),
+            Item::Photo(_) => self.settings.slide_duration,
+        }
+    }
+
+    /// How long the transition to `item` takes: the fade, never longer than the slide.
+    fn fade_to(&self, item: Item) -> f64 {
+        self.settings.fade_duration.min(self.duration(item))
+    }
+
     /// When the next slide is due.
     pub fn due(&self) -> f64 {
-        self.started + self.settings.slide_duration
+        self.started + self.duration(self.current())
     }
 
     /// Seconds until the next slide is due (as of `now`; frozen while paused).
@@ -280,24 +437,18 @@ impl Playback {
         (self.due() - self.clock(now)).max(0.0)
     }
 
-    /// The next `n` slides in playing order (into the next pass when repeating; never the one up
-    /// now twice).
-    pub fn upcoming(&self, n: usize) -> Vec<PhotoId> {
+    /// The next `n` slides in playing order (titles included; into the next pass when repeating;
+    /// never the one up now twice).
+    pub fn upcoming(&self, n: usize) -> Vec<Item> {
         let mut out = Vec::new();
         let mut order = self.order.clone();
-        let (mut pos, mut pass) = (self.pos, self.pass);
+        let (mut phase, mut pos, mut pass) = (self.phase, self.pos, self.pass);
+        let current = self.current();
         while out.len() < n {
-            pos += 1;
-            if pos >= order.len() {
-                if !self.settings.repeat {
-                    break;
-                }
-                pass += 1;
-                order = self.order_after(pass, &order);
-                pos = 0;
-            }
-            match self.photo_at(&order, pos) {
-                Some(p) if p != self.current() && !out.contains(&p) => out.push(p),
+            let Some(next) = self.following(phase, pos, pass, &mut order) else { break };
+            (phase, pos, pass) = next;
+            match self.item_at(phase, &order, pos) {
+                Some(it) if it != current && !out.contains(&it) => out.push(it),
                 _ => break,
             }
         }
@@ -306,27 +457,29 @@ impl Playback {
 
     /// Move one slide on (`Advanced`), or end (`Ended`) past the last one without repeat.
     fn advance(&mut self) -> Tick {
-        if self.pos + 1 < self.order.len() {
-            self.pos += 1;
-        } else if self.settings.repeat {
-            self.pass += 1;
-            self.order = self.order_after(self.pass, &self.order);
-            self.pos = 0;
-        } else {
-            self.ended = true;
-            return Tick::Ended;
+        let mut order = std::mem::take(&mut self.order);
+        let next = self.following(self.phase, self.pos, self.pass, &mut order);
+        self.order = order;
+        match next {
+            Some((phase, pos, pass)) => {
+                (self.phase, self.pos, self.pass) = (phase, pos, pass);
+                Tick::Advanced(self.current())
+            }
+            None => {
+                self.ended = true;
+                Tick::Ended
+            }
         }
-        Tick::Advanced(self.current())
     }
 
-    /// Advance the timeline to `now`. `ready(photo)` says whether a slide can be shown: the
+    /// Advance the timeline to `now`. `ready(slide)` says whether a slide can be shown: the
     /// transition to the next slide waits until it is.
-    pub fn tick(&mut self, now: f64, ready: impl Fn(PhotoId) -> bool) -> Tick {
+    pub fn tick(&mut self, now: f64, ready: impl Fn(Item) -> bool) -> Tick {
         if self.ended {
             return Tick::Ended;
         }
         let now = self.clock(now);
-        if self.from.is_some() && now >= self.started + self.settings.fade_duration {
+        if self.from.is_some() && now >= self.started + self.fade_to(self.current()) {
             self.from = None;
         }
         if self.paused_at.is_some() {
@@ -356,9 +509,9 @@ impl Playback {
         self.held = None;
         let old = self.current();
         let t = self.advance();
-        if let Tick::Advanced(_) = t {
+        if let Tick::Advanced(new) = t {
             self.started = now;
-            self.from = (self.settings.fade_duration > 0.0).then_some(old);
+            self.from = (self.fade_to(new) > 0.0).then_some(old);
         }
         t
     }
@@ -366,12 +519,13 @@ impl Playback {
     /// What to draw at `now`.
     pub fn frame(&self, now: f64) -> Frame {
         let now = self.clock(now);
-        let fade = self.settings.fade_duration;
+        let current = self.current();
+        let fade = self.fade_to(current);
         let (from, progress) = match self.from {
             Some(f) if fade > 0.0 && now < self.started + fade => (Some(f), ((now - self.started) / fade).clamp(0.0, 1.0) as f32),
             _ => (None, 1.0),
         };
-        Frame { current: self.current(), from, progress, fade_color: self.settings.fade_color }
+        Frame { current, from, progress, fade_color: self.settings.fade_color }
     }
 
     /// Pause or resume at `now`; resuming keeps the time the slide had left. Returns whether it
@@ -389,15 +543,17 @@ impl Playback {
     }
 
     /// Step `delta` slides (←/→) at `now`: a cut, and the new slide gets its full time (paused
-    /// playback stays paused). Past the last slide without repeat playback ends; before the first
-    /// it stays there.
+    /// playback stays paused). Past the last slide (the ending, when there is one) without repeat
+    /// playback ends; before the first it stays there (the intro, when there is one: in the first
+    /// pass ← from the first photo goes back to it).
     pub fn step(&mut self, delta: i32, now: f64) -> Tick {
         if self.ended {
             return Tick::Ended;
         }
         let now = if now.is_finite() { now } else { self.started };
         // (more steps than slides would only go round again)
-        let steps = delta.unsigned_abs().min(self.order.len().min(u32::MAX as usize) as u32);
+        let slides = self.order.len().saturating_add(2).min(u32::MAX as usize) as u32;
+        let steps = delta.unsigned_abs().min(slides);
         let mut t = Tick::Idle;
         if delta > 0 {
             for _ in 0..steps {
@@ -408,10 +564,13 @@ impl Playback {
             }
         } else {
             for _ in 0..steps {
-                if self.pos > 0 {
-                    self.pos -= 1;
-                } else if self.settings.repeat {
-                    self.pos = self.order.len().saturating_sub(1);
+                match self.phase {
+                    // (the ending keeps the last photo's place)
+                    Phase::Ending => self.phase = Phase::Photos,
+                    Phase::Photos if self.pos > 0 => self.pos -= 1,
+                    Phase::Photos if self.intro.is_some() && self.pass == 0 => self.phase = Phase::Intro,
+                    Phase::Photos if self.settings.repeat => self.pos = self.order.len().saturating_sub(1),
+                    Phase::Photos | Phase::Intro => {}
                 }
             }
             t = Tick::Advanced(self.current());
@@ -438,34 +597,38 @@ mod tests {
         PlaybackSettings { slide_duration: slide, fade_duration: fade, ..Default::default() }
     }
 
-    fn all_ready(_: PhotoId) -> bool {
+    fn ph(n: u64) -> Item {
+        Item::Photo(PhotoId(n))
+    }
+
+    fn all_ready(_: Item) -> bool {
         true
     }
 
     #[test]
     fn timeline_durations_and_fade_progress() {
         let mut p = Playback::new(ids(3), Some(PhotoId(2)), settings(4.0, 1.0), 1, 10.0).unwrap();
-        assert_eq!(p.current(), PhotoId(2), "starts at the selected photo");
+        assert_eq!(p.current(), ph(2), "starts at the selected photo");
         assert_eq!(p.position(), (1, 3));
         assert_eq!(p.tick(13.9, all_ready), Tick::Idle);
         assert_eq!(p.frame(13.9).from, None);
-        assert_eq!(p.tick(14.0, all_ready), Tick::Advanced(PhotoId(3)));
+        assert_eq!(p.tick(14.0, all_ready), Tick::Advanced(ph(3)));
         let f = p.frame(14.25);
-        assert_eq!((f.current, f.from), (PhotoId(3), Some(PhotoId(2))));
+        assert_eq!((f.current, f.from), (ph(3), Some(ph(2))));
         assert!((f.progress - 0.25).abs() < 1e-6, "{f:?}");
         assert!((p.frame(14.5).progress - 0.5).abs() < 1e-6);
         assert_eq!(p.tick(15.0, all_ready), Tick::Idle);
         assert_eq!(p.frame(15.0).from, None, "the fade is over after fadeDuration");
         // the slide period counts from its transition: next at 18
         assert_eq!(p.tick(17.99, all_ready), Tick::Idle);
-        assert_eq!(p.tick(18.0, all_ready), Tick::Advanced(PhotoId(1)), "wraps to the photos before the start");
+        assert_eq!(p.tick(18.0, all_ready), Tick::Advanced(ph(1)), "wraps to the photos before the start");
         assert_eq!(p.position(), (3, 3));
     }
 
     #[test]
     fn fade_zero_is_a_cut_and_fade_color_is_reported() {
         let mut p = Playback::new(ids(2), None, settings(2.0, 0.0), 1, 0.0).unwrap();
-        assert_eq!(p.tick(2.0, all_ready), Tick::Advanced(PhotoId(2)));
+        assert_eq!(p.tick(2.0, all_ready), Tick::Advanced(ph(2)));
         assert_eq!(p.frame(2.0).from, None);
         let s = PlaybackSettings { fade_color: Some([255, 0, 0]), ..settings(2.0, 1.0) };
         let mut p = Playback::new(ids(2), None, s, 1, 0.0).unwrap();
@@ -478,13 +641,13 @@ mod tests {
         let mut p = Playback::new(ids(4), None, settings(4.0, 2.0), 1, 0.0).unwrap();
         p.tick(4.0, all_ready);
         assert!(p.frame(4.5).from.is_some(), "fading");
-        assert_eq!(p.step(1, 4.5), Tick::Advanced(PhotoId(3)));
-        assert_eq!(p.frame(4.5), Frame { current: PhotoId(3), from: None, progress: 1.0, fade_color: None }, "a cut");
+        assert_eq!(p.step(1, 4.5), Tick::Advanced(ph(3)));
+        assert_eq!(p.frame(4.5), Frame { current: ph(3), from: None, progress: 1.0, fade_color: None }, "a cut");
         assert_eq!(p.tick(8.4, all_ready), Tick::Idle, "full time from the step");
-        assert_eq!(p.step(-1, 6.0), Tick::Advanced(PhotoId(2)));
-        assert_eq!(p.step(-1, 6.0), Tick::Advanced(PhotoId(1)));
+        assert_eq!(p.step(-1, 6.0), Tick::Advanced(ph(2)));
+        assert_eq!(p.step(-1, 6.0), Tick::Advanced(ph(1)));
         // repeat on: before the first is the last
-        assert_eq!(p.step(-1, 6.0), Tick::Advanced(PhotoId(4)));
+        assert_eq!(p.step(-1, 6.0), Tick::Advanced(ph(4)));
         assert_eq!(p.remaining(6.0), 4.0);
     }
 
@@ -494,10 +657,10 @@ mod tests {
         let run = |seed: u64| {
             let s = PlaybackSettings { random_order: true, ..settings(1.0, 0.0) };
             let mut p = Playback::new(photos.clone(), Some(PhotoId(5)), s, seed, 0.0).unwrap();
-            let mut seen = vec![p.current()];
+            let mut seen = vec![p.current_photo().unwrap()];
             for k in 1..60 {
                 p.tick(k as f64, all_ready);
-                seen.push(p.current());
+                seen.push(p.current_photo().unwrap());
             }
             seen
         };
@@ -519,14 +682,14 @@ mod tests {
     fn repeat_off_stops_after_the_last_slide() {
         let s = PlaybackSettings { repeat: false, ..settings(1.0, 0.0) };
         let mut p = Playback::new(ids(3), Some(PhotoId(2)), s.clone(), 1, 0.0).unwrap();
-        assert_eq!(p.tick(1.0, all_ready), Tick::Advanced(PhotoId(3)));
-        assert_eq!(p.tick(2.0, all_ready), Tick::Advanced(PhotoId(1)));
+        assert_eq!(p.tick(1.0, all_ready), Tick::Advanced(ph(3)));
+        assert_eq!(p.tick(2.0, all_ready), Tick::Advanced(ph(1)));
         assert_eq!(p.upcoming(2), vec![], "nothing after the last");
         assert_eq!(p.tick(3.0, all_ready), Tick::Ended);
         assert!(p.is_ended());
         // → past the last one ends it too
         let mut p = Playback::new(ids(2), None, s, 1, 0.0).unwrap();
-        assert_eq!(p.step(1, 0.5), Tick::Advanced(PhotoId(2)));
+        assert_eq!(p.step(1, 0.5), Tick::Advanced(ph(2)));
         assert_eq!(p.step(1, 0.6), Tick::Ended);
         // with repeat: it goes on
         let mut p = Playback::new(ids(2), None, settings(1.0, 0.0), 1, 0.0).unwrap();
@@ -543,7 +706,7 @@ mod tests {
         assert_eq!(p.remaining(100.0), 1.0);
         assert!(!p.toggle_pause(100.0));
         assert_eq!(p.tick(100.9, all_ready), Tick::Idle);
-        assert_eq!(p.tick(101.0, all_ready), Tick::Advanced(PhotoId(2)), "1 s left after resuming");
+        assert_eq!(p.tick(101.0, all_ready), Tick::Advanced(ph(2)), "1 s left after resuming");
         // pausing mid-fade freezes the fade
         p.toggle_pause(101.25);
         assert!((p.frame(150.0).progress - 0.25).abs() < 1e-6);
@@ -554,25 +717,25 @@ mod tests {
     #[test]
     fn a_transition_waits_for_the_next_slide_to_be_ready() {
         let mut p = Playback::new(ids(3), None, settings(2.0, 1.0), 1, 0.0).unwrap();
-        assert_eq!(p.upcoming(2), vec![PhotoId(2), PhotoId(3)], "what to prepare");
-        let not_two = |id: PhotoId| id != PhotoId(2);
-        assert_eq!(p.tick(2.0, not_two), Tick::Waiting(PhotoId(2)));
-        assert_eq!(p.frame(3.0), Frame { current: PhotoId(1), from: None, progress: 1.0, fade_color: None }, "held, not flashed");
-        assert_eq!(p.waiting_for(), Some(PhotoId(2)));
-        assert_eq!(p.tick(3.5, all_ready), Tick::Advanced(PhotoId(2)));
-        assert_eq!(p.frame(3.5).from, Some(PhotoId(1)), "the fade starts once it is ready");
+        assert_eq!(p.upcoming(2), vec![ph(2), ph(3)], "what to prepare");
+        let not_two = |id: Item| id != ph(2);
+        assert_eq!(p.tick(2.0, not_two), Tick::Waiting(ph(2)));
+        assert_eq!(p.frame(3.0), Frame { current: ph(1), from: None, progress: 1.0, fade_color: None }, "held, not flashed");
+        assert_eq!(p.waiting_for(), Some(ph(2)));
+        assert_eq!(p.tick(3.5, all_ready), Tick::Advanced(ph(2)));
+        assert_eq!(p.frame(3.5).from, Some(ph(1)), "the fade starts once it is ready");
         assert!((p.frame(4.0).progress - 0.5).abs() < 1e-6, "and runs its full length");
     }
 
     #[test]
     fn a_slide_s_time_starts_once_it_is_ready() {
         let mut p = Playback::new(ids(3), None, settings(2.0, 0.5), 1, 0.0).unwrap();
-        let none = |_: PhotoId| false;
+        let none = |_: Item| false;
         assert_eq!(p.tick(1.0, none), Tick::Idle);
         assert_eq!(p.tick(5.0, none), Tick::Idle, "the first slide isn't rendered yet: its clock waits");
         assert_eq!(p.remaining(5.0), 2.0);
         assert_eq!(p.tick(6.0, all_ready), Tick::Idle);
-        assert_eq!(p.tick(7.0, all_ready), Tick::Advanced(PhotoId(2)), "2 s from when it could be shown");
+        assert_eq!(p.tick(7.0, all_ready), Tick::Advanced(ph(2)), "2 s from when it could be shown");
     }
 
     #[test]
@@ -618,5 +781,139 @@ mod tests {
         assert_eq!(p.upcoming(2), vec![]);
         assert_eq!(p.tick(5.0, all_ready), Tick::Idle);
         assert_eq!(p.frame(5.0).from, None);
+    }
+
+    fn titled(n: u64, s: PlaybackSettings, intro: Option<f64>, ending: Option<f64>) -> Playback {
+        Playback::new(ids(n), None, s, 1, 0.0).unwrap().with_titles(intro, ending)
+    }
+
+    #[test]
+    fn titles_play_once_around_the_photos_for_their_own_durations() {
+        let s = PlaybackSettings { repeat: false, ..settings(4.0, 1.0) };
+        let mut p = titled(3, s, Some(2.0), Some(3.0));
+        assert_eq!(p.current(), Item::INTRO, "the intro comes first");
+        assert_eq!((p.position(), p.title(), p.current_photo()), ((0, 3), Some(Title::Intro), None), "titles aren't photos");
+        assert_eq!(p.upcoming(2), vec![ph(1), ph(2)]);
+        assert_eq!(p.tick(1.99, all_ready), Tick::Idle);
+        assert_eq!(p.tick(2.0, all_ready), Tick::Advanced(ph(1)), "the intro's own 2 s");
+        let f = p.frame(2.5);
+        assert_eq!((f.current, f.from), (ph(1), Some(Item::INTRO)), "the intro fades out like a slide");
+        assert!((f.progress - 0.5).abs() < 1e-6);
+        assert_eq!(p.position(), (1, 3));
+        assert_eq!(p.tick(6.0, all_ready), Tick::Advanced(ph(2)));
+        assert_eq!(p.tick(10.0, all_ready), Tick::Advanced(ph(3)));
+        assert_eq!(p.upcoming(2), vec![Item::ENDING], "the ending is prepared like a slide");
+        assert_eq!(p.tick(14.0, all_ready), Tick::Advanced(Item::ENDING));
+        assert_eq!((p.position(), p.title()), ((3, 3), Some(Title::Ending)));
+        assert_eq!(p.frame(14.5).from, Some(ph(3)), "the ending fades in");
+        assert_eq!(p.tick(16.99, all_ready), Tick::Idle);
+        assert_eq!(p.tick(17.0, all_ready), Tick::Ended, "the ending's own 3 s, then the show ends");
+        // without titles nothing changes
+        let mut p = titled(2, PlaybackSettings { repeat: false, ..settings(1.0, 0.0) }, None, None);
+        assert_eq!(p.current(), ph(1));
+        assert_eq!(p.tick(1.0, all_ready), Tick::Advanced(ph(2)));
+        assert_eq!(p.tick(2.0, all_ready), Tick::Ended);
+    }
+
+    #[test]
+    fn a_fade_never_outlasts_a_short_title() {
+        let s = PlaybackSettings { repeat: false, ..settings(4.0, 2.0) };
+        let mut p = titled(1, s, Some(0.5), Some(0.5));
+        assert_eq!(p.tick(0.5, all_ready), Tick::Advanced(ph(1)));
+        assert!((p.frame(1.5).progress - 0.5).abs() < 1e-6, "the photo fades in over the full 2 s");
+        assert_eq!(p.tick(4.5, all_ready), Tick::Advanced(Item::ENDING));
+        assert!((p.frame(4.75).progress - 0.5).abs() < 1e-6, "into the 0.5 s ending: a 0.5 s fade");
+        assert_eq!(p.frame(5.0).from, None);
+        assert_eq!(p.tick(5.0, all_ready), Tick::Ended);
+    }
+
+    #[test]
+    fn with_repeat_the_intro_plays_once_and_the_ending_never() {
+        let mut p = titled(2, settings(1.0, 0.0), Some(1.0), Some(1.0));
+        let mut seen = vec![p.current()];
+        for k in 1..12 {
+            p.tick(k as f64, all_ready);
+            seen.push(p.current());
+            assert!(!p.upcoming(3).contains(&Item::ENDING), "no ending while repeating");
+        }
+        assert_eq!(seen[0], Item::INTRO);
+        assert!(seen[1..].iter().all(|i| i.photo().is_some()), "passes follow each other without titles: {seen:?}");
+        assert_eq!(seen[1..5], [ph(1), ph(2), ph(1), ph(2)]);
+    }
+
+    #[test]
+    fn random_order_shuffles_the_photos_and_keeps_the_titles_in_place() {
+        for seed in [1, 2, 3] {
+            let s = PlaybackSettings { random_order: true, repeat: false, ..settings(1.0, 0.0) };
+            let mut p = Playback::new(ids(10), None, s, seed, 0.0).unwrap().with_titles(Some(1.0), Some(1.0));
+            let mut seen = vec![p.current()];
+            let mut k = 1.0;
+            while p.tick(k, all_ready) != Tick::Ended {
+                seen.push(p.current());
+                k += 1.0;
+            }
+            assert_eq!(seen.len(), 12, "{seen:?}");
+            assert_eq!((seen[0], seen[11]), (Item::INTRO, Item::ENDING), "seed {seed}");
+            let mut photos: Vec<PhotoId> = seen[1..11].iter().filter_map(|i| i.photo()).collect();
+            assert_ne!(photos, ids(10), "shuffled");
+            photos.sort();
+            assert_eq!(photos, ids(10), "every photo once, between the titles");
+        }
+    }
+
+    #[test]
+    fn arrows_step_across_the_titles() {
+        let s = PlaybackSettings { repeat: false, ..settings(4.0, 1.0) };
+        let mut p = titled(3, s, Some(2.0), Some(2.0));
+        assert_eq!(p.step(-1, 0.5), Tick::Advanced(Item::INTRO), "← on the intro stays there");
+        assert_eq!(p.step(1, 0.5), Tick::Advanced(ph(1)));
+        assert_eq!(p.step(-1, 0.6), Tick::Advanced(Item::INTRO), "← from the first photo: back to the intro");
+        assert_eq!(p.remaining(0.6), 2.0, "with its full time");
+        assert_eq!(p.step(3, 1.0), Tick::Advanced(ph(3)));
+        assert_eq!(p.step(1, 1.0), Tick::Advanced(Item::ENDING));
+        assert_eq!(p.position(), (3, 3));
+        assert_eq!(p.step(-1, 1.0), Tick::Advanced(ph(3)), "← from the ending: the last photo");
+        assert_eq!(p.step(1, 1.0), Tick::Advanced(Item::ENDING));
+        assert_eq!(p.step(1, 1.0), Tick::Ended, "→ past the ending ends the show");
+        assert_eq!(p.step(1, 2.0), Tick::Ended);
+        // repeating: ← from the first photo of a later pass wraps to the last, not the intro
+        let mut p = titled(3, settings(4.0, 0.0), Some(2.0), None);
+        assert_eq!(p.step(4, 0.0), Tick::Advanced(ph(1)), "intro, 1, 2, 3, then 1 again");
+        assert_eq!(p.step(-1, 0.0), Tick::Advanced(ph(3)));
+        assert_eq!(p.step(i32::MAX, 0.0), Tick::Advanced(p.current()));
+        assert_eq!(p.step(i32::MIN, f64::NAN), Tick::Advanced(p.current()));
+    }
+
+    #[test]
+    fn a_title_pauses_and_waits_like_a_slide() {
+        let mut p = titled(2, settings(4.0, 1.0), Some(3.0), None);
+        let not_intro = |i: Item| i != Item::INTRO;
+        assert_eq!(p.tick(5.0, not_intro), Tick::Idle, "the intro isn't rendered yet: its clock waits");
+        assert_eq!(p.remaining(5.0), 3.0);
+        assert!(p.toggle_pause(6.0));
+        assert_eq!(p.tick(100.0, all_ready), Tick::Idle);
+        assert_eq!(p.remaining(100.0), 2.0, "paused on the intro");
+        assert!(!p.toggle_pause(100.0));
+        assert_eq!(p.tick(101.9, all_ready), Tick::Idle);
+        let not_one = |i: Item| i != ph(1);
+        assert_eq!(p.tick(102.0, not_one), Tick::Waiting(ph(1)), "the first photo isn't ready: the intro is held");
+        assert_eq!(p.frame(102.5).current, Item::INTRO);
+        assert_eq!(p.tick(103.0, all_ready), Tick::Advanced(ph(1)));
+    }
+
+    #[test]
+    fn hostile_title_durations_are_clamped() {
+        let p = titled(2, settings(4.0, 1.0), Some(f64::NAN), Some(1e300));
+        assert_eq!((p.duration(Item::INTRO), p.duration(Item::ENDING)), (4.0, SLIDE_MAX));
+        let p = titled(2, settings(4.0, 1.0), Some(-1.0), Some(f64::NEG_INFINITY));
+        assert_eq!((p.duration(Item::INTRO), p.duration(Item::ENDING)), (SLIDE_MIN, 4.0));
+        // a single photo between titles, repeating: the photo holds after the intro
+        let mut p = titled(1, settings(1.0, 0.0), Some(1.0), Some(1.0));
+        assert_eq!(p.upcoming(3), vec![ph(1)]);
+        assert_eq!(p.tick(1.0, all_ready), Tick::Advanced(ph(1)));
+        assert_eq!(p.upcoming(3), vec![]);
+        assert_eq!(p.tick(9.0, all_ready), Tick::Idle);
+        assert_eq!(Title::parse(" Ending "), Some(Title::Ending));
+        assert_eq!(Title::parse("credits"), None);
     }
 }

@@ -227,3 +227,86 @@ fn slide_preview_draws_the_overlays() {
         assert_eq!(count(&plain, b, want), 0, "{kind}: not there without overlays");
     }
 }
+
+#[test]
+fn slide_titles_are_validated_persist_and_preview() {
+    let lib = temp_dir("titles");
+    {
+        let mut s = Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        let r = s.execute("slideshow.titles", &json!({})).unwrap();
+        assert_eq!((r["intro"]["enabled"].as_bool(), r["ending"]["enabled"].as_bool()), (Some(false), Some(false)), "off by default: {r}");
+        assert_eq!(r["intro"]["content"], "identityPlate");
+        assert_eq!(r["intro"]["duration"], serde_json::Value::Null, "the slide duration");
+        let r = s
+            .execute(
+                "slideshow.titles",
+                &json!({"intro": {"enabled": true, "color": "#102030", "content": "text", "text": "Iceland 2026", "scale": 0.12, "duration": 3}, "ending": {"enabled": true, "color": [255, 255, 255]}}),
+            )
+            .unwrap();
+        assert_eq!((r["intro"]["color"].as_str(), r["intro"]["duration"].as_f64()), (Some("#102030"), Some(3.0)));
+        assert_eq!(r["ending"]["color"], "#ffffff");
+        // a bad value changes nothing, the good keys beside it included
+        for bad in [
+            json!({"intro": {"enabled": false, "scale": "huge"}}),
+            json!({"ending": {"content": "credits"}}),
+            json!({"intro": {"duration": -1, "color": "blue"}}),
+            json!({"middle": {}}),
+        ] {
+            assert!(s.execute("slideshow.titles", &bad).is_err(), "{bad}");
+        }
+        assert!(s.slide_titles.intro.enabled);
+        // out of range: clamped
+        let r = s.execute("slideshow.titles", &json!({"ending": {"scale": 4, "duration": 1e6}})).unwrap();
+        assert_eq!((r["ending"]["scale"].as_f64(), r["ending"]["duration"].as_f64()), (Some(0.5), Some(crate::slideshow::SLIDE_MAX)));
+        // a plate image that can't be read is reported
+        s.execute("slideshow.overlays", &json!({"identityPlate": {"image": "/no/such/plate.png"}})).unwrap();
+        let r = s.execute("slideshow.titles", &json!({})).unwrap();
+        let w = r["warnings"].as_array().unwrap();
+        assert!(w.iter().any(|w| w.as_str().unwrap().contains("ending screen")), "{r}");
+        drop(s);
+    }
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    assert_eq!(s.slide_titles.intro.text, "Iceland 2026", "saved with the library");
+    assert_eq!(s.slide_titles.durations(4.0), (Some(3.0), Some(crate::slideshow::SLIDE_MAX)));
+    drop(s);
+    // hand-edited values out of range are clamped when the library opens
+    std::fs::write(lib.join("prefs.json"), r#"{"slideTitles": {"intro": {"enabled": true, "scale": -4, "duration": 1e99}}}"#).unwrap();
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    assert!(s.slide_titles.intro.enabled);
+    assert_eq!((s.slide_titles.intro.scale, s.slide_titles.intro.duration), (crate::slide_overlay::SIZE_MIN, Some(crate::slideshow::SLIDE_MAX)));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&lib);
+}
+
+#[test]
+fn slide_preview_renders_a_title_screen() {
+    let mut s = Session::with_demo();
+    s.execute(
+        "slideshow.titles",
+        &json!({"ending": {"color": "#00ff00", "content": "text", "text": "Fin", "overrideColor": true, "textColor": "#ff0000", "scale": 0.2}}),
+    )
+    .unwrap();
+    let r = s.execute("slideshow.preview", &json!({"title": "ending", "width": 400, "height": 250})).unwrap();
+    assert_eq!(
+        (r["title"].as_str(), r["enabled"].as_bool(), r["width"].as_u64(), r["height"].as_u64()),
+        (Some("ending"), Some(false), Some(400), Some(250))
+    );
+    let png = base64_decode(r["png"].as_str().unwrap());
+    assert_eq!(png_size(&png), (400, 250));
+    let b: Vec<f64> = r["plate"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    assert!((b[3] - b[1] - 50.0).abs() < 1.5, "20 % of the 250 px short side: {b:?}");
+    assert!(((b[0] + b[2]) / 2.0 - 200.0).abs() < 1.0 && ((b[1] + b[3]) / 2.0 - 125.0).abs() < 1.0, "centred: {b:?}");
+    // the same pixels as playback composes
+    let img = s.title_compose(crate::slideshow::Title::Ending, 400, 250).compose();
+    assert_eq!(img.get(3, 3), [0, 255, 0, 255]);
+    assert!(img.data.iter().any(|p| p[0] > 200 && p[1] < 60), "the red text");
+    // no photo needed; refused: an unknown title, an id with it, bad sizes
+    s.execute("library.select", &json!({"ids": []})).unwrap();
+    assert!(s.execute("slideshow.preview", &json!({"title": "intro"})).is_ok());
+    for bad in [json!({"title": "credits"}), json!({"title": 1}), json!({"title": "intro", "id": 1}), json!({"title": "intro", "width": 3})] {
+        assert!(s.execute("slideshow.preview", &bad).is_err(), "{bad}");
+    }
+}

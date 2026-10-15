@@ -284,6 +284,18 @@
   preset pickers in Import and Settings ▸ Import scroll the same way.
 - Importing a large collection and opening its library no longer compare every preset with every other.
 
+### Slideshow intro and ending screens
+- A slideshow can now open with an intro screen and close with an ending screen, like Lightroom Classic's Titles
+  panel. Each is switched on on its own and has a background colour and, centred on it, your identity plate (the one
+  set under Overlays: its text or image) or a line of text of its own, in the plate's colour or one you pick, at a
+  scale. Each stays up for its own duration (by default the slide duration) and fades in and out like a slide.
+- The intro plays once before the first photo; the ending after the last photo when Repeat is off (while repeating
+  the show runs until you stop it, so the ending doesn't come up). Random order never moves them, ←/→ step across them,
+  and the control bar says Intro or End while one is up (the photo count only counts photos).
+- Set them in Settings ▸ Slideshow ▸ Titles; the preview there switches between the photo's slide, the intro and the
+  ending. They are saved with the library. Agents use `slideshow.titles`, and `slideshow.preview {title: "intro"}`
+  renders a screen as a PNG.
+
 ### Slideshow overlays
 - Slides can now carry Lightroom Classic's Slideshow overlays: an identity plate (a line of text in a colour, or an
   image file such as a PNG logo with transparency, at a size and opacity, optionally drawn behind the photo), the

@@ -56,8 +56,8 @@ pub enum Slot {
     /// The second window's view of the active photo.
     Second,
     /// A slideshow slide (the one up, the one fading out, the next ones prepared in advance; see
-    /// [`crate::panels::slideshow`]).
-    Slide(PhotoId),
+    /// [`crate::panels::slideshow`]): a photo's, or a title screen.
+    Slide(lightcraft_engine::slideshow::Item),
     /// The small composed slide in Settings ▸ Slideshow (the active photo with the layout being
     /// edited).
     SlidePreview,
@@ -488,6 +488,24 @@ impl Renderer {
         self.pool.submit(slot, key, priority, Box::new(move || Self::run_for(|| job.run(), &display)));
     }
 
+    /// Render a slideshow title screen into `slot` (once per screen key, like [`Self::request`]):
+    /// a slide with no photo, composed on a worker (on wasm: the job pool's inline runs, not the
+    /// offload, which only knows photo renders).
+    pub fn request_title(&mut self, slot: Slot, compose: Arc<lightcraft_engine::slide_title::TitleCompose>, priority: u32) {
+        if matches!(slot, Slot::Slide(_)) {
+            self.slides_live = true;
+        }
+        let key = compose.key();
+        if !self.request_needed(slot, key, priority) {
+            return;
+        }
+        self.pending.insert(slot, (key, priority));
+        let request_id = lightcraft_preview::next_tick();
+        self.request_ids.insert(slot, request_id);
+        let display = self.display.clone();
+        self.pool.submit(slot, key, priority, Box::new(move || Self::run_for(|| compose.result(request_id), &display)));
+    }
+
     /// Prepare a photo in the background (a [`Slot::Prefetch`] job runs once per key; a newer one
     /// replaces it while queued). Memory stays bounded by the engine's source caches.
     pub fn prefetch(&mut self, slot: Slot, mut job: RenderJob, priority: u32) {
@@ -504,7 +522,7 @@ impl Renderer {
 
     /// Drop the slideshow slides other than `keep`: their textures and their requests that have
     /// not started (a slide that is no longer near is not worth rendering).
-    pub fn release_slides(&mut self, keep: &[PhotoId]) {
+    pub fn release_slides(&mut self, keep: &[lightcraft_engine::slideshow::Item]) {
         if !self.slides_live {
             return;
         }
