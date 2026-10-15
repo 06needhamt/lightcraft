@@ -1425,6 +1425,42 @@ impl<'a> HueSat<'a> {
         }
         std::array::from_fn(|i| rgb[i] + (out[i] * before / after - rgb[i]) * w)
     }
+
+    /// [`Self::apply`] to `N` pixels at once (`rgb[channel][lane]`), bit for bit, through
+    /// [`HsvTable::apply_lanes`], with the guards as selects.
+    #[inline]
+    pub fn apply_lanes<const N: usize>(&self, rgb: [[f32; N]; 3]) -> [[f32; N]; 3] {
+        let mul = |m: &[[f32; 3]; 3], v: &[[f32; N]; 3]| {
+            let mut out = [[0.0f32; N]; 3];
+            for (row, out) in m.iter().zip(&mut out) {
+                for l in 0..N {
+                    out[l] = row[0] * v[0][l] + row[1] * v[1][l] + row[2] * v[2][l];
+                }
+            }
+            out
+        };
+        let out = mul(&self.from, &self.table.apply_lanes(mul(&self.to, &rgb)));
+        let mut restored = rgb;
+        for l in 0..N {
+            let (input, out) = ([rgb[0][l], rgb[1][l], rgb[2][l]], [out[0][l], out[1][l], out[2][l]]);
+            let (before, after) = (luminance_2020(input), luminance_2020(out));
+            let untouched = (before <= 0.0) | (after <= 0.0) | !(out[0].is_finite() & out[1].is_finite() & out[2].is_finite());
+            let w = restore_weight(after / before);
+            for (c, restored) in restored.iter_mut().enumerate() {
+                let full = out[c] * before / after;
+                let blend = input[c] + (full - input[c]) * w;
+                // (`w >= 1` and `w <= 0` exclude each other)
+                restored[l] = if untouched | (w <= 0.0) {
+                    input[c]
+                } else if w >= 1.0 {
+                    full
+                } else {
+                    blend
+                };
+            }
+        }
+        restored
+    }
 }
 
 /// HSV hue (degrees) and saturation; `None` for black or non-finite colours.
@@ -2195,6 +2231,51 @@ mod tests {
             worst = worst.max(out.iter().fold(0.0f32, |m, v| m.max(v.abs())) / scale);
         }
         assert!(worst < 20.0, "a near-black pixel came out {worst}× its largest channel");
+    }
+
+    /// `apply_lanes` gives `apply`'s bits for any colour: random, near-black noise (the restore's blend), grey,
+    /// negative, tiny, above 1, huge, NaN and infinite components; on a fitted look's shape and a saturating table.
+    #[test]
+    fn hue_sat_lanes_match_one_by_one_bit_for_bit() {
+        let mut seed = 0x2545_f491_4f6c_dd1du64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let unit = |r: u64, i: usize| ((r >> (16 * i)) & 0xffff) as f32 / 65535.0;
+        let fitted = (0..72 * 5 * 5)
+            .map(|_| {
+                let r = next();
+                [unit(r, 0) * 60.0 - 30.0, 0.5 + unit(r, 1), 1.0]
+            })
+            .collect();
+        let fitted = HsvTable { hue_divisions: 72, sat_divisions: 5, val_divisions: 5, data: fitted, srgb_value: true };
+        let saturating = HsvTable { hue_divisions: 4, sat_divisions: 2, val_divisions: 1, data: vec![[10.0, 1.5, 1.0]; 8], srgb_value: false };
+        let special = [0.0, -0.0, 1e-30, -1e-6, 0.002, 0.5, 1.0, 3.0, 1e30, f32::INFINITY, f32::NEG_INFINITY, f32::NAN];
+        let mut colours = Vec::new();
+        for a in special {
+            for b in special {
+                colours.extend(special.map(|c| [a, b, c]));
+            }
+        }
+        for _ in 0..60_000 {
+            let r = next();
+            let (offset, scale) = [(0.15, 1.3), (0.15e-3, 1.3e-3), (0.6, 5.0), (-0.002, 0.008)][(r >> 62) as usize];
+            colours.push(std::array::from_fn(|i| unit(r, i) * scale - offset));
+        }
+        for table in [fitted, saturating] {
+            let hue_sat = HueSat::new(&table).unwrap();
+            for chunk in colours.chunks(16) {
+                let rgb: [[f32; 16]; 3] = std::array::from_fn(|c| std::array::from_fn(|l| chunk.get(l).map_or(0.0, |p| p[c])));
+                let out = hue_sat.apply_lanes(rgb);
+                for (l, p) in chunk.iter().enumerate() {
+                    let (got, want) = ([out[0][l], out[1][l], out[2][l]], hue_sat.apply(*p));
+                    assert_eq!(got.map(f32::to_bits), want.map(f32::to_bits), "{p:?}: {got:?} vs {want:?}");
+                }
+            }
+        }
     }
 
     #[test]

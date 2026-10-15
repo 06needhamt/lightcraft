@@ -267,19 +267,43 @@ impl CameraColourModel<'_> {
     /// White balance, matrix, tables and baseline exposure, in place.
     pub fn apply(&self, img: &mut Rgb32f) {
         let (wb, m, gain) = (self.wb, self.matrix.to_f32(), self.gain);
-        img.map_in_place(|p| {
-            let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
-            let rgb = [
-                m[0][0] * c[0] + m[0][1] * c[1] + m[0][2] * c[2],
-                m[1][0] * c[0] + m[1][1] * c[1] + m[1][2] * c[2],
-                m[2][0] * c[0] + m[2][1] * c[1] + m[2][2] * c[2],
-            ];
-            let rgb = match self.tables {
-                Some(tables) => tables.apply(rgb, gain),
-                None => rgb.map(|v| v * gain),
-            };
-            self.hue_sat.map_or(rgb, |h| h.apply(rgb)).map(|v| v.max(0.0))
-        });
+        if let (None, Some(hue_sat)) = (self.tables, self.hue_sat) {
+            // a fitted camera look: `pixel`, `LANES` pixels at a time so the table step vectorises (same bits)
+            const LANES: usize = 16;
+            lightcraft_raster::par_rows(&mut img.data, img.width, |_, row| {
+                for chunk in row.chunks_mut(LANES) {
+                    let mut rgb = [[0.0f32; LANES]; 3];
+                    for (l, p) in chunk.iter().enumerate() {
+                        let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
+                        for (i, rgb) in rgb.iter_mut().enumerate() {
+                            rgb[l] = (m[i][0] * c[0] + m[i][1] * c[1] + m[i][2] * c[2]) * gain;
+                        }
+                    }
+                    let out = hue_sat.apply_lanes(rgb);
+                    for (l, p) in chunk.iter_mut().enumerate() {
+                        *p = [out[0][l], out[1][l], out[2][l]].map(|v| v.max(0.0));
+                    }
+                }
+            });
+            return;
+        }
+        img.map_in_place(|p| self.pixel(&m, p));
+    }
+
+    /// [`Self::apply`] to one pixel; `m` is the matrix as `f32`.
+    fn pixel(&self, m: &[[f32; 3]; 3], p: [f32; 3]) -> [f32; 3] {
+        let (wb, gain) = (self.wb, self.gain);
+        let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
+        let rgb = [
+            m[0][0] * c[0] + m[0][1] * c[1] + m[0][2] * c[2],
+            m[1][0] * c[0] + m[1][1] * c[1] + m[1][2] * c[2],
+            m[2][0] * c[0] + m[2][1] * c[1] + m[2][2] * c[2],
+        ];
+        let rgb = match self.tables {
+            Some(tables) => tables.apply(rgb, gain),
+            None => rgb.map(|v| v * gain),
+        };
+        self.hue_sat.map_or(rgb, |h| h.apply(rgb)).map(|v| v.max(0.0))
     }
 }
 
@@ -1807,6 +1831,31 @@ pub(crate) mod tests {
     /// own white-balanced neutral comes out yellow (blue 12 % low).
     fn yellowing_look() -> lightcraft_color::Mat3 {
         lightcraft_color::Mat3([[0.42, 0.548, 0.04], [0.246, 0.728, 0.033], [-0.247, 0.679, 0.447]])
+    }
+
+    /// A fitted camera look applied in lanes, on rows that aren't a whole number of them, gives the bits of the
+    /// pixel-by-pixel path, awkward pixels (black, negative, huge, NaN, infinite) included.
+    #[test]
+    fn camera_look_in_lanes_matches_pixel_by_pixel() {
+        let data = (0..72 * 5 * 5).map(|i| [((i * 37) % 61) as f32 - 30.0, 0.6 + ((i * 11) % 13) as f32 / 13.0, 1.0]).collect();
+        let table = lightcraft_raw::profile::HsvTable { hue_divisions: 72, sat_divisions: 5, val_divisions: 5, data, srgb_value: true };
+        let hue_sat = crate::camera_preview::HueSat::new(&table).unwrap();
+        let colour = CameraColourModel { wb: [2.1, 1.0, 1.5], matrix: yellowing_look(), gain: 1.3, tables: None, hue_sat: Some(&hue_sat) };
+        let special = [0.0, -0.0, -0.01, 1e-30, 0.3, 1.0, 5.0, 1e30, f32::INFINITY, f32::NAN];
+        let img = Rgb32f::from_fn(37, 5, |x, y| {
+            let k = y * 37 + x;
+            if k % 5 == 0 {
+                [special[k % 10], special[k / 10 % 10], special[k / 100 % 10]]
+            } else {
+                [(x as f32 * 0.37).sin().abs(), ((x + y) as f32 * 0.11).cos().abs(), y as f32 / 4.0 - 0.05]
+            }
+        });
+        let mut lanes = img.clone();
+        colour.apply(&mut lanes);
+        let m = colour.matrix.to_f32();
+        for (p, got) in img.data.iter().zip(&lanes.data) {
+            assert_eq!(got.map(f32::to_bits), colour.pixel(&m, *p).map(f32::to_bits), "{p:?}");
+        }
     }
 
     #[test]
