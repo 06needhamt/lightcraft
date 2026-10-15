@@ -37,6 +37,7 @@ fn mosaic(w: usize, h: usize) -> RawImage {
         linearized: false,
         opcodes: OpcodeLists::default(),
         metadata: Default::default(),
+        lens_metadata: Default::default(),
     }
 }
 
