@@ -2124,7 +2124,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
         "compare.swap" | "compare.makeSelect" | "compare.set" => app.ui.view == ViewMode::Compare,
         "slideshow.togglePause" | "slideshow.next" | "slideshow.previous" | "slideshow.end" => app.ui.slideshow.is_some(),
         s if s.starts_with("dialog.merge") || (s.starts_with("merge.") && s.ends_with("Last")) => {
-            app.session.targets(&serde_json::json!({})).len() >= 2 && app.merge.final_task.is_none()
+            app.session.selected().len() >= 2 && app.merge.final_task.is_none()
         }
         _ => true,
     }
@@ -2176,7 +2176,7 @@ pub fn delete_in_album(app: &mut LightcraftApp, ctx: &egui::Context) -> bool {
         app.toast(ctx, crate::i18n::tr("Smart albums update automatically: change their rules, or use Photo ▸ Delete Photo"));
         return true;
     }
-    if app.session.targets(&json!({})).is_empty() {
+    if app.session.selected().is_empty() {
         return true;
     }
     match app.run("album.removePhotos", json!({"id": aid.0})) {
@@ -2197,7 +2197,7 @@ pub fn confirm_delete(app: &mut LightcraftApp) -> bool {
     if !app.ui.settings.confirm_delete {
         return false;
     }
-    let count = app.session.targets(&json!({})).len();
+    let count = app.session.selected().len();
     if count == 0 {
         return false;
     }
@@ -2315,7 +2315,7 @@ fn open_original_in(app: &mut LightcraftApp, ctx: &egui::Context, p: &Value) -> 
 }
 
 fn open_originals(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
-    let mut ids = app.session.targets(p);
+    let mut ids = app.session.targets(p).map_err(|e| e.to_string())?;
     ids.dedup();
     if ids.is_empty() {
         return Err("no photo selected".into());
