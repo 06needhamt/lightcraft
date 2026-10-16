@@ -377,13 +377,13 @@ impl<'a> Button<'a> {
         }
         let galley = self.galley(ui);
         let icon_s = self.size.icon();
-        // busy: the spinner is the icon's slot, or, with text alone, a slot as big as the padding
-        // allows, so the button never grows
-        let slot =
-            if self.busy && self.icon.is_none() && galley.is_some() { icon_s.min(self.size.padding() * 2.0 - self.size.gap()) } else { icon_s };
-        let has_slot = self.icon.is_some() || (self.busy && galley.is_some());
+        // busy: the spinner is the icon's slot; with text alone it is a smaller one in the button's
+        // own padding (a little tighter), so the button never grows
+        let spinner_only = self.busy && self.icon.is_none() && galley.is_some();
+        let (slot, gap) = if spinner_only { ((self.size.padding() * 2.0 - 12.0).clamp(8.0, icon_s), 4.0) } else { (icon_s, self.size.gap()) };
+        let has_slot = self.icon.is_some() || spinner_only;
         let content_w = match (&galley, has_slot) {
-            (Some(g), true) => slot + self.size.gap() + g.size().x,
+            (Some(g), true) => slot + gap + g.size().x,
             (Some(g), false) => g.size().x,
             (None, true) => slot,
             (None, false) => 0.0,
@@ -397,7 +397,7 @@ impl<'a> Button<'a> {
             } else if let Some(icon) = self.icon {
                 paint(p, slot_rect, icon, lk.content);
             }
-            x += slot + self.size.gap();
+            x += slot + gap;
         }
         if let Some(g) = galley {
             let at = pos2(x, rect.center().y - g.size().y / 2.0);
