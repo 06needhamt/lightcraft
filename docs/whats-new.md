@@ -2,6 +2,11 @@
 
 ## 2026-10-21
 
+### One star rating everywhere
+- The stars in the bottom bar, the Info panel and the filter bar are now one shared control, and the badges on grid
+  cells, filmstrip thumbnails and the Compare caption use the same drawing. Hovering a star in the filter bar now
+  previews the rating like the others do, and with a star focused (Tab), ← and → lower and raise the rating.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
