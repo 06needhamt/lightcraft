@@ -85,7 +85,9 @@ pub(super) fn slideshow_export_body(app: &mut LightcraftApp, ui: &mut egui::Ui, 
     let titles = usize::from(intro.is_some()) + usize::from(ending.is_some());
     let seconds = photos as f64 * slide + intro.unwrap_or(0.0) + ending.unwrap_or(0.0);
     let summary = crate::i18n::tr_format!(
-        "{n} photos in view · {slides} slides · {time}",
+        "{n} photo{} in view · {slides} slide{} · {time}",
+        if photos == 1 { "" } else { "s" },
+        if photos + titles == 1 { "" } else { "s" },
         n = photos,
         slides = photos + titles,
         time = format!("{}:{:02}", (seconds / 60.0).floor() as u64, (seconds % 60.0).round() as u64)
