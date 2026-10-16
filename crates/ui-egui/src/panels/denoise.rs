@@ -249,8 +249,12 @@ pub fn settings_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         .map(|v| v["downloads"].as_array().cloned().unwrap_or_default())
         .unwrap_or_default();
     heading(ui, t, "Models");
-    let r = ui.add_enabled(runtime && app.services.pick_denoise_model.is_some(), egui::Button::new(tr("Install from file…")));
-    register(ui.ctx(), "denoise:installFile", r.rect);
+    let installing = downloads.iter().any(|d| d["id"] == "local-install" && d["state"].as_str() == Some("installing"));
+    let r = crate::button::Button::new("Install from file…")
+        .enabled(runtime && app.services.pick_denoise_model.is_some())
+        .busy(installing)
+        .widget("denoise:installFile")
+        .show(ui);
     if r.clicked()
         && let Some(path) = app.services.pick_denoise_model.as_mut().and_then(|f| f().into_iter().next())
     {
@@ -270,12 +274,7 @@ pub fn settings_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     }
     if let Some(job) = downloads.iter().find(|d| d["id"] == "local-install") {
         match job["state"].as_str() {
-            Some("installing") => {
-                ui.horizontal(|ui| {
-                    crate::progress::spinner(ui, 12.0);
-                    hint(ui, t, "Checking and installing the model…");
-                });
-            }
+            Some("installing") => hint(ui, t, "Checking and installing the model…"),
             Some("failed") => hint(ui, t, job["error"].as_str().unwrap_or("Model installation failed")),
             _ => {}
         }
