@@ -24,6 +24,15 @@
   another ratio (4 × 5, 2 × 3…) keeps it portrait, as in Lightroom, and a Custom ratio taller than wide gives a
   portrait crop.
 
+## 2026-10-16
+
+### Synchronize Folder shows that it is listing the folder
+- A folder with tens of thousands of photos, above all on a network share, can take minutes to list before
+  Synchronize Folder checks a single photo. Its row in the activity stack used to sit at "0 of 64085" with an empty
+  bar all that time, as if it had stopped. It now says how many folders and files it has listed so far, with a bar
+  that moves on its own, and then counts the photos it checks. The dialog says the same.
+- ✕ on the row stops the listing too, not only the checks after it.
+
 ## 2026-10-15
 
 ### Constrain Crop tightens the crop you see
