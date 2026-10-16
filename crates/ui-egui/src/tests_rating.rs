@@ -3,7 +3,7 @@
 
 use egui::{Pos2, Rect, vec2};
 
-use crate::rating::{Rating, RatingSize};
+use crate::rating::Rating;
 
 /// Draw `build` for a few frames. After the first, click the centre of star `click` (1 to 5) if given,
 /// then press `keys`. Returns every value `build` reported and the AccessKit
@@ -51,7 +51,7 @@ fn drive(click: Option<u8>, keys: &[egui::Key], build: impl Fn(&mut egui::Ui) ->
 }
 
 fn row(rating: u8) -> Rating {
-    Rating::new("t", rating).size(RatingSize::Large)
+    Rating::new("t", rating)
 }
 
 #[test]
@@ -64,18 +64,6 @@ fn clicking_a_star_sets_that_rating() {
 fn clicking_the_current_rating_clears_it() {
     let (got, _) = drive(Some(3), &[], |ui| row(3).show(ui));
     assert_eq!(got, vec![0]);
-}
-
-#[test]
-fn a_read_only_row_ignores_clicks() {
-    let (got, _) = drive(Some(4), &[], |ui| row(2).read_only().show(ui));
-    assert!(got.is_empty(), "{got:?}");
-}
-
-#[test]
-fn a_disabled_row_ignores_clicks() {
-    let (got, _) = drive(Some(4), &[], |ui| row(2).enabled(false).show(ui));
-    assert!(got.is_empty(), "{got:?}");
 }
 
 #[test]
@@ -107,4 +95,42 @@ fn the_arrow_keys_step_the_rating_of_a_focused_star() {
 fn arrow_keys_do_nothing_when_no_star_is_focused() {
     let (got, _) = drive(None, &[egui::Key::ArrowRight], |ui| row(3).show(ui));
     assert!(got.is_empty(), "{got:?}");
+}
+
+/// Feed the shown rating back each frame, with other focusable widgets on both sides.
+fn step_with_neighbours(start: u8, keys: &[egui::Key]) -> Vec<u8> {
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let rating = std::cell::Cell::new(start);
+    let mut seen = Vec::new();
+    // a key every other frame, as a person presses them: the focus lock is set during the frame after a focus change
+    for frame in 0..keys.len() * 2 + 3 {
+        let mut events = Vec::new();
+        if let Some(k) = frame.checked_sub(1).filter(|f| f % 2 == 0).and_then(|f| keys.get(f / 2)) {
+            events.push(egui::Event::Key { key: *k, physical_key: Some(*k), pressed: true, repeat: false, modifiers: Default::default() });
+        }
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 200.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            ui.horizontal(|ui| {
+                let _ = ui.button("left neighbour");
+                if let Some(r) = row(rating.get()).show(ui) {
+                    rating.set(r);
+                }
+                let _ = ui.button("right neighbour");
+            });
+        });
+        out.textures_delta.clear();
+        seen.push(rating.get());
+    }
+    seen
+}
+
+#[test]
+fn arrows_keep_stepping_between_other_focusable_widgets() {
+    use egui::Key::*;
+    // Tab, Tab: the left neighbour, then star 1
+    let seen = step_with_neighbours(5, &[Tab, Tab, ArrowLeft, ArrowLeft, ArrowLeft, ArrowLeft, ArrowLeft]);
+    assert_eq!(seen.last(), Some(&0), "{seen:?}");
+    let seen = step_with_neighbours(0, &[Tab, Tab, ArrowRight, ArrowRight, ArrowRight, ArrowRight, ArrowRight, ArrowLeft]);
+    assert_eq!(seen.last(), Some(&4), "{seen:?}");
 }

@@ -13,6 +13,7 @@
 
 use egui::{Color32, Key, Modifiers, Painter, Pos2, Rect, Sense, Ui, pos2, vec2};
 
+use crate::button::Button;
 use crate::icons::{Icon, paint};
 use crate::theme::Tokens;
 use crate::widgets::{announce_selected, register};
@@ -27,7 +28,7 @@ pub enum RatingSize {
     Small,
     /// Grid badges and compare captions: 12 px stars every 13 px.
     Medium,
-    /// The bottom bar, the Info panel and the filter bar: 14 px stars in 19 px cells.
+    /// The clickable row (bottom bar, Info panel, filter bar): 14 px stars in 19 px cells.
     Large,
 }
 
@@ -52,11 +53,7 @@ impl RatingSize {
 
     /// Side of one clickable cell in a [`Rating`] row.
     fn cell(self) -> f32 {
-        match self {
-            Self::Small => 12.0,
-            Self::Medium => 16.0,
-            Self::Large => 19.0,
-        }
+        self.step() + 2.0
     }
 }
 
@@ -101,34 +98,13 @@ fn nudged_rating(current: u8, left: bool, right: bool) -> Option<u8> {
 pub struct Rating {
     id: String,
     rating: u8,
-    size: RatingSize,
-    read_only: bool,
-    enabled: bool,
     ids_prefix: Option<String>,
 }
 
 impl Rating {
     /// A rating of `rating` (0 to 5) whose stars are reachable as `star:{id}:{n}`.
     pub fn new(id: impl Into<String>, rating: u8) -> Self {
-        Self { id: id.into(), rating: rating.min(STARS), size: RatingSize::Large, read_only: false, enabled: true, ids_prefix: None }
-    }
-
-    /// The size the stars are drawn at (default [`RatingSize::Large`]).
-    pub fn size(mut self, size: RatingSize) -> Self {
-        self.size = size;
-        self
-    }
-
-    /// Show the rating without reacting to hover or clicks.
-    pub fn read_only(mut self) -> Self {
-        self.read_only = true;
-        self
-    }
-
-    /// Whether the stars react (default true). A disabled row is faded and ignores clicks.
-    pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
-        self
+        Self { id: id.into(), rating: rating.min(STARS), ids_prefix: None }
     }
 
     /// Register the stars under `{prefix}{n}` instead of `star:{id}:{n}`, for rows that already have
@@ -148,24 +124,28 @@ impl Rating {
     /// Draw the row. Returns the new rating when a click or an arrow key changed it.
     pub fn show(self, ui: &mut Ui) -> Option<u8> {
         let t = Tokens::get(ui.ctx());
-        let interactive = self.enabled && !self.read_only;
-        let cell = self.size.cell();
+        let cell = RatingSize::Large.cell();
         let mut out = None;
         let mut hover_n = None;
         let mut focused = false;
         let mut cells = [Rect::NOTHING; STARS as usize];
         for (i, slot) in (0..STARS).zip(cells.iter_mut()) {
-            let (r, resp) = ui.allocate_exact_size(vec2(cell, cell), if interactive { Sense::click() } else { Sense::hover() });
+            let (r, resp) = ui.allocate_exact_size(vec2(cell, cell), Sense::click());
             announce_selected(&resp, format!("{} ★", i + 1), i < self.rating);
             register(ui.ctx(), self.widget_id(i + 1), r);
-            if interactive {
-                if resp.hovered() {
-                    hover_n = Some(i + 1);
-                }
-                if resp.clicked() {
-                    out = Some(clicked_rating(self.rating, i + 1));
-                }
-                focused |= resp.has_focus();
+            if resp.hovered() {
+                hover_n = Some(i + 1);
+            }
+            if resp.clicked() {
+                out = Some(clicked_rating(self.rating, i + 1));
+            }
+            if resp.has_focus() {
+                focused = true;
+                // ← and → step the rating instead of moving the focus to the neighbouring widget
+                ui.memory_mut(|m| {
+                    m.set_focus_lock_filter(resp.id, egui::EventFilter { horizontal_arrows: true, ..Default::default() });
+                });
+                ui.painter().rect_stroke(r.expand(1.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Outside);
             }
             *slot = r;
         }
@@ -175,18 +155,22 @@ impl Rating {
         }
         // The hovered star also gets the icon-button hover square, so hovering the current rating (where
         // the preview looks the same) still shows feedback.
-        let fade = if self.enabled { 1.0 } else { 0.4 };
-        let side = self.size.icon();
+        let side = RatingSize::Large.icon();
         for (i, r) in (0..STARS).zip(cells) {
             if hover_n == Some(i + 1) {
                 ui.painter().rect_filled(r, 4.0, t.hover.gamma_multiply(0.7));
             }
             let filled = star_lit(i, self.rating, hover_n);
-            let color = if filled { t.star } else { t.icon };
-            paint_star(ui.painter(), Rect::from_center_size(r.center(), vec2(side, side)), filled, color.gamma_multiply(fade));
+            paint_star(ui.painter(), Rect::from_center_size(r.center(), vec2(side, side)), filled, if filled { t.star } else { t.icon });
         }
         out
     }
+}
+
+/// A frameless star toggle for favourites: filled when `favorite`, named `name` for screen readers,
+/// reachable as `widget` (a full automation id).
+pub fn favorite_button(ui: &mut Ui, widget: String, favorite: bool, name: &str) -> egui::Response {
+    Button::icon_only(if favorite { Icon::StarFilled } else { Icon::Star }, name).ghost().small().widget(widget).show(ui)
 }
 
 #[cfg(test)]
