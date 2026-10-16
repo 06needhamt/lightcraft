@@ -578,7 +578,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if app.size_hold.holding(now) {
         ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(crate::region::HOLD_SECS));
     }
-    let want = plan.main_edge;
+    // At rest the whole frame renders at no less than the preview source level: the source is then
+    // copied 1:1 (no resample in the pipeline, whose prefilter and bilinear pass soften detail near
+    // the output's limit) and shrunk once, by the Lanczos display fit below.
+    let want = if interacting {
+        plan.main_edge
+    } else {
+        // (a user's explicit Preview size below the preview level still caps it)
+        let limit = if app.ui.settings.preview_limit == 0 { usize::MAX } else { app.ui.settings.preview_limit as usize };
+        let floor = lightcraft_engine::SourceLevel::Preview.max_edge().min(limit).min(native_long);
+        plan.main_edge.max(floor).min(texture_side.max(crate::state::MIN_TEXTURE_SIDE))
+    };
     // The short side is rounded, not truncated: a truncated box (2560 x 1706 for a 2560 x 1707
     // source) made the render a slightly anisotropic resample of its source, a 2-tap blur along
     // one axis only. A box that matches the source to rounding is rendered at exactly its size.
@@ -591,7 +601,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let job = if interacting { job.draft() } else { job };
         // at rest the render is shrunk to exactly the size it is drawn at with a Lanczos filter on
         // the worker, so the window draws it texel for texel instead of shrinking it with 2-tap
-        // sampling (the render is up to a 64 px step larger)
+        // sampling (the render is up to a 64 px step larger, or the preview level)
         let job = if interacting {
             job
         } else {
