@@ -440,8 +440,8 @@ mod tests {
         // only neutral settings are the identity.
         for (c, w, b) in [(20.0, 0.0, 0.0), (0.0, 10.0, 0.0), (0.0, 0.0, -5.0)] {
             let t = ToneMap::display(c, w, b);
-            let o = t.apply(1.2);
-            assert!(o < 1.0 && o > 0.95, "{c} {w} {b}: {o}");
+            let o = t.apply(1.0);
+            assert!(o < 0.999 && o > 0.95, "{c} {w} {b}: {o}");
         }
     }
 
