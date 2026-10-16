@@ -1,5 +1,6 @@
-//! A dialog's confirm button names what it does ("Rename", "Create", "Stack"…), not "OK": the
-//! button is the last thing read before a change is made.
+//! A dialog's confirm button names what it does ("Rename", "Create", "Create Stacks"…), not "OK":
+//! the button is the last thing read before a change is made. Every check reads the text painted
+//! inside the `button:dialogOk` widget itself, not just any text in the window.
 
 use crate::headless::Headless;
 use crate::state::Dialog;
@@ -16,34 +17,57 @@ fn demo() -> Headless {
     h
 }
 
-fn show(h: &mut Headless, dialog: Dialog) -> Vec<String> {
+fn show(h: &mut Headless, dialog: Dialog) {
     h.app.ui.dialog = Some(dialog);
     h.step();
     h.step();
-    h.painted_text()
 }
 
 fn dialog(value: serde_json::Value) -> Dialog {
     serde_json::from_value(value).unwrap_or_else(|e| panic!("bad dialog json: {e}"))
 }
 
-/// Dialogs whose confirm may stay "OK" because nothing more specific is true of them: none today.
-/// (A one-field prompt opened with a command the app doesn't know has no verb to name.)
-const KEEPS_OK: &[&str] = &[];
+/// The text painted inside the confirm button.
+fn confirm_label(h: &Headless) -> String {
+    let rect = h.app.widgets.iter().find(|(w, _)| w == "button:dialogOk").map(|(_, r)| *r).unwrap_or_else(|| panic!("no confirm button"));
+    h.view
+        .painted_shapes()
+        .into_iter()
+        .filter_map(|s| match s {
+            egui::epaint::Shape::Text(t) if rect.contains(t.pos + t.galley.rect.center().to_vec2()) => Some(t.galley.job.text.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("")
+}
+
+fn select(h: &mut Headless, n: usize) {
+    let ids: Vec<_> = h.app.session.catalog.photos().map(|p| p.id).take(n).collect();
+    h.app.session.selection.ids = ids;
+}
+
+fn text_with(h: &Headless, start: &str) -> String {
+    h.painted_text().into_iter().find(|t| t.starts_with(start)).unwrap_or_else(|| panic!("no text starting {start:?}"))
+}
 
 #[test]
 fn confirm_buttons_name_their_action() {
     let mut h = demo();
+    h.app
+        .run("photo.setMeta", json!({"ids": [h.app.session.catalog.photos().next().map(|p| p.id.0).unwrap_or(0)], "addKeywords": ["taken"]}))
+        .unwrap();
     let cases: Vec<(&str, serde_json::Value, &str)> = vec![
         ("new album", json!({"kind": "newAlbum", "name": "", "folder": false}), "Create"),
         ("new folder", json!({"kind": "newAlbum", "name": "", "folder": true}), "Create"),
         ("rename album", json!({"kind": "renameAlbum", "id": 1, "name": "A"}), "Rename"),
         ("new smart album", json!({"kind": "newSmartAlbum", "name": ""}), "Create"),
-        ("auto-stack", json!({"kind": "autoStack", "gap": 60.0}), "Stack"),
-        ("capture time", json!({"kind": "captureTime", "mode": "set", "time": "", "days": 0, "hours": 0, "minutes": 0, "zone": 0.0}), "Change"),
+        ("auto-stack", json!({"kind": "autoStack", "gap": 60.0}), "Create Stacks"),
+        ("capture time", json!({"kind": "captureTime", "mode": "set", "time": "", "days": 0, "hours": 0, "minutes": 0, "zone": 0.0}), "Change Time"),
         ("label names", json!({"kind": "labelNames", "names": [], "save_as": ""}), "Save"),
         ("rename photos", json!({"kind": "rename", "template": "{name}", "start": 1}), "Rename"),
         ("rename keyword", json!({"kind": "renameKeyword", "from": "a", "to": "b"}), "Rename"),
+        ("rename keyword onto an existing one", json!({"kind": "renameKeyword", "from": "a", "to": "taken"}), "Merge Keywords"),
+        ("rename person", json!({"kind": "renamePerson", "from": "Ann", "to": "Anna", "merge": false}), "Rename"),
         ("merge keywords", json!({"kind": "mergeKeywords", "from": ["a"], "into": "b"}), "Merge Keywords"),
         ("assisted culling", json!({"kind": "cull", "reject_below": 0.0, "pick_best": true, "burst_gap": 10.0, "similarity": 0.93}), "Cull"),
         ("new preset", json!({"kind": "createPreset", "name": "", "group": ""}), "Create"),
@@ -51,9 +75,14 @@ fn confirm_buttons_name_their_action() {
         ("paste settings", json!({"kind": "pasteSettings", "groups": []}), "Paste"),
     ];
     for (what, value, want) in cases {
-        let text = show(&mut h, dialog(value));
-        assert!(text.iter().any(|t| t == want), "{what}: the confirm button reads {want:?}: {text:?}");
-        assert!(KEEPS_OK.contains(&what) || !text.iter().any(|t| t == "OK"), "{what}: the confirm button still reads OK: {text:?}");
+        show(&mut h, dialog(value));
+        assert_eq!(confirm_label(&h), want, "{what}");
+    }
+    // a new smart album's rules are created; an existing one's are saved
+    for (id, want) in [(None, "Create"), (Some(1), "Save")] {
+        let d = Dialog::SmartRules { id, name: "A".into(), rules: Default::default(), parent: None };
+        show(&mut h, d);
+        assert_eq!(confirm_label(&h), want, "smart album rules {id:?}");
     }
 }
 
@@ -85,39 +114,76 @@ fn one_field_prompts_name_what_they_do() {
             params: json!({}),
             key: "name".into(),
         };
-        let text = show(&mut h, prompt);
-        assert!(text.iter().any(|t| t == want), "{command}: the confirm button reads {want:?}: {text:?}");
-        assert!(!text.iter().any(|t| t == "OK"), "{command}: no OK: {text:?}");
+        show(&mut h, prompt);
+        assert_eq!(confirm_label(&h), want, "{command}");
     }
 }
 
 #[test]
 fn export_confirm_says_how_many_photos() {
     let mut h = demo();
-    h.app.run("dialog.export", json!({})).unwrap();
-    h.step();
-    h.step();
-    let one = h.painted_text();
-    let n = h.app.session.selection.ids.len().max(1);
-    let want = if n == 1 { "Export 1 Photo".to_string() } else { format!("Export {n} Photos") };
-    assert!(one.contains(&want), "reads {want:?}: {one:?}");
-    assert!(!one.iter().any(|t| t == "OK"));
+    for (n, want) in [(1, "Export 1 Photo"), (3, "Export 3 Photos")] {
+        select(&mut h, n);
+        h.app.run("dialog.export", json!({})).unwrap();
+        h.step();
+        h.step();
+        assert_eq!(confirm_label(&h), want);
+    }
+}
+
+#[test]
+fn the_confirm_is_the_verb_in_another_language() {
+    struct Restore;
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            crate::i18n::set_language(crate::i18n::Locale::En);
+        }
+    }
+    let _restore = Restore;
+    let mut h = demo();
+    h.app.ui.language = crate::i18n::Locale::De;
+    show(&mut h, dialog(json!({"kind": "autoStack", "gap": 60.0})));
+    assert_eq!(confirm_label(&h), "Stapel erstellen");
+    show(&mut h, dialog(json!({"kind": "captureTime", "mode": "set", "time": "", "days": 0, "hours": 0, "minutes": 0, "zone": 0.0})));
+    assert_eq!(confirm_label(&h), "Zeit ändern");
+    show(&mut h, dialog(json!({"kind": "renameAlbum", "id": 1, "name": "A"})));
+    assert_eq!(confirm_label(&h), "Umbenennen");
+}
+
+/// "N noun(s)" in `text`: the number before `noun` and whether `noun` is written in the plural.
+fn count_before(text: &str, noun: &str) -> (u64, bool) {
+    let at = text.find(noun).unwrap_or_else(|| panic!("{text:?} has no {noun:?}"));
+    let n = text[..at].trim_end().rsplit(' ').next().and_then(|w| w.parse().ok()).unwrap_or_else(|| panic!("no number before {noun:?} in {text:?}"));
+    (n, text[at + noun.len()..].starts_with('s'))
 }
 
 #[test]
 fn counts_agree_with_their_nouns() {
     let mut h = demo();
-    let ids: Vec<u64> = h.app.session.catalog.photos().map(|p| p.id.0).take(2).collect();
-    let rows = |h: &mut Headless, n: usize| {
-        h.app.session.selection.ids = ids.iter().take(n).map(|i| lightcraft_catalog::PhotoId(*i)).collect();
-        let text = show(
-            h,
-            dialog(json!({"kind": "contactSheet", "options": serde_json::to_value(lightcraft_engine::contact_sheet::Options::default()).unwrap()})),
-        );
-        text.into_iter().find(|t| t.contains("selected photo") || t.contains("1 photo")).unwrap_or_default()
-    };
-    let one = rows(&mut h, 1);
-    assert!(one.starts_with("1 selected photo ·") && one.ends_with("1 page"), "{one:?}");
-    let two = rows(&mut h, 2);
-    assert!(two.starts_with("2 selected photos ·") && two.ends_with("1 page"), "{two:?}");
+    // contact sheet: one photo, then two
+    for n in [1usize, 2] {
+        select(&mut h, n);
+        let options = serde_json::to_value(lightcraft_engine::contact_sheet::Options::default()).unwrap();
+        show(&mut h, dialog(json!({"kind": "contactSheet", "options": options})));
+        let text = text_with(&h, &format!("{n} selected photo"));
+        assert_eq!(text, if n == 1 { "1 selected photo · 1 page" } else { "2 selected photos · 1 page" });
+    }
+    // auto-stack: a tiny gap and a huge one give different counts; each agrees with its noun
+    for gap in [1.0, 86400.0] {
+        show(&mut h, dialog(json!({"kind": "autoStack", "gap": gap})));
+        let text = text_with(&h, "Creates ");
+        let (stacks, plural) = count_before(&text, " stack");
+        assert_eq!(plural, stacks != 1, "{text:?}");
+    }
+    // slideshow export: photos and slides
+    show(
+        &mut h,
+        dialog(
+            json!({"kind": "slideshowExport", "settings": serde_json::to_value(lightcraft_engine::slideshow_export::ExportSettings::default()).unwrap()}),
+        ),
+    );
+    let text = h.painted_text().into_iter().find(|t| t.contains("in view")).unwrap_or_default();
+    let (photos, p1) = count_before(&text, " photo");
+    let (slides, p2) = count_before(&text, " slide");
+    assert_eq!((p1, p2), (photos != 1, slides != 1), "{text:?}");
 }
