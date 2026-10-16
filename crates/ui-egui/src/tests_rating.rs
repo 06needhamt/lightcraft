@@ -103,10 +103,10 @@ fn step_with_neighbours(start: u8, keys: &[egui::Key]) -> Vec<u8> {
     crate::theme::install_fonts(&ctx);
     let rating = std::cell::Cell::new(start);
     let mut seen = Vec::new();
-    // a key every other frame, as a person presses them: the focus lock is set during the frame after a focus change
-    for frame in 0..keys.len() * 2 + 3 {
+    // a key every frame, Tab then an arrow straight away
+    for frame in 0..keys.len() + 3 {
         let mut events = Vec::new();
-        if let Some(k) = frame.checked_sub(1).filter(|f| f % 2 == 0).and_then(|f| keys.get(f / 2)) {
+        if let Some(k) = frame.checked_sub(1).and_then(|f| keys.get(f)) {
             events.push(egui::Event::Key { key: *k, physical_key: Some(*k), pressed: true, repeat: false, modifiers: Default::default() });
         }
         let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 200.0))), events, ..Default::default() };

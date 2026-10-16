@@ -13,7 +13,6 @@
 
 use egui::{Color32, Key, Modifiers, Painter, Pos2, Rect, Sense, Ui, pos2, vec2};
 
-use crate::button::Button;
 use crate::icons::{Icon, paint};
 use crate::theme::Tokens;
 use crate::widgets::{announce_selected, register};
@@ -151,6 +150,11 @@ impl Rating {
         }
         if focused && out.is_none() {
             let (left, right) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::ArrowLeft), i.consume_key(Modifiers::NONE, Key::ArrowRight)));
+            if left || right {
+                // egui picked the neighbour to focus from this same key before the lock above could apply (the
+                // first arrow after Tab): cancel that move
+                ui.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+            }
             out = nudged_rating(self.rating, left, right);
         }
         // The hovered star also gets the icon-button hover square, so hovering the current rating (where
@@ -167,10 +171,23 @@ impl Rating {
     }
 }
 
-/// A frameless star toggle for favourites: filled when `favorite`, named `name` for screen readers,
-/// reachable as `widget` (a full automation id).
+/// A frameless star toggle for favourites: filled when `favorite`, named `name` for screen readers and as
+/// its tooltip, reachable as `widget` (a full automation id). A square one line tall.
 pub fn favorite_button(ui: &mut Ui, widget: String, favorite: bool, name: &str) -> egui::Response {
-    Button::icon_only(if favorite { Icon::StarFilled } else { Icon::Star }, name).ghost().small().widget(widget).show(ui)
+    let t = Tokens::get(ui.ctx());
+    let side = ui.spacing().interact_size.y;
+    let (r, resp) = ui.allocate_exact_size(vec2(side, side), Sense::click());
+    announce_selected(&resp, name, favorite);
+    register(ui.ctx(), widget, r);
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 4.0, t.hover.gamma_multiply(0.7));
+    }
+    if resp.has_focus() {
+        ui.painter().rect_stroke(r.expand(1.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Outside);
+    }
+    let icon = RatingSize::Medium.icon();
+    paint_star(ui.painter(), Rect::from_center_size(r.center(), vec2(icon, icon)), favorite, if favorite { t.star } else { t.icon });
+    resp.on_hover_text(name)
 }
 
 #[cfg(test)]
