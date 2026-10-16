@@ -133,7 +133,14 @@ fn watermark_preview(
                 Ok(img) => img,
                 Err(e) => {
                     let note = if e.is_some() { "Preview unavailable" } else { "Loading preview…" };
-                    let r = ui.label(egui::RichText::new(crate::i18n::tr(note)).color(t.text_dim));
+                    let r = ui
+                        .horizontal(|ui| {
+                            if e.is_none() {
+                                crate::progress::spinner(ui, 12.0);
+                            }
+                            ui.label(egui::RichText::new(crate::i18n::tr(note)).color(t.text_dim))
+                        })
+                        .inner;
                     if let Some(e) = e {
                         r.on_hover_text(e);
                     }
@@ -611,7 +618,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             });
                         }
                         None => {
-                            ui.label(egui::RichText::new(crate::i18n::tr("Checking names…")).color(t.text_dim));
+                            ui.horizontal(|ui| {
+                                crate::progress::spinner(ui, 12.0);
+                                ui.label(egui::RichText::new(crate::i18n::tr("Checking names…")).color(t.text_dim));
+                            });
                         }
                     }
                     let more = total.saturating_sub(RENAME_PREVIEW_ROWS);

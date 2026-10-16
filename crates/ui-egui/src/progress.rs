@@ -18,6 +18,8 @@ use egui::{Color32, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, pos2, vec2};
 
 use crate::theme::Tokens;
 
+/// A bar in a model row: it leaves the row's Cancel button its place.
+pub const ROW_WIDTH: f32 = 260.0;
 /// The narrowest a bar that fills the available width is drawn.
 const MIN_WIDTH: f32 = 96.0;
 /// Height of a bar that carries text.

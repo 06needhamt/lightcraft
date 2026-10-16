@@ -341,7 +341,18 @@ impl<'a> Button<'a> {
         };
         // a button in a disabled part of the window is disabled too
         let enabled = self.enabled && ui.is_enabled();
-        let resp = ui.interact(rect, id, if enabled && !self.busy { Sense::click() } else { Sense::hover() });
+        let resp = ui.interact(
+            rect,
+            id,
+            if !enabled {
+                Sense::hover()
+            } else if self.busy {
+                // still reachable by the keyboard, but nothing to press
+                Sense::focusable_noninteractive()
+            } else {
+                Sense::click()
+            },
+        );
         let words = crate::i18n::tr(self.name.or(self.text).unwrap_or_default()).to_string();
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, words.clone()));
         if self.busy {
@@ -392,8 +403,10 @@ impl<'a> Button<'a> {
         if has_slot {
             let slot_rect = Rect::from_center_size(pos2(x + slot / 2.0, rect.center().y), vec2(slot, slot));
             if self.busy {
-                crate::progress::paint_spinner(p, slot_rect, lk.content, ui.input(|i| i.time));
-                ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+                if ui.is_rect_visible(rect) {
+                    crate::progress::paint_spinner(p, slot_rect, lk.content, ui.input(|i| i.time));
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+                }
             } else if let Some(icon) = self.icon {
                 paint(p, slot_rect, icon, lk.content);
             }

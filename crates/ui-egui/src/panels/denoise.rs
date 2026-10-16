@@ -451,7 +451,11 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                         } else {
                             tr_format!("{} of {} from {host}", mb(Some(got)), mb(Some(total)), host = host)
                         };
-                        crate::progress::Progress::new(Some(frac)).label(text).widget(format!("denoise:progress:{id}")).show(ui);
+                        crate::progress::Progress::new(Some(frac))
+                            .label(text)
+                            .width(crate::progress::ROW_WIDTH.min(ui.available_width()))
+                            .widget(format!("denoise:progress:{id}"))
+                            .show(ui);
                     }
                     (Some("done" | "installing"), _) => {
                         ui.horizontal(|ui| {

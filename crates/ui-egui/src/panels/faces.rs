@@ -190,6 +190,9 @@ fn gpu_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, gpu: &Val
         };
         ui.horizontal(|ui| {
             ui.label(RichText::new(crate::i18n::tr(label)).color(t.text_dim));
+            if st["checking"] == true {
+                crate::progress::spinner(ui, 12.0);
+            }
             let r = ui.label(text);
             register(ui.ctx(), format!("faces:device:{what}"), r.rect);
             if let Some(why) = why {
@@ -364,7 +367,11 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                         } else {
                             format!("{} of {} from {host}", mb(Some(got)), mb(Some(total)))
                         };
-                        crate::progress::Progress::new(Some(frac)).label(text).widget(format!("faces:progress:{id}")).show(ui);
+                        crate::progress::Progress::new(Some(frac))
+                            .label(text)
+                            .width(crate::progress::ROW_WIDTH.min(ui.available_width()))
+                            .widget(format!("faces:progress:{id}"))
+                            .show(ui);
                     }
                     (Some("done"), _) => {
                         ui.horizontal(|ui| {

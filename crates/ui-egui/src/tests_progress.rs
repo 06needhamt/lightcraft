@@ -134,6 +134,20 @@ fn a_busy_button_ignores_clicks_and_is_announced_busy() {
 }
 
 #[test]
+fn a_busy_button_stays_reachable_by_the_keyboard() {
+    let place = Rect::from_min_size(Pos2::ZERO, vec2(120.0, 30.0));
+    let mut asked = false;
+    let (_, _, focused) = frames(Vec::new(), |ui| {
+        let r = Button::new("Analyze").busy(true).show_at(ui, place);
+        if !std::mem::replace(&mut asked, true) {
+            r.request_focus();
+        }
+        r.has_focus()
+    });
+    assert!(focused, "focus is kept while it works");
+}
+
+#[test]
 fn a_button_keeps_its_width_while_busy() {
     for (text, icon) in [("Analyze", None), ("Analyze", Some(Icon::Trash)), ("", Some(Icon::Trash))] {
         for small in [false, true] {
@@ -159,7 +173,7 @@ fn a_button_keeps_its_width_while_busy() {
 fn the_thumbnail_placeholder_stands_apart_in_every_theme() {
     for kind in ThemeKind::ALL {
         let t = Tokens::for_kind(kind);
-        for (name, behind) in [("grid", t.grid_bg), ("cell", t.cell), ("canvas", t.canvas)] {
+        for (name, behind) in [("grid", t.grid_bg), ("cell", t.cell), ("selected cell", t.cell_selected), ("canvas", t.canvas)] {
             let c = contrast(t.skeleton, behind);
             assert!(c >= 1.1, "{kind:?}: the placeholder on the {name} is {c:.2}:1");
         }
