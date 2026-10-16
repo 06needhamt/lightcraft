@@ -150,6 +150,12 @@
 
 ## 2026-10-16
 
+### The histogram's tonal zones adjust the Basic tones
+- The histogram is a control surface again, as in Lightroom Classic: hovering one of its five zones (Blacks, Shadows,
+  Exposure, Highlights, Whites) tints it and shows its name and value under the plot ("Exposure: +0.45 EV"). Dragging one
+  sideways moves that control — the zone you pressed stays locked while the pointer crosses the others, Shift drags a
+  tenth as far, and the whole drag is one undo step. Double-clicking a zone puts its control back to its default.
+
 ### Synchronize Folder shows that it is listing the folder
 - A folder with tens of thousands of photos, above all on a network share, can take minutes to list before
   Synchronize Folder checks a single photo. Its row in the activity stack used to sit at "0 of 64085" with an empty
