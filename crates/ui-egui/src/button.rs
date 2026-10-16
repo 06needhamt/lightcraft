@@ -188,6 +188,7 @@ pub struct Button<'a> {
     kind: Kind,
     size: Size,
     enabled: bool,
+    busy: bool,
     widget: Option<String>,
     tooltip: Option<&'a str>,
     min_width: f32,
@@ -204,6 +205,7 @@ impl<'a> Button<'a> {
             kind: Kind::default(),
             size: Size::default(),
             enabled: true,
+            busy: false,
             widget: None,
             tooltip: None,
             min_width: 0.0,
@@ -253,6 +255,14 @@ impl<'a> Button<'a> {
     /// Off: drawn faded, and a click does nothing.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    /// Working on what it was pressed for: a spinner takes the icon's place (or sits before the
+    /// text, inside the button's own padding, so the button keeps its width), a click does nothing,
+    /// and screen readers hear it is busy.
+    pub fn busy(mut self, busy: bool) -> Self {
+        self.busy = busy;
         self
     }
 
@@ -331,14 +341,19 @@ impl<'a> Button<'a> {
         };
         // a button in a disabled part of the window is disabled too
         let enabled = self.enabled && ui.is_enabled();
-        let resp = ui.interact(rect, id, if enabled { Sense::click() } else { Sense::hover() });
+        let resp = ui.interact(rect, id, if enabled && !self.busy { Sense::click() } else { Sense::hover() });
         let words = crate::i18n::tr(self.name.or(self.text).unwrap_or_default()).to_string();
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, words.clone()));
+        if self.busy {
+            ui.ctx().accesskit_node_builder(resp.id, |node| node.set_busy());
+        }
         if let Some(w) = &self.widget {
             crate::widgets::register(ui.ctx(), w.clone(), rect);
         }
         let state = if !enabled {
             State::Disabled
+        } else if self.busy {
+            State::Idle
         } else if resp.is_pointer_button_down_on() {
             State::Pressed
         } else if resp.hovered() {
@@ -362,16 +377,27 @@ impl<'a> Button<'a> {
         }
         let galley = self.galley(ui);
         let icon_s = self.size.icon();
-        let content_w = match (&galley, self.icon) {
-            (Some(g), Some(_)) => icon_s + self.size.gap() + g.size().x,
-            (Some(g), None) => g.size().x,
-            (None, Some(_)) => icon_s,
-            (None, None) => 0.0,
+        // busy: the spinner is the icon's slot, or, with text alone, a slot as big as the padding
+        // allows, so the button never grows
+        let slot =
+            if self.busy && self.icon.is_none() && galley.is_some() { icon_s.min(self.size.padding() * 2.0 - self.size.gap()) } else { icon_s };
+        let has_slot = self.icon.is_some() || (self.busy && galley.is_some());
+        let content_w = match (&galley, has_slot) {
+            (Some(g), true) => slot + self.size.gap() + g.size().x,
+            (Some(g), false) => g.size().x,
+            (None, true) => slot,
+            (None, false) => 0.0,
         };
         let mut x = rect.center().x - content_w / 2.0;
-        if let Some(icon) = self.icon {
-            paint(p, Rect::from_center_size(pos2(x + icon_s / 2.0, rect.center().y), vec2(icon_s, icon_s)), icon, lk.content);
-            x += icon_s + self.size.gap();
+        if has_slot {
+            let slot_rect = Rect::from_center_size(pos2(x + slot / 2.0, rect.center().y), vec2(slot, slot));
+            if self.busy {
+                crate::progress::paint_spinner(p, slot_rect, lk.content, ui.input(|i| i.time));
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
+            } else if let Some(icon) = self.icon {
+                paint(p, slot_rect, icon, lk.content);
+            }
+            x += slot + self.size.gap();
         }
         if let Some(g) = galley {
             let at = pos2(x, rect.center().y - g.size().y / 2.0);

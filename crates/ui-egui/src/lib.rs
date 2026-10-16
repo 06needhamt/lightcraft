@@ -31,6 +31,7 @@ mod model_setup;
 pub mod panels;
 pub mod pick;
 pub mod print_view;
+pub mod progress;
 pub mod recheck;
 pub mod region;
 pub mod reload;
@@ -146,6 +147,8 @@ mod tests_print;
 mod tests_profile_menu;
 #[cfg(test)]
 mod tests_profiles_layout;
+#[cfg(test)]
+mod tests_progress;
 #[cfg(test)]
 mod tests_quit_unsaved;
 #[cfg(test)]

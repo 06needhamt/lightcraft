@@ -312,10 +312,7 @@ fn scan_progress(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         return;
     }
     let text = format!("Scanning photos for faces: {left} left · {faces} faces so far");
-    let bar = ui.add(
-        egui::ProgressBar::new((1.0 - left as f32 / peak as f32).clamp(0.0, 1.0)).desired_width(380.0).text(RichText::new(text).font(t.font(11.5))),
-    );
-    register(ui.ctx(), "faces:scanProgress", bar.rect);
+    crate::progress::Progress::new(Some(1.0 - left as f32 / peak as f32)).label(text).widget("faces:scanProgress").show(ui);
 }
 
 fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, dl: Option<&Value>, can_run: bool) {
@@ -367,11 +364,13 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                         } else {
                             format!("{} of {} from {host}", mb(Some(got)), mb(Some(total)))
                         };
-                        let bar = ui.add(egui::ProgressBar::new(frac).desired_width(260.0).text(RichText::new(text).font(t.font(11.5))));
-                        register(ui.ctx(), format!("faces:progress:{id}"), bar.rect);
+                        crate::progress::Progress::new(Some(frac)).label(text).widget(format!("faces:progress:{id}")).show(ui);
                     }
                     (Some("done"), _) => {
-                        ui.label(RichText::new(crate::i18n::tr("Downloaded and checked. Installing…")).font(t.font(11.5)).color(t.text_dim));
+                        ui.horizontal(|ui| {
+                            crate::progress::spinner(ui, 12.0);
+                            ui.label(RichText::new(crate::i18n::tr("Downloaded and checked. Installing…")).font(t.font(11.5)).color(t.text_dim));
+                        });
                     }
                     (Some("failed"), Some(d)) => {
                         let why = sentence(d["error"].as_str().unwrap_or("The download failed"));

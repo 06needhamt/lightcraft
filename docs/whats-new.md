@@ -2,6 +2,13 @@
 
 ## 2026-10-21
 
+### Progress looks the same everywhere
+- Download, scan, denoise and activity progress now use one bar that fills the width it is given, with its text on
+  it, and a gentle sweep while the amount of work isn't known yet. Waits that only said "Selecting…", "Waiting to
+  start…" or "Installing…" now show a small turning arc beside the text, and a thumbnail still being made shows a
+  quiet placeholder that fits the theme in the grid, the filmstrip and Compare. Screen readers hear a progress
+  indicator with its percentage.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

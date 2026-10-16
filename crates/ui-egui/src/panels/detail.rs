@@ -2859,6 +2859,9 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             }
             let img_area = Rect::from_min_max(cr.min + vec2(10.0, 22.0), cr.max - vec2(10.0, 8.0));
             super::grid::request_thumb(app, *id, (256.0 * ppp.min(2.0) / 2.0) as usize * 2, 8);
+            if app.renderer.thumb(*id).is_none() {
+                p.rect_filled(img_area, 0.0, t.skeleton);
+            }
             if let Some(tex) = app.renderer.thumb(*id) {
                 let [tw, th] = tex.size;
                 let s = (img_area.width() / tw as f32).min(img_area.height() / th as f32);
