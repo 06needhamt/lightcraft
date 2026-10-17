@@ -263,8 +263,6 @@ fn catalog_verbatim(language: Locale) -> BTreeMap<String, &'static str> {
 // `locales/*-formats.json`.
 include!(concat!(env!("OUT_DIR"), "/tr-formats.rs"));
 
-/// A stock preset's or profile's name in the UI language; an imported or user-edited name stays
-/// exactly as its owner wrote it.
 /// The web build's notice for a dropped file the browser could not read.
 pub fn dropped_file_unreadable(name: &str, error: &str) -> String {
     tr_format!("Could not read {name}: {e}", name = name, e = error)
@@ -317,6 +315,8 @@ pub fn upper_first(text: &str) -> String {
     }
 }
 
+/// A stock preset's or profile's name in the UI language; an imported or user-edited name stays
+/// exactly as its owner wrote it.
 pub fn builtin_label(source: &str, builtin: bool) -> &str {
     if builtin { tr(source) } else { source }
 }

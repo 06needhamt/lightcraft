@@ -2149,5 +2149,7 @@
   "Drop to open the face model": "放開滑鼠以開啟人臉模型",
   "Drop to import": "放開滑鼠以匯入",
   "Dropped Files": "拖放的檔案",
-  "Import dropped files without review": "不經檢查直接匯入拖放的檔案"
+  "Import dropped files without review": "不經檢查直接匯入拖放的檔案",
+  "An import is running": "正在匯入",
+  "An import is running. Drop photos when it has finished": "正在匯入。匯入完成後再拖放照片"
 }

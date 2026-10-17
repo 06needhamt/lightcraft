@@ -2194,5 +2194,7 @@
   "Drop to open the face model": "Solte para abrir o modelo de rostos",
   "Drop to import": "Solte para importar",
   "Dropped Files": "Arquivos soltos",
-  "Import dropped files without review": "Importar arquivos soltos sem revisão"
+  "Import dropped files without review": "Importar arquivos soltos sem revisão",
+  "An import is running": "Uma importação está em andamento",
+  "An import is running. Drop photos when it has finished": "Uma importação está em andamento. Solte as fotos quando ela terminar"
 }

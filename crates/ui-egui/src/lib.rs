@@ -458,6 +458,8 @@ pub struct LightcraftApp {
     pub lightroom_last: Option<Value>,
     /// A completed import result waiting for another modal dialog to close.
     pub(crate) lightroom_result: Option<state::Dialog>,
+    /// The import review of a finished scan, waiting for another dialog to close.
+    pub(crate) review_pending: Option<state::Dialog>,
     /// The library generation the window title and the recent list were last updated for.
     pub shown_library: Option<u64>,
     /// A background export in progress.
@@ -557,6 +559,7 @@ impl LightcraftApp {
             lightroom: None,
             lightroom_last: None,
             lightroom_result: None,
+            review_pending: None,
             shown_library: None,
             export: None,
             tasks: Default::default(),
@@ -1274,6 +1277,10 @@ impl LightcraftApp {
         }
         if self.lightroom.is_some() {
             self.toast(ctx, "Finish Lightroom catalog import before adding photos");
+            return;
+        }
+        if import::running(self) {
+            self.toast(ctx, crate::i18n::tr("An import is running"));
             return;
         }
         let started = if self.ui.settings.import_dropped_directly {

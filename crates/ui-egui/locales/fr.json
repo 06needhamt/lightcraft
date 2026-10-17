@@ -2346,5 +2346,7 @@
   "Drop to open the face model": "Déposez pour ouvrir le modèle de visages",
   "Drop to import": "Déposez pour importer",
   "Dropped Files": "Fichiers déposés",
-  "Import dropped files without review": "Importer les fichiers déposés sans vérification"
+  "Import dropped files without review": "Importer les fichiers déposés sans vérification",
+  "An import is running": "Une importation est en cours",
+  "An import is running. Drop photos when it has finished": "Une importation est en cours. Déposez les photos quand elle sera terminée"
 }

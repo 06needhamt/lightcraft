@@ -2725,5 +2725,7 @@
   "Drop to open the face model": "ჩააგდეთ სახეების მოდელის გასახსნელად",
   "Drop to import": "ჩააგდეთ იმპორტისთვის",
   "Dropped Files": "ჩაგდებული ფაილები",
-  "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე"
+  "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე",
+  "An import is running": "იმპორტი მიმდინარეობს",
+  "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება"
 }

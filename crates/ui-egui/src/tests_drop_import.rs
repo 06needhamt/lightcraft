@@ -146,3 +146,56 @@ fn a_drop_while_a_dialog_is_open_leaves_the_dialog_and_imports_nothing() {
     assert_eq!(photos(&h), 0);
     assert!(h.app.ui.toast.is_some(), "the person is told why");
 }
+
+/// The scan of a dropped folder finishing while another dialog is open (the face model's licence, Settings…)
+/// keeps that dialog; the review opens, with the scan's photos, once it is closed.
+#[test]
+fn a_finished_scan_waits_for_the_open_dialog_before_opening_the_review() {
+    let dir = Scratch::new("waits");
+    let mut h = app(&dir);
+    crate::import::open(&mut h.app, vec![dir.path("trip")]).unwrap();
+    h.app.ui.dialog = Some(Dialog::WhatsNew);
+    assert!(h.step_until(SETTLE, |h| h.app.scan.is_none()), "the scan ends");
+    for _ in 0..10 {
+        h.step();
+    }
+    assert!(matches!(h.app.ui.dialog, Some(Dialog::WhatsNew)), "the dialog the person had open stays");
+    h.app.ui.dialog = None;
+    assert!(h.step_until(T, |h| matches!(h.app.ui.dialog, Some(Dialog::Import { .. }))), "the review opens once the dialog is closed");
+    let Some(Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("no import review") };
+    assert_eq!(opts.candidates.len(), 2, "the scan's photos were kept");
+}
+
+/// A drop while an import runs would open a review whose OK replaces the running import: it is
+/// refused instead, and the card says so.
+#[test]
+fn a_drop_while_an_import_runs_is_refused() {
+    let dir = Scratch::new("running");
+    let mut h = app(&dir);
+    write_png(&dir.path("more/c.png"), 3);
+    let _scan = crate::import::stall_scan(&mut h.app);
+    drop_files(&mut h, &[dir.path("more/c.png")], true);
+    assert!(said(&h, "An import is running"), "{:?}", h.painted_text());
+    assert!(!said(&h, "review"), "{:?}", h.painted_text());
+    drop_files(&mut h, &[dir.path("more")], false);
+    for _ in 0..30 {
+        h.step();
+    }
+    assert!(h.app.ui.dialog.is_none(), "no review opened");
+    assert!(h.app.scan.is_some() && h.app.import.is_none(), "the running scan was left alone and nothing else started");
+    assert!(h.app.ui.toast.is_some(), "the person is told why");
+    assert_eq!(photos(&h), 0);
+}
+
+/// An import that is running stays the one that runs: a direct drop doesn't start a second.
+#[test]
+fn a_direct_drop_while_an_import_runs_is_refused_too() {
+    let dir = Scratch::new("running-direct");
+    let mut h = app(&dir);
+    h.app.ui.settings.import_dropped_directly = true;
+    write_png(&dir.path("more/c.png"), 3);
+    let _scan = crate::import::stall_scan(&mut h.app);
+    drop_files(&mut h, &[dir.path("more")], false);
+    assert!(h.app.import.is_none(), "no second import");
+    assert!(h.app.ui.toast.is_some());
+}

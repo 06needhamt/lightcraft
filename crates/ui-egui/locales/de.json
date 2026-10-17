@@ -3428,5 +3428,7 @@
   "Drop to open the face model": "Ablegen, um das Gesichtsmodell zu öffnen",
   "Drop to import": "Ablegen zum Importieren",
   "Dropped Files": "Abgelegte Dateien",
-  "Import dropped files without review": "Abgelegte Dateien ohne Prüfung importieren"
+  "Import dropped files without review": "Abgelegte Dateien ohne Prüfung importieren",
+  "An import is running": "Ein Import läuft",
+  "An import is running. Drop photos when it has finished": "Ein Import läuft. Lege die Fotos ab, wenn er fertig ist"
 }

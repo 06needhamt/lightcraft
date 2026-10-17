@@ -40,7 +40,9 @@ fn lines(app: &LightcraftApp, paths: Vec<String>, unknown: bool) -> Vec<String> 
         let n = drop.presets.len();
         out.push(crate::i18n::tr_format!("Drop to import {n} preset{}", plural(n), n = n));
     }
-    if !drop.photos.is_empty() {
+    if !drop.photos.is_empty() && crate::import::running(app) && !cfg!(target_arch = "wasm32") {
+        out.push(crate::i18n::tr("An import is running. Drop photos when it has finished").to_string());
+    } else if !drop.photos.is_empty() {
         let n = drop.photos.len();
         // the web build has no review to open: its drops import at once
         if app.ui.settings.import_dropped_directly || cfg!(target_arch = "wasm32") {

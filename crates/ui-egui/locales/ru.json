@@ -2341,5 +2341,7 @@
   "Drop to open the face model": "Отпустите, чтобы открыть модель лиц",
   "Drop to import": "Отпустите для импорта",
   "Dropped Files": "Перетащенные файлы",
-  "Import dropped files without review": "Импортировать перетащенные файлы без проверки"
+  "Import dropped files without review": "Импортировать перетащенные файлы без проверки",
+  "An import is running": "Импорт уже выполняется",
+  "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится"
 }

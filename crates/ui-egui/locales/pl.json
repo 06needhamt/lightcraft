@@ -2275,5 +2275,7 @@
   "Drop to open the face model": "Upuść, aby otworzyć model twarzy",
   "Drop to import": "Upuść, aby zaimportować",
   "Dropped Files": "Upuszczone pliki",
-  "Import dropped files without review": "Importuj upuszczone pliki bez przeglądu"
+  "Import dropped files without review": "Importuj upuszczone pliki bez przeglądu",
+  "An import is running": "Import jest w toku",
+  "An import is running. Drop photos when it has finished": "Import jest w toku. Upuść zdjęcia, gdy się zakończy"
 }
