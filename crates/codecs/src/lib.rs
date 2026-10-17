@@ -338,3 +338,31 @@ pub fn decode_thumbnail_with(bytes: &[u8], opts: &ThumbnailOptions) -> Result<Th
         source_height: d.source_height,
     })
 }
+
+/// Cap on total decoded samples. Mirrors `lightcraft_raw::MAX_SAMPLES` (codecs does not depend on
+/// lightcraft-raw, so the value is restated here).
+const MAX_SAMPLES: u64 = 1 << 30;
+
+/// Checked sample-buffer length `width × height × ch`, in u64: `None` on overflow, a zero dimension,
+/// or a product past [`MAX_SAMPLES`].
+pub(crate) fn checked_sample_buf_len(width: usize, height: usize, ch: usize) -> Option<u64> {
+    (width as u64).checked_mul(height as u64).and_then(|n| n.checked_mul(ch as u64)).filter(|&n| n > 0 && n <= MAX_SAMPLES)
+}
+
+#[cfg(test)]
+mod checked_arithmetic_tests {
+    use super::*;
+
+    #[test]
+    fn checked_sample_buf_len_wrap_inputs_rejected() {
+        // 2^30 px × 4 ch = 2^32 samples wraps on 32-bit usize and is past the 2^30-sample cap.
+        assert_eq!(checked_sample_buf_len(1 << 30, 1, 4), None);
+        assert_eq!(checked_sample_buf_len(u32::MAX as usize, 1, 2), None);
+    }
+
+    #[test]
+    fn checked_sample_buf_len_normal_accepted() {
+        assert_eq!(checked_sample_buf_len(100, 1, 3), Some(300));
+        assert_eq!(checked_sample_buf_len(1, 1, 1), Some(1));
+    }
+}

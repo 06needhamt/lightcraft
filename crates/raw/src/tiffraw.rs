@@ -193,7 +193,8 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
         comp::ADOBE_DEFLATE | comp::DEFLATE => {
             let bytes_per = if float { bits.div_ceil(8) as usize } else { 0 };
             let row_bytes = if float { cw * cpp * bytes_per } else { (cw * cpp * bits as usize).div_ceil(8) };
-            let raw = inflate(src, row_bytes * ch)?;
+            let inflate_len = crate::checked_pixel_count(row_bytes, ch).ok_or_else(|| RawError::Corrupt("bad TIFF chunk dimensions".into()))?;
+            let raw = inflate(src, inflate_len as usize)?;
             unpack_chunk(&raw, order, packing, cw, ch, cpp, bits, float, info.predictor)
         }
         comp::JPEG_XL => jxl_chunk(src, cw, ch, vw, vh, cpp, bits, float),

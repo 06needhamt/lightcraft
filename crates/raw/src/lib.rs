@@ -71,6 +71,16 @@ use serde::{Deserialize, Serialize};
 /// Upper bound on decoded samples (guards allocations driven by header values).
 pub const MAX_SAMPLES: usize = 1 << 30;
 
+/// Checked product of input-derived dimensions, in u64 so it cannot wrap
+/// on either 32-bit (wasm32) or 64-bit targets.
+///
+/// Returns `None` on overflow, zero, or when the product exceeds [`MAX_SAMPLES`].
+pub(crate) fn checked_pixel_count(width: usize, height: usize) -> Option<u64> {
+    let w = width as u64;
+    let h = height as u64;
+    w.checked_mul(h).filter(|&n| n > 0 && n <= MAX_SAMPLES as u64)
+}
+
 /// Errors from raw decoding.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RawError {
@@ -765,8 +775,14 @@ impl RawImage {
         if self.cpp == 2 {
             return Err(RawError::Unsupported("2 samples per pixel".into()));
         }
-        if samples && self.data.len() != self.width * self.height * self.cpp {
-            return Err(RawError::Corrupt("data length mismatch".into()));
+        if samples {
+            let expected = crate::checked_pixel_count(self.width, self.height)
+                .and_then(|n| n.checked_mul(self.cpp as u64))
+                .ok_or_else(|| RawError::Corrupt("data length mismatch".into()))?;
+            let actual = u64::try_from(self.data.len()).map_err(|_| RawError::Corrupt("data length mismatch".into()))?;
+            if actual != expected {
+                return Err(RawError::Corrupt("data length mismatch".into()));
+            }
         }
         if let Some(c) = &self.cfa
             && (!c.valid() || c.pattern.iter().any(|&p| p > 2))
@@ -1414,5 +1430,40 @@ mod tests {
         assert_eq!(probe(b"FUJIFILMCCD-RAW 0201"), Some(RawFormat::Raf));
         assert!(decode(b"FUJIFILMCCD-RAW 0201").is_err());
         assert_eq!(decode(b"junk"), Err(RawError::NotRaw));
+    }
+}
+
+#[cfg(test)]
+mod checked_arithmetic_tests {
+    use super::*;
+
+    #[test]
+    fn checked_pixel_count_wrap_inputs_rejected() {
+        // 65536 × 65536 = 2^32 wraps to 0 on wasm32 usize; u64 math keeps it exact.
+        assert_eq!(checked_pixel_count(65536, 65536), None);
+        assert_eq!(checked_pixel_count(65536, 65537), None);
+        // u32::MAX × 2 wraps on 32-bit usize.
+        assert_eq!(checked_pixel_count(u32::MAX as usize, 2), None);
+    }
+
+    #[test]
+    fn checked_pixel_count_over_cap_rejected() {
+        // MAX_SAMPLES = 2^30; one over is rejected.
+        assert_eq!(checked_pixel_count((1 << 30) + 1, 1), None);
+        assert_eq!(checked_pixel_count(1, (1 << 30) + 1), None);
+    }
+
+    #[test]
+    fn checked_pixel_count_at_cap_accepted() {
+        assert_eq!(checked_pixel_count(1 << 30, 1), Some(1 << 30));
+        assert_eq!(checked_pixel_count(1 << 15, 1 << 15), Some(1 << 30));
+    }
+
+    #[test]
+    fn checked_pixel_count_small_accepted() {
+        assert_eq!(checked_pixel_count(100, 100), Some(10_000));
+        assert_eq!(checked_pixel_count(1, 1), Some(1));
+        assert_eq!(checked_pixel_count(0, 100), None);
+        assert_eq!(checked_pixel_count(100, 0), None);
     }
 }

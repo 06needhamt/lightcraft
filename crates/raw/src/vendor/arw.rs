@@ -621,9 +621,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     let raw = raw_ifd(&tiff).ok_or_else(|| RawError::Unsupported("ARW without a CFA image IFD (old ARW or SR2)".into()))?;
     let info = raw.image()?;
     let (w, h) = (info.width as usize, info.height as usize);
-    if w * h > crate::MAX_SAMPLES {
-        return Err(RawError::Limit("image too large"));
-    }
+    let samples = crate::checked_pixel_count(w, h).ok_or_else(|| RawError::Limit("image too large"))?;
     let bits = info.bits() as u32;
     let linear_rgb = info.compression == 7 && info.photometric == photometric::YCBCR;
     let chunks = info.chunks(bytes.len() as u64);
@@ -631,7 +629,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     // The row-per-w-bytes (ARW2) layout stores exactly one byte per pixel in a single strip; all 108 such files in the test
     // archive measure exactly width x height. A200/A230/A350 files carry a strip 4-23 % larger than that (and A290/A390 one
     // smaller), which is a different packing, so they are refused rather than read with the wrong layout.
-    let one_byte_per_sample = chunks.len() == 1 && strip_len == (w * h) as u64;
+    let one_byte_per_sample = chunks.len() == 1 && strip_len == samples;
     let packed12 = info.compression == 32767 && is_packed12(&info, chunks.len(), strip_len);
     let (data, out_bits) = match info.compression {
         7 if linear_rgb => (RawData::U16(read_ycbcr_tiles(bytes, &info, raw, mode)?), 14),
@@ -642,7 +640,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         32767 if one_byte_per_sample => {
             let src = chunk_bytes(bytes, &chunks[0]).ok_or_else(|| RawError::Corrupt("raw strip outside file".into()))?;
             let curve = code_curve(&raw.u64s(TONE_CURVE).unwrap_or_else(|| vec![8000, 10400, 12900, 14100]));
-            let mut data = vec![0u16; w * h];
+            let mut data = vec![0u16; samples as usize];
             data.par_chunks_mut(w).enumerate().for_each(|(y, out)| {
                 let row = src.get(y * w..((y + 1) * w).min(src.len())).unwrap_or(&[]);
                 if row.len() == w {
@@ -659,7 +657,7 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         32767 if packed12 => {
             let src = chunk_bytes(bytes, &chunks[0]).ok_or_else(|| RawError::Corrupt("raw strip outside file".into()))?;
             let row_bytes = w / 2 * 3;
-            let mut data = vec![0u16; w * h];
+            let mut data = vec![0u16; samples as usize];
             data.par_chunks_mut(w).enumerate().for_each(|(y, out)| {
                 if let Some(row) = src.get(y * row_bytes..(y + 1) * row_bytes) {
                     unpack_row12(row, out);
