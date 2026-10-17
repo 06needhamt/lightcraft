@@ -3416,7 +3416,7 @@
   "inference on a Mac through SSH. Saved masks still render and export offline.": "Inferenz laufen über SSH auf einem Mac. Gespeicherte Masken werden weiterhin offline gerendert und exportiert.",
   "See [remote Metal inference](ai-masks.md#remote-metal-inference).": "Siehe [remote Metal inference](ai-masks.md#remote-metal-inference).",
   "Before/After Side by Side": "Vorher/Nachher nebeneinander",
-  "Clipping": "Beschnitt",
+  "Clipping": "Tonwertbeschneidung",
   "Mask Overlay": "Maskenüberlagerung",
   "All Mask Overlays": "Alle Maskenüberlagerungen",
   "Mask Pins": "Maskenpins",
