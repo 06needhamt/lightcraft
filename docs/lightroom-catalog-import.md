@@ -103,6 +103,15 @@ the path relative to the catalog that Lightroom records for root folders on the 
 a project folder with its catalog inside it therefore keeps its originals linked. Other moved
 originals stay missing; use LightCraft's missing-photo relinking tools to update their paths.
 
-## Local validation
+Original and root folder paths are resolved with the catalog as the document and are looked at
+only when they are on this computer or on the network share the catalog itself is on
+(`crates/engine/src/doc_path.rs`). An original on another computer (`\\server\share\…`,
+`//server/…`, `file://server/…`), a device path, or one whose folder or file name in the catalog is
+an absolute path is not looked at: the import lists it as missing with a warning and leaves the
+photo and its virtual copies out of the library. To import originals on a share, open the catalog
+from that share. A path that is not a path on this computer (a Windows drive path read on macOS or
+Linux) is not looked at either and stays catalogued as missing.
+
+## Historical local validation
 
 Validated in a local Linux environment after upstream reconciliation: 47 catalog-focused tests, nine pipeline spot tests, the exact sparse-catalog regression, and all eight `cargo xtask ci` stages passed. The full gate recorded 3,166 passing test executions, zero failures, and 28 ignored tests. An original synthetic sparse catalog with a required image-table page beyond 1 GiB also passed headless application import and selection; its expected missing-original placeholder retained its five-star rating. This snapshot check does not establish native-window coverage or dense-catalog performance.
