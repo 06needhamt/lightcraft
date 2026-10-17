@@ -545,7 +545,7 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                 item(
                     "view.layoutImage",
                     Value::Null,
-                    "Show Layout Image",
+                    "Layout Image",
                     crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.layoutImage"),
                     chosen,
                     Some(li.show && chosen),
@@ -1639,5 +1639,57 @@ mod tests {
         assert_eq!(shortcut_text("Cmd+Shift+Z", true), "⌘⇧Z");
         assert_eq!(shortcut_text("Cmd+Shift+Z", false), "Ctrl+Shift+Z");
         assert_eq!(shortcut_text("Delete", true), "⌫");
+    }
+
+    /// Every item of a menu, submenus included.
+    fn flat(nodes: &[MenuNode]) -> Vec<&MenuNode> {
+        nodes
+            .iter()
+            .flat_map(|n| match n {
+                MenuNode::Submenu { children, .. } => flat(children),
+                MenuNode::Item { .. } => vec![n],
+                MenuNode::Separator => vec![],
+            })
+            .collect()
+    }
+
+    /// Given the menu bar, Then an item that turns something on or off is named for the thing,
+    /// with its check mark saying whether it is on: "Filmstrip ✓", never "Show Filmstrip ✓".
+    /// Show Original is a view (\), not a switch: it keeps Lightroom's name.
+    #[test]
+    fn toggles_are_named_for_the_thing_not_show() {
+        let mut a = app();
+        a.ui.view = ViewMode::Detail;
+        let shows: Vec<String> = menu_bar(&a)
+            .iter()
+            .flat_map(|(_, items)| flat(items).into_iter().cloned().collect::<Vec<_>>())
+            .filter_map(|n| match n {
+                MenuNode::Item { id, params, label, checked: Some(_), .. }
+                    if params.is_null() && label.starts_with("Show ") && id != "view.showOriginal" =>
+                {
+                    Some(format!("{id}: {label}"))
+                }
+                _ => None,
+            })
+            .collect();
+        assert!(shows.is_empty(), "toggles named \"Show …\": {shows:#?}");
+    }
+
+    /// Given every command with a menu path, Then no two of them share a label, and none is named
+    /// like a menu: the menus, the keyboard shortcuts list and the control channel tell them apart
+    /// by name ("Detail" the view and "Detail" the Edit section were two things called the same).
+    #[test]
+    fn no_two_menu_commands_share_a_label() {
+        let entries = crate::menus::menu_entries(&app());
+        let mut clashes = Vec::new();
+        for (i, e) in entries.iter().enumerate() {
+            if MENUS.contains(&e.label.as_str()) {
+                clashes.push(format!("{} is called like the {} menu", e.id, e.label));
+            }
+            if let Some(other) = entries[..i].iter().find(|o| o.label == e.label && o.id != e.id) {
+                clashes.push(format!("{} and {} are both {:?}", other.id, e.id, e.label));
+            }
+        }
+        assert!(clashes.is_empty(), "{clashes:#?}");
     }
 }
