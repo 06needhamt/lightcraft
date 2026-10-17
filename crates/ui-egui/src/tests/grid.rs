@@ -149,7 +149,7 @@ fn unloaded_thumbnails_show_their_selection() {
     let active = h.app.session.selection.active.expect("active");
     let canvas = h.app.canvas_rect.expect("grid drawn");
     let shapes = h.view.painted_shapes();
-    // the strokes drawn around a photo's cell, outermost last: (width, colour)
+    // the strokes drawn around a photo's cell in paint order (the widest first): (width, colour)
     let ring = |r: egui::Rect| -> Vec<(f32, egui::Color32)> {
         shapes
             .iter()
