@@ -1555,6 +1555,99 @@ fn smart_previews_from_an_older_look_fit_are_refreshed() {
     let _ = std::fs::remove_dir_all(&lib);
 }
 
+/// Issue #1534 (review): a proxy's encoding version is migrated independently of the per-file
+/// camera look. A DNG keeps an absolute white balance, so it never takes that look; at head its
+/// existing proxy was kept at an older encoding even with its original online, so the decoder
+/// facts the newer encoding carries never reached it through a normal rebuild.
+#[test]
+fn a_proxy_with_an_older_encoding_is_refreshed_without_the_camera_look() {
+    let src = temp_dir("smartenc-src");
+    let lib = temp_dir("smartenc-lib");
+    write_png(&src.join("a.png"), 3);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    // the test loader decodes the catalogue photo's "DNG" pixels
+    let pixels = lightcraft_raster::Rgb32f::from_fn(48, 32, |x, y| [0.02 + (x % 9) as f32 * 0.05, 0.03 + (y % 7) as f32 * 0.04, 0.06]);
+    let info = lightcraft_pipeline::SourceInfo { raw: true, as_shot_temp: 5200.0, as_shot_tint: 6.0, ..Default::default() };
+    let (p, i) = (pixels.clone(), info.clone());
+    s.media.file_loader = Some(std::sync::Arc::new(move |_path, _max_edge| Ok((p.clone(), i.clone()))));
+    s.execute("library.import", &json!({"paths": [src.join("a.png").to_string_lossy()]})).unwrap();
+    let id = s.active().unwrap();
+    let mut raw = (**s.catalog.photo(id).unwrap()).clone();
+    raw.format = "DNG".into();
+    raw.kind = lightcraft_catalog::MediaKind::Raw;
+    s.catalog.apply(lightcraft_catalog::Op::RemovePhoto { id }).unwrap();
+    s.catalog.apply(lightcraft_catalog::Op::AddPhoto { photo: Box::new(raw) }).unwrap();
+    assert!(s.catalog.photo(id).unwrap().develops_raw() && !s.catalog.photo(id).unwrap().fitted_look(), "a DNG does not take the camera look");
+    s.execute("library.select", &json!({"ids": [id.0], "active": id.0})).unwrap();
+    let dir = s.media.smart_dir.clone().unwrap();
+    let file = crate::smart::sharded_file_path(&dir, s.catalog.photo(id).unwrap());
+    let r = s.execute("library.smartPreviews", &json!({})).unwrap();
+    assert_eq!((r["built"].as_u64(), r["refreshed"].as_u64()), (Some(1), Some(0)), "{r}");
+    assert_eq!(smart_header(&file)["enc"], json!(crate::smart::ENCODE_VERSION));
+
+    // an existing proxy from the previous encoding, its original online: the migration must reach
+    // it through a normal rebuild even though the photo never takes the camera look
+    edit_smart_header(&file, |h| h["enc"] = json!(crate::smart::ENCODE_VERSION - 1));
+    let stale_bytes = std::fs::read(&file).unwrap();
+    assert!(crate::smart::is_stale(&file), "the older encoding is stale even without the camera look");
+    let r = s.execute("library.smartPreviews", &json!({})).unwrap();
+    assert_eq!((r["built"].as_u64(), r["refreshed"].as_u64(), r["staleKept"].as_u64()), (Some(1), Some(1), Some(0)), "{r}");
+    assert_eq!(smart_header(&file)["enc"], json!(crate::smart::ENCODE_VERSION), "migrated to the current encoding");
+    assert!(!crate::smart::is_stale(&file));
+    assert_ne!(std::fs::read(&file).unwrap(), stale_bytes, "the proxy was rebuilt");
+    let _ = std::fs::remove_dir_all(&src);
+    let _ = std::fs::remove_dir_all(&lib);
+}
+
+/// Issue #1534 (review): a cached proxy source is not the original. After an offline edit rendered
+/// from a stale proxy, Build Smart Previews read that cached source back and refreshed the proxy
+/// from itself, stamping its older look as current. A stale refresh reads the original only, so an
+/// offline original leaves the stored look — and the bytes — as they are.
+#[test]
+fn a_stale_refresh_never_rebuilds_a_proxy_from_itself() {
+    let src = temp_dir("smartself-src");
+    let lib = temp_dir("smartself-lib");
+    write_png(&src.join("a.png"), 3);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    let pixels = lightcraft_raster::Rgb32f::from_fn(48, 32, |x, y| [0.02 + (x % 9) as f32 * 0.05, 0.03 + (y % 7) as f32 * 0.04, 0.06]);
+    let info = lightcraft_pipeline::SourceInfo { raw: true, as_shot_temp: 5200.0, as_shot_tint: 6.0, ..Default::default() };
+    let (p, i) = (pixels.clone(), info.clone());
+    s.media.file_loader = Some(std::sync::Arc::new(move |_path, _max_edge| Ok((p.clone(), i.clone()))));
+    s.execute("library.import", &json!({"paths": [src.join("a.png").to_string_lossy()]})).unwrap();
+    let id = s.active().unwrap();
+    // a raw that takes the per-file camera look, so an older fit makes its proxy stale
+    let mut raw = (**s.catalog.photo(id).unwrap()).clone();
+    raw.format = "ARW".into();
+    raw.kind = lightcraft_catalog::MediaKind::Raw;
+    s.catalog.apply(lightcraft_catalog::Op::RemovePhoto { id }).unwrap();
+    s.catalog.apply(lightcraft_catalog::Op::AddPhoto { photo: Box::new(raw) }).unwrap();
+    assert!(s.catalog.photo(id).unwrap().fitted_look());
+    s.execute("library.select", &json!({"ids": [id.0], "active": id.0})).unwrap();
+    let dir = s.media.smart_dir.clone().unwrap();
+    let file = crate::smart::sharded_file_path(&dir, s.catalog.photo(id).unwrap());
+    let r = s.execute("library.smartPreviews", &json!({})).unwrap();
+    assert_eq!(r["built"], 1, "{r}");
+    edit_smart_header(&file, |h| h["look_version"] = json!(0));
+    let stale_bytes = std::fs::read(&file).unwrap();
+    assert!(crate::smart::is_stale(&file), "the stored look is behind this build's fit");
+
+    // the original goes offline, then a preview-size render loads the proxy into the source cache
+    std::fs::rename(&src, src.with_extension("offline")).unwrap();
+    s.media.forget(id);
+    let _ = s.render_now(id, 600, 600).expect("renders from the smart preview");
+
+    // Build Smart Previews must not take that cached proxy for the original: it can't refresh a
+    // stale proxy from itself
+    let r = s.execute("library.smartPreviews", &json!({})).unwrap();
+    assert_eq!((r["refreshed"].as_u64(), r["staleKept"].as_u64()), (Some(0), Some(1)), "{r}");
+    assert_eq!(std::fs::read(&file).unwrap(), stale_bytes, "the offline proxy is preserved");
+    assert!(crate::smart::is_stale(&file), "still stale: the original was not read");
+    let _ = std::fs::remove_dir_all(src.with_extension("offline"));
+    let _ = std::fs::remove_dir_all(&lib);
+}
+
 /// The look marker: missing, damaged or older than this build's fit version counts as unchecked.
 #[test]
 fn smart_preview_look_marker_is_read_safely() {

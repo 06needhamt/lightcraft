@@ -423,12 +423,15 @@ fn header_encode_version(head: &serde_json::Value) -> u64 {
     head.get(ENC_FIELD).and_then(serde_json::Value::as_u64).unwrap_or(0)
 }
 
-/// Whether the complete proxy at `path` is out of date for this build: written by an older
-/// camera-look fit than this build's (so its stored curve, and the colour baked into its pixels, are
-/// out of date), or by an older encoding of its own pixels ([`ENCODE_VERSION`], i.e. a lower JPEG
-/// quality). A proxy from a newer build is left alone (rebuilding it here would only undo that
-/// build's work), as is one that can't be read: those are [`is_valid`]'s business.
-pub fn is_stale(path: &Path) -> bool {
+/// Whether the complete proxy at `path` is out of date for a photo and must be rebuilt: written by
+/// an older encoding of its own pixels ([`ENCODE_VERSION`], i.e. a lower JPEG quality) — this
+/// reaches every proxy — or, when the photo takes the per-file camera look (`look`,
+/// [`lightcraft_catalog::Photo::fitted_look`]), by an older camera-look fit than this build's (so
+/// its stored curve, and the colour baked into its pixels, are out of date; the fit only reaches
+/// those raws, so a JPEG's or DNG's proxy is never stale for it). A proxy from a newer build is
+/// left alone (rebuilding it here would only undo that build's work), as is one that can't be
+/// read: those are [`is_valid`]'s business.
+pub fn is_stale_for(path: &Path, look: bool) -> bool {
     use std::io::Read;
     if !is_valid(path) {
         return false;
@@ -440,9 +443,14 @@ pub fn is_stale(path: &Path) -> bool {
     }
     let Some(rest) = head.strip_prefix(MAGIC) else { return false };
     let Some(nl) = rest.iter().position(|b| *b == b'\n') else { return false };
-    rest.get(..nl)
-        .and_then(|h| serde_json::from_slice::<serde_json::Value>(h).ok())
-        .is_some_and(|h| header_look_version(&h) < u64::from(crate::camera_preview::LOOK_VERSION) || header_encode_version(&h) < ENCODE_VERSION)
+    rest.get(..nl).and_then(|h| serde_json::from_slice::<serde_json::Value>(h).ok()).is_some_and(|h| {
+        header_encode_version(&h) < ENCODE_VERSION || (look && header_look_version(&h) < u64::from(crate::camera_preview::LOOK_VERSION))
+    })
+}
+
+/// [`is_stale_for`] for a photo that takes the per-file camera look: both conditions apply.
+pub fn is_stale(path: &Path) -> bool {
+    is_stale_for(path, true)
 }
 
 /// The marker file in a smart previews folder: the camera-look fit version and encode version its
@@ -480,7 +488,13 @@ pub fn mark_look_checked(dir: &Path) -> Result<(), String> {
 /// Load the proxy at `path`.
 pub fn load(path: &Path) -> Result<crate::media::DecodedSource, String> {
     let b = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    decode(&b).map(|(image, camera_tone, info)| crate::media::DecodedSource { image: Arc::new(image), info, camera_tone, denoised: None })
+    decode(&b).map(|(image, camera_tone, info)| crate::media::DecodedSource {
+        image: Arc::new(image),
+        info,
+        camera_tone,
+        denoised: None,
+        from_proxy: true,
+    })
 }
 
 #[cfg(test)]
