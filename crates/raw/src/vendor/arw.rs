@@ -245,7 +245,9 @@ fn tag2010_wb(model: &str, block: &[u8], order: lightcraft_tiff::ByteOrder) -> O
 /// DSLR-A900 sample this is the whole strip (36 917 760 = 6080 × 4048 × 1.5) and it ends at the end of the file.
 fn is_packed12(info: &ImageInfo, strip_count: usize, strip_len: u64) -> bool {
     let (w, h) = (info.width as u64, info.height as u64);
-    info.bits() == 12 && strip_count == 1 && w % 2 == 0 && w > 0 && h > 0 && strip_len == w * h * 3 / 2
+    // checked_mul chain: a wrapping `w · h · 3` must refuse the strip, not compare against a wrapped length
+    let packed_len = w.checked_mul(h).and_then(|n| n.checked_mul(3)).map(|n| n / 2);
+    info.bits() == 12 && strip_count == 1 && w % 2 == 0 && w > 0 && h > 0 && packed_len == Some(strip_len)
 }
 
 /// Unpack plain 12-bit samples stored least-significant-bit first: two pixels per three bytes, the first being
@@ -621,7 +623,8 @@ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
     let raw = raw_ifd(&tiff).ok_or_else(|| RawError::Unsupported("ARW without a CFA image IFD (old ARW or SR2)".into()))?;
     let info = raw.image()?;
     let (w, h) = (info.width as usize, info.height as usize);
-    let samples = crate::checked_pixel_count(w, h).ok_or_else(|| RawError::Limit("image too large"))?;
+    // the cap (≤ 2^30) keeps every downstream usize product (w·h·2, w·h·3/2, y·w) inside range on 32-bit targets
+    let samples = crate::checked_pixel_count(w as u64, h as u64).ok_or(RawError::Limit("image too large"))?;
     let bits = info.bits() as u32;
     let linear_rgb = info.compression == 7 && info.photometric == photometric::YCBCR;
     let chunks = info.chunks(bytes.len() as u64);

@@ -72,13 +72,12 @@ use serde::{Deserialize, Serialize};
 pub const MAX_SAMPLES: usize = 1 << 30;
 
 /// Checked product of input-derived dimensions, in u64 so it cannot wrap
-/// on either 32-bit (wasm32) or 64-bit targets.
+/// on either 32-bit (wasm32) or 64-bit targets. The arguments are u64 too, so callers can feed
+/// unchecked products of header values (row bytes, sample counts) without truncating on 32-bit.
 ///
 /// Returns `None` on overflow, zero, or when the product exceeds [`MAX_SAMPLES`].
-pub(crate) fn checked_pixel_count(width: usize, height: usize) -> Option<u64> {
-    let w = width as u64;
-    let h = height as u64;
-    w.checked_mul(h).filter(|&n| n > 0 && n <= MAX_SAMPLES as u64)
+pub(crate) fn checked_pixel_count(width: u64, height: u64) -> Option<u64> {
+    width.checked_mul(height).filter(|&n| n > 0 && n <= MAX_SAMPLES as u64)
 }
 
 /// Errors from raw decoding.
@@ -776,7 +775,7 @@ impl RawImage {
             return Err(RawError::Unsupported("2 samples per pixel".into()));
         }
         if samples {
-            let expected = crate::checked_pixel_count(self.width, self.height)
+            let expected = crate::checked_pixel_count(self.width as u64, self.height as u64)
                 .and_then(|n| n.checked_mul(self.cpp as u64))
                 .ok_or_else(|| RawError::Corrupt("data length mismatch".into()))?;
             let actual = u64::try_from(self.data.len()).map_err(|_| RawError::Corrupt("data length mismatch".into()))?;
@@ -1443,7 +1442,9 @@ mod checked_arithmetic_tests {
         assert_eq!(checked_pixel_count(65536, 65536), None);
         assert_eq!(checked_pixel_count(65536, 65537), None);
         // u32::MAX × 2 wraps on 32-bit usize.
-        assert_eq!(checked_pixel_count(u32::MAX as usize, 2), None);
+        assert_eq!(checked_pixel_count(u64::from(u32::MAX), 2), None);
+        // inputs wider than a 32-bit usize reach the gate untruncated (2^40 × 2^40 overflows u64).
+        assert_eq!(checked_pixel_count(1 << 40, 1 << 40), None);
     }
 
     #[test]
