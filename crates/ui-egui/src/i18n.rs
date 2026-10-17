@@ -265,6 +265,21 @@ include!(concat!(env!("OUT_DIR"), "/tr-formats.rs"));
 
 /// A stock preset's or profile's name in the UI language; an imported or user-edited name stays
 /// exactly as its owner wrote it.
+/// The web build's notice for a dropped file the browser could not read.
+pub fn dropped_file_unreadable(name: &str, error: &str) -> String {
+    tr_format!("Could not read {name}: {e}", name = name, e = error)
+}
+
+/// The web build's notice for dropped files the library refused.
+pub fn dropped_import_failed(error: &str) -> String {
+    tr_format!("Import failed: {e}", e = error)
+}
+
+/// The web build's notice for `n` dropped photos that joined the library.
+pub fn dropped_photos_added(n: usize) -> String {
+    tr_format!("Added {n} photo{}", if n == 1 { "" } else { "s" }, n = n)
+}
+
 /// The title and text of the message box shown when the desktop app's window can't start
 /// (issue #260), in the UI language: the error and, when there is one, the log file to look in.
 pub fn startup_failed_message(error: &str, log_file: Option<&str>) -> (String, String) {

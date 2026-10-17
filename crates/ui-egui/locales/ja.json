@@ -2342,5 +2342,11 @@
   "Checking the GPU…": "GPU を確認中…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "顔モデルが GPU を使うのは、同じ結果をより速く出せると確認できた場合だけです。",
-  "Checking the GPU for faces": "顔用の GPU を確認中"
+  "Checking the GPU for faces": "顔用の GPU を確認中",
+  "Close the open dialog, then drop the files again": "開いているダイアログを閉じてから、もう一度ファイルをドロップしてください",
+  "Close the open dialog to drop files here": "ファイルをここにドロップするには、開いているダイアログを閉じてください",
+  "Drop to open the face model": "ドロップして顔モデルを開く",
+  "Drop to import": "ドロップして読み込み",
+  "Dropped Files": "ドロップしたファイル",
+  "Import dropped files without review": "ドロップしたファイルを確認せずに読み込む"
 }

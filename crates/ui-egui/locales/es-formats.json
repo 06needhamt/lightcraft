@@ -297,5 +297,10 @@
   "Move {n} photo{} to “{}”": "Mover {n} foto{0} a “{1}”",
   "Move {n} photo{} to “{}”?": "¿Mover {n} foto{0} a “{1}”?",
   "Listing folders — folders: {folders}, files: {files}": "Listando carpetas — carpetas: {folders}, archivos: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} foto{0} movida{0} a “{1}”. Editar → Deshacer las devuelve."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "{n} foto{0} movida{0} a “{1}”. Editar → Deshacer las devuelve.",
+  "Drop to review {n} item{} for import": "Suelta para revisar {n} elemento{} antes de importar",
+  "Drop to import {n} item{}": "Suelta para importar {n} elemento{}",
+  "Drop to import {n} preset{}": "Suelta para importar {n} ajuste{0} preestablecido{0}",
+  "Could not read {name}: {e}": "No se pudo leer {name}: {e}",
+  "Added {n} photo{}": "{n} foto{0} añadida{0}"
 }

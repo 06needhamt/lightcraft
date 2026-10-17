@@ -2394,5 +2394,11 @@
   "End Slideshow": "Ukončit prezentaci",
   "Save Current Settings as New Effect Preset…": "Uložit aktuální nastavení jako nové přednastavení efektu…",
   "Manage Effect Presets…": "Spravovat přednastavení efektů…",
-  "Export Effect Presets…": "Exportovat přednastavení efektů…"
+  "Export Effect Presets…": "Exportovat přednastavení efektů…",
+  "Close the open dialog, then drop the files again": "Zavřete otevřené okno, pak soubory pusťte znovu",
+  "Close the open dialog to drop files here": "Zavřete otevřené okno, aby sem šlo soubory pustit",
+  "Drop to open the face model": "Pusťte pro otevření modelu obličejů",
+  "Drop to import": "Pusťte pro import",
+  "Dropped Files": "Přetažené soubory",
+  "Import dropped files without review": "Importovat přetažené soubory bez kontroly"
 }

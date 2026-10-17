@@ -2342,5 +2342,11 @@
   "Checking the GPU…": "Comprobando la GPU…",
   "CPU": "CPU",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modelo de caras usa la GPU solo cuando una comprobación muestra que da los mismos resultados más rápido.",
-  "Checking the GPU for faces": "Comprobando la GPU para las caras"
+  "Checking the GPU for faces": "Comprobando la GPU para las caras",
+  "Close the open dialog, then drop the files again": "Cierra el cuadro de diálogo abierto y vuelve a soltar los archivos",
+  "Close the open dialog to drop files here": "Cierra el cuadro de diálogo abierto para soltar archivos aquí",
+  "Drop to open the face model": "Suelta para abrir el modelo de caras",
+  "Drop to import": "Suelta para importar",
+  "Dropped Files": "Archivos soltados",
+  "Import dropped files without review": "Importar los archivos soltados sin revisión"
 }

@@ -2340,5 +2340,11 @@
   "Checking the GPU…": "Перевірка ГП…",
   "CPU": "ЦП",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Модель облич використовує ГП, лише якщо перевірка показала, що він дає ті самі результати швидше.",
-  "Checking the GPU for faces": "Перевірка ГП для облич"
+  "Checking the GPU for faces": "Перевірка ГП для облич",
+  "Close the open dialog, then drop the files again": "Закрийте відкрите вікно та перетягніть файли ще раз",
+  "Close the open dialog to drop files here": "Закрийте відкрите вікно, щоб перетягнути сюди файли",
+  "Drop to open the face model": "Відпустіть, щоб відкрити модель облич",
+  "Drop to import": "Відпустіть для імпорту",
+  "Dropped Files": "Перетягнуті файли",
+  "Import dropped files without review": "Імпортувати перетягнуті файли без перегляду"
 }

@@ -297,5 +297,10 @@
   "Move {n} photo{} to “{}”": "Sposta foto in “{1}” ({n}){0:.0}",
   "Move {n} photo{} to “{}”?": "Spostare le foto in “{1}” ({n})?{0:.0}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "Foto spostate in “{1}”: {n}{0:.0}. Modifica → Annulla le riporta indietro.",
-  "Listing folders — folders: {folders}, files: {files}": "Elenco delle cartelle — cartelle: {folders}, file: {files}"
+  "Listing folders — folders: {folders}, files: {files}": "Elenco delle cartelle — cartelle: {folders}, file: {files}",
+  "Drop to review {n} item{} for import": "Rilascia per rivedere prima dell'importazione (elementi: {n}){:.0}",
+  "Drop to import {n} item{}": "Rilascia per importare (elementi: {n}){:.0}",
+  "Drop to import {n} preset{}": "Rilascia per importare predefiniti: {n}{:.0}",
+  "Could not read {name}: {e}": "Impossibile leggere {name}: {e}",
+  "Added {n} photo{}": "Foto aggiunte: {n}{:.0}"
 }

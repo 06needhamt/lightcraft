@@ -415,6 +415,8 @@ pub struct AppSettings {
     /// Ask before photos dropped on a Folders row move there on disk (the dialog's "Don't ask
     /// again" turns it off).
     pub ask_before_move: bool,
+    /// Photos and folders dropped on the window import at once, without the import review.
+    pub import_dropped_directly: bool,
     /// GPU rendering allowed (`app.gpu`).
     pub gpu: bool,
     /// Largest long edge (pixels) the user lets the loupe render at; 0 = Automatic (the size it is
@@ -473,6 +475,7 @@ impl Default for AppSettings {
             startup_view: StartupView::Last,
             confirm_delete: true,
             ask_before_move: true,
+            import_dropped_directly: false,
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),

@@ -2269,5 +2269,11 @@
   "SDR Shadows": "Cienie SDR",
   "SDR Whites": "Biele SDR",
   "SDR Clarity": "Przejrzystość SDR",
-  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU"
+  "Face Models on the GPU": "Modele twarzy przetwarzane na GPU",
+  "Close the open dialog, then drop the files again": "Zamknij otwarte okno dialogowe, a potem upuść pliki ponownie",
+  "Close the open dialog to drop files here": "Zamknij otwarte okno dialogowe, aby upuścić tu pliki",
+  "Drop to open the face model": "Upuść, aby otworzyć model twarzy",
+  "Drop to import": "Upuść, aby zaimportować",
+  "Dropped Files": "Upuszczone pliki",
+  "Import dropped files without review": "Importuj upuszczone pliki bez przeglądu"
 }

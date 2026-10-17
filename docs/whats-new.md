@@ -2,6 +2,17 @@
 
 ## 2026-10-21
 
+### Dropping files shows what will happen
+- While files are dragged over the window, it dims and a card says what dropping will do: review the photos and
+  folders for import, import the presets, or open the face model. If a dialog is open, the card asks you to close it
+  first, and a drop is refused with a message instead of replacing the dialog.
+- Photos and folders dropped on the window now open the same import review as File ▸ Import, so you pick add, copy or
+  move, the destination and a preset before anything is imported. Settings ▸ Import ▸ "Import dropped files without
+  review" brings back the old behaviour of importing at once.
+- In the web version, a dropped file the browser can't read, or that can't be imported, now shows a message instead of
+  failing silently.
+- For scripts: `ui.dropFiles` hovers files over the window or drops them, as the operating system does.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around

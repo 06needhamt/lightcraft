@@ -296,6 +296,22 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
             ctx.request_repaint();
             ok(Value::Null)
         }
+        "ui.dropFiles" => {
+            let Some(paths) =
+                p.get("paths").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>())
+            else {
+                return err("ui.dropFiles: paths must be an array of strings");
+            };
+            if p.get("hover").and_then(Value::as_bool).unwrap_or(false) {
+                app.drop_hover = paths;
+            } else {
+                // the drag ends with the drop, as it does for the OS
+                app.drop_hover.clear();
+                app.drop_pending = paths;
+            }
+            ctx.request_repaint();
+            ok(Value::Null)
+        }
         "ui.text" => {
             app.synthetic.push(egui::Event::Text(s("text").unwrap_or("").to_string()));
             ctx.request_repaint();

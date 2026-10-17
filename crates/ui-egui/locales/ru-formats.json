@@ -297,5 +297,10 @@
   "Move {n} photo{} to “{}”": "Переместить в «{1}» фото: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "Переместить в «{1}» фото: {n}{0:.0}?",
   "Listing folders — folders: {folders}, files: {files}": "Просмотр папок — папок: {folders}, файлов: {files}",
-  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "В «{1}» перемещено фото: {n}{0:.0}. Правка → Отменить вернёт их."
+  "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "В «{1}» перемещено фото: {n}{0:.0}. Правка → Отменить вернёт их.",
+  "Drop to review {n} item{} for import": "Отпустите для проверки перед импортом (элементов: {n}){:.0}",
+  "Drop to import {n} item{}": "Отпустите для импорта (элементов: {n}){:.0}",
+  "Drop to import {n} preset{}": "Отпустите для импорта пресетов: {n}{:.0}",
+  "Could not read {name}: {e}": "Не удалось прочитать {name}: {e}",
+  "Added {n} photo{}": "Добавлено фото: {n}{:.0}"
 }

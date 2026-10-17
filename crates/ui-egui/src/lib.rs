@@ -15,6 +15,7 @@ pub mod control;
 pub mod credits;
 pub mod date_picker;
 pub mod docking;
+mod drop_overlay;
 pub mod export_task;
 mod focus_scan;
 pub mod headless;
@@ -82,6 +83,8 @@ mod tests_dialog_fit;
 mod tests_dialog_primary;
 #[cfg(test)]
 mod tests_dialogs;
+#[cfg(test)]
+mod tests_drop_import;
 #[cfg(test)]
 mod tests_edit_layout;
 #[cfg(test)]
@@ -381,6 +384,11 @@ pub struct LightcraftApp {
     shadow: Option<headless::HeadlessView>,
     /// Synthetic input events (from the control channel) injected one step per frame.
     pub synthetic: Vec<egui::Event>,
+    /// Files the control channel (`ui.dropFiles`) holds over the window: every frame reports them
+    /// as hovered, as the OS does while a drag is over the window.
+    drop_hover: Vec<String>,
+    /// Files the control channel dropped: delivered as `dropped_files` on the next frame.
+    drop_pending: Vec<String>,
     /// The text the UI last put on the clipboard (`ui.inspect` → `copied`).
     pub copied: Option<String>,
     /// Native file dialogs up for commands (`pick`): each command runs again when its closes.
@@ -512,6 +520,8 @@ impl LightcraftApp {
             screenshot_token: 0,
             shadow: None,
             synthetic: vec![],
+            drop_hover: vec![],
+            drop_pending: vec![],
             copied: None,
             pending_picks: vec![],
             synthetic_mods: egui::Modifiers::NONE,
@@ -1233,29 +1243,47 @@ impl LightcraftApp {
             shortcuts::handle(self, ctx);
         }
         #[cfg(not(target_arch = "wasm32"))]
+        self.handle_dropped_files(ctx);
+    }
+
+    /// Files dropped on the window: face models open their licence dialog, presets import as
+    /// presets, photos and folders go to the import review (or straight in, Settings ▸ Import).
+    #[cfg(not(target_arch = "wasm32"))]
+    fn handle_dropped_files(&mut self, ctx: &egui::Context) {
+        let dropped: Vec<String> =
+            ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_string_lossy().to_string()).filter(|p| !p.is_empty()).collect());
+        if dropped.is_empty() {
+            return;
+        }
+        // a dialog is on screen: the review would replace it, losing what it holds
+        if self.ui.dialog.is_some() {
+            self.toast(ctx, crate::i18n::tr("Close the open dialog, then drop the files again"));
+            return;
+        }
+        let drop = drop_overlay::classify(dropped);
+        if let Some(model) = drop.models.first()
+            && let Err(e) = panels::faces::open_dialog(self, model)
         {
-            let dropped: Vec<String> =
-                ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_string_lossy().to_string()).filter(|p| !p.is_empty()).collect());
-            // preset files import as presets, everything else as photos
-            // a dropped face model opens its licence dialog; presets and photos as before
-            let (models, dropped): (Vec<String>, Vec<String>) = dropped.into_iter().partition(|p| is_model_file(p));
-            if let Some(model) = models.first()
-                && let Err(e) = panels::faces::open_dialog(self, model)
-            {
-                self.toast(ctx, e);
-            }
-            let (presets, photos) = split_presets(dropped);
-            if !presets.is_empty() {
-                let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
-            }
+            self.toast(ctx, e);
+        }
+        if !drop.presets.is_empty() {
+            let _ = self.run("file.importPresets", serde_json::json!({"paths": drop.presets}));
+        }
+        if drop.photos.is_empty() {
+            return;
+        }
+        if self.lightroom.is_some() {
+            self.toast(ctx, "Finish Lightroom catalog import before adding photos");
+            return;
+        }
+        let started = if self.ui.settings.import_dropped_directly {
             // read and added on a worker thread (dropped folders can be large, or on a slow drive)
-            if !photos.is_empty() {
-                if self.lightroom.is_some() {
-                    self.toast(ctx, "Finish Lightroom catalog import before adding photos");
-                } else if let Err(e) = import::start_paths(self, photos) {
-                    self.toast(ctx, e);
-                }
-            }
+            import::start_paths(self, drop.photos).map(|_| ())
+        } else {
+            import::open(self, drop.photos).map(|_| ())
+        };
+        if let Err(e) = started {
+            self.toast(ctx, e);
         }
     }
 
@@ -1347,6 +1375,16 @@ impl LightcraftApp {
         if std::mem::take(&mut self.synthetic_mods_release) && self.synthetic_mods != egui::Modifiers::NONE {
             self.synthetic_mods = egui::Modifiers::NONE;
             raw.events.push(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+        }
+        let file = |p: &String| (!p.is_empty()).then(|| std::path::PathBuf::from(p));
+        if !self.drop_pending.is_empty() {
+            raw.dropped_files = std::mem::take(&mut self.drop_pending)
+                .into_iter()
+                .map(|p| std::sync::Arc::new(InjectedDrop(p.into())) as egui::DroppedFileHandle)
+                .collect();
+        }
+        if !self.drop_hover.is_empty() {
+            raw.hovered_files = self.drop_hover.iter().map(|p| egui::HoveredFile { path: file(p), ..Default::default() }).collect();
         }
         if self.synthetic.is_empty() {
             return;
@@ -1465,6 +1503,7 @@ impl LightcraftApp {
             panels::dialogs::show(self, &ctx);
             panels::library_problem::show(self, &ctx);
             panels::toast(self, &ctx);
+            drop_overlay::show(self, &ctx);
             self.widgets = widgets::take_registry(&ctx);
             self.end_frame(&ctx, t0);
             return;
@@ -1492,6 +1531,7 @@ impl LightcraftApp {
         panels::left::section_drag_feedback(self, &ctx);
         panels::keyword_list::drag_feedback(self, &ctx);
         panels::toast(self, &ctx);
+        drop_overlay::show(self, &ctx);
         self.widgets = widgets::take_registry(&ctx);
         self.text_focus = ctx.egui_wants_keyboard_input();
         self.end_frame(&ctx, t0);
@@ -1560,6 +1600,26 @@ fn sam_download_ended(download: &lightcraft_engine::segment::DownloadStatus) -> 
         Some(e) => Some((crate::i18n::tr_format!("The SAM 3 download failed: {e}", e = e), true)),
         None if download.finished => Some((crate::i18n::tr("The SAM 3 model is installed: Object and Describe masks are ready.").to_string(), true)),
         None => None,
+    }
+}
+
+/// A file `ui.dropFiles` delivers as dropped, as a real OS drop arrives in `raw.dropped_files`.
+#[derive(Debug)]
+struct InjectedDrop(std::path::PathBuf);
+
+impl egui::DroppedFile for InjectedDrop {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn bytes_async(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async { Err("the web build has no files to read".to_string()) })
     }
 }
 

@@ -2346,5 +2346,11 @@
   "Use Defaults": "Usa predefiniti",
   "Dimensions": "Dimensioni",
   "Camera & Lens": "Fotocamera e obiettivo",
-  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2."
+  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2.",
+  "Close the open dialog, then drop the files again": "Chiudi la finestra di dialogo aperta, poi rilascia di nuovo i file",
+  "Close the open dialog to drop files here": "Chiudi la finestra di dialogo aperta per rilasciare qui i file",
+  "Drop to open the face model": "Rilascia per aprire il modello dei volti",
+  "Drop to import": "Rilascia per importare",
+  "Dropped Files": "File rilasciati",
+  "Import dropped files without review": "Importa i file rilasciati senza revisione"
 }

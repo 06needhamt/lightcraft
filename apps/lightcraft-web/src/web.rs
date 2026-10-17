@@ -514,7 +514,7 @@ impl WebApp {
                 let name = f.path().to_string_lossy().to_string();
                 match f.bytes_async().await {
                     Ok(bytes) => store_file(originals, backend, name, bytes, ctx).await,
-                    Err(e) => log::warn!("reading dropped {name}: {e}"),
+                    Err(e) => notice(lightcraft_ui_egui::i18n::dropped_file_unreadable(&name, &e.to_string())),
                 }
             });
         }
@@ -522,8 +522,11 @@ impl WebApp {
         if !paths.is_empty() {
             let n = paths.len();
             match self.app.run("library.import", json!({"paths": paths})) {
-                Ok(_) => self.app.toast(ctx, format!("Added {n} photo{}", if n == 1 { "" } else { "s" })),
-                Err(e) => log::warn!("import: {e}"),
+                Ok(_) => self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_added(n)),
+                Err(e) => {
+                    log::warn!("import: {e}");
+                    self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_import_failed(&e));
+                }
             }
         }
     }
