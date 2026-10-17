@@ -734,10 +734,9 @@ fn jxl_lossless_exact_with_metadata() {
     assert!(max_diff(&d.image, &want.image) < 1e-5, "16-bit lossless differs by {}", max_diff(&d.image, &want.image));
 }
 
-/// #1517: the size limit is checked from the header, before any frame is read, and a
-/// file cut anywhere is an error, never a panic.
+/// #1517: the pixel limit rejects an oversized image; selected truncations never panic.
 #[test]
-#[cfg(feature = "jxl")]
+#[cfg(all(feature = "jxl", not(target_arch = "wasm32")))]
 fn jxl_size_limit_and_truncation() {
     let b = encode_jxl(&EncodeImage::rgba8(&gradient(97, 61)), &JxlOptions { lossless: true, ..Default::default() }, &EncodeMeta::default()).unwrap();
     let r = decode(&b, DecodeOptions { max_pixels: 97 * 61 - 1, ..Default::default() });

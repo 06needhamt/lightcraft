@@ -16,9 +16,8 @@ fn err(e: impl std::fmt::Display) -> Error {
     Error::Malformed(F, e.to_string())
 }
 
-/// Bytes the decoder may hold per allowed pixel: four f32 channels, eight times over for frames,
-/// extra channels and working buffers. The budget follows `max_pixels`, so oversized frames, extra
-/// channels or modular trees inside an image of allowed size still fail (#1517).
+/// Tracked allocation budget per allowed pixel for frames, extra channels and modular trees.
+/// This bounds allocations covered by `AllocTracker`, not every allocation made by the decoder (#1517).
 const TRACKED_BYTES_PER_PIXEL: u64 = 4 * 4 * 8;
 
 /// The allocation budget never drops below this, so small images keep the decoder's fixed
@@ -28,15 +27,14 @@ const MIN_TRACKED_BYTES: u64 = 64 << 20;
 /// Bytes handed to the decoder at a time (the size `JxlImageBuilder::read` reads in).
 const INPUT_CHUNK: usize = 4096;
 
-/// Parses the header, checks the image size against `opts`, and only then reads the frames, with
-/// an allocation budget, so a huge image is refused before any of its pixels are decoded
-/// (`JxlImageBuilder::read` loads everything first).
+/// Initializes from bounded input, checks dimensions before rendering, then loads remaining frames
+/// within a tracked allocation budget.
 fn open(bytes: &[u8], opts: &DecodeOptions) -> Result<JxlImage> {
     let budget = opts.max_pixels.saturating_mul(TRACKED_BYTES_PER_PIXEL).max(MIN_TRACKED_BYTES);
     let tracker = AllocTracker::with_limit(usize::try_from(budget).unwrap_or(usize::MAX));
     let mut uninit = JxlImage::builder().alloc_tracker(tracker).build_uninit();
-    // Small slices, as `read` does: whatever the header stage has buffered when it initializes is
-    // parsed as frame data right away, so feeding the whole file here would skip the size check.
+    // Initialization can load already-buffered frame data, so small feeds limit work before
+    // dimension checking.
     let mut rest = bytes;
     let mut window = INPUT_CHUNK;
     let mut img = loop {
