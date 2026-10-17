@@ -834,6 +834,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-12 | minor | LR-IMP-CAMERA-COVERAGE: Pentax PEFs without area tags lose their masked border lines (issue #1271); status unchanged (🟡) |
 | 2026-10-12 | minor | Camera-look deep shadows follow the JPEG toe (#1307); camera calibration remains partial |
 | 2026-10-11 | minor | LR-IMP-PREVIEW-READ: a preview reads the raw's header and its embedded JPEG instead of the whole file (a 56 MB RAF: 56.5 MB → 5.9 MB, ~10 s → 0.96 s over SMB, byte-identical pixels), and an unedited raw's grid thumbnail is that camera JPEG itself, so no sensor decode is queued behind it. A CR3's JPEG track and a TIFF raw whose preview tag sits past the prefix are read through `lightcraft_raw::sparse::preview_plan`, which names the ranges `embedded_preview` reads; the formats it cannot describe (CRW/MRW/X3F, NEF/ORF/PEF) keep the whole-file path |
+| 2026-10-11 | minor | LRC-DEV-AUTOSYNC: preserve per-photo HDR tuning when synchronizing HDR enabled state; status unchanged. |
 | 2026-10-12 | minor | LR-BEHAV-ACCESS: canvas handles by keyboard with AccessKit names and values; Tab order test; status stays 🟡 |
 | 2026-10-12 | minor | LR-BEHAV-ACCESS: AccessKit tree audit test; text fields named, sliders expose range and Increment / Decrement; status stays 🟡 |
 | 2026-10-12 | minor | LR-PREF-DISPLAY: on Linux, previews follow the display profile the desktop assigns in colord |

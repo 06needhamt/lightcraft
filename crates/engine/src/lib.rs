@@ -900,7 +900,12 @@ impl Session {
             return Vec::new();
         }
         let Some(old) = self.develop_of(id) else { return Vec::new() };
-        let Some(mut delta) = json_delta(&old.to_json(), &new.to_json()) else { return Vec::new() };
+        // Compare actual HDR leaves even when persisted defaults omit the whole HDR object.
+        let mut old_json = old.to_json();
+        let mut new_json = new.to_json();
+        old_json["hdr"] = serde_json::json!(old.hdr);
+        new_json["hdr"] = serde_json::json!(new.hdr);
+        let Some(mut delta) = json_delta(&old_json, &new_json) else { return Vec::new() };
         if let Some(o) = delta.as_object_mut() {
             for k in ["spots", "red_eye", "version", "process"] {
                 o.remove(k);
