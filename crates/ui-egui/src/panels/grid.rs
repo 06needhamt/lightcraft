@@ -651,16 +651,17 @@ pub fn layout(aspects: &[f32], groups: &[(usize, usize)], avail_w: f32, target: 
     out
 }
 
-/// The ring round a selected photo, drawn outside `photo`. The active one is 3 pt: a 1 pt inner line
-/// in [`Tokens::ring_inner`] against the photo's edge (so the ring reads on a white photo and on a
-/// black one) and a 2 pt line in [`Tokens::ring_active`]. The others are a single 1.5 pt line in
+/// The ring round a selected photo, drawn outside `photo`. The active one is 3 pt in
+/// [`Tokens::ring_active`] with a 1 pt line in [`Tokens::ring_inner`] over its inner edge, against
+/// the photo (so the ring reads on a white photo and on a black one). The others are a single 1.5 pt line in
 /// [`Tokens::ring_selected`]; the two are told apart by weight, not by lightness alone.
 pub(crate) fn selection_ring(p: &egui::Painter, t: &Tokens, photo: Rect, state: lightcraft_engine::SelectionState) {
     use lightcraft_engine::SelectionState;
     match state {
         SelectionState::Active => {
+            // both on the same rect, so no seam opens between them at a fractional scale
+            p.rect_stroke(photo, 0.0, Stroke::new(3.0, t.ring_active), StrokeKind::Outside);
             p.rect_stroke(photo, 0.0, Stroke::new(1.0, t.ring_inner), StrokeKind::Outside);
-            p.rect_stroke(photo.expand(1.0), 0.0, Stroke::new(2.0, t.ring_active), StrokeKind::Outside);
         }
         SelectionState::Selected => {
             p.rect_stroke(photo, 0.0, Stroke::new(1.5, t.ring_selected), StrokeKind::Outside);

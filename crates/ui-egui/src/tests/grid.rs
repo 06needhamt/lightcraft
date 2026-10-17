@@ -164,24 +164,25 @@ fn unloaded_thumbnails_show_their_selection() {
             .collect()
     };
     let mut checked = 0;
+    let mut saw_active = false;
     for (w, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("thumb:")) {
-        if !canvas.shrink(4.0).contains_rect(*r) || r.min.x < 6.0 {
+        if !canvas.shrink(4.0).contains_rect(*r) {
             continue;
         }
         let id = w.trim_start_matches("thumb:").parse::<u64>().unwrap();
         let strokes = ring(*r);
-        let width: f32 = strokes.iter().map(|(w, _)| w).sum();
         if id == active.0 {
-            assert!(width >= 3.0, "photo {id}: active ring {strokes:?}");
-            assert!(strokes.iter().any(|(_, c)| *c == t.ring_active), "photo {id}: {strokes:?}");
-            assert!(strokes.iter().all(|(_, c)| *c != egui::Color32::WHITE), "photo {id}: a white ring vanishes on the light grid: {strokes:?}");
+            assert_ne!(t.ring_active, egui::Color32::WHITE, "the light theme's ring must not vanish on its grid");
+            assert_eq!(strokes, vec![(3.0, t.ring_active), (1.0, t.ring_inner)], "photo {id}: active ring");
+            saw_active = true;
         } else {
-            assert!((1.0..3.0).contains(&width), "photo {id}: selected ring {strokes:?}");
+            assert_eq!(strokes.iter().map(|(w, _)| *w).sum::<f32>(), 1.5, "photo {id}: selected ring {strokes:?}");
             assert_eq!(strokes.iter().map(|(_, c)| *c).collect::<Vec<_>>(), vec![t.ring_selected], "photo {id}");
         }
         checked += 1;
     }
     assert!(checked >= 3, "checked {checked}");
+    assert!(saw_active, "the active photo (top left) was checked");
 }
 
 /// A folder of unedited raws on a slow share: the grid must not decode every raw to draw a 512 px

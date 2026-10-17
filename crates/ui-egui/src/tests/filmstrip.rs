@@ -95,8 +95,7 @@ fn the_filmstrip_marks_the_active_photo_heavier_than_the_other_selected_one() {
             .collect()
     };
     let (on_active, on_other, on_unselected) = (strokes(active), strokes(other), strokes(c));
-    assert!(on_active.iter().map(|(w, _)| w).sum::<f32>() >= 3.0 && on_active.iter().any(|(_, col)| *col == t.ring_active), "{on_active:?}");
-    assert_eq!(on_other.iter().map(|(_, col)| *col).collect::<Vec<_>>(), vec![t.ring_selected], "{on_other:?}");
-    assert!(on_other.iter().map(|(w, _)| w).sum::<f32>() < 3.0, "{on_other:?}");
+    assert_eq!(on_active, vec![(3.0, t.ring_active), (1.0, t.ring_inner)]);
+    assert_eq!(on_other, vec![(1.5, t.ring_selected)]);
     assert!(on_unselected.is_empty(), "{on_unselected:?}");
 }

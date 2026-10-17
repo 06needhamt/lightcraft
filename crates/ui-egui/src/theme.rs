@@ -140,7 +140,7 @@ impl Default for Tokens {
             skeleton: Color32::from_rgb(0x25, 0x25, 0x25),
             ring_active: Color32::from_rgb(0xff, 0xff, 0xff),
             ring_inner: Color32::from_rgb(0x00, 0x00, 0x00),
-            ring_selected: Color32::from_rgb(0xaa, 0xaa, 0xaa),
+            ring_selected: Color32::from_rgb(0xc0, 0xc0, 0xc0),
             divider: Color32::from_rgb(0x1c, 0x1c, 0x1c),
             inset: Color32::from_rgb(0x23, 0x23, 0x23),
             field: Color32::from_rgb(0x22, 0x22, 0x22),
@@ -203,7 +203,7 @@ impl Tokens {
             ThemeKind::Silver => Tokens {
                 ring_active: rgb(0x141414),
                 ring_inner: rgb(0xffffff),
-                ring_selected: rgb(0x5a5a5a),
+                ring_selected: rgb(0x4a4a4a),
                 chrome: rgb(0xe6e6e6),
                 canvas: rgb(0xcfcfcf),
                 grid_bg: rgb(0xd9d9d9),
@@ -237,7 +237,7 @@ impl Tokens {
             ThemeKind::Paper => Tokens {
                 ring_active: rgb(0x141414),
                 ring_inner: rgb(0xffffff),
-                ring_selected: rgb(0x5a5a5a),
+                ring_selected: rgb(0x4a4a4a),
                 chrome: rgb(0xfafafa),
                 canvas: rgb(0xececec),
                 grid_bg: rgb(0xf2f2f2),
@@ -489,7 +489,18 @@ mod tests {
             for (what, surface) in [("grid", t.grid_bg), ("cell", t.cell), ("selected cell", t.cell_selected)] {
                 assert!(contrast(t.ring_active, surface) >= 3.0, "{kind:?}: active ring on the {what}: {:.2}", contrast(t.ring_active, surface));
             }
-            assert!(contrast(t.ring_selected, t.grid_bg) >= 3.0, "{kind:?}: selected ring on the grid: {:.2}", contrast(t.ring_selected, t.grid_bg));
+            // the selected ring also sits on a selected cell (square grid, filmstrip), label-tinted or not
+            let mut selected_cells = vec![("grid", t.grid_bg), ("selected cell", t.cell_selected)];
+            for label in lightcraft_catalog::ColorLabel::ALL {
+                selected_cells.push(("labelled selected cell", label_background(t.cell_selected, Some(label), true)));
+            }
+            for (what, surface) in selected_cells {
+                assert!(
+                    contrast(t.ring_selected, surface) >= 3.0,
+                    "{kind:?}: selected ring on the {what}: {:.2}",
+                    contrast(t.ring_selected, surface)
+                );
+            }
             // the thin inner line of the active ring is the ring's opposite: it parts the ring from the photo's edge
             assert!(contrast(t.ring_inner, t.ring_active) >= 3.0, "{kind:?}: inner line against the active ring");
         }
