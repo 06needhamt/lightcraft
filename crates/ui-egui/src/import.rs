@@ -1345,6 +1345,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     });
 }
 
+/// Draw one review tile with a density-aware preview, selection control and importability badge.
 fn candidate_cell(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog, i: usize, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let Some(c) = d.candidates.get(i).cloned() else { return };
@@ -1623,6 +1624,7 @@ fn field<R>(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui) -> R
 mod tests {
     use super::*;
 
+    /// Bucket selection covers tile size, display density and hostile numeric preferences.
     #[test]
     fn import_thumb_edges_follow_size_and_display_density() {
         assert_eq!(thumb_edge(116.0, 1.0), 192);

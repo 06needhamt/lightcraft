@@ -13,12 +13,14 @@ use lightcraft_engine::import::ImportCandidate;
 
 const T: Duration = Duration::from_secs(30);
 
+/// An isolated import dialog with real preview jobs and a disposable procedural source file.
 struct Review {
     h: Headless,
     dir: std::path::PathBuf,
 }
 
 impl Review {
+    /// Open sixty candidates at the requested display density, including duplicate/error badges.
     fn new(scale: f32) -> Self {
         let dir = std::env::temp_dir().join(format!("lc-import-thumbnails-{}-{}", std::process::id(), lightcraft_preview::next_tick()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -50,20 +52,24 @@ impl Review {
         Self { h, dir }
     }
 
+    /// Find an automation widget, failing the test if the dialog no longer exposes it.
     fn rect(&self, id: &str) -> egui::Rect {
         self.h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r).unwrap_or_else(|| panic!("missing {id}"))
     }
 
+    /// Snapshot every candidate's checked state while requiring the review to remain open.
     fn checks(&self) -> Vec<bool> {
         let Some(Dialog::Import { opts }) = &self.h.app.ui.dialog else { panic!("import review closed") };
         opts.checked.clone()
     }
 
+    /// Drive the real control dispatcher and fail on any unsuccessful response.
     fn request(&mut self, method: &str, params: serde_json::Value) {
         let response = self.h.request(method, params, T);
         assert_eq!(response["ok"], true, "{method}: {response}");
     }
 
+    /// Set thumbnail size through its command and wait for the resulting previews to settle.
     fn size(&mut self, size: f32) {
         self.request("engine.execute", json!({"command": "view.importThumbSize", "params": {"size": size}}));
         assert!(self.h.settle(T));
@@ -71,6 +77,7 @@ impl Review {
 }
 
 impl Drop for Review {
+    /// Release import preview jobs before removing the temporary source directory.
     fn drop(&mut self) {
         self.h.app.ui.dialog = None;
         self.h.app.renderer.forget_imports();
@@ -79,6 +86,7 @@ impl Drop for Review {
     }
 }
 
+/// Pointer input must resize and reflow tiles without changing culling, badges or saved size.
 #[test]
 fn import_thumbnail_slider_reflows_without_changing_selection_or_badges() {
     let mut review = Review::new(1.0);
@@ -107,6 +115,7 @@ fn import_thumbnail_slider_reflows_without_changing_selection_or_badges() {
     assert_eq!(restored.sanitized().import_thumb_size, 80.0);
 }
 
+/// Dense displays need sharper previews; shrinking reuses them and scrolling bounds retention.
 #[test]
 fn import_thumbnail_previews_upgrade_for_density_and_stay_bounded_when_scrolling() {
     let mut review = Review::new(2.0);
@@ -130,6 +139,7 @@ fn import_thumbnail_previews_upgrade_for_density_and_stay_bounded_when_scrolling
     }
 }
 
+/// Invalid commands preserve the setting; legacy and non-finite preferences restore safely.
 #[test]
 fn import_thumbnail_size_rejects_bad_commands_and_restores_old_preferences() {
     let mut app = LightcraftApp::new(lightcraft_engine::Session::new(), Services::default());

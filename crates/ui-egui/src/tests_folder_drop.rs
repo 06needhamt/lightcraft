@@ -50,8 +50,8 @@ fn widget(h: &Headless, id: &str) -> Option<Rect> {
     h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r)
 }
 
+/// Match FolderNode widget ids, whose paths use forward slashes on every platform.
 fn folder_id(prefix: &str, dir: &Path) -> String {
-    // FolderNode paths (and their widget ids) use forward slashes on every platform.
     format!("{prefix}:{}", dir.to_string_lossy().replace('\\', "/"))
 }
 
