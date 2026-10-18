@@ -181,6 +181,34 @@ pub struct CatalogImport {
     pub members: Vec<Row>,
     pub collection_content: Vec<Row>,
     pub warnings: Vec<String>,
+    /// Catalog images left out because their records are incomplete; reported as data (not text)
+    /// so each front end can say so in its own language.
+    #[serde(default)]
+    pub skipped: Vec<SkippedImage>,
+}
+
+/// A catalog image that was not imported, and why.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkippedImage {
+    /// The image's `Adobe_images.id_local`.
+    pub image: i64,
+    pub reason: SkipReason,
+}
+
+/// Why a catalog image was not imported. Lightroom leaves such records behind and ignores them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SkipReason {
+    /// Its `AgLibraryFile` record is gone.
+    MissingFile,
+    /// Its file's `AgLibraryFolder` record is gone.
+    MissingFolder,
+    /// Its folder's `AgLibraryRootFolder` record is gone.
+    MissingRoot,
+    /// Its file name or root folder path is empty.
+    IncompletePath,
+    /// A virtual copy whose master was skipped.
+    MasterSkipped,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -522,23 +550,24 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         members: optional_table("AgLibraryCollectionImage", &mut warnings)?,
         collection_content: optional_table("AgLibraryCollectionContent", &mut warnings)?,
         warnings,
+        skipped: Vec::new(),
     };
     // images whose file, folder or root record is gone, or whose path is empty (Lightroom leaves
-    // these behind and ignores them); they and their virtual copies are skipped with a warning
+    // these behind and ignores them); they and their virtual copies are skipped and reported
     // instead of failing the import
     let mut orphans = HashSet::new();
     for image in table("Adobe_images", true)? {
         ensure_read_active(cancel)?;
         let id = number(&image, "id_local");
-        let record = files.get(&number(&image, "rootFile")).ok_or("missing file record").and_then(|file| {
-            let folder = folders.get(&number(file, "folder")).ok_or("missing folder record")?;
-            let root = roots.get(&number(folder, "rootFolder")).ok_or("missing root folder record")?;
+        let record = files.get(&number(&image, "rootFile")).ok_or(SkipReason::MissingFile).and_then(|file| {
+            let folder = folders.get(&number(file, "folder")).ok_or(SkipReason::MissingFolder)?;
+            let root = roots.get(&number(folder, "rootFolder")).ok_or(SkipReason::MissingRoot)?;
             Ok((file, folder, root))
         });
         let (file, folder, root) = match record {
             Ok(found) => found,
-            Err(why) => {
-                out.warnings.push(format!("image {id}: not imported; {why}"));
+            Err(reason) => {
+                out.skipped.push(SkippedImage { image: id, reason });
                 orphans.insert(id);
                 continue;
             }
@@ -548,7 +577,7 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         let folder_path = text(folder, "pathFromRoot");
         let name = text(file, "idx_filename");
         if root_path.is_empty() || name.is_empty() {
-            out.warnings.push(format!("image {id}: not imported; incomplete original path"));
+            out.skipped.push(SkippedImage { image: id, reason: SkipReason::IncompletePath });
             orphans.insert(id);
             continue;
         }
@@ -584,23 +613,23 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
     Ok(out)
 }
 
-/// Drop the virtual copies whose master was not imported, saying so in the import's warnings: a
-/// copy has no original of its own.
+/// Drop the virtual copies whose master was skipped, adding them to the skipped images: a copy has
+/// no original of its own.
 fn drop_copies_of(data: &mut CatalogImport, masters: &HashSet<i64>) {
     if masters.is_empty() {
         return;
     }
-    let mut warnings = Vec::new();
+    let mut skipped = Vec::new();
     data.photos.retain(|p| {
         let master = number(&p.image, "masterImage");
         // 0 marks a master, never a copy
         if master == 0 || !masters.contains(&master) {
             return true;
         }
-        warnings.push(format!("image {}: not imported; its original was not imported", p.source_id));
+        skipped.push(SkippedImage { image: p.source_id, reason: SkipReason::MasterSkipped });
         false
     });
-    data.warnings.extend(warnings);
+    data.skipped.extend(skipped);
 }
 
 /// Drop the catalog's images whose original is not a file type LightCraft reads, saying so in the
@@ -1054,7 +1083,7 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     }
     s.merge_undo(s.undo.len().saturating_sub(undo0), "Import Lightroom Catalog");
     Ok(AppliedImport {
-        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":albums.len(),"preservedExistingEdits":preserved,"missing":missing,"failed":files.failed,"warnings":warnings,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
+        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":albums.len(),"preservedExistingEdits":preserved,"missing":missing,"failed":files.failed,"warnings":warnings,"skipped":data.skipped,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
         index: index.clone(),
     })
 }
@@ -1098,6 +1127,7 @@ mod tests {
             ],
             collection_content: Vec::new(),
             warnings: Vec::new(),
+            skipped: Vec::new(),
         }
     }
     /// A crafted `.lrcat` that names a program as a photo's original gets no record for it, so
@@ -1557,6 +1587,11 @@ mod tests {
     }
     /// A one-row-per-table SQLite file: `(name, columns, row)` each.
     fn native_catalog(tables: &[(&str, &str, Vec<SqlValue>)]) -> Vec<u8> {
+        let tables: Vec<_> = tables.iter().map(|(name, columns, row)| (*name, *columns, vec![row.clone()])).collect();
+        native_catalog_rows(&tables)
+    }
+    /// A SQLite file with one leaf page per table: `(name, columns, rows)` each.
+    fn native_catalog_rows(tables: &[(&str, &str, Vec<Vec<SqlValue>>)]) -> Vec<u8> {
         use SqlValue::{Integer as I, Text as T};
         let mut bytes = vec![0u8; 5 * 2048];
         bytes[..16].copy_from_slice(b"SQLite format 3\0");
@@ -1570,7 +1605,7 @@ mod tests {
         bytes[44..48].copy_from_slice(&4u32.to_be_bytes());
         bytes[56..60].copy_from_slice(&1u32.to_be_bytes());
         let mut schema = Vec::new();
-        for (i, (name, columns, row)) in tables.iter().enumerate() {
+        for (i, (name, columns, rows)) in tables.iter().enumerate() {
             schema.push(vec![
                 T("table".into()),
                 T((*name).into()),
@@ -1578,7 +1613,7 @@ mod tests {
                 I(i as i64 + 2),
                 T(format!("CREATE TABLE {name} ({columns})")),
             ]);
-            leaf(&mut bytes[(i + 1) * 2048..(i + 2) * 2048], 0, std::slice::from_ref(row));
+            leaf(&mut bytes[(i + 1) * 2048..(i + 2) * 2048], 0, rows);
         }
         leaf(&mut bytes[..2048], 100, &schema);
         bytes
@@ -1617,38 +1652,73 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 
-    #[test]
-    fn images_without_a_file_record_are_skipped_not_fatal() {
-        let mut tables = photo_tables(("/catalog/", ""));
-        tables[3].2[2] = SqlValue::Integer(2);
-        let path = std::env::temp_dir().join(format!("lightcraft-orphan-catalog-{}.lrcat", std::process::id()));
-        std::fs::write(&path, native_catalog(&tables)).unwrap();
+    /// Reads `tables` as a catalog file and returns what the reader made of it.
+    fn read_tables(tables: &[(&str, &str, Vec<Vec<SqlValue>>)], name: &str) -> CatalogImport {
+        let path = std::env::temp_dir().join(format!("lightcraft-{name}-{}.lrcat", std::process::id()));
+        std::fs::write(&path, native_catalog_rows(tables)).unwrap();
         let catalog = read(&path).unwrap();
         std::fs::remove_file(path).unwrap();
-        assert!(catalog.photos.is_empty());
-        assert!(catalog.warnings.iter().any(|w| w == "image 1: not imported; missing file record"), "{:?}", catalog.warnings);
+        catalog
+    }
+
+    fn one_row(tables: Vec<(&'static str, &'static str, Vec<SqlValue>)>) -> Vec<(&'static str, &'static str, Vec<Vec<SqlValue>>)> {
+        tables.into_iter().map(|(name, columns, row)| (name, columns, vec![row])).collect()
     }
 
     #[test]
-    fn images_with_an_empty_file_name_are_skipped_not_fatal() {
-        let mut tables = photo_tables(("/catalog/", ""));
-        tables[2].2[2] = SqlValue::Text(String::new());
-        let path = std::env::temp_dir().join(format!("lightcraft-nameless-catalog-{}.lrcat", std::process::id()));
-        std::fs::write(&path, native_catalog(&tables)).unwrap();
-        let catalog = read(&path).unwrap();
-        std::fs::remove_file(path).unwrap();
-        assert!(catalog.photos.is_empty());
-        assert!(catalog.warnings.iter().any(|w| w == "image 1: not imported; incomplete original path"), "{:?}", catalog.warnings);
+    fn images_with_incomplete_records_are_skipped_not_fatal() {
+        use SqlValue::{Integer as I, Text as T};
+        // (table, column, value): the record that breaks, and the reason the import gives
+        let cases = [
+            (3, 2, I(2), SkipReason::MissingFile),                // Adobe_images.rootFile → no such file
+            (2, 1, I(2), SkipReason::MissingFolder),              // AgLibraryFile.folder → no such folder
+            (1, 1, I(2), SkipReason::MissingRoot),                // AgLibraryFolder.rootFolder → no such root
+            (2, 2, T(String::new()), SkipReason::IncompletePath), // AgLibraryFile.idx_filename empty
+        ];
+        for (table, column, value, reason) in cases {
+            let mut tables = one_row(photo_tables(("/catalog/", "")));
+            tables[table].2[0][column] = value;
+            let catalog = read_tables(&tables, &format!("skipped-{reason:?}"));
+            assert!(catalog.photos.is_empty(), "{reason:?}");
+            assert_eq!(catalog.skipped, [SkippedImage { image: 1, reason }]);
+            assert!(catalog.warnings.is_empty(), "{reason:?}: {:?}", catalog.warnings);
+        }
     }
 
     #[test]
-    fn copies_of_a_skipped_master_are_dropped() {
+    fn a_virtual_copy_of_a_skipped_master_is_skipped_too() {
+        use SqlValue::{Integer as I, Null as N, Text as T};
+        let mut tables = one_row(photo_tables(("/catalog/", "")));
+        tables[3] = (
+            "Adobe_images",
+            "id_local INTEGER PRIMARY KEY, id_global, rootFile, masterImage, fileFormat, fileWidth, fileHeight, rating, pick",
+            vec![
+                // the master's file record is gone, so it is skipped …
+                vec![N, T("master".into()), I(2), N, T("ARW".into()), I(20), I(10), I(5), I(1)],
+                // … and its virtual copy goes with it, although its own file record is there
+                vec![N, T("copy".into()), I(1), I(1), T("ARW".into()), I(20), I(10), I(3), I(0)],
+            ],
+        );
+        let catalog = read_tables(&tables, "skipped-copy");
+        assert!(catalog.photos.is_empty());
+        assert_eq!(
+            catalog.skipped,
+            [SkippedImage { image: 1, reason: SkipReason::MissingFile }, SkippedImage { image: 2, reason: SkipReason::MasterSkipped }]
+        );
+        validate(&catalog).unwrap();
+    }
+
+    #[test]
+    fn skipped_images_are_in_the_import_report() {
         let mut data = sample();
         data.photos.retain(|p| p.source_id != 1);
         drop_copies_of(&mut data, &HashSet::from([1]));
-        assert!(data.photos.is_empty());
-        assert_eq!(data.warnings, ["image 2: not imported; its original was not imported"]);
-        validate(&data).unwrap();
+        data.skipped.insert(0, SkippedImage { image: 1, reason: SkipReason::MissingFile });
+        let mut s = crate::Session::new();
+        let report = apply(&mut s, data, false).unwrap();
+        assert_eq!(report["photos"], 0);
+        assert_eq!(report["skipped"], json!([{"image": 1, "reason": "missingFile"}, {"image": 2, "reason": "masterSkipped"}]));
+        assert_eq!(report["warnings"], json!([]));
     }
 
     #[test]

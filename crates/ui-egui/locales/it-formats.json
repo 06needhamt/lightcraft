@@ -250,6 +250,7 @@
   "{s} s of AV1 video": "{s} s of AV1 video",
   "Delete {n} effect preset{}? This can't be undone.": "Delete {n} effect preset{}? This can't be undone.",
   "{count} more warnings.": "{count} more warnings.",
+  "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "{skipped} immagini del catalogo non sono state importate perché i loro record nel catalogo sono incompleti.",
   "· {in_source} identical copies": "· {in_source} identical copies",
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})",
   "{n} preset{}": "{n} preset{}",
