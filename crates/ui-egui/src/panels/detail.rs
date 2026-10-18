@@ -1535,8 +1535,12 @@ fn general_interaction(
 // ------------------------------------------------------------------------ crop
 
 fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings, id: PhotoId) {
+    // the selected guide belongs to this photo and to the Guided Upright tool
+    if app.ui.tool != "guidedUpright" || app.ui.selected_guide.is_some_and(|(photo, _)| photo != id.0) {
+        app.ui.selected_guide = None;
+    }
     if app.ui.tool == "guidedUpright" {
-        guided_overlay(app, ui, resp, map, frame, d);
+        guided_overlay(app, ui, resp, map, frame, d, id);
         return;
     }
     if app.ui.tool == "straighten" {
@@ -1691,7 +1695,6 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         // the canvas (the loupe's own rect), not the photo: rotating happens in the margin around it
         angle_readout(ui, at, shown_angle, resp.rect);
     }
-    let _ = id;
 }
 
 /// The crop handles' names for screen readers, in `crop.drag`'s numbering: 0..3 corners, 4..7
@@ -1830,30 +1833,62 @@ fn angle_readout(ui: &egui::Ui, at: Pos2, angle: f64, bounds: Rect) {
 
 /// Guided Upright: draw up to four guides along lines that should be vertical or horizontal. Guides are
 /// stored in lens-corrected (pre-perspective) coordinates, so they stay attached to the image as it warps.
-fn guided_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings) {
+fn guided_overlay(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    resp: &egui::Response,
+    map: &CanvasMap,
+    frame: &Frame,
+    d: &DevelopSettings,
+    id: PhotoId,
+) {
     let p = ui.painter_at(map.rect.expand(8.0));
     let col = Color32::from_rgb(255, 196, 40);
-    let draw = |a: Pos2, b: Pos2| {
-        p.line_segment([a, b], Stroke::new(3.0, Color32::from_black_alpha(120)));
-        p.line_segment([a, b], Stroke::new(1.5, col));
+    // the selected guide: brighter, so the Delete key has a visible target
+    let selected = app.ui.selected_guide.filter(|(photo, _)| *photo == id.0).map(|(_, i)| i);
+    let draw = |a: Pos2, b: Pos2, sel: bool| {
+        let (edge, core, at) = if sel { (3.5, 2.5, 5.0) } else { (3.0, 1.5, 4.0) };
+        p.line_segment([a, b], Stroke::new(edge, Color32::from_black_alpha(120)));
+        p.line_segment([a, b], Stroke::new(core, if sel { Color32::WHITE } else { col }));
         for q in [a, b] {
-            p.circle_filled(q, 4.0, col);
-            p.circle_stroke(q, 4.0, Stroke::new(1.0, Color32::BLACK));
+            p.circle_filled(q, at, if sel { Color32::WHITE } else { col });
+            p.circle_stroke(q, at, Stroke::new(1.0, Color32::BLACK));
         }
     };
-    for (i, (a, b)) in d.geometry.guides.iter().enumerate() {
-        let (sa, sb) = (map.screen(frame.corrected_to_transformed(*a)), map.screen(frame.corrected_to_transformed(*b)));
+    let on_screen = |guide: &(Point, Point)| {
+        let (sa, sb) = (map.screen(frame.corrected_to_transformed(guide.0)), map.screen(frame.corrected_to_transformed(guide.1)));
+        (sa, sb)
+    };
+    for (i, guide) in d.geometry.guides.iter().enumerate() {
+        let (sa, sb) = on_screen(guide);
         register(ui.ctx(), format!("uprightGuide:{i}"), Rect::from_two_pos(sa, sb));
-        draw(sa, sb);
+        draw(sa, sb, selected == Some(i));
     }
     ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    // a click near a guide selects it (Delete / Backspace removes it alone); a click away clears
+    if resp.clicked()
+        && let Some(q) = resp.interact_pointer_pos()
+    {
+        let hit = d.geometry.guides.iter().position(|guide| {
+            let (a, b) = on_screen(guide);
+            point_segment_dist(q, a, b) <= 6.0
+        });
+        app.ui.selected_guide = match hit {
+            Some(i) if selected != Some(i) => Some((id.0, i)),
+            _ => None,
+        };
+    }
+    if resp.drag_started() {
+        // drawing a new guide leaves nothing selected
+        app.ui.selected_guide = None;
+    }
     if resp.drag_started()
         && let Some(q) = resp.interact_pointer_pos()
     {
         app.gesture = Some(Gesture::Guide { a: map.norm(q) });
     }
     if let (Some(Gesture::Guide { a }), Some(q)) = (&app.gesture, resp.interact_pointer_pos()) {
-        draw(map.screen(*a), q);
+        draw(map.screen(*a), q, false);
     }
     if resp.drag_stopped()
         && let (Some(Gesture::Guide { a }), Some(q)) = (app.gesture.clone(), resp.interact_pointer_pos())
@@ -1873,6 +1908,14 @@ fn to_straight(n: Point, angle: f64, frame: &Frame) -> Point {
     let px = Point::new(n.x * w, n.y * h);
     let r = Affine::rotate_about(angle.to_radians(), Point::new(w / 2.0, h / 2.0)).apply(px);
     Point::new(r.x / w, r.y / h)
+}
+
+
+/// How far `q` is from the segment `a`–`b` (screen pixels): the click that selects a guide.
+fn point_segment_dist(q: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let t = if ab.length_sq() > 0.0 { ((q - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+    (a + ab * t).distance(q)
 }
 
 /// A crop box's corners (top-left, top-right, bottom-right, bottom-left of the unflipped photo)

@@ -815,6 +815,10 @@ pub struct UiState {
     pub grading_hidden: Option<(lightcraft_catalog::PhotoId, [bool; 3])>,
     /// Active on-canvas tool: "", "brush", "linear", "radial", "wbPicker", "straighten", "remove".
     pub tool: String,
+    /// Guided Upright: the selected guide (photo id + index) while the tool is open. A Delete /
+    /// Backspace on it removes that guide alone; a click away or leaving the tool clears it.
+    #[serde(skip)]
+    pub selected_guide: Option<(u64, usize)>,
     pub brush_size: f32,
     pub brush_feather: f32,
     pub brush_flow: f32,
@@ -1345,6 +1349,7 @@ impl Default for UiState {
             grading_mode: "3way".into(),
             grading_hidden: None,
             tool: String::new(),
+            selected_guide: None,
             brush_size: 0.04,
             brush_feather: 50.0,
             brush_flow: 60.0,
