@@ -95,9 +95,11 @@ pub(crate) fn decode(bytes: &[u8], opts: &DecodeOptions) -> Result<Decoded> {
 fn limits(opts: &DecodeOptions) -> Limits {
     let mut limits = Limits::default();
     limits.decoding_buffer_size = opts.max_pixels.saturating_mul(4 * 8).min(usize::MAX as u64) as usize;
-    // One strip or tile is read whole: the default 128 MiB refuses a single-strip uncompressed 16-bit
-    // export of ~22 MP (#1983). The same cap as the decoded image (32 bytes per allowed pixel) bounds it.
-    limits.intermediate_buffer_size = limits.decoding_buffer_size;
+    // A strip or tile whose declared byte count exceeds this is refused: the default 128 MiB refuses a
+    // single-strip uncompressed 16-bit export of ~22 MP (#1983). Raised to the decoded image's cap
+    // (32 bytes per allowed pixel), never lowered: a strip or tile can outgrow the pixels it shows
+    // (JPEG headers, padding to the tile size).
+    limits.intermediate_buffer_size = limits.intermediate_buffer_size.max(limits.decoding_buffer_size);
     limits.ifd_value_size = 32 << 20;
     limits
 }

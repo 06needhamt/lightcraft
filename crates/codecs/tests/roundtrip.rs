@@ -285,6 +285,68 @@ fn tiff_single_strip_larger_than_128_mib() {
     assert!(px[0].abs_diff(128) <= 2 && px[0] == px[1] && px[1] == px[2], "{px:?}");
 }
 
+/// A little-endian TIFF with one IFD of single-value `(tag, type, value)` entries, followed by `data`.
+fn ifd_tiff(entries: &[(u16, u16, u32)], data: &[u8]) -> Vec<u8> {
+    let mut b = b"II*\0".to_vec();
+    b.extend(8u32.to_le_bytes());
+    b.extend((entries.len() as u16).to_le_bytes());
+    for &(tag, ty, value) in entries {
+        b.extend(tag.to_le_bytes());
+        b.extend(ty.to_le_bytes());
+        b.extend(1u32.to_le_bytes());
+        b.extend(value.to_le_bytes());
+    }
+    b.extend(0u32.to_le_bytes());
+    b.extend_from_slice(data);
+    b
+}
+
+/// A strip or tile can be larger than the pixels it shows (a JPEG header, padding to the tile size), so
+/// a small `max_pixels` must not shrink the intermediate buffer below the `tiff` crate's 128 MiB
+/// default. Both files below were refused with "decoder limits exceeded" when the buffer was capped at
+/// 32 bytes per allowed pixel. Fixtures from AlexChambers' review of #1989.
+#[test]
+fn tiff_small_pixel_budget_reads_headers_and_padded_tiles() {
+    let opts = |max_pixels| DecodeOptions { max_size: None, max_pixels };
+
+    // 1 × 1 gray, one JPEG-compressed strip (~400 bytes for one pixel), with a one-pixel budget.
+    let mut jpeg = Vec::new();
+    jpeg_encoder::Encoder::new(&mut jpeg, 90).encode(&[128], 1, 1, jpeg_encoder::ColorType::Luma).unwrap();
+    let at = 8 + 2 + 10 * 12 + 4;
+    let entries = [
+        (256, 4, 1),
+        (257, 4, 1),
+        (258, 3, 8),
+        (259, 3, 7),
+        (262, 3, 1),
+        (273, 4, at),
+        (277, 3, 1),
+        (278, 4, 1),
+        (279, 4, jpeg.len() as u32),
+        (284, 3, 1),
+    ];
+    let d = decode(&ifd_tiff(&entries, &jpeg), opts(1)).unwrap();
+    assert_eq!((d.image.width, d.image.height), (1, 1));
+
+    // 16 × 16 gray stored in one 256 × 256 tile (64 KiB), with a budget of exactly 256 pixels.
+    let at = 8 + 2 + 11 * 12 + 4;
+    let entries = [
+        (256, 4, 16),
+        (257, 4, 16),
+        (258, 3, 8),
+        (259, 3, 1),
+        (262, 3, 1),
+        (277, 3, 1),
+        (284, 3, 1),
+        (322, 4, 256),
+        (323, 4, 256),
+        (324, 4, at),
+        (325, 4, 65536),
+    ];
+    let d = decode(&ifd_tiff(&entries, &[128; 65536]), opts(256)).unwrap();
+    assert_eq!((d.image.width, d.image.height), (16, 16));
+}
+
 /// A one-strip, uncompressed, single-sample TIFF (little-endian) whose samples are `bits` wide and
 /// already packed into `strip`, one padded row after another.
 fn packed_tiff(width: u16, height: u16, bits: u16, photometric: u16, strip: &[u8]) -> Vec<u8> {
