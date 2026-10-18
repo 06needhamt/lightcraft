@@ -840,8 +840,27 @@ impl ExportOptions {
     /// silent default. `app.export` targets (`id`, `ids`, `path`, `dir`, `preset`, `background`)
     /// are accepted and left to the caller.
     pub fn from_params(p: &serde_json::Value) -> crate::Result<Self> {
-        Self::validate("app.export", p)?;
-        Ok(Self::from_json(p))
+        Self::from_params_or(p, ExportFormat::default())
+    }
+
+    /// [`ExportOptions::from_params`] for a caller that writes `fallback` to a `path` naming no
+    /// format; the format returned is [`ExportOptions::export_format`], the one written.
+    pub fn from_params_or(p: &serde_json::Value, fallback: ExportFormat) -> crate::Result<Self> {
+        let format = Self::export_format(p, fallback);
+        Self::validate_as("app.export", p, format)?;
+        Ok(Self { format, ..Self::from_json(p) })
+    }
+
+    /// The format `app.export` writes: `format` (`null`: the default), else the one the extension of
+    /// `path` names, else `fallback` for a path that names none (the desktop app writes JPEG there,
+    /// the headless backend PNG), else the default.
+    pub fn export_format(p: &serde_json::Value, fallback: ExportFormat) -> ExportFormat {
+        use serde_json::Value;
+        match (p.get("format"), p.get("path").and_then(Value::as_str)) {
+            (Some(f), _) => f.as_str().and_then(ExportFormat::parse).unwrap_or_default(),
+            (None, Some(path)) => std::path::Path::new(path).extension().and_then(|e| e.to_str()).and_then(ExportFormat::parse).unwrap_or(fallback),
+            (None, None) => ExportFormat::default(),
+        }
     }
 
     /// Check `app.export` params for `cmd` (the command named in the error): every key must be an
@@ -849,6 +868,11 @@ impl ExportOptions {
     /// kind of thing its key takes, and a `watermark` object must hold only [`WATERMARK_PARAMS`]
     /// with its sizes in range (issue #183). `null` means "not given", as a dropped key does.
     pub fn validate(cmd: &str, p: &serde_json::Value) -> crate::Result<()> {
+        Self::validate_as(cmd, p, Self::export_format(p, ExportFormat::default()))
+    }
+
+    /// [`ExportOptions::validate`] with `bitDepth` checked against `format`, the one exported.
+    fn validate_as(cmd: &str, p: &serde_json::Value, format: ExportFormat) -> crate::Result<()> {
         use serde_json::Value;
         let bad = |msg: String| crate::cmd::bad(cmd, msg);
         let Some(obj) = p.as_object() else { return Err(bad("params must be an object".into())) };
@@ -956,24 +980,16 @@ impl ExportOptions {
                 _ => return Err(bad(unknown_key("parameter", k, &known))),
             }
         }
-        // issue #1952: a depth the format doesn't have would be written at the format's own depth;
-        // the format is the one exported: `format`, else the one `path` names, else the default
+        // issue #1952: a depth the format doesn't have would be written at the format's own depth
         if let Some(depth) = obj.get("bitDepth").and_then(whole) {
-            let format = match (obj.get("format").and_then(Value::as_str), obj.get("path").and_then(Value::as_str)) {
-                (Some(f), _) => ExportFormat::parse(f),
-                (None, Some(path)) => std::path::Path::new(path).extension().and_then(|e| e.to_str()).and_then(ExportFormat::parse),
-                (None, None) => Some(ExportFormat::default()),
-            };
-            if let Some(format) = format {
-                let mut depths: Vec<u8> = Self::bit_depths(format).iter().map(|d| d.0).collect();
-                if !depths.iter().any(|d| i64::from(*d) == depth) {
-                    depths.sort_unstable();
-                    let mut list: Vec<String> = depths.iter().map(u8::to_string).collect();
-                    let last = list.pop().unwrap_or_default();
-                    let list = if list.is_empty() { last } else { format!("{} or {last}", list.join(", ")) };
-                    let name = serde_json::to_value(format).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-                    return Err(bad(format!("`bitDepth` must be {list} for {name}")));
-                }
+            let mut depths: Vec<u8> = Self::bit_depths(format).iter().map(|d| d.0).collect();
+            if !depths.iter().any(|d| i64::from(*d) == depth) {
+                depths.sort_unstable();
+                let mut list: Vec<String> = depths.iter().map(u8::to_string).collect();
+                let last = list.pop().unwrap_or_default();
+                let list = if list.is_empty() { last } else { format!("{} or {last}", list.join(", ")) };
+                let name = serde_json::to_value(format).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+                return Err(bad(format!("`bitDepth` must be {list} for {name}")));
             }
         }
         Ok(())
@@ -3244,6 +3260,15 @@ mod tests {
         assert!(err(json!({"path": "/out/a.png", "bitDepth": 32})).contains("for png"));
         assert!(err(json!({"bitDepth": 16})).contains("for jpeg"));
         assert!(ExportOptions::from_params(&json!({"path": "/out/a.tif", "bitDepth": 32})).is_ok());
+        // a path naming no format, or a `null` format, exports the default too
+        assert!(err(json!({"path": "/out/output", "bitDepth": 10})).contains("for jpeg"));
+        assert!(err(json!({"path": "/out/output.xyz", "bitDepth": 10})).contains("for jpeg"));
+        assert!(err(json!({"format": null, "path": "/out/a.png", "bitDepth": 16})).contains("for jpeg"));
+        // or the caller's own format for such a path, which is the one returned
+        let png = |p: serde_json::Value| ExportOptions::from_params_or(&p, ExportFormat::Png);
+        assert!(png(json!({"path": "/out/output", "bitDepth": 10})).unwrap_err().to_string().contains("for png"));
+        assert_eq!(png(json!({"path": "/out/output.xyz", "bitDepth": 16})).unwrap().format, ExportFormat::Png);
+        assert_eq!(png(json!({"path": "/out/a.tif", "bitDepth": 32})).unwrap().format, ExportFormat::Tiff);
         // stored settings (a preset, Export with Previous) lose such a depth instead of failing
         let stored = ExportOptions::known_keys_only(&json!({"format": "jpeg", "bitDepth": 16}));
         assert_eq!(stored.get("bitDepth"), None);

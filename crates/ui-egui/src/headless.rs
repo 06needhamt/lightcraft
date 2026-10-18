@@ -2196,6 +2196,32 @@ mod tests {
         assert_eq!(opened(&mut h, json!({"format": "tiff", "bitDepth": 32})).bit_depth, Some(32));
     }
 
+    /// Review of #1966: a `path` whose extension names no format exports JPEG here, so its
+    /// `bitDepth` is checked against JPEG's, not let through to an 8-bit file.
+    #[test]
+    fn export_checks_the_depth_of_the_format_a_bare_path_gets() {
+        let mut h = demo([1200.0, 900.0]);
+        let t = Duration::from_secs(10);
+        let out = std::env::temp_dir().join(format!("lc-bare-path-depth-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&out);
+        std::fs::create_dir_all(&out).unwrap();
+        h.app.services.write = Some(Box::new(|p: &str, bytes: &[u8]| lightcraft_engine::export::write_file(p, bytes)));
+        for name in ["output", "output.xyz"] {
+            let p = json!({"path": out.join(name).to_string_lossy(), "longEdge": 32, "bitDepth": 10});
+            let r = h.request("engine.execute", json!({"command": "app.export", "params": p}), t);
+            assert_eq!(r["ok"], false, "{name}: {r}");
+            assert!(r["error"].as_str().unwrap().contains("`bitDepth` must be 8 for jpeg"), "{name}: {r}");
+        }
+        assert_eq!(std::fs::read_dir(&out).unwrap().count(), 0, "nothing written");
+        // the format such a path gets is still JPEG
+        let p = json!({"path": out.join("output").to_string_lossy(), "longEdge": 32, "bitDepth": 8});
+        let r = h.request("engine.execute", json!({"command": "app.export", "params": p}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        let written = std::fs::read_dir(&out).unwrap().next().unwrap().unwrap().path();
+        assert!(std::fs::read(&written).unwrap().starts_with(&[0xFF, 0xD8]), "{written:?} is a JPEG");
+        let _ = std::fs::remove_dir_all(&out);
+    }
+
     #[test]
     fn export_dialog_runs_in_the_background() {
         let mut h = demo([1200.0, 900.0]);
