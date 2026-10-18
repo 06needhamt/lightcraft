@@ -523,22 +523,22 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         collection_content: optional_table("AgLibraryCollectionContent", &mut warnings)?,
         warnings,
     };
-    // images whose file, folder or root record is gone (Lightroom leaves these behind and ignores
-    // them); they and their virtual copies are skipped with a warning instead of failing the import
-    let mut orphans = HashSet::new();
+    // images whose file, folder or root record is gone, or whose path is empty (Lightroom leaves
+    // these behind and ignores them); they and their virtual copies are skipped with one warning
+    // per reason instead of failing the import
+    let mut orphans: BTreeMap<&str, Vec<i64>> = BTreeMap::new();
     for image in table("Adobe_images", true)? {
         ensure_read_active(cancel)?;
         let id = number(&image, "id_local");
-        let record = files.get(&number(&image, "rootFile")).ok_or("file").and_then(|file| {
-            let folder = folders.get(&number(file, "folder")).ok_or("folder")?;
-            let root = roots.get(&number(folder, "rootFolder")).ok_or("root")?;
+        let record = files.get(&number(&image, "rootFile")).ok_or("missing file record").and_then(|file| {
+            let folder = folders.get(&number(file, "folder")).ok_or("missing folder record")?;
+            let root = roots.get(&number(folder, "rootFolder")).ok_or("missing root folder record")?;
             Ok((file, folder, root))
         });
         let (file, folder, root) = match record {
             Ok(found) => found,
-            Err(what) => {
-                out.warnings.push(format!("image {id}: missing {what} record; not imported"));
-                orphans.insert(id);
+            Err(why) => {
+                orphans.entry(why).or_default().push(id);
                 continue;
             }
         };
@@ -547,7 +547,8 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         let folder_path = text(folder, "pathFromRoot");
         let name = text(file, "idx_filename");
         if root_path.is_empty() || name.is_empty() {
-            return Err(format!("image {id}: incomplete original path"));
+            orphans.entry("incomplete original path").or_default().push(id);
+            continue;
         }
         let (photo_path, original) = original_path(root_path, folder_path, name, path);
         if let Original::Refused(why) = &original
@@ -575,10 +576,25 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
             original,
         });
     }
-    drop_copies_of(&mut out, &orphans);
+    for (why, ids) in &orphans {
+        out.warnings.push(skipped_warning(ids, why));
+    }
+    drop_copies_of(&mut out, &orphans.into_values().flatten().collect());
     refuse_non_media(&mut out);
     ensure_read_active(cancel)?;
     Ok(out)
+}
+
+/// One warning for a group of images skipped for the same reason, listing the first few ids so a
+/// catalog with many broken records doesn't bury the other warnings.
+fn skipped_warning(ids: &[i64], why: &str) -> String {
+    const SHOWN: usize = 10;
+    let mut list = ids.iter().take(SHOWN).map(i64::to_string).collect::<Vec<_>>().join(", ");
+    if ids.len() > SHOWN {
+        list.push_str(&format!(", … ({} more)", ids.len() - SHOWN));
+    }
+    let n = ids.len();
+    format!("{n} image{} not imported ({why}): {list}", if n == 1 { "" } else { "s" })
 }
 
 /// Drop the virtual copies whose master was not imported, saying so in the import's warnings: a
@@ -587,17 +603,19 @@ fn drop_copies_of(data: &mut CatalogImport, masters: &HashSet<i64>) {
     if masters.is_empty() {
         return;
     }
-    let mut warnings = Vec::new();
+    let mut dropped = Vec::new();
     data.photos.retain(|p| {
         let master = number(&p.image, "masterImage");
         // 0 marks a master, never a copy
         if master == 0 || !masters.contains(&master) {
             return true;
         }
-        warnings.push(format!("image {}: not imported; its original was not imported", p.source_id));
+        dropped.push(p.source_id);
         false
     });
-    data.warnings.extend(warnings);
+    if !dropped.is_empty() {
+        data.warnings.push(skipped_warning(&dropped, "virtual copy of an image not imported"));
+    }
 }
 
 /// Drop the catalog's images whose original is not a file type LightCraft reads, saying so in the
@@ -1623,7 +1641,28 @@ mod tests {
         let catalog = read(&path).unwrap();
         std::fs::remove_file(path).unwrap();
         assert!(catalog.photos.is_empty());
-        assert!(catalog.warnings.iter().any(|w| w == "image 1: missing file record; not imported"), "{:?}", catalog.warnings);
+        assert!(catalog.warnings.iter().any(|w| w == "1 image not imported (missing file record): 1"), "{:?}", catalog.warnings);
+    }
+
+    #[test]
+    fn images_with_an_empty_file_name_are_skipped_not_fatal() {
+        let mut tables = photo_tables(("/catalog/", ""));
+        tables[2].2[2] = SqlValue::Text(String::new());
+        let path = std::env::temp_dir().join(format!("lightcraft-nameless-catalog-{}.lrcat", std::process::id()));
+        std::fs::write(&path, native_catalog(&tables)).unwrap();
+        let catalog = read(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert!(catalog.photos.is_empty());
+        assert!(catalog.warnings.iter().any(|w| w == "1 image not imported (incomplete original path): 1"), "{:?}", catalog.warnings);
+    }
+
+    #[test]
+    fn skipped_images_are_summarised_in_one_warning() {
+        let ids: Vec<i64> = (1..=12).collect();
+        assert_eq!(
+            skipped_warning(&ids, "missing file record"),
+            "12 images not imported (missing file record): 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, … (2 more)"
+        );
     }
 
     #[test]
@@ -1632,7 +1671,7 @@ mod tests {
         data.photos.retain(|p| p.source_id != 1);
         drop_copies_of(&mut data, &HashSet::from([1]));
         assert!(data.photos.is_empty());
-        assert_eq!(data.warnings, ["image 2: not imported; its original was not imported"]);
+        assert_eq!(data.warnings, ["1 image not imported (virtual copy of an image not imported): 2"]);
         validate(&data).unwrap();
     }
 

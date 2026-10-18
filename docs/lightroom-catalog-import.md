@@ -28,9 +28,9 @@ settings are imported. Missing originals remain catalogued for relinking, count 
 separately from failures reading files that are present. Known-missing originals are not probed
 again. Previously browsed Local records join All Photos even when their originals are offline;
 their promotion is counted once and undone together with the catalog import.
-An image whose file, folder or root folder record is gone from the catalog (Lightroom leaves these
-behind and ignores them) is skipped with a warning, together with its virtual copies, instead of
-failing the whole import.
+An image whose file, folder or root folder record is gone from the catalog, or whose original path
+is empty (Lightroom leaves these behind and ignores them), is skipped together with its virtual
+copies instead of failing the whole import; one warning per reason lists the skipped images.
 Virtual copies count as added records too; reimport reports zero additions when all
 records already exist. Existing LightCraft
 edits are preserved by default; `updateExisting=true` explicitly replaces them. Persistent import
