@@ -184,6 +184,10 @@ pub struct Interaction {
     pub label: String,
     pub photo: PhotoId,
     pub original: Arc<DevelopSettings>,
+    /// Whether an edit during the interaction changed the crop itself. If none did, the crop the
+    /// photo shows was fitted by Constrain Crop, and the final commit starts again from the original
+    /// crop, so Auto Sync carries the edit and not the active photo's fitted crop.
+    pub crop_edited: bool,
 }
 
 /// The most photos an edit may touch for the view to follow it photo by photo; a larger edit is worked out whole.
@@ -877,9 +881,11 @@ impl Session {
         // Auto Sync carries the edit as asked; each photo then fits its own crop (review of #1990)
         let requested = settings;
         let settings = Arc::new(self.fit_constrained_crop(id, requested.clone()));
-        if let Some(i) = &self.interaction
+        let crop_edited = self.develop_of(id).is_some_and(|d| d.crop.geometry != requested.crop.geometry);
+        if let Some(i) = &mut self.interaction
             && i.photo == id
         {
+            i.crop_edited |= crop_edited;
             return self.apply_silent(Op::SetDevelop { id, settings, label: label.into(), edited: Some(now) });
         }
         let mut ops = vec![self.develop_op(id, (*settings).clone(), label).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?];
@@ -903,7 +909,7 @@ impl Session {
         let warp_changed = before.geometry != d.geometry
             || before.optics != d.optics
             || before.orientation != d.orientation
-            || before.disabled_sections != d.disabled_sections;
+            || ["geometry", "optics"].iter().any(|s| before.section_enabled(s) != d.section_enabled(s));
         let crop_edited = before.crop.geometry != d.crop.geometry;
         if !(turned_on || (warp_changed && !crop_edited)) {
             return d;
@@ -971,7 +977,7 @@ impl Session {
         }
         let id = self.active().ok_or_else(|| EngineError::Other("no active photo".into()))?;
         let original = self.develop_of(id).unwrap_or_default();
-        self.interaction = Some(Interaction { label: label.into(), photo: id, original });
+        self.interaction = Some(Interaction { label: label.into(), photo: id, original, crop_edited: false });
         Ok(())
     }
 
@@ -982,9 +988,15 @@ impl Session {
         if *cur == *i.original {
             return Ok(());
         }
-        // Restore the original silently, then commit the final value as one step.
+        // Restore the original silently, then commit the final value as one step. A crop nobody
+        // edited goes back to the original's: Constrain Crop fits it again for the final warp, and
+        // Auto Sync carries the edit, not the active photo's fitted crop (review of #1990).
         self.apply_silent(Op::SetDevelop { id: i.photo, settings: i.original.clone(), label: i.label.clone(), edited: None })?;
-        self.set_develop(i.photo, (*cur).clone(), &i.label)
+        let mut last = (*cur).clone();
+        if !i.crop_edited {
+            last.crop.geometry = i.original.crop.geometry;
+        }
+        self.set_develop(i.photo, last, &i.label)
     }
 
     pub fn cancel_interaction(&mut self) -> Result<()> {
