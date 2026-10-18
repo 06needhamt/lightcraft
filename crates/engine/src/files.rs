@@ -410,7 +410,14 @@ fn load_bytes_now(
     denoise: Option<&DenoiseSpec>,
 ) -> Result<(Rgb32f, Option<Rgb32f>, SourceInfo), String> {
     if lightcraft_raw::probe(&bytes).is_some() {
-        let mut raw = match lightcraft_raw::decode(&bytes).map_err(|e| preview_reason(&bytes, e)) {
+        // a thumbnail or preview of a DNG that keeps smaller copies of its raw image (Lightroom's merges) develops
+        // the smallest that covers it; a denoised photo's twin needs the full mosaic
+        let reduced = (denoise.is_none() && max_edge < usize::MAX).then(|| lightcraft_raw::decode_reduced(&bytes, max_edge).ok().flatten()).flatten();
+        let decoded = match reduced {
+            Some(r) => Ok(r),
+            None => lightcraft_raw::decode(&bytes),
+        };
+        let mut raw = match decoded.map_err(|e| preview_reason(&bytes, e)) {
             Ok(r) => r,
             Err(Ok(why)) => {
                 // show the camera's embedded JPEG (rendered, not raw) until the variant is supported
