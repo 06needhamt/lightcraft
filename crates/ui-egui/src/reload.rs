@@ -1,7 +1,8 @@
 //! Reload from Disk in the app: the files are read on a worker thread (a raw's decode takes a
 //! second or more, and a selection of them froze the window), with a row in the activity stack
-//! that counts the files and can stop. What came of it is applied back here, as one undo step,
-//! unless another library was opened meanwhile. Agents get the same with `wait: true`, which runs
+//! that counts the files and can stop. What came of it is applied back here through the session's
+//! command wrapper (one undo step, saved, sidecars auto-written), unless another library was opened
+//! meanwhile or a reload started later has already been applied to the photo. Agents get the same with `wait: true`, which runs
 //! the engine's command in place.
 
 use std::sync::Arc;
@@ -22,7 +23,7 @@ pub fn command(app: &mut LightcraftApp, p: &Value) -> Option<Result<Value, Strin
     if p.get("wait").and_then(Value::as_bool) == Some(true) {
         return None;
     }
-    let items = match reload::plan(&app.session, p) {
+    let items = match reload::plan(&mut app.session, p) {
         Ok(items) => items,
         Err(e) => return Some(Err(format!("photo.reload: {e}"))),
     };
@@ -47,7 +48,8 @@ pub fn command(app: &mut LightcraftApp, p: &Value) -> Option<Result<Value, Strin
         if app.session.library_generation() != library {
             return;
         }
-        if let Err(e) = reload::apply(&mut app.session, items, results) {
+        // as the command: one undo step, the durable save and the automatic XMP sidecar write
+        if let Err(e) = app.session.execute_fn("photo.reload", |s| reload::apply(s, items, results).map(|ids| reload::to_json(&ids))) {
             return app.toast_error(ctx, e.to_string());
         }
         let cleared = preview_only.iter().filter(|id| app.session.catalog.photo(**id).is_some_and(|ph| ph.preview_only.is_none())).count();

@@ -3,6 +3,10 @@
 //! the command ran. [`plan`] lists the photos to re-read (no file-system calls), [`probe`] reads
 //! their files without the session (cancellable, with progress), and [`apply`] commits what came
 //! of it as one undo step. The command itself (agents, CLI, MCP) does all three at once.
+//!
+//! Reloads can overlap (the user picks Reload from Disk again while a first one still reads), so
+//! each [`plan`] takes a ticket and [`apply`] drops a photo's result when a reload planned later
+//! has already been applied to it: an older read never replaces a newer one.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -18,14 +22,28 @@ use crate::{Result, Session};
 pub struct Item {
     pub id: PhotoId,
     pub path: String,
+    /// The [`plan`] it came from, in the order reloads were started (see [`Tickets`]).
+    pub ticket: u64,
 }
 
-/// The photos `p` targets (`ids`, else the selection) that have a file. No file-system calls.
-pub fn plan(s: &Session, p: &Value) -> Result<Vec<Item>> {
-    Ok(s.targets(p)?
+/// Which reload each photo last took its file information from, so a reload started earlier but
+/// finishing later doesn't put back what its file was before (session memory, not saved).
+#[derive(Debug, Default)]
+pub struct Tickets {
+    last: u64,
+    applied: std::collections::BTreeMap<PhotoId, u64>,
+}
+
+/// The photos `p` targets (`ids`, else the selection) that have a file, under a new ticket. No
+/// file-system calls.
+pub fn plan(s: &mut Session, p: &Value) -> Result<Vec<Item>> {
+    let ids = s.targets(p)?;
+    s.reload_tickets.last = s.reload_tickets.last.saturating_add(1);
+    let ticket = s.reload_tickets.last;
+    Ok(ids
         .into_iter()
         .filter_map(|id| match s.catalog.photo(id).map(|ph| &ph.source) {
-            Some(Source::File { path }) => Some(Item { id, path: path.clone() }),
+            Some(Source::File { path }) => Some(Item { id, path: path.clone(), ticket }),
             _ => None,
         })
         .collect())
@@ -66,16 +84,19 @@ pub fn probe(
 
 /// Commit [`probe`]'s results as one undo step ("Reload Changed Files"): each photo and its virtual
 /// copies get what their file is now. A file that couldn't be read changes nothing; a photo removed
-/// or relinked since it was listed is skipped. Returns the photos that changed.
+/// or relinked since it was listed, or already given a newer reload's result, is skipped. Returns
+/// the photos that changed.
 pub fn apply(s: &mut Session, items: Vec<Item>, results: Vec<std::result::Result<ProbeInfo, String>>) -> Result<Vec<PhotoId>> {
     let mut ops = Vec::new();
     let mut reloaded = Vec::new();
     for (item, info) in items.into_iter().zip(results) {
         let Ok(info) = info else { continue };
         let current = s.catalog.photo(item.id).is_some_and(|ph| matches!(&ph.source, Source::File { path } if *path == item.path));
-        if !current {
+        let superseded = s.reload_tickets.applied.get(&item.id).is_some_and(|t| *t > item.ticket);
+        if !current || superseded {
             continue;
         }
+        s.reload_tickets.applied.insert(item.id, item.ticket);
         crate::cmd::convert::reload_ops(&s.catalog, item.id, &info, &mut ops, &mut reloaded);
     }
     for id in &reloaded {
