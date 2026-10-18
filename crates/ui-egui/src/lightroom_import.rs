@@ -228,6 +228,8 @@ fn spawn_finalize(
     unsupported_wasm().map(|_| ())
 }
 
+/// What `status` and the result window show for an inspected catalog: counts, missing originals,
+/// warnings and skipped images.
 #[cfg(not(target_arch = "wasm32"))]
 fn inspect_report(data: lightcraft_engine::lightroom_catalog::CatalogImport) -> Value {
     json!({
@@ -299,6 +301,8 @@ fn show_result(app: &mut LightcraftApp) {
     }
 }
 
+/// The lasting result window for an inspect or import: counts, failures, missing originals, the
+/// skipped images (one line, in the UI language) and at most eight warnings.
 fn result_dialog(value: &Value, summary: &str) -> crate::state::Dialog {
     let report = value.get("report").unwrap_or(value);
     let mut details = Vec::new();

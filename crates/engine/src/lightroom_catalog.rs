@@ -436,6 +436,9 @@ pub fn read(path: &Path) -> Result<CatalogImport, String> {
     read_with_progress(path, &cancel, &total, &done)
 }
 
+/// Read a Lightroom Classic catalog for import, counting the tables read in `total` / `done` and
+/// stopping when `cancel` is set. Images whose catalog records are incomplete are left out and
+/// listed in [`CatalogImport::skipped`] instead of failing the read.
 pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize, done: &AtomicUsize) -> Result<CatalogImport, String> {
     // 13 catalog tables plus one validation stage; ImportJob adds one unit per original path.
     total.store(14, Ordering::Relaxed);
@@ -850,6 +853,8 @@ pub(crate) struct ApplyPrepared<'a> {
     pub(crate) undo0: usize,
 }
 
+/// Turn the read catalog into library records in one undo step and return the import report
+/// (added, missing, failed, warnings and skipped images).
 pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, context: ApplyPrepared<'_>) -> crate::Result<AppliedImport> {
     let ApplyPrepared { update_existing, files, index, archive_path, missing_sources, undo0 } = context;
     // nothing but a file type LightCraft reads becomes a record, whichever route got here (#2135)
@@ -1661,6 +1666,7 @@ mod tests {
         catalog
     }
 
+    /// `tables` with each row as a one-row table, for [`native_catalog_rows`].
     fn one_row(tables: Vec<(&'static str, &'static str, Vec<SqlValue>)>) -> Vec<(&'static str, &'static str, Vec<Vec<SqlValue>>)> {
         tables.into_iter().map(|(name, columns, row)| (name, columns, vec![row])).collect()
     }
