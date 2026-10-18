@@ -84,8 +84,20 @@ fn open_and_scan(h: &mut Headless, folder: &str) {
     // the rows above it hold one folder each and open by themselves
     let row = format!("source:libfolder:{folder}");
     assert!(h.step_until(T, |h| h.app.widgets.iter().any(|(w, _)| *w == row)), "no row {row}");
+    let before = h.app.widgets.iter().find(|(w, _)| *w == row).map(|(_, r)| *r).unwrap_or_else(|| panic!("no row {row}"));
+    let panel = h.app.widgets.iter().find(|(w, _)| w == "panel:left_panel").map(|(_, r)| *r).expect("left panel");
+    // Off-screen rows are registered too. Bring this row into view before the real right-click.
+    crate::tests_panels::scroll_sidebar(h, panel.center().y - before.center().y);
     let rect = h.app.widgets.iter().find(|(w, _)| *w == row).map(|(_, r)| *r).unwrap_or_else(|| panic!("no row {row}"));
-    let c = rect.center();
+    let panel = h.app.widgets.iter().find(|(w, _)| w == "panel:left_panel").map(|(_, r)| *r).expect("left panel");
+    let visible = rect.intersect(panel);
+    let c = visible.center();
+    let drawn = h.app.widgets.iter().any(|(w, _)| *w == format!("label:libfolder:{folder}"));
+    let clips: Vec<_> = h.view.shapes.iter().filter(|s| s.shape.visual_bounding_rect().intersects(rect)).map(|s| s.clip_rect).collect();
+    eprintln!(
+        "sync row geometry: before={before:?} row={rect:?} panel={panel:?} visible={visible:?} click={c:?} drawn={drawn} paint_clips={clips:?}"
+    );
+    assert!(drawn && visible.is_positive() && visible.height() >= rect.height() - 0.5, "folder row must be drawn and vertically in view");
     let r = h.request("ui.click", json!({"x": c.x, "y": c.y, "button": "right"}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.step();
