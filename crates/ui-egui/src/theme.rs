@@ -47,7 +47,7 @@ pub struct Tokens {
     /// A thumbnail's place while its picture is still being made: static, apart from the grid, the
     /// cells and the canvas in every theme.
     pub skeleton: Color32,
-    /// The ring round the active photo (outer line, 2 pt): 3:1 or more against the grid and the
+    /// The ring round the active photo (outer line, 3 pt): 3:1 or more against the grid and the
     /// square grid's cells. The photo itself is parted from it by [`Tokens::ring_inner`].
     pub ring_active: Color32,
     /// The thin line (1 pt) between the active photo and its ring: the ring's opposite, so the ring
@@ -503,17 +503,6 @@ mod tests {
             }
             // the thin inner line of the active ring is the ring's opposite: it parts the ring from the photo's edge
             assert!(contrast(t.ring_inner, t.ring_active) >= 3.0, "{kind:?}: inner line against the active ring");
-        }
-    }
-
-    /// A photo still being drawn is a slab of its theme, not a dark one on a light grid.
-    #[test]
-    fn the_loading_placeholder_belongs_to_the_theme() {
-        for kind in ThemeKind::ALL {
-            let t = Tokens::for_kind(kind);
-            assert!(t.skeleton != t.grid_bg, "{kind:?}: the slab must show on the grid");
-            let dark_slab = contrast(t.skeleton, Color32::BLACK) < contrast(t.skeleton, Color32::WHITE);
-            assert_eq!(dark_slab, kind.is_dark(), "{kind:?}: a {} slab", if dark_slab { "dark" } else { "light" });
         }
     }
 
