@@ -566,12 +566,13 @@ fn rotate_aspect_of_degenerate_crop_stays_finite() {
     }
 }
 
-/// `crop.set` with a huge rect shrank it by a scale of 0 (`inf * 0`) and stored a NaN crop.
+/// `crop.set` with a huge rect shrank it by a scale of 0 (`inf * 0`) and stored a NaN crop. Their
+/// maths overflow, so they fall back to a full-size crop and pass the minimum size.
 #[test]
 fn crop_set_huge_rect_stays_finite() {
     for rect in [[0.0, 0.0, 1e308, 1e308], [-1e308, -1e308, 1e308, 1e308]] {
         let mut s = demo();
-        let _ = s.execute("crop.set", &json!({"rect": rect}));
+        s.execute("crop.set", &json!({"rect": rect})).unwrap();
         let r = active_dev(&s).crop.geometry.rect;
         assert!([r.x0, r.y0, r.x1, r.y1].iter().all(|v| v.is_finite() && (-1e-6..=1.0 + 1e-6).contains(v)), "{rect:?}: {r:?}");
     }
@@ -579,12 +580,14 @@ fn crop_set_huge_rect_stays_finite() {
 
 /// `crop.set` took a crop of no size (or a sliver), and the next export wrote a 1×1 image (#1952).
 /// It now refuses a crop smaller than a drag of the crop tool can make, and keeps the one it had.
+/// A rect far wider than the photo is a sliver too once it is shrunk to fit inside it.
 #[test]
 fn crop_set_refuses_a_crop_smaller_than_the_tool_allows() {
     let mut s = demo();
     s.execute("crop.set", &json!({"rect": [0.1, 0.1, 0.9, 0.9]})).unwrap();
     let before = active_dev(&s).crop.geometry;
-    for rect in [[0.5, 0.5, 0.5, 0.5], [0.2, 0.2, 0.2, 0.8], [0.2, 0.4, 0.8, 0.4], [0.0, 0.0, 1e-9, 1.0]] {
+    for rect in [[0.5, 0.5, 0.5, 0.5], [0.2, 0.2, 0.2, 0.8], [0.2, 0.4, 0.8, 0.4], [0.0, 0.0, 1e-9, 1.0], [0.0, 0.0, 1e6, 1.0], [0.0, 0.0, 1.0, 1e6]]
+    {
         let e = s.execute("crop.set", &json!({"rect": rect})).unwrap_err();
         assert!(e.to_string().contains("smaller"), "{rect:?}: {e}");
         assert_eq!(active_dev(&s).crop.geometry, before, "{rect:?}");
