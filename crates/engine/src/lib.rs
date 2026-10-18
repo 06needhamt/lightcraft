@@ -874,14 +874,16 @@ impl Session {
     /// undo step; otherwise it is committed with a history entry.
     pub fn set_develop(&mut self, id: PhotoId, settings: DevelopSettings, label: &str) -> Result<()> {
         let now = (self.clock)();
-        let settings = Arc::new(self.fit_constrained_crop(id, settings));
+        // Auto Sync carries the edit as asked; each photo then fits its own crop (review of #1990)
+        let requested = settings;
+        let settings = Arc::new(self.fit_constrained_crop(id, requested.clone()));
         if let Some(i) = &self.interaction
             && i.photo == id
         {
             return self.apply_silent(Op::SetDevelop { id, settings, label: label.into(), edited: Some(now) });
         }
         let mut ops = vec![self.develop_op(id, (*settings).clone(), label).ok_or(lightcraft_catalog::CatalogError::NoPhoto(id))?];
-        ops.extend(self.auto_sync_ops(id, &settings, label));
+        ops.extend(self.auto_sync_ops(id, &requested, label));
         let op = if ops.len() == 1 { ops.remove(0) } else { Op::Batch { ops } };
         self.commit(label, op)
     }
@@ -917,10 +919,11 @@ impl Session {
         d
     }
 
-    /// With Auto Sync on, the ops that carry an edit of the active photo `id` (to `new`) over to the
-    /// other selected photos: only the settings that changed; never spot removal or red eye (they
-    /// belong to one photo's pixels), nor the rendering process (Sync doesn't carry it either), nor
-    /// history / snapshot restores.
+    /// With Auto Sync on, the ops that carry an edit of the active photo `id` (to `new`, as asked,
+    /// before its crop is fitted) over to the other selected photos: only the settings that changed;
+    /// never spot removal or red eye (they belong to one photo's pixels), nor the rendering process
+    /// (Sync doesn't carry it either), nor history / snapshot restores. Constrain Crop then fits each
+    /// photo's own crop: the active photo's fitted crop is never copied over another's.
     fn auto_sync_ops(&self, id: PhotoId, new: &DevelopSettings, label: &str) -> Vec<Op> {
         if !self.auto_sync
             || self.active() != Some(id)
@@ -946,7 +949,7 @@ impl Session {
             .filter(|x| **x != id)
             .filter_map(|x| self.develop_of(*x).map(|d| (*x, d)))
             .filter_map(|(x, d)| {
-                let synced = lightcraft_develop::apply_partial(&d, &delta, 1.0);
+                let synced = self.fit_constrained_crop(x, lightcraft_develop::apply_partial(&d, &delta, 1.0));
                 (synced != *d).then(|| self.develop_op(x, synced, label)).flatten()
             })
             .collect()

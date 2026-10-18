@@ -70,3 +70,31 @@ fn a_crop_drawn_by_hand_is_kept_as_drawn() {
     s.execute("crop.set", &json!({"rect": [0.0, 0.0, 1.0, 1.0]})).unwrap();
     assert_eq!(crop(&s).rect, Rect::new(0.0, 0.0, 1.0, 1.0), "the crop edit itself is not refitted");
 }
+
+/// Review of #1990: with Auto Sync, a Geometry edit on the active photo fits each selected photo's
+/// own crop; the active photo's fitted crop is never copied over another photo's (smaller) crop.
+#[test]
+fn auto_sync_fits_each_photos_own_crop() {
+    let mut s = Session::with_demo();
+    let ids: Vec<_> = s.catalog.photos().take(2).map(|p| p.id).collect();
+    let (a, b) = (ids[0], ids[1]);
+    // B: a small crop off-centre; both constrained
+    s.selection = crate::Selection { ids: vec![b], active: Some(b) };
+    s.execute("crop.set", &json!({"rect": [0.05, 0.1, 0.45, 0.5]})).unwrap();
+    constrain(&mut s, true);
+    s.selection = crate::Selection { ids: vec![a], active: Some(a) };
+    constrain(&mut s, true);
+    let b_before = s.develop_of(b).unwrap().crop.geometry.rect;
+    // A active, both selected, Auto Sync on: a Geometry edit on A
+    s.selection = crate::Selection { ids: vec![a, b], active: Some(a) };
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    vertical(&mut s, -60.0);
+    let (da, db) = (s.develop_of(a).unwrap(), s.develop_of(b).unwrap());
+    assert_eq!(db.geometry.vertical, -60.0, "the edit reached B");
+    let b_after = db.crop.geometry.rect;
+    assert_ne!(b_after, da.crop.geometry.rect, "B keeps a crop of its own");
+    let inside = |r: Rect, o: Rect| r.x0 >= o.x0 - 1e-9 && r.y0 >= o.y0 - 1e-9 && r.x1 <= o.x1 + 1e-9 && r.y1 <= o.y1 + 1e-9;
+    assert!(inside(b_after, b_before), "B's crop only shrinks within itself: {b_before:?} -> {b_after:?}");
+    s.selection = crate::Selection { ids: vec![b], active: Some(b) };
+    assert!(fits(&s), "and fits B's warp");
+}
