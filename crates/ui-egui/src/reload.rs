@@ -8,6 +8,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use lightcraft_engine::EngineError;
 use lightcraft_engine::cmd::reload;
 use serde_json::{Value, json};
 
@@ -25,7 +26,11 @@ pub fn command(app: &mut LightcraftApp, p: &Value) -> Option<Result<Value, Strin
     }
     let items = match reload::plan(&mut app.session, p) {
         Ok(items) => items,
-        Err(e) => return Some(Err(format!("photo.reload: {e}"))),
+        // named as `Session::execute` names a shared parameter check's refusal
+        Err(EngineError::BadParams { cmd, msg }) if cmd.is_empty() => {
+            return Some(Err(EngineError::BadParams { cmd: "photo.reload".into(), msg }.to_string()));
+        }
+        Err(e) => return Some(Err(e.to_string())),
     };
     if items.is_empty() {
         return None;
@@ -38,6 +43,7 @@ pub fn command(app: &mut LightcraftApp, p: &Value) -> Option<Result<Value, Strin
     let probe = reload::file_probe(&app.session);
     let cancel = Arc::new(AtomicBool::new(false));
     let flag = cancel.clone();
+    let stopped = cancel.clone();
     let work = move |task: lightcraft_engine::activity::TaskHandle| {
         let total = items.len() as u64;
         task.progress(0, total);
@@ -53,6 +59,11 @@ pub fn command(app: &mut LightcraftApp, p: &Value) -> Option<Result<Value, Strin
             return app.toast_error(ctx, e.to_string());
         }
         let cleared = preview_only.iter().filter(|id| app.session.catalog.photo(**id).is_some_and(|ph| ph.preview_only.is_none())).count();
+        // stopped before the files were read: they weren't tried again, so say nothing about them
+        // (a raw that did decode before the stop is still reported)
+        if stopped.load(std::sync::atomic::Ordering::Relaxed) && cleared == 0 {
+            return;
+        }
         let message = match (count, preview_only.len(), cleared) {
             (1, 1, 1) => crate::i18n::tr("This raw is now developed from its raw data").to_string(),
             (1, 1, _) => crate::i18n::tr("This raw variant still can't be decoded").to_string(),

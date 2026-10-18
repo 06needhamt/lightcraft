@@ -228,3 +228,57 @@ fn a_background_reload_writes_the_sidecar_with_auto_write_on() {
     assert_eq!(app.session.catalog.photo(id).unwrap().meta.gps, Some((41.0, 2.0)));
     assert!(std::fs::read_to_string(&sidecar).unwrap().contains("GPSLatitude"), "the sidecar was not written");
 }
+
+/// Bad `ids` are refused naming the command once, as the engine's own reply does (`wait: true`).
+#[test]
+fn reload_with_bad_ids_names_the_command() {
+    let dir = Dir(std::env::temp_dir().join(format!("lc-ui-reload-bad-{}", std::process::id())));
+    let (mut app, _) = app_with_stale_photo(&dir.0);
+    let background = app.run("photo.reload", json!({"ids": "x"})).unwrap_err();
+    let waited = app.run("photo.reload", json!({"ids": "x", "wait": true})).unwrap_err();
+    assert_eq!(background, waited);
+    assert!(background.contains("`photo.reload`"), "{background}");
+    assert!(!background.contains("``") && !background.starts_with("photo.reload:"), "{background}");
+}
+
+/// A Reload stopped from the activity stack before its file was read says nothing (the raw wasn't
+/// tried again); one stopped after the file was read still says what came of it.
+#[test]
+fn a_cancelled_reload_reports_only_what_it_did() {
+    use std::sync::{Arc, Condvar, Mutex};
+    let dir = Dir(std::env::temp_dir().join(format!("lc-ui-reload-cancel-{}", std::process::id())));
+    let (mut app, id) = app_with_stale_photo(&dir.0);
+    let ctx = egui::Context::default();
+    let native = app.session.media.file_probe.clone().unwrap();
+    for read in [false, true] {
+        // (the probe has started, the probe may return)
+        let gate = Arc::new((Mutex::new((false, false)), Condvar::new()));
+        let worker_gate = gate.clone();
+        let native = native.clone();
+        app.session.media.file_probe = Some(Arc::new(move |path| {
+            let mut state = worker_gate.0.lock().unwrap();
+            state.0 = true;
+            worker_gate.1.notify_all();
+            let _ = worker_gate.1.wait_timeout_while(state, Duration::from_secs(10), |s| !s.1).unwrap();
+            // a read the cancel stopped comes back as an error, as a file not reached does
+            if read { native(path) } else { Err(format!("{path}: cancelled")) }
+        }));
+        app.ui.toast = None;
+        app.run("photo.reload", json!({"ids": [id.0]})).unwrap();
+        let (state, _) = gate.1.wait_timeout_while(gate.0.lock().unwrap(), Duration::from_secs(5), |s| !s.0).unwrap();
+        assert!(state.0, "the reload started reading");
+        drop(state);
+        let row = app.session.activity.list().into_iter().find(|r| r.kind == "reload").unwrap();
+        app.session.activity.cancel(row.id).unwrap();
+        gate.0.lock().unwrap().1 = true;
+        gate.1.notify_all();
+        assert!(crate::tasks::wait(&mut app, &ctx, Duration::from_secs(10)));
+        if read {
+            assert_eq!(app.session.catalog.photo(id).unwrap().preview_only, None);
+            assert!(app.ui.toast.as_ref().is_some_and(|(t, _, _)| t == "This raw is now developed from its raw data"), "{:?}", app.ui.toast);
+        } else {
+            assert!(app.session.catalog.photo(id).unwrap().preview_only.is_some());
+            assert!(app.ui.toast.is_none(), "a cancelled reload reported {:?}", app.ui.toast);
+        }
+    }
+}
