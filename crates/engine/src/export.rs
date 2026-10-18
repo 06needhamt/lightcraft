@@ -819,20 +819,34 @@ impl ExportOptions {
     /// for good after an update. A `bitDepth` the stored format doesn't have (written at the
     /// format's own depth before issue #1952) is dropped too.
     pub fn known_keys_only(p: &serde_json::Value) -> serde_json::Value {
+        let mut p = Self::known_keys(p);
+        Self::drop_unfit_depth(&mut p, ExportFormat::default());
+        p
+    }
+
+    /// [`ExportOptions::known_keys_only`] keeping `bitDepth`, for a preset whose format may only be
+    /// known once the call's own params (`path`) are merged in.
+    pub(crate) fn known_keys(p: &serde_json::Value) -> serde_json::Value {
         let mut p = p.clone();
         if let Some(o) = p.as_object_mut() {
             o.retain(|k, _| OPTION_PARAMS.contains(&k.as_str()) || TARGET_PARAMS.contains(&k.as_str()));
-            let format = o.get("format").and_then(serde_json::Value::as_str).map_or(Some(ExportFormat::default()), ExportFormat::parse);
-            if let (Some(format), Some(depth)) = (format, o.get("bitDepth").and_then(whole))
-                && !Self::bit_depths(format).iter().any(|d| i64::from(d.0) == depth)
-            {
-                o.remove("bitDepth");
-            }
             if let Some(w) = o.get_mut("watermark").and_then(serde_json::Value::as_object_mut) {
                 w.retain(|k, _| WATERMARK_PARAMS.contains(&k.as_str()));
             }
         }
         p
+    }
+
+    /// Drop a stored `bitDepth` the format `p` exports ([`ExportOptions::export_format`] with
+    /// `fallback`) doesn't have: it was written at the format's own depth before issue #1952.
+    pub(crate) fn drop_unfit_depth(p: &mut serde_json::Value, fallback: ExportFormat) {
+        let format = Self::export_format(p, fallback);
+        if let Some(o) = p.as_object_mut()
+            && let Some(depth) = o.get("bitDepth").and_then(whole)
+            && !Self::bit_depths(format).iter().any(|d| i64::from(d.0) == depth)
+        {
+            o.remove("bitDepth");
+        }
     }
 
     /// Strict [`ExportOptions::from_json`] for a command that is about to export (issue #181): an
@@ -847,7 +861,7 @@ impl ExportOptions {
     /// format; the format returned is [`ExportOptions::export_format`], the one written.
     pub fn from_params_or(p: &serde_json::Value, fallback: ExportFormat) -> crate::Result<Self> {
         let format = Self::export_format(p, fallback);
-        Self::validate_as("app.export", p, format)?;
+        Self::validate_as("app.export", p, Some(format))?;
         Ok(Self { format, ..Self::from_json(p) })
     }
 
@@ -868,11 +882,12 @@ impl ExportOptions {
     /// kind of thing its key takes, and a `watermark` object must hold only [`WATERMARK_PARAMS`]
     /// with its sizes in range (issue #183). `null` means "not given", as a dropped key does.
     pub fn validate(cmd: &str, p: &serde_json::Value) -> crate::Result<()> {
-        Self::validate_as(cmd, p, Self::export_format(p, ExportFormat::default()))
+        Self::validate_as(cmd, p, Some(Self::export_format(p, ExportFormat::default())))
     }
 
-    /// [`ExportOptions::validate`] with `bitDepth` checked against `format`, the one exported.
-    fn validate_as(cmd: &str, p: &serde_json::Value, format: ExportFormat) -> crate::Result<()> {
+    /// [`ExportOptions::validate`] with `bitDepth` checked against `format`, the one exported
+    /// (`None`: not known yet, as for a preset without `format`).
+    pub(crate) fn validate_as(cmd: &str, p: &serde_json::Value, format: Option<ExportFormat>) -> crate::Result<()> {
         use serde_json::Value;
         let bad = |msg: String| crate::cmd::bad(cmd, msg);
         let Some(obj) = p.as_object() else { return Err(bad("params must be an object".into())) };
@@ -981,7 +996,7 @@ impl ExportOptions {
             }
         }
         // issue #1952: a depth the format doesn't have would be written at the format's own depth
-        if let Some(depth) = obj.get("bitDepth").and_then(whole) {
+        if let (Some(format), Some(depth)) = (format, obj.get("bitDepth").and_then(whole)) {
             let mut depths: Vec<u8> = Self::bit_depths(format).iter().map(|d| d.0).collect();
             if !depths.iter().any(|d| i64::from(*d) == depth) {
                 depths.sort_unstable();

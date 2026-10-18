@@ -98,6 +98,28 @@ fn dng_export_rejects_non_raw_photos() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Review of #1966: a preset without `format` keeps its `bitDepth` until the format written is
+/// known. With `path: a.png` it writes the 16-bit PNG it asks for; a format without that depth
+/// gets its own, as stored settings do, while a depth the call itself passes is still refused.
+#[test]
+fn a_preset_depth_is_judged_against_the_format_written() {
+    use crate::export::ExportPreset;
+    let mut s = Session::with_demo();
+    let id = s.active().unwrap();
+    s.export_presets.push(ExportPreset { name: "Deep".into(), params: json!({"bitDepth": 16, "longEdge": 64}) });
+    let p = s.export_params(&json!({"preset": "deep", "path": "/out/a.png"})).unwrap();
+    let o = ExportOptions::from_params(&p).unwrap();
+    assert_eq!((o.format, o.bit_depth), (ExportFormat::Png, Some(16)));
+    assert_eq!(export_photo(&mut s, id, &o, 1).unwrap().bytes[24], 16, "a 16-bit PNG");
+    let p = s.export_params(&json!({"preset": "deep", "path": "/out/a.jpg"})).unwrap();
+    assert_eq!(ExportOptions::from_params(&p).unwrap().bit_depth, None);
+    let p = s.export_params(&json!({"preset": "deep", "path": "/out/a.jpg", "bitDepth": 16})).unwrap();
+    assert!(ExportOptions::from_params(&p).unwrap_err().to_string().contains("`bitDepth` must be 8 for jpeg"));
+    // such a preset can be saved: its depth is judged when it exports; with a format, at once
+    s.execute("export.savePreset", &json!({"name": "Deep 2", "params": {"bitDepth": 16}})).unwrap();
+    assert!(s.execute("export.savePreset", &json!({"name": "Deep 3", "params": {"format": "jpeg", "bitDepth": 16}})).is_err());
+}
+
 #[test]
 fn presets_conflicts_and_subfolders() {
     use crate::export::{Destination, export_batch};

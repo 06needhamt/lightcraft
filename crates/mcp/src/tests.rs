@@ -169,6 +169,21 @@ fn export_checks_the_depth_of_the_format_a_bare_path_gets() {
     let _ = std::fs::remove_dir_all(&base);
 }
 
+/// Review of #1966: a preset's `bitDepth` is judged against the format this backend writes, PNG
+/// for a `path` that names none, so a 16-bit preset without `format` writes a 16-bit PNG.
+#[test]
+fn a_preset_depth_is_judged_against_the_format_written() {
+    let mut b = Headless::demo();
+    let base = std::env::temp_dir().join(format!("lc-mcp-preset-depth-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    std::fs::create_dir_all(&base).unwrap();
+    b.session.export_presets.push(lightcraft_engine::export::ExportPreset { name: "Deep".into(), params: json!({"bitDepth": 16}) });
+    b.call("app.export", json!({"preset": "Deep", "path": base.join("output").to_string_lossy(), "longEdge": 32})).unwrap();
+    let bytes = std::fs::read(base.join("output")).unwrap();
+    assert!(bytes.starts_with(b"\x89PNG") && bytes[24] == 16, "a 16-bit PNG: {:?}", bytes.get(..25));
+    let _ = std::fs::remove_dir_all(&base);
+}
+
 /// Every option the `export` tool advertises reaches `app.export` (they were accepted, then dropped).
 #[test]
 fn export_tool_forwards_its_advertised_options() {
