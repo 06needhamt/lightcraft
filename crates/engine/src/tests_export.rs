@@ -991,8 +991,13 @@ fn same_folder_as_original_exports_next_to_each_photo() {
     let exists = |p: &str| std::path::Path::new(p).exists();
     let files = crate::export::export_batch(&mut s, &ids, &o, &to, &mut crate::export::write_file, &exists).unwrap();
     let written: Vec<&str> = files.iter().map(|f| f["path"].as_str().unwrap()).collect();
-    let mut want = vec![a.join("Exports/IMG_1.jpg").to_string_lossy().to_string(), b.join("Exports/IMG_1.jpg").to_string_lossy().to_string()];
-    let mut got: Vec<String> = written.iter().map(|p| p.to_string()).collect();
+    let norm = |s: &str| s.replace('\\', "/");
+    let mut want: Vec<String> =
+        [a.join("Exports/IMG_1.jpg").to_string_lossy().to_string(), b.join("Exports/IMG_1.jpg").to_string_lossy().to_string()]
+            .iter()
+            .map(|p| norm(p))
+            .collect();
+    let mut got: Vec<String> = written.iter().map(|p| norm(p)).collect();
     want.sort();
     got.sort();
     assert_eq!(got, want);
