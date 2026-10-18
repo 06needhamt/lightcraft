@@ -284,6 +284,56 @@ fn catalog_crops_follow_the_photo_orientation() {
     assert!(partial.get("crop").is_none());
 }
 
+#[test]
+fn catalog_masks_follow_the_photo_orientation() {
+    // #1806, EMY_9996 (EXIF 8, shown a quarter turn counter-clockwise): a horizon gradient along
+    // the stored image's x axis runs along the shown photo's y axis
+    let s = r#"s = { MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = -0.1, CorrectionMasks = {
+        { What = "Mask/Gradient", MaskValue = 1, ZeroX = 0.362544, ZeroY = 0.481093, FullX = 0.451639, FullY = 0.480645 } } } } }"#;
+    let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.5, Orientation::Rotate270, 1.5).unwrap();
+    let g = &partial["masks"][0]["components"][0]["shape"];
+    let close = |v: &Value, want: f64| (v.as_f64().unwrap() - want).abs() < 1e-9;
+    assert!(close(&g["start"]["x"], 0.480645) && close(&g["start"]["y"], 1.0 - 0.451639), "{g}");
+    assert!(close(&g["end"]["x"], 0.481093) && close(&g["end"]["y"], 1.0 - 0.362544), "{g}");
+
+    let masks = |o: Orientation| {
+        let s = r#"s = {
+            MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = 0.1, CorrectionMasks = {
+                { What = "Mask/Gradient", FullX = 0.1, FullY = 0.2, ZeroX = 0.3, ZeroY = 0.6 },
+                { What = "Mask/CircularGradient", Left = 0, Right = 0.2, Top = 0.1, Bottom = 0.3, Angle = 10, Feather = 50, Version = 2, Flipped = true },
+                { What = "Mask/Paint", Radius = 0.05, MaskValue = 1, Dabs = { "d 0.1 0.2", "d 0.3 0.6" } } } } } }"#;
+        let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.5, o, 1.5).unwrap();
+        let c = &partial["masks"][0]["components"];
+        let (linear, radial, brush) = (&c[0]["shape"], &c[1]["shape"], &c[2]["shape"]["strokes"][0]["points"]);
+        [
+            &linear["start"]["x"],
+            &linear["start"]["y"],
+            &linear["end"]["x"],
+            &linear["end"]["y"],
+            &radial["center"]["x"],
+            &radial["center"]["y"],
+            &radial["rx"],
+            &radial["ry"],
+            &radial["angle"],
+            &brush[0]["x"],
+            &brush[0]["y"],
+            &brush[1]["x"],
+            &brush[1]["y"],
+        ]
+        .map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9)
+    };
+    // (x, y) of the stored image → (1 − y, x) a quarter turn clockwise, (y, 1 − x) counter-clockwise;
+    // a radial's radii (in long-edge units) swap with the axes, and a mirror turns its angle the
+    // other way
+    let r = (0.1, (0.1_f64 / 1.5 * 1e9).round() / 1e9);
+    assert_eq!(masks(Orientation::Normal), [0.1, 0.2, 0.3, 0.6, 0.1, 0.2, r.0, r.1, 10.0, 0.1, 0.2, 0.3, 0.6]);
+    assert_eq!(masks(Orientation::Rotate90), [0.8, 0.1, 0.4, 0.3, 0.8, 0.1, r.1, r.0, 10.0, 0.8, 0.1, 0.4, 0.3]);
+    assert_eq!(masks(Orientation::Rotate270), [0.2, 0.9, 0.6, 0.7, 0.2, 0.9, r.1, r.0, 10.0, 0.2, 0.9, 0.6, 0.7]);
+    assert_eq!(masks(Orientation::Rotate180), [0.9, 0.8, 0.7, 0.4, 0.9, 0.8, r.0, r.1, 10.0, 0.9, 0.8, 0.7, 0.4]);
+    assert_eq!(masks(Orientation::FlipH), [0.9, 0.2, 0.7, 0.6, 0.9, 0.2, r.0, r.1, -10.0, 0.9, 0.2, 0.7, 0.6]);
+    assert_eq!(masks(Orientation::Transpose), [0.2, 0.1, 0.6, 0.3, 0.2, 0.1, r.1, r.0, -10.0, 0.2, 0.1, 0.6, 0.3]);
+}
+
 /// The `crs` corners and angle Lightroom would store for LightCraft crop `g` on a stored image
 /// of aspect `w` (height 1) shown with orientation `o`.
 fn lightroom_crop(g: CropGeometry, o: Orientation, w: f64) -> String {

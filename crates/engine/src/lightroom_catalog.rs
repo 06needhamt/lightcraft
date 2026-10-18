@@ -705,6 +705,7 @@ fn mapped_settings(
     }
     let (mut partial, mut unknown) = crate::crs::to_partial_report(&props, Some(&values), target, aspect);
     catalog_crop(&mut partial, orientation, stored_aspect);
+    catalog_masks(&mut partial, orientation);
     if deferred > 0 {
         unknown.push("Deferred Lightroom adjustments (-999999)".into());
     }
@@ -762,6 +763,48 @@ fn catalog_crop(partial: &mut Value, orientation: Orientation, stored_aspect: f6
     let r = Rect::from_points(corner(x0, y0), corner(x1, y1));
     geometry.insert("rect".into(), json!({"x0": r.x0 / ow, "y0": r.y0 / oh, "x1": r.x1 / ow, "y1": r.y1 / oh}));
     geometry.insert("angle".into(), json!(angle));
+}
+
+/// Lightroom's masks in LightCraft's frame. Like the crop's corners, their positions are on the
+/// stored image (before orientation), normalized to its size; LightCraft's are on the oriented
+/// image. So the points go through the orientation, a radial's radii (in long-edge units) swap when
+/// the axes do, and a mirror turns its angle the other way. A quarter turn keeps the angle: the
+/// ellipse turned 90° is the same ellipse with its radii swapped.
+fn catalog_masks(partial: &mut Value, orientation: Orientation) {
+    if orientation == Orientation::Normal {
+        return;
+    }
+    let point = |p: Option<&mut Value>| {
+        let Some(p) = p.and_then(Value::as_object_mut) else { return };
+        let (Some(x), Some(y)) = (p.get("x").and_then(Value::as_f64), p.get("y").and_then(Value::as_f64)) else { return };
+        let (u, v) = orientation.map(x, y, 1.0, 1.0);
+        p.insert("x".into(), json!(u));
+        p.insert("y".into(), json!(v));
+    };
+    let Some(masks) = partial.get_mut("masks").and_then(Value::as_array_mut) else { return };
+    let components = masks.iter_mut().filter_map(|m| m.get_mut("components").and_then(Value::as_array_mut)).flatten();
+    for shape in components.filter_map(|c| c.get_mut("shape").and_then(Value::as_object_mut)) {
+        point(shape.get_mut("start"));
+        point(shape.get_mut("end"));
+        point(shape.get_mut("center"));
+        let strokes = shape.get_mut("strokes").and_then(Value::as_array_mut).into_iter().flatten();
+        for points in strokes.filter_map(|s| s.get_mut("points").and_then(Value::as_array_mut)) {
+            points.iter_mut().for_each(|p| point(Some(p)));
+        }
+        if shape.get("kind").and_then(Value::as_str) == Some("radial") {
+            if orientation.swaps_axes()
+                && let (Some(rx), Some(ry)) = (shape.get("rx").cloned(), shape.get("ry").cloned())
+            {
+                shape.insert("rx".into(), ry);
+                shape.insert("ry".into(), rx);
+            }
+            if orientation.to_parts().0
+                && let Some(angle) = shape.get("angle").and_then(Value::as_f64)
+            {
+                shape.insert("angle".into(), json!(-angle));
+            }
+        }
+    }
 }
 
 fn strip_lua_sentinels(value: &mut crate::preset_import::Lua) -> usize {
