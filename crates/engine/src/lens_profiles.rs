@@ -46,7 +46,7 @@ pub fn lookup(db: &LensDb, m: &lightcraft_meta::Metadata, w: f64, h: f64, orient
         // (a user's alias), since the specification fits other makers' lenses too
         None => {
             let name = lightcraft_lensdb::spec_name(m.lens_spec?);
-            db.find_lens(m.lens_make.as_deref(), &name, camera).filter(|l| l.names_exactly(&name))?
+            db.find_lens_named(m.lens_make.as_deref(), &name, camera)?
         }
     };
     let crop = frame_crop_factor(camera.map(|c| c.crop_factor), focal, m.focal_length_35mm);

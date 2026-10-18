@@ -169,13 +169,24 @@ impl LensDb {
     /// The best profile for an EXIF lens model (and lens make, when the file has one), preferring lenses for the
     /// camera's mount. `None` when no name is a convincing match.
     pub fn find_lens(&self, lens_make: Option<&str>, lens_model: &str, camera: Option<&Camera>) -> Option<&Profile> {
+        self.best_lens(lens_make, lens_model, camera, |_| true)
+    }
+
+    /// [`find_lens`](Self::find_lens) among the profiles one of whose names is exactly `name`
+    /// ([`Profile::names_exactly`]), for names that carry no maker, such as [`spec_name`]s: another maker's lens with
+    /// the same specification scores as high, and must neither win nor, by coming first, hide the profile named so.
+    pub fn find_lens_named(&self, lens_make: Option<&str>, name: &str, camera: Option<&Camera>) -> Option<&Profile> {
+        self.best_lens(lens_make, name, camera, |l| l.names_exactly(name))
+    }
+
+    fn best_lens(&self, lens_make: Option<&str>, lens_model: &str, camera: Option<&Camera>, eligible: impl Fn(&Profile) -> bool) -> Option<&Profile> {
         let exif = tokens(lens_model);
         if exif.is_empty() {
             return None;
         }
         let make = lens_make.map(tokens).unwrap_or_default();
         let mut best: Option<(f64, &Profile)> = None;
-        for lens in &self.lenses {
+        for lens in self.lenses.iter().filter(|l| eligible(l)) {
             let maker = tokens(&lens.maker);
             if !make.is_empty() && !maker.is_empty() && !maker_matches(&maker, &make) {
                 continue;

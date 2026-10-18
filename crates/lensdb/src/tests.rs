@@ -265,3 +265,25 @@ fn spec_names_need_an_exact_profile_name() {
     assert!(aliased.names_exactly(&spec_name([24.0, 70.0, 2.8, 2.8])));
     assert!(!aliased.names_exactly("24-105mm f/4"));
 }
+
+/// Another maker's lens with the same specification scores as high as the aliased one; coming first in the
+/// database it must not hide the profile named for the specification.
+#[test]
+fn a_named_profile_is_found_behind_a_tie() {
+    let lens = |maker: &str, models: &str| {
+        format!(
+            r#"<lens><maker>{maker}</maker>{models}<mount>Test Mount</mount><cropfactor>1</cropfactor>
+              <calibration><distortion model="poly3" focal="18" k1="-0.01" /></calibration></lens>"#
+        )
+    };
+    let xml = format!(
+        r#"<lensdatabase version="2">{}{}</lensdatabase>"#,
+        lens("Otherco", "<model>Otherco 18-55mm f/3.5-5.6</model>"),
+        lens("Testcam", "<model>Testcam 18-55mm f/3.5-5.6 VR</model><model>18-55mm f/3.5-5.6</model>"),
+    );
+    let db = LensDb::parse(&xml).unwrap();
+    let name = spec_name([18.0, 55.0, 3.5, 5.6]);
+    assert_eq!(db.find_lens(None, &name, None).unwrap().maker, "Otherco", "a plain lookup keeps the first of a tie");
+    assert_eq!(db.find_lens_named(None, &name, None).unwrap().maker, "Testcam");
+    assert!(db.find_lens_named(None, "70-200mm f/4", None).is_none());
+}
