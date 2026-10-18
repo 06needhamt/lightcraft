@@ -9,7 +9,7 @@ Double-click a photo in the grid, then press `E` to open the **Edit** panel. Dra
 
 ## Steps
 
-1. In **Photo Grid** or **Square Grid**, double-click the photo. It opens in the **Detail** view.
+1. In **Photo Grid** or **Square Grid**, double-click the photo. It opens in the **Detail View**.
 2. Press `E`, or choose **Window** > **Edit Panel**, to open the **Edit** panel.
 3. Click **Auto** for a first pass, or skip this step and start with the sliders.
 4. Open the **Light** section and set **Exposure**, **Contrast**, **Highlights**, **Shadows**, **Whites** and **Blacks**.
