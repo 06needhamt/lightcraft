@@ -10,7 +10,7 @@ Use **File** > **Import Photos…** to pick files, or **File** > **Import from F
 ## Steps
 
 1. Open the **File** menu and choose **Import Photos…** or **Import from Folder…**, then pick the files or the folder.
-2. Look at the thumbnails. Use **Thumbnail size** above the grid to make them smaller or larger; the size is remembered for the next import. Every photo that can be imported has a checkbox. Click a photo to check or uncheck it. Shift-click sets a range. **Check All** and **Uncheck All** change every photo at once.
+2. Look at the thumbnails. Every photo that can be imported has a checkbox. Click a photo to check or uncheck it. Shift-click sets a range. **Check All** and **Uncheck All** change every photo at once.
 3. Photos already in your library are marked **Duplicate** or **In library** and start unchecked. A file LightCraft cannot read is marked **Unreadable**. A photo you deleted that is still in **Recently Deleted** is marked **Will be restored**. **In Recently Deleted** sets what happens to those: **Restore them** (the default) brings the photos back with their edits, ratings and albums, **Import as new** deletes the old record first, and **Leave them** skips them.
 4. Under **Transfer**, choose how the files get into the library:
    - **Add in place** keeps the files where they are. The library only points to them. Nothing is copied or moved.
