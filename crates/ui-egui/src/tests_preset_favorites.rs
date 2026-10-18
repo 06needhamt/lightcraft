@@ -18,16 +18,16 @@ fn rect(h: &Headless, id: &str) -> Option<egui::Rect> {
     h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r)
 }
 
-/// The topmost preset group header on screen.
+/// The topmost preset group header on screen (the Favorites header is `presetFavorites`).
 fn first_group(h: &Headless) -> String {
-    let groups = h.app.widgets.iter().filter(|(w, _)| w.starts_with("presetGroup:"));
+    let groups = h.app.widgets.iter().filter(|(w, _)| w.starts_with("presetGroup:") || w == "presetFavorites");
     groups.min_by(|a, b| a.1.top().total_cmp(&b.1.top())).map(|(w, _)| w.clone()).unwrap()
 }
 
 #[test]
 fn starred_presets_are_listed_in_favorites_on_top() {
     let mut h = app();
-    assert!(rect(&h, "presetGroup:favorites").is_none(), "no section while nothing is starred");
+    assert!(rect(&h, "presetFavorites").is_none(), "no section while nothing is starred");
     let first = h.app.session.presets.first().map(|p| p.id.clone()).unwrap();
     let last = h.app.session.presets.last().map(|p| p.id.clone()).unwrap();
     h.app.run("preset.favorite", json!({"id": last})).unwrap();
@@ -35,8 +35,8 @@ fn starred_presets_are_listed_in_favorites_on_top() {
     for _ in 0..3 {
         h.step();
     }
-    assert_eq!(first_group(&h), "presetGroup:favorites");
-    let header = rect(&h, "presetGroup:favorites").unwrap();
+    assert_eq!(first_group(&h), "presetFavorites");
+    let header = rect(&h, "presetFavorites").unwrap();
     // in list order, right under the header
     let a = rect(&h, &format!("presetFavorite:{first}")).unwrap();
     let b = rect(&h, &format!("presetFavorite:{last}")).unwrap();
@@ -50,18 +50,28 @@ fn starred_presets_are_listed_in_favorites_on_top() {
     for _ in 0..3 {
         h.step();
     }
-    assert!(rect(&h, "presetGroup:favorites").is_none());
+    assert!(rect(&h, "presetFavorites").is_none());
 }
 
+/// A user group named "Favorites" or "favorites" keeps its own header, apart from the section's: a
+/// click aimed at either id lands on the right row (the widget lookup takes the last match).
 #[test]
-fn a_user_group_named_favorites_keeps_its_own_header() {
+fn user_groups_named_favorites_keep_their_own_header() {
     let mut h = app();
     let id = h.app.session.presets.first().map(|p| p.id.clone()).unwrap();
     h.app.run("preset.favorite", json!({"id": id})).unwrap();
-    h.app.run("preset.create", json!({"name": "Mine", "group": "Favorites"})).unwrap();
+    for group in ["Favorites", "favorites"] {
+        h.app.run("preset.create", json!({"name": format!("Mine in {group}"), "group": group})).unwrap();
+    }
     for _ in 0..3 {
         h.step();
     }
-    assert!(rect(&h, "presetGroup:favorites").is_some());
-    assert!(rect(&h, "presetGroup:Favorites").is_some(), "the user's group is still there");
+    let section = rect(&h, "presetFavorites").unwrap();
+    for group in ["Favorites", "favorites"] {
+        let id = format!("presetGroup:{group}");
+        let user = rect(&h, &id).unwrap_or_else(|| panic!("the user's {group:?} group is listed"));
+        assert_ne!(user, section, "{id} is its own row");
+        assert_eq!(h.app.widgets.iter().filter(|(w, _)| *w == id).count(), 1, "{id} names one row");
+    }
+    assert_eq!(h.app.widgets.iter().filter(|(w, _)| w == "presetFavorites").count(), 1);
 }
