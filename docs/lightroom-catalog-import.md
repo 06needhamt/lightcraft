@@ -30,7 +30,7 @@ again. Previously browsed Local records join All Photos even when their original
 their promotion is counted once and undone together with the catalog import.
 An image whose file, folder or root folder record is gone from the catalog, or whose original path
 is empty (Lightroom leaves these behind and ignores them), is skipped together with its virtual
-copies instead of failing the whole import; one warning per reason lists the skipped images.
+copies instead of failing the whole import, with a warning for each.
 Virtual copies count as added records too; reimport reports zero additions when all
 records already exist. Existing LightCraft
 edits are preserved by default; `updateExisting=true` explicitly replaces them. Persistent import
