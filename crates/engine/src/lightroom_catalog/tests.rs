@@ -332,6 +332,13 @@ fn catalog_masks_follow_the_photo_orientation() {
     assert_eq!(masks(Orientation::Rotate180), [0.9, 0.8, 0.7, 0.4, 0.9, 0.8, r.0, r.1, 10.0, 0.9, 0.8, 0.7, 0.4]);
     assert_eq!(masks(Orientation::FlipH), [0.9, 0.2, 0.7, 0.6, 0.9, 0.2, r.0, r.1, -10.0, 0.9, 0.2, 0.7, 0.6]);
     assert_eq!(masks(Orientation::Transpose), [0.2, 0.1, 0.6, 0.3, 0.2, 0.1, r.1, r.0, -10.0, 0.2, 0.1, 0.6, 0.3]);
+    // a photo already in the library has its shown size (portrait here), but Lightroom's edges are
+    // fractions of the stored image: a circle on a 3:2 stored image stays a circle
+    let s = r#"s = { MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = 0.1, CorrectionMasks = {
+        { What = "Mask/CircularGradient", Left = 0.3, Right = 0.5, Top = 0.3, Bottom = 0.6, Version = 2, Flipped = true } } } } }"#;
+    let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.0 / 1.5, Orientation::Rotate90, 1.5).unwrap();
+    let radial = &partial["masks"][0]["components"][0]["shape"];
+    assert!(close(&radial["rx"], 0.1) && close(&radial["ry"], 0.1), "{radial}");
 }
 
 /// The `crs` corners and angle Lightroom would store for LightCraft crop `g` on a stored image

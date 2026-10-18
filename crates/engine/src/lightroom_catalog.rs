@@ -703,7 +703,11 @@ fn mapped_settings(
     if !props.contains_key("crs:HasCrop") && CROP.iter().any(|k| props.contains_key(*k)) {
         props.insert("crs:HasCrop".into(), vec!["True".into()]);
     }
-    let (mut partial, mut unknown) = crate::crs::to_partial_report(&props, Some(&values), target, aspect);
+    // Mask edges are fractions of the stored image, like the crop's, so radii go to long-edge units
+    // with its aspect: `aspect` is the photo's in LightCraft, which is the shown one for a photo
+    // already in the library and only stands in when the catalog has no file size.
+    let mask_aspect = if stored_aspect.is_finite() && stored_aspect > 0.0 { stored_aspect } else { aspect };
+    let (mut partial, mut unknown) = crate::crs::to_partial_report(&props, Some(&values), target, mask_aspect);
     catalog_crop(&mut partial, orientation, stored_aspect);
     catalog_masks(&mut partial, orientation);
     if deferred > 0 {
@@ -767,9 +771,9 @@ fn catalog_crop(partial: &mut Value, orientation: Orientation, stored_aspect: f6
 
 /// Lightroom's masks in LightCraft's frame. Like the crop's corners, their positions are on the
 /// stored image (before orientation), normalized to its size; LightCraft's are on the oriented
-/// image. So the points go through the orientation, a radial's radii (in long-edge units) swap when
-/// the axes do, and a mirror turns its angle the other way. A quarter turn keeps the angle: the
-/// ellipse turned 90° is the same ellipse with its radii swapped.
+/// image. So the points go through the orientation, a radial's radii (in long-edge units, from the
+/// stored image's aspect) swap when the axes do, and a mirror turns its angle the other way. A
+/// quarter turn keeps the angle: the ellipse turned 90° is the same ellipse with its radii swapped.
 fn catalog_masks(partial: &mut Value, orientation: Orientation) {
     if orientation == Orientation::Normal {
         return;
