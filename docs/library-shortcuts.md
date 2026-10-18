@@ -41,9 +41,9 @@ remapping and disabling the default brush bindings take precedence over their gr
 The separate Decrease Rating / Increase Rating commands can also be assigned in Help → Keyboard Shortcuts.
 
 `\` shows and hides the Filter Bar in Photo Grid and Square Grid, as in Lightroom Classic's Library; in
-Detail it keeps showing the original (Develop's Before / After key). View → Filter Bar (`Shift+F`) works
-in every view. A Show Original moved to another key keeps its meaning in the grids, and `\` given to
-another command runs that command.
+Detail and in the full-screen preview (`F`) it keeps showing the original (Develop's Before / After key).
+View → Filter Bar (`Shift+F`) works in every view. A Show Original moved to another key keeps its meaning
+in the grids, and `\` given to another command runs that command.
 
 Flag cycling and raise/lower use each photo's own flag, so a mixed selection steps together without being made uniform. Adobe's shortcut list names the backtick "Cycle flag settings" but does not state the order; unflagged → pick → reject is LightCraft's choice. The key is the logical grave key, so it follows the keyboard layout (on layouts where it is a dead accent key, assign another key in Help → Keyboard Shortcuts to `photo.cycleFlag`).
 

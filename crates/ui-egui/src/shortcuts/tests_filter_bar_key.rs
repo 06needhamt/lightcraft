@@ -73,6 +73,22 @@ fn backslash_in_detail_still_shows_the_original() {
     assert_eq!(app.ui.view, ViewMode::Detail);
 }
 
+/// F covers the grid with the photo alone: \ there is Show Original (latched), not the hidden Filter Bar.
+#[test]
+fn backslash_in_the_full_screen_preview_shows_the_original() {
+    for view in [ViewMode::PhotoGrid, ViewMode::SquareGrid] {
+        let mut app = app().unwrap();
+        app.ui.view = view;
+        app.run("view.fullScreenPreview", json!({})).unwrap();
+        assert!(app.ui.fullscreen);
+        let ctx = egui::Context::default();
+        frame(&mut app, &ctx, Some(Key::Backslash), None);
+        assert_eq!(app.ui.before_after, BeforeAfter::Original, "{view:?}: \\ latches the original");
+        assert!(!app.ui.filter_bar, "{view:?}: the hidden Filter Bar is left alone");
+        assert_eq!(app.ui.view, view, "the grid is the view behind the preview");
+    }
+}
+
 #[test]
 fn saved_keymap_wins_over_the_grid_backslash() {
     let mut app = app().unwrap();
