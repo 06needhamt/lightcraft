@@ -32,7 +32,7 @@ fn tiny_jxl_tail_does_not_allocate_a_tail_sized_buffer() {
     let encoded = encode_jxl(&EncodeImage::rgba8(&image), &JxlOptions { lossless: true, ..Default::default() }, &EncodeMeta::default()).unwrap();
     let mut raw = codestream(&encoded);
     let opts = DecodeOptions { max_pixels: 64, ..Default::default() };
-    decode(&raw, opts.clone()).unwrap();
+    decode(&raw, opts).unwrap();
     raw.resize(raw.len() + (1 << 20), 0);
     let _profiler = dhat::Profiler::builder().testing().build();
     let decoded = decode(&raw, opts).unwrap();
