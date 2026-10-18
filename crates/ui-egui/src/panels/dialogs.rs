@@ -336,7 +336,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         egui::RichText::new(crate::i18n::tr_format!("Creates {} stacks from {} of {scope}", preview["stacks"], preview["photos"], scope = crate::i18n::tr(scope))).color(t.text_dim),
                     );
                 }
-                Dialog::Cull { reject_below, pick_best } => {
+                Dialog::Cull { reject_below, pick_best, burst_gap, similarity } => {
                     let n = app.session.selection.ids.len();
                     let scope = if n > 1 { crate::i18n::tr_format!("the {n} selected photos", n = n) } else { crate::i18n::tr_format!("the {} photos in view", app.session.visible_cloned().len()) };
                     ui.label(egui::RichText::new(crate::i18n::tr_format!("Scores {scope} for focus and exposure and finds similar shots taken within seconds of each other (bursts).", scope = scope)).color(t.text_label));
@@ -346,6 +346,18 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     ui.label(egui::RichText::new(crate::i18n::tr(if *reject_below > 0.0 { "Blurry photos below the score are flagged as rejects." } else { "0: nothing is rejected." })).color(t.text_dim));
                     let r = ui.checkbox(pick_best, crate::i18n::tr("Pick the sharpest photo of each burst"));
                     crate::widgets::register(ui.ctx(), "check:cullPick", r.rect);
+                    ui.add_space(6.0);
+                    let r = ui.add(
+                        egui::Slider::new(burst_gap, 1.0..=600.0)
+                            .logarithmic(true)
+                            .text(crate::i18n::tr("Burst: shots at most this far apart"))
+                            .custom_formatter(|v, _| crate::panels::dialogs::fmt_gap(v))
+                            .custom_parser(|s| s.trim().trim_end_matches('s').trim().parse().ok()),
+                    );
+                    crate::widgets::register(ui.ctx(), "field:cullGap", r.rect);
+                    let r = ui.add(egui::Slider::new(similarity, 0.70..=0.99).text(crate::i18n::tr("Burst: how alike (loose … strict)")).step_by(0.01).fixed_decimals(2));
+                    crate::widgets::register(ui.ctx(), "field:cullSimilar", r.rect);
+                    ui.label(egui::RichText::new(crate::i18n::tr("Lower it when a panning or moving burst splits into several groups.")).color(t.text_dim));
                     ui.label(egui::RichText::new(crate::i18n::tr("Scores stay on the photos: filter or make smart albums with Focus and Best of Similar Shots.")).color(t.text_dim));
                 }
                 Dialog::WhatsNew => {
@@ -1870,8 +1882,9 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         Dialog::DenoiseModel { info, accepted } => crate::panels::denoise::install(app, info, *accepted),
         Dialog::FaceModel { path, info, accepted } => crate::panels::faces::install(app, path, info, *accepted),
         Dialog::AllMetadata { .. } | Dialog::SystemInfo { .. } | Dialog::WhatsNew => Ok(serde_json::Value::Null),
-        Dialog::Cull { reject_below, pick_best } => {
-            let mut p = json!({"pickBest": pick_best});
+        Dialog::Cull { reject_below, pick_best, burst_gap, similarity } => {
+            app.ui.cull_burst = Some((*burst_gap, *similarity));
+            let mut p = json!({"pickBest": pick_best, "burstGap": burst_gap, "similarity": similarity});
             if *reject_below > 0.0 {
                 p["rejectBelow"] = json!(reject_below);
             }
