@@ -21,6 +21,9 @@ fn secs(iso: &str) -> Option<i64> {
 
 fn analyze(s: &mut Session, p: &Value) -> Result<Value> {
     let ids: Vec<PhotoId> = if p.get("ids").is_some() || s.selection.ids.len() > 1 { s.targets(p)? } else { s.visible_cloned() };
+    // a photo listed twice is one photo, not a burst of two look-alikes (first occurrence kept)
+    let mut seen = std::collections::HashSet::new();
+    let ids: Vec<PhotoId> = ids.into_iter().filter(|id| seen.insert(*id)).collect();
     let reject_below = p.get("rejectBelow").and_then(Value::as_f64).map(|v| v as f32);
     let pick_best = p.get("pickBest").and_then(Value::as_bool).unwrap_or(false);
     // measure (thumbnail-level sources: fast, and enough for focus at 512 px)
