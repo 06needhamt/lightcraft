@@ -57,3 +57,6 @@ sync_github_name = false
 [people.egegl]
 real_name = "Ege Gursel"
 sync_github_name = true
+
+[people.valenfys]
+sync_github_name = true
