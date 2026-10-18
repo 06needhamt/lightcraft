@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-18
+
+### A preset that couldn't be saved is no longer lost silently
+- When presets.json can't be written (a full disk, or the browser's storage quota), the new or changed preset now
+  counts as unsaved, like other changes: the top bar warns, saving is retried, and quitting asks first (issue #2266).
+  Before, the failure was only logged, and the preset could be lost without any warning.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
