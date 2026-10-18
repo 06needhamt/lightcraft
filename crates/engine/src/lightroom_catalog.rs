@@ -523,12 +523,25 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
         collection_content: optional_table("AgLibraryCollectionContent", &mut warnings)?,
         warnings,
     };
+    // images whose file, folder or root record is gone (Lightroom leaves these behind and ignores
+    // them); they and their virtual copies are skipped with a warning instead of failing the import
+    let mut orphans = HashSet::new();
     for image in table("Adobe_images", true)? {
         ensure_read_active(cancel)?;
         let id = number(&image, "id_local");
-        let file = files.get(&number(&image, "rootFile")).ok_or_else(|| format!("image {id}: missing file record"))?;
-        let folder = folders.get(&number(file, "folder")).ok_or_else(|| format!("image {id}: missing folder record"))?;
-        let root = roots.get(&number(folder, "rootFolder")).ok_or_else(|| format!("image {id}: missing root record"))?;
+        let record = files.get(&number(&image, "rootFile")).ok_or("file").and_then(|file| {
+            let folder = folders.get(&number(file, "folder")).ok_or("folder")?;
+            let root = roots.get(&number(folder, "rootFolder")).ok_or("root")?;
+            Ok((file, folder, root))
+        });
+        let (file, folder, root) = match record {
+            Ok(found) => found,
+            Err(what) => {
+                out.warnings.push(format!("image {id}: missing {what} record; not imported"));
+                orphans.insert(id);
+                continue;
+            }
+        };
         let root_id = number(root, "id_local");
         let root_path = root_paths.get(&root_id).map_or("", String::as_str);
         let folder_path = text(folder, "pathFromRoot");
@@ -562,9 +575,29 @@ pub fn read_with_progress(path: &Path, cancel: &AtomicBool, total: &AtomicUsize,
             original,
         });
     }
+    drop_copies_of(&mut out, &orphans);
     refuse_non_media(&mut out);
     ensure_read_active(cancel)?;
     Ok(out)
+}
+
+/// Drop the virtual copies whose master was not imported, saying so in the import's warnings: a
+/// copy has no original of its own.
+fn drop_copies_of(data: &mut CatalogImport, masters: &HashSet<i64>) {
+    if masters.is_empty() {
+        return;
+    }
+    let mut warnings = Vec::new();
+    data.photos.retain(|p| {
+        let master = number(&p.image, "masterImage");
+        // 0 marks a master, never a copy
+        if master == 0 || !masters.contains(&master) {
+            return true;
+        }
+        warnings.push(format!("image {}: not imported; its original was not imported", p.source_id));
+        false
+    });
+    data.warnings.extend(warnings);
 }
 
 /// Drop the catalog's images whose original is not a file type LightCraft reads, saying so in the
@@ -1579,6 +1612,28 @@ mod tests {
         std::fs::write(&path, b"bad catalog").unwrap();
         assert!(read(&path).is_err());
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn images_without_a_file_record_are_skipped_not_fatal() {
+        let mut tables = photo_tables(("/catalog/", ""));
+        tables[3].2[2] = SqlValue::Integer(2);
+        let path = std::env::temp_dir().join(format!("lightcraft-orphan-catalog-{}.lrcat", std::process::id()));
+        std::fs::write(&path, native_catalog(&tables)).unwrap();
+        let catalog = read(&path).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert!(catalog.photos.is_empty());
+        assert!(catalog.warnings.iter().any(|w| w == "image 1: missing file record; not imported"), "{:?}", catalog.warnings);
+    }
+
+    #[test]
+    fn copies_of_a_skipped_master_are_dropped() {
+        let mut data = sample();
+        data.photos.retain(|p| p.source_id != 1);
+        drop_copies_of(&mut data, &HashSet::from([1]));
+        assert!(data.photos.is_empty());
+        assert_eq!(data.warnings, ["image 2: not imported; its original was not imported"]);
+        validate(&data).unwrap();
     }
 
     #[test]
