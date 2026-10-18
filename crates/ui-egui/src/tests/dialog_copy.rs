@@ -132,6 +132,17 @@ fn export_confirm_says_how_many_photos() {
 }
 
 #[test]
+fn an_unusable_model_file_only_closes() {
+    let mut h = demo();
+    for kind in ["denoiseModel", "faceModel"] {
+        let mut d = json!({"kind": kind, "info": {"kind": "unsupported", "fileName": "x.onnx", "sizeBytes": 1}, "accepted": false});
+        d["path"] = json!("x.onnx");
+        show(&mut h, dialog(d));
+        assert_eq!(confirm_label(&h), "Close", "{kind}");
+    }
+}
+
+#[test]
 fn the_confirm_is_the_verb_in_another_language() {
     struct Restore;
     impl Drop for Restore {
