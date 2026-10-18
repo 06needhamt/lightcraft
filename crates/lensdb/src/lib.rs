@@ -372,7 +372,30 @@ fn by_focal<T: Copy>(points: &[(f64, T)], focal: f64, eval: impl Fn(&T) -> f64) 
     Some(a + (b - a) * t)
 }
 
+/// A lens name built from a lens specification (min / max focal length, f-number at each), for files that name
+/// no lens model, only its specification (Nikon DSLRs' maker note): "24-70mm f/2.8", "18-55mm f/3.5-5.6",
+/// "85mm f/1.8". Such a name says nothing about the maker, so [`Profile::names_exactly`] must confirm a match.
+pub fn spec_name(spec: [f64; 4]) -> String {
+    fn num(v: f64) -> String {
+        let t = format!("{v:.1}");
+        t.trim_end_matches('0').trim_end_matches('.').to_string()
+    }
+    fn range(a: f64, b: f64) -> String {
+        if (a - b).abs() < 0.05 { num(a) } else { format!("{}-{}", num(a), num(b)) }
+    }
+    format!("{}mm f/{}", range(spec[0], spec[1]), range(spec[2], spec[3]))
+}
+
 impl Profile {
+    /// Whether one of the profile's names is exactly `name` (same words and numbers, ignoring case and
+    /// punctuation): the check for names that carry no maker, such as [`spec_name`]s, where the best partial match
+    /// could be another maker's lens with the same focal range. The maker's words count too, so "Samyang 85mm f/1.4"
+    /// is not "85mm f/1.4"; only a name given for the purpose (a user's alias) matches.
+    pub fn names_exactly(&self, name: &str) -> bool {
+        let want = tokens(name);
+        !want.is_empty() && self.models.iter().any(|m| tokens(m) == want)
+    }
+
     /// Distortion ratio `r_d / r_u` at lensfun radius `r` for `focal` (1 when the profile has none).
     pub fn distortion_ratio(&self, focal: f64, r: f64) -> f64 {
         if !self.rectilinear {
