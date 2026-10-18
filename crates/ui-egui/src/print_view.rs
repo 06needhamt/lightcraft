@@ -876,7 +876,11 @@ fn paint_cell(
 
 /// The Page Options as the print draws them ([`compose`]): crop marks at the corners of each
 /// photo, the page number at the bottom right and the print settings at the bottom left.
+/// Packages draw none of them, as the print doesn't ([`compose::has_page_options`]).
 fn page_options(painter: &egui::Painter, st: &PrintSettings, sheet: &Sheet, photos: &[Rect], number: usize) {
+    if !compose::has_page_options(st.layout.style) {
+        return;
+    }
     let p = &st.page;
     let ink = compose::mark_ink(p.background);
     let ink = Color32::from_rgb(ink[0], ink[1], ink[2]);
