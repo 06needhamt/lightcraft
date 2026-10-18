@@ -737,7 +737,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-MAP-LOCATIONS | Saved locations | P2 | ⬜ | | |
 | LRC-MAP-TRACKLOG | GPS track logs | P2 | ✅ | `cmd:photo.autoTagTracklog`, `cmd:photo.tagFromTracklog`, `crates/meta/src/gpx.rs` | Photo ▸ Auto-Tag from Tracklog…: a GPX 1.0 / 1.1 track log sets the GPS of the selected photos by capture time — interpolated between the points of a track segment, else the nearest point within `maxGap` (10 min); never across segment breaks. The camera's time zone comes from the photo (Exif offset) or is asked for; photos that already have a location keep it unless `replace`; `dryRun` previews; one undo step. No track drawn on a map (no Map module) |
 | LRC-MAP-FILTER | Location filter bar | P2 | ⬜ | | |
-| LRC-MAP-REVGEO | Reverse geocoding | P2 | 🟡 | `cmd:metadata.reverseGeocode` | offline from GeoNames (City / State / Country, no sublocation); no online provider |
+| LRC-MAP-REVGEO | Reverse geocoding | P2 | 🟡 | `cmd:metadata.reverseGeocode` | offline from GeoNames (City / State / Country, no sublocation); the list holds towns of 15 000 people or more, so a smaller town gets the nearest larger one (the tooltip and command help say so); `maxDistance` leaves City empty past a distance and names the town as `nearestCity` (issue #2242); no online provider |
 | LRC-BOOK-SETTINGS | Book settings | P2 | ⬜ | | |
 | LRC-BOOK-AUTOLAYOUT | Book auto layout | P2 | ⬜ | | |
 | LRC-BOOK-PAGE | Book pages & templates | P2 | ⬜ | | |

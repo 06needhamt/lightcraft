@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-18
+
+### Fill Location from GPS: no more neighbouring town in City
+- The offline place names list towns of 15,000 people or more, so a photo taken in a smaller one got the nearest larger
+  town in City, sometimes another municipality (issue #2242). The Fill Location tooltip and the command help now say so,
+  and `metadata.reverseGeocode` takes `maxDistance` (metres): past it, City stays empty (State and Country still fill)
+  and the reply names the town it found as `nearestCity`.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
