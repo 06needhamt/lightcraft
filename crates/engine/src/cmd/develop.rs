@@ -77,13 +77,22 @@ fn aspect_tuple(c: &str, x: f64, y: f64) -> Result<(u32, u32)> {
     Ok((a as u32, b as u32))
 }
 
-fn set_aspect(d: &mut DevelopSettings, w: f64, h: f64, aspect: Option<(u32, u32)>) {
+/// How a new aspect ratio is turned (issue #2253).
+#[derive(Clone, Copy, PartialEq)]
+enum Turn {
+    /// As the crop is now: a named ratio ("2x3", "original"…) lands landscape on a landscape crop
+    /// and portrait on a portrait one (after X), as in Lightroom. A square crop follows the image.
+    LikeCrop,
+    /// As given: a custom `[w, h]` taller than wide is a portrait crop.
+    AsGiven,
+}
+
+fn set_aspect(d: &mut DevelopSettings, w: f64, h: f64, aspect: Option<(u32, u32)>, turn: Turn) {
+    let r = d.crop.geometry.rect_px(w, h);
+    let landscape = if (r.width() - r.height()).abs() > 1e-6 * r.width().max(r.height()) { r.width() > r.height() } else { w >= h };
+    let aspect = aspect.map(|(aw, ah)| if turn == Turn::LikeCrop && (aw >= ah) != landscape { (ah, aw) } else { (aw, ah) });
     d.crop.aspect = aspect;
-    let a = aspect.map(|(aw, ah)| {
-        // orientation of the crop follows the image (landscape image → landscape crop)
-        let (aw, ah) = (aw as f64, ah as f64);
-        if (w >= h) == (aw >= ah) { aw / ah } else { ah / aw }
-    });
+    let a = aspect.map(|(aw, ah)| aw as f64 / ah as f64);
     let angle = d.crop.geometry.angle;
     d.crop.geometry = crop_fit_angle(w, h, angle, a);
 }
@@ -628,7 +637,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Crop Aspect",
             [],
             None,
-            "{aspect: \"original\"|\"free\"|\"current\" (lock the crop's present shape)|\"toggle\" (lock ↔ free)|\"1x1\"|\"4x5\"|\"8.5x11\"|\"5x7\"|\"2x3\"|\"4x3\"|\"16x9\"|\"16x10\"|[w,h]}",
+            "{aspect: \"original\"|\"free\"|\"current\" (lock the crop's present shape)|\"toggle\" (lock ↔ free)|\"1x1\"|\"4x5\"|\"8.5x11\"|\"5x7\"|\"2x3\"|\"4x3\"|\"16x9\"|\"16x10\"|[w,h], orientation?: \"crop\"|\"given\"} — a named ratio takes the crop's present orientation (landscape, or portrait after X); [w,h] is used as given (taller than wide → portrait); `orientation` overrides either",
             has_active,
             |s, p| {
                 let id = active(s, "crop.aspect")?;
@@ -647,6 +656,13 @@ pub fn specs() -> Vec<CommandSpec> {
                         Ok(())
                     });
                 }
+                let turn = match p.get("orientation").and_then(Value::as_str) {
+                    Some("crop") => Turn::LikeCrop,
+                    Some("given") => Turn::AsGiven,
+                    Some(_) => return Err(bad("crop.aspect", "orientation is \"crop\" or \"given\"")),
+                    None if matches!(p.get("aspect"), Some(Value::Array(_))) => Turn::AsGiven,
+                    None => Turn::LikeCrop,
+                };
                 let aspect = match p.get("aspect") {
                     Some(Value::String(a)) if a == "toggle" => None,
                     Some(Value::String(a)) if a == "free" => None,
@@ -667,7 +683,7 @@ pub fn specs() -> Vec<CommandSpec> {
                     if aspect.is_none() {
                         d.crop.aspect = None;
                     } else {
-                        set_aspect(d, w, h, aspect);
+                        set_aspect(d, w, h, aspect, turn);
                     }
                     Ok(())
                 })

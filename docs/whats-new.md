@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-18
+
+### Portrait crop ratios stay portrait
+- A crop ratio no longer flips to the photo's orientation (issue #2253): after X turns the crop portrait, picking
+  another ratio (4 × 5, 2 × 3…) keeps it portrait, as in Lightroom, and a Custom ratio taller than wide gives a
+  portrait crop.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
