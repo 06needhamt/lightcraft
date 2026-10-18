@@ -576,10 +576,19 @@ mod tests_connect {
         let r = lookup("slow.example", slow, Instant::now() + Duration::from_millis(300), &limits(&cancel));
         assert!(matches!(&r, Err(HttpError::Connect(m)) if m.contains("timed out")), "{r:?}");
         assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
-        cancel.store(true, Ordering::Relaxed);
+        // Cancel while the lookup is waiting on the resolver, not before it starts
         let t = Instant::now();
+        let r = std::thread::scope(|scope| {
+            scope.spawn(|| {
+                std::thread::sleep(Duration::from_millis(100));
+                cancel.store(true, Ordering::Relaxed);
+            });
+            lookup("slow.example", slow, Instant::now() + Duration::from_secs(30), &limits(&cancel))
+        });
+        assert!(matches!(r, Err(HttpError::Cancelled)), "{r:?}");
+        assert!(t.elapsed() >= Duration::from_millis(100) && t.elapsed() < Duration::from_secs(1), "{:?}", t.elapsed());
+        // and a lookup asked for after Cancel doesn't start
         assert!(matches!(lookup("slow.example", slow, Instant::now() + Duration::from_secs(30), &limits(&cancel)), Err(HttpError::Cancelled)));
-        assert!(t.elapsed() < Duration::from_secs(1));
         // a lookup that answers is used
         let cancel = AtomicBool::new(false);
         let local: SocketAddr = "127.0.0.1:9".parse().unwrap();
