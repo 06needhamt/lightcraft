@@ -81,7 +81,7 @@ pub struct CanvasMap {
 }
 
 impl CanvasMap {
-    fn new(frame: &Frame, rect: Rect) -> CanvasMap {
+    pub(crate) fn new(frame: &Frame, rect: Rect) -> CanvasMap {
         let k = 8.0f32;
         let (w, h) = ((rect.width() * k).round().max(1.0) as usize, (rect.height() * k).round().max(1.0) as usize);
         let to_norm = frame.out_to_norm(w, h);
@@ -1996,7 +1996,7 @@ fn color_range_pick(app: &mut LightcraftApp, ui: &egui::Ui, resp: &egui::Respons
 /// The Masking tool on the photo: outlines and handles of the selected mask, a pin per mask
 /// component (click selects its mask, drag moves the component), and brush painting. The mask
 /// itself shows as a rendered overlay ([`view_overlay`]).
-fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
+pub(crate) fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, d: &DevelopSettings) {
     let long = (map.rect.width().max(map.rect.height())) as f64;
     let active = app.session.active_mask;
     let clip = app.canvas_rect.unwrap_or(map.rect);
@@ -2013,8 +2013,9 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         let sel = Some(m.id) == active;
         // Ctrl+Shift+O (`mask_overlay_all`) shows every visible mask's region; outline each one
         // too, not just the selected mask. Handles and the rotation grip stay on the selected
-        // mask so nothing else becomes draggable.
-        let show_outline = sel || (app.ui.mask_overlay_all && m.visible);
+        // mask so nothing else becomes draggable. The component check keeps this in step with the
+        // painted region (`view_overlay` at detail.rs:1354 only covers masks with components).
+        let show_outline = sel || (app.ui.mask_overlay_all && m.visible && !m.components.is_empty());
         let stroke_a: u8 = if sel { 230 } else { 170 };
         for (ci, c) in m.components.iter().enumerate() {
             match &c.shape {
