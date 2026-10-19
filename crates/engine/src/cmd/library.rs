@@ -756,30 +756,58 @@ pub fn specs() -> Vec<CommandSpec> {
             |s, p| { step(s, -row_step(p)) }
         ),
         // ---- rating / flags / labels
-        cmd!("photo.rate", "Set Rating", ["Photo", "Set Rating"], None, "{rating: 0..5, ids?, advance?: bool}", has_selection, |s, p| {
-            let r = super::f64_req(p, "rating", "photo.rate")? as i64;
-            if !(0..=5).contains(&r) {
-                return Err(bad("photo.rate", "rating must be 0..5"));
+        cmd!(
+            "photo.rate",
+            "Set Rating",
+            ["Photo", "Set Rating"],
+            None,
+            "{rating: 0..5, ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| {
+                let r = super::f64_req(p, "rating", "photo.rate")? as i64;
+                if !(0..=5).contains(&r) {
+                    return Err(bad("photo.rate", "rating must be 0..5"));
+                }
+                cull(s, p, |s| for_targets(s, p, "Set Rating", |id| Some(Op::SetRating { id, rating: r as u8 })))
             }
-            cull(s, p, |s| for_targets(s, p, "Set Rating", |id| Some(Op::SetRating { id, rating: r as u8 })))
-        }),
-        cmd!("photo.decreaseRating", "Decrease Rating", [], None, "{ids?, advance?: bool}", has_selection, |s, p| {
-            cull(s, p, |s| change_rating(s, p, -1, "Decrease Rating"))
-        }),
-        cmd!("photo.increaseRating", "Increase Rating", [], None, "{ids?, advance?: bool}", has_selection, |s, p| {
-            cull(s, p, |s| change_rating(s, p, 1, "Increase Rating"))
-        }),
-        cmd!("photo.flag", "Set Flag", ["Photo", "Set Flag"], None, "{flag: pick|reject|none, ids?, advance?: bool}", has_selection, |s, p| {
-            let f = str_param(p, "flag").and_then(Flag::parse).ok_or_else(|| bad("photo.flag", "flag must be pick|reject|none"))?;
-            cull(s, p, |s| for_targets(s, p, "Set Flag", |id| Some(Op::SetFlag { id, flag: f })))
-        }),
+        ),
+        cmd!(
+            "photo.decreaseRating",
+            "Decrease Rating",
+            [],
+            None,
+            "{ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| change_rating(s, p, -1, "Decrease Rating")) }
+        ),
+        cmd!(
+            "photo.increaseRating",
+            "Increase Rating",
+            [],
+            None,
+            "{ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| change_rating(s, p, 1, "Increase Rating")) }
+        ),
+        cmd!(
+            "photo.flag",
+            "Set Flag",
+            ["Photo", "Set Flag"],
+            None,
+            "{flag: pick|reject|none, ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| {
+                let f = str_param(p, "flag").and_then(Flag::parse).ok_or_else(|| bad("photo.flag", "flag must be pick|reject|none"))?;
+                cull(s, p, |s| for_targets(s, p, "Set Flag", |id| Some(Op::SetFlag { id, flag: f })))
+            }
+        ),
         // Classic: ` cycles the flag; Cmd+Up / Cmd+Down raise / lower it (Ctrl on Windows and Linux)
         cmd!(
             "photo.cycleFlag",
             "Cycle Flag",
             ["Photo", "Set Flag"],
             Some("`"),
-            "{ids?, advance?: bool} — each photo's own flag: unflagged -> pick -> reject -> unflagged",
+            "{ids?, advance?: bool} — each photo's own flag: unflagged -> pick -> reject -> unflagged; without `ids`, the selection moves on when this takes the active photo out of the view",
             has_selection,
             |s, p| {
                 cull(s, p, |s| {
@@ -796,7 +824,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "Increase Flag Status",
             ["Photo", "Set Flag"],
             Some("Cmd+Up"),
-            "{ids?, advance?: bool} — reject -> unflagged -> pick (stops at pick)",
+            "{ids?, advance?: bool} — reject -> unflagged -> pick (stops at pick); without `ids`, the selection moves on when this takes the active photo out of the view",
             has_selection,
             |s, p| { cull(s, p, |s| change_flag(s, p, "Increase Flag Status", |f| if f == Flag::Reject { Flag::None } else { Flag::Pick })) }
         ),
@@ -805,25 +833,43 @@ pub fn specs() -> Vec<CommandSpec> {
             "Decrease Flag Status",
             ["Photo", "Set Flag"],
             Some("Cmd+Down"),
-            "{ids?, advance?: bool} — pick -> unflagged -> reject (stops at reject)",
+            "{ids?, advance?: bool} — pick -> unflagged -> reject (stops at reject); without `ids`, the selection moves on when this takes the active photo out of the view",
             has_selection,
             |s, p| { cull(s, p, |s| change_flag(s, p, "Decrease Flag Status", |f| if f == Flag::Pick { Flag::None } else { Flag::Reject })) }
         ),
-        cmd!("photo.pick", "Flag as Pick", ["Photo", "Set Flag"], Some("P"), "{ids?, advance?: bool}", has_selection, |s, p| {
-            cull(s, p, |s| for_targets(s, p, "Flag as Pick", |id| Some(Op::SetFlag { id, flag: Flag::Pick })))
-        }),
-        cmd!("photo.reject", "Flag as Reject", ["Photo", "Set Flag"], Some("X"), "{ids?, advance?: bool}", has_selection, |s, p| {
-            cull(s, p, |s| for_targets(s, p, "Flag as Reject", |id| Some(Op::SetFlag { id, flag: Flag::Reject })))
-        }),
-        cmd!("photo.unflag", "Unflag", ["Photo", "Set Flag"], Some("U"), "{ids?, advance?: bool}", has_selection, |s, p| {
-            cull(s, p, |s| for_targets(s, p, "Unflag", |id| Some(Op::SetFlag { id, flag: Flag::None })))
-        }),
+        cmd!(
+            "photo.pick",
+            "Flag as Pick",
+            ["Photo", "Set Flag"],
+            Some("P"),
+            "{ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| for_targets(s, p, "Flag as Pick", |id| Some(Op::SetFlag { id, flag: Flag::Pick }))) }
+        ),
+        cmd!(
+            "photo.reject",
+            "Flag as Reject",
+            ["Photo", "Set Flag"],
+            Some("X"),
+            "{ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| for_targets(s, p, "Flag as Reject", |id| Some(Op::SetFlag { id, flag: Flag::Reject }))) }
+        ),
+        cmd!(
+            "photo.unflag",
+            "Unflag",
+            ["Photo", "Set Flag"],
+            Some("U"),
+            "{ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| for_targets(s, p, "Unflag", |id| Some(Op::SetFlag { id, flag: Flag::None }))) }
+        ),
         cmd!(
             "photo.label",
             "Set Color Label",
             ["Photo", "Set Color Label"],
             None,
-            "{label: red|yellow|green|blue|purple|none, ids?, advance?: bool}",
+            "{label: red|yellow|green|blue|purple|none, ids?, advance?: bool} — without `ids`, the selection moves on when this takes the active photo out of the view",
             has_selection,
             |s, p| {
                 let l = match str_param(p, "label") {
