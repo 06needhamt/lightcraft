@@ -199,3 +199,33 @@ fn a_direct_drop_while_an_import_runs_is_refused_too() {
     assert!(h.app.import.is_none(), "no second import");
     assert!(h.app.ui.toast.is_some());
 }
+
+/// While a Lightroom catalog import is pending the drop is refused, and the card says so instead of
+/// promising a review.
+#[test]
+fn hovering_photos_while_a_lightroom_import_is_pending_says_they_will_be_refused() {
+    let dir = Scratch::new("lightroom");
+    let mut h = app(&dir);
+    let _task = crate::lightroom_import::stall_import(&mut h.app);
+    drop_files(&mut h, &[dir.path("trip")], true);
+    assert!(said(&h, "Finish Lightroom catalog import"), "{:?}", h.painted_text());
+    assert!(!said(&h, "review"), "{:?}", h.painted_text());
+    drop_files(&mut h, &[dir.path("trip")], false);
+    assert!(h.app.ui.dialog.is_none(), "no review opened");
+    assert!(h.app.ui.toast.is_some(), "the person is told why");
+    assert_eq!(photos(&h), 0);
+}
+
+/// A script is not told `ok` for the part of a `paths` list that was strings.
+#[test]
+fn drop_files_with_a_non_string_path_is_rejected_and_drops_nothing() {
+    let dir = Scratch::new("badpaths");
+    let mut h = app(&dir);
+    let r = h.request("ui.dropFiles", json!({"paths": [dir.path("trip"), 7]}), T);
+    assert_eq!(r["ok"], false, "{r}");
+    for _ in 0..30 {
+        h.step();
+    }
+    assert!(h.app.ui.dialog.is_none(), "nothing was dropped");
+    assert_eq!(photos(&h), 0);
+}

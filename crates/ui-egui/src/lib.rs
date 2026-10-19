@@ -1276,7 +1276,7 @@ impl LightcraftApp {
             return;
         }
         if self.lightroom.is_some() {
-            self.toast(ctx, "Finish Lightroom catalog import before adding photos");
+            self.toast(ctx, crate::i18n::tr("Finish Lightroom catalog import before adding photos"));
             return;
         }
         if import::running(self) {

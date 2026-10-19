@@ -297,8 +297,9 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
             ok(Value::Null)
         }
         "ui.dropFiles" => {
+            // every entry must be a string: a script is not told `ok` for a part of what it sent
             let Some(paths) =
-                p.get("paths").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>())
+                p.get("paths").and_then(Value::as_array).and_then(|a| a.iter().map(|v| v.as_str().map(str::to_string)).collect::<Option<Vec<_>>>())
             else {
                 return err("ui.dropFiles: paths must be an array of strings");
             };

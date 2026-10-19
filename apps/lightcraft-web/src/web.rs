@@ -526,9 +526,12 @@ impl WebApp {
         }
         let paths = self.originals.take_pending();
         if !paths.is_empty() {
-            let n = paths.len();
             match self.app.run("library.import", json!({"paths": paths})) {
-                Ok(_) => self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_added(n)),
+                // what the import added, not what was submitted (duplicates and unsupported files add nothing)
+                Ok(report) => {
+                    let added = report["imported"].as_array().map_or(0, Vec::len);
+                    self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_added(added));
+                }
                 Err(e) => {
                     log::warn!("import: {e}");
                     self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_import_failed(&e));
