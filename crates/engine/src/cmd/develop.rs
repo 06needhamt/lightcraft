@@ -642,6 +642,14 @@ pub fn specs() -> Vec<CommandSpec> {
             |s, p| {
                 let id = active(s, "crop.aspect")?;
                 let (w, h) = crop_dims(s, id);
+                // checked first, whatever the aspect: a bad value is an error on every path
+                let turn = match p.get("orientation") {
+                    Some(Value::String(o)) if o == "crop" => Turn::LikeCrop,
+                    Some(Value::String(o)) if o == "given" => Turn::AsGiven,
+                    Some(_) => return Err(bad("crop.aspect", "orientation is \"crop\" or \"given\"")),
+                    None if matches!(p.get("aspect"), Some(Value::Array(_))) => Turn::AsGiven,
+                    None => Turn::LikeCrop,
+                };
                 let locked = s.develop_of(id).is_some_and(|d| d.crop.aspect.is_some());
                 let lock_current = match p.get("aspect").and_then(Value::as_str) {
                     Some("current") => true,
@@ -656,13 +664,6 @@ pub fn specs() -> Vec<CommandSpec> {
                         Ok(())
                     });
                 }
-                let turn = match p.get("orientation").and_then(Value::as_str) {
-                    Some("crop") => Turn::LikeCrop,
-                    Some("given") => Turn::AsGiven,
-                    Some(_) => return Err(bad("crop.aspect", "orientation is \"crop\" or \"given\"")),
-                    None if matches!(p.get("aspect"), Some(Value::Array(_))) => Turn::AsGiven,
-                    None => Turn::LikeCrop,
-                };
                 let aspect = match p.get("aspect") {
                     Some(Value::String(a)) if a == "toggle" => None,
                     Some(Value::String(a)) if a == "free" => None,

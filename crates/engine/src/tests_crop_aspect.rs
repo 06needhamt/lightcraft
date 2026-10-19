@@ -66,3 +66,21 @@ fn orientation_overrides_and_is_checked() {
     let e = s.execute("crop.aspect", &json!({"aspect": "2x3", "orientation": "sideways"})).unwrap_err();
     assert!(e.to_string().contains("orientation"), "{e}");
 }
+
+/// A bad `orientation` is refused on every path, the lock-as-is ones ("current", an unlocked
+/// "toggle") included, and whether it is a wrong word or not a string at all; nothing changes.
+#[test]
+fn a_bad_orientation_is_refused_before_anything_is_locked() {
+    let mut s = landscape_photo();
+    let before = s.develop_of(s.selection.active.unwrap()).unwrap().crop.clone();
+    for aspect in [json!("current"), json!("toggle"), json!("2x3"), json!([2, 3]), json!("free")] {
+        for orientation in [json!("sideways"), json!(1), json!(true), json!(null)] {
+            let e = s.execute("crop.aspect", &json!({"aspect": aspect, "orientation": orientation})).unwrap_err();
+            assert!(e.to_string().contains("orientation"), "{aspect} {orientation}: {e}");
+            assert_eq!(s.develop_of(s.selection.active.unwrap()).unwrap().crop, before, "{aspect} {orientation}: untouched");
+        }
+    }
+    // the valid words still lock as is
+    aspect(&mut s, json!({"aspect": "current", "orientation": "crop"}));
+    assert!(s.develop_of(s.selection.active.unwrap()).unwrap().crop.aspect.is_some());
+}
