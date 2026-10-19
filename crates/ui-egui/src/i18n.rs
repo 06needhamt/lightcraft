@@ -278,6 +278,11 @@ pub fn dropped_photos_added(n: usize) -> String {
     tr_format!("Added {n} photo{}", if n == 1 { "" } else { "s" }, n = n)
 }
 
+/// The web build's notice for `n` dropped photos that came back from Recently Deleted.
+pub fn dropped_photos_restored(n: usize) -> String {
+    tr_format!("Restored {} photo{} from Recently Deleted", n, if n == 1 { "" } else { "s" })
+}
+
 /// The title and text of the message box shown when the desktop app's window can't start
 /// (issue #260), in the UI language: the error and, when there is one, the log file to look in.
 pub fn startup_failed_message(error: &str, log_file: Option<&str>) -> (String, String) {
