@@ -52,13 +52,13 @@ that is promising but is not recorded as review, so the column says `no (communi
 | 5 | Arabic | `ar` | 0 (0%) | none | **RTL layout and Arabic shaping missing** | no | none (target: not shipped) | 60–110 h (RTL mirroring 30–50 h + shaping, shared with Hindi) |
 | 6 | French | `fr` | 2,315 / 2,398 (97%; 2026-10-12, the rest are words spelled the same) | as zh-hans | Latin | no (community edits) | partial | 2–4 h (native review, lower-layer errors) |
 | 7 | Portuguese (Brazil) | `pt-br` | 1,966 / 2,304 (85%) | as zh-hans | Latin | no (community edits) | partial | 6–10 h |
-| 8 | Indonesian | `id` | 0 (0%) | none | Latin (Inter covers it) | no | none (target: not shipped) | 10–16 h |
+| 8 | Indonesian | `id` | 2,624 / 2,624 (100%; 2026-10-19: every plain and formats message any catalog has, plus 69 command labels; What's New left in English) | as zh-hans | Latin (Inter covers it) | no (written with an agent; native-speaker pass pending) | partial (target: not shipped) | 2–4 h (native review, lower-layer errors) |
 | 9 | Japanese | `ja` | 2,383 / 2,398 (99%; 2026-10-12) | as zh-hans; vertical export watermarks | Jpan via craft-fonts (BIZ UDPGothic / UDMincho); IME through winit | no (community edits) | partial | 2–4 h (native review, lower-layer errors) |
 | 10 | German | `de` | 2,338 / 2,398 (97%; 2026-10-12, the rest are words spelled the same) | as zh-hans; What's New translated line by line | Latin | no (community edits) | partial | 2–4 h (native review, lower-layer errors) |
 | 11 | Korean | `ko` | 0 (0%) | none | **no Korean (Hangul) face**: needs a non-Adobe OFL face in craft-fonts (Noto CJK is allowed only for Chinese) | no | none | 14–22 h |
 | 12 | Vietnamese | `vi` | 0 (0%) | none | Latin with stacked diacritics (Inter covers it; check combining marks) | no | none (target: not shipped) | 10–16 h |
 
-## Other languages LightCraft ships (5)
+## Other languages LightCraft ships (4)
 
 | Language | Code | UI strings translated | Script | Native review | Status | To `full` |
 |---|---|---:|---|---|---|---:|
@@ -67,7 +67,6 @@ that is promising but is not recorded as review, so the column says `no (communi
 | Ukrainian | `uk` | 2,383 / 2,398 (99%; 2026-10-12) | Cyrillic (Inter) | no (community edits) | partial (lower-layer errors English) | 2–4 h |
 | Italian | `it` | 2,201 / 2,398 (92%, measured 2026-10-12; the rest is What's New) | Latin (Inter) | no (written with an agent; native-speaker pass pending) | partial (lower-layer errors English) | 3–5 h |
 | Georgian | `ka` | 2,398 / 2,398 (100%: every plain and formats message any catalog has on 2026-10-12, plus the 27 display labels and 397 What's New lines no other catalog translates) | Geor: no craft-fonts face yet (boxes until one is available) | yes (native speaker) | partial (lower-layer errors English) | 2–4 h (+ a Georgian face) |
-| Indonesian | `id` | every plain (2,258) and formats (297) message any catalog has on 2026-10-19, plus 69 command labels no other catalog translates; What's New left in English | Latin (Inter) | no (written with an agent; native-speaker pass welcome) | partial (lower-layer errors English) | 2–4 h |
 
 Target languages LightCraft lacks: Korean, Dutch, Polish, Swedish, Norwegian Bokmål, Thai
 (Thai needs shaping and line breaking without spaces). Each Latin-script one is ~10–16 h; Thai
