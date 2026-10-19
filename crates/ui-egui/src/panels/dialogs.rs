@@ -1366,6 +1366,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::KeywordTag { .. } => "Save",
                     Dialog::RemoveFolder { .. } => "Remove",
                     Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
+                    Dialog::SynchronizeFolder { .. } if informational => "Close",
                     Dialog::SynchronizeFolder { .. } => "Synchronize",
                     Dialog::SamModel { then: Some(_), .. } if sam_installed => "Continue",
                     Dialog::SamModel { .. } if sam_installed || sam_running || sam_nowhere => "",
@@ -2304,7 +2305,8 @@ pub fn confirm_style(dlg: &Dialog) -> ConfirmStyle {
     }
 }
 
-/// A dialog that only shows something: one Close, nothing to confirm or cancel.
+/// A dialog that only shows something: one Close, nothing to confirm or cancel. (Synchronize
+/// Folder is one when its folder turned out up to date.)
 fn only_shows(dlg: &Dialog) -> bool {
     matches!(
         dlg,
@@ -2315,5 +2317,5 @@ fn only_shows(dlg: &Dialog) -> bool {
             | Dialog::AllMetadata { .. }
             | Dialog::WhatsNew
             | Dialog::ManageEffects { .. }
-    )
+    ) || matches!(dlg, Dialog::SynchronizeFolder { counts: Some(c), .. } if c.up_to_date())
 }

@@ -153,36 +153,51 @@ pub fn body(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dialog) {
         crate::widgets::register(ui.ctx(), widget, r.rect);
     };
     let count = |text: &str, n: usize| format!("{} ({n})", crate::i18n::tr(text));
+    let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));
+    let skipped = |ui: &mut egui::Ui| {
+        if c.duplicates > 0 {
+            dim(ui, &count("Skipped: files already in the library elsewhere", c.duplicates));
+        }
+        if c.unreadable > 0 {
+            dim(ui, &count("Skipped: files that can't be read", c.unreadable));
+        }
+    };
+    if c.up_to_date() {
+        // nothing to choose: the answer takes the choices' place, and the one button closes
+        // (`only_shows`)
+        ui.label(crate::i18n::tr("The library is up to date with this folder."));
+        skipped(ui);
+        return;
+    }
     choice(ui, import_new, c.new, count("Import new photos", c.new), "syncImportNew");
     choice(ui, relink_moved, c.moved, count("Relink photos whose file was renamed or moved", c.moved), "syncRelinkMoved");
     choice(ui, remove_missing, c.missing, count("Remove missing photos from the library", c.missing), "syncRemoveMissing");
     choice(ui, read_metadata, c.metadata, count("Read metadata updates from XMP sidecars", c.metadata), "syncReadMetadata");
     ui.add_space(6.0);
-    let dim = |ui: &mut egui::Ui, s: &str| ui.label(egui::RichText::new(s).color(t.text_dim));
-    if c.new + c.moved + c.missing + c.metadata == 0 {
-        dim(ui, crate::i18n::tr("The library is up to date with this folder."));
-    }
     if c.missing > 0 {
         dim(ui, crate::i18n::tr("Missing photos move to Recently Deleted and can be restored; no file on disk is touched."));
     }
     if c.metadata > 0 {
         dim(ui, crate::i18n::tr("Reading a sidecar replaces the photo's rating, labels, metadata and edits with what it says."));
     }
-    if c.duplicates > 0 {
-        dim(ui, &count("Skipped: files already in the library elsewhere", c.duplicates));
-    }
-    if c.unreadable > 0 {
-        dim(ui, &count("Skipped: files that can't be read", c.unreadable));
-    }
+    skipped(ui);
 }
 
 /// Synchronize with the dialog's choices: the scan the dialog showed is handed to a worker
 /// thread at once ([`SyncRun`]); nothing is read from disk on the UI thread. A scan that went
 /// stale (the folder's photos changed meanwhile) is refused and made again, keeping the choices.
+/// A folder that is up to date has nothing to hand over: confirming it only closes the dialog.
 pub fn confirm(app: &mut LightcraftApp, dlg: &Dialog) -> Result<Value, String> {
-    let Dialog::SynchronizeFolder { path, name, disk, counts: Some(_), import_new, relink_moved, remove_missing, read_metadata, .. } = dlg else {
+    let Dialog::SynchronizeFolder { path, name, disk, counts: Some(counts), import_new, relink_moved, remove_missing, read_metadata, .. } = dlg
+    else {
         return Err("the folder is still being scanned".into());
     };
+    // (before the busy checks: nothing is imported or written, so a running import or
+    // synchronize can't clash with it, and the dialog closes either way. Like every result the
+    // dialog shows, it is the scan's: a file added since is found by the next Synchronize)
+    if counts.up_to_date() {
+        return Ok(json!({"upToDate": true}));
+    }
     if app.sync_run.is_some() {
         return Err(crate::i18n::tr("A folder is already being synchronized").to_string());
     }
