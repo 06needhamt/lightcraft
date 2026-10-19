@@ -18,8 +18,15 @@ fn main() {
     let services = Services { png: None, ..Default::default() };
     let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), services);
     let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
-    let _ = h.request("ui.set", json!({"view": "detail"}), t);
-    let _ = h.request("engine.execute", json!({"command": "panel.masking"}), t);
+    // Run a control command and stop with a clear message if it does not report ok, so the
+    // generated PNG never silently omits a mask it was meant to show (CodeRabbit review, line 30).
+    let mut run = |method: &str, params: serde_json::Value| {
+        let r = h.request(method, params, t);
+        assert_eq!(r["ok"], true, "mask_overlay_shot: `{method}` failed: {r}");
+    };
+
+    run("ui.set", json!({"view": "detail"}));
+    run("engine.execute", json!({"command": "panel.masking"}));
 
     // A few visible masks; mask.add selects the newest, so the last one is selected.
     for params in [
@@ -27,10 +34,10 @@ fn main() {
         json!({"kind": "linear", "start": [0.65, 0.25], "end": [0.65, 0.6]}),
         json!({"kind": "radial", "center": [0.7, 0.65], "rx": 0.1, "ry": 0.14, "angle": 30}),
     ] {
-        let _ = h.request("engine.execute", json!({"command": "mask.add", "params": params}), t);
+        run("engine.execute", json!({"command": "mask.add", "params": params}));
     }
-    let _ = h.request("engine.execute", json!({"command": "view.maskOverlayAll"}), t);
-    let _ = h.request("engine.execute", json!({"command": "view.maskPins", "params": {"show": false}}), t);
+    run("engine.execute", json!({"command": "view.maskOverlayAll"}));
+    run("engine.execute", json!({"command": "view.maskPins", "params": {"show": false}}));
     h.settle(Duration::from_secs(120));
 
     let px = h.view.paint(&Default::default());
