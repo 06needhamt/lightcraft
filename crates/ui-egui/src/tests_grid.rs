@@ -199,6 +199,10 @@ fn double_clicking_a_stack_badge_toggles_the_stack_once() {
     for want in [false, true] {
         let badge = widget(&h, &format!("stack:{}", top.0)).expect("stack badge drawn").center();
         click_at(&mut h, badge);
+        // the first click re-lays the grid; the second must still land on this badge, or the test
+        // would pass without the fix (a missed second click toggles nothing)
+        let moved = widget(&h, &format!("stack:{}", top.0)).expect("stack badge drawn");
+        assert!(moved.contains(badge), "the badge moved from under the pointer: {moved:?}");
         click_at(&mut h, badge);
         h.settle(SETTLE);
         assert_eq!(collapsed(&h), want, "a double-click toggles the stack once");
