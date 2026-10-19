@@ -1962,7 +1962,6 @@ fn to_straight(n: Point, angle: f64, frame: &Frame) -> Point {
     Point::new(r.x / w, r.y / h)
 }
 
-
 /// How far `q` is from the segment `a`–`b` (screen pixels): the click that selects a guide.
 fn point_segment_dist(q: Pos2, a: Pos2, b: Pos2) -> f32 {
     let ab = b - a;
