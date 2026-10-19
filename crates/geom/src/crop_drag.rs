@@ -672,13 +672,13 @@ mod tests {
     //   Scenario: a free corner dragged diagonally out on a straightened photo (issue #2308)
     #[test]
     fn given_straightened_photo_when_a_free_corner_is_dragged_out_diagonally_then_both_sides_grow() {
-        for angle in [6.0, -10.0] {
+        for angle in [6.0, 12.0] {
             let start = CropGeometry { rect: Rect::new(0.3, 0.3, 0.6, 0.6), angle };
             let g = drag(start, BottomRight, p(0.6, 0.6), p(1.2, 1.2), None);
             assert!(g.is_within_image(W, H), "{angle}: {:?}", g.rect);
             assert!(near(g.rect.x0, 0.3) && near(g.rect.y0, 0.3), "{angle}: the anchor corner stays: {:?}", g.rect);
-            // both sides grow, to about the corner that fits nearest the pointer (≈ 0.96, 0.96)
-            assert!(g.rect.x1 > 0.9 && g.rect.y1 > 0.85, "{angle}: one side only: {:?}", g.rect);
+            // both sides grow (main stops at y1 0.600)
+            assert!(g.rect.x1 > 0.9 && g.rect.y1 > 0.9, "{angle}: one side only: {:?}", g.rect);
             // and the corner sits on the turned photo's edge: dragging further changes nothing
             let further = drag(g, BottomRight, p(g.rect.x1, g.rect.y1), p(1.2, 1.2), None);
             assert!((further.rect.x1 - g.rect.x1).abs() < 1e-4 && (further.rect.y1 - g.rect.y1).abs() < 1e-4, "{angle}: {:?}", further.rect);
