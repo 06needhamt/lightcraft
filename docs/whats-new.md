@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-19
+
+### Hidden Local locations come back one at a time
+- With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
+  (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
