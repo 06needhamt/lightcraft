@@ -83,9 +83,13 @@ def classify(maker, camera, ext_field):
                 return "preview", "SRW", "compressed SRW is not decoded"
             return "unverified", "SRW", "uncompressed / packed SRW"
     e = es[0] if es else ""
+    if e == "MEF":
+        return "unverified", "MEF", "MEF decoder (uncompressed 12-bit)"
+    if e == "ERF":
+        return "unverified", "ERF", "ERF decoder (12-bit 16-byte blocks)"
     if e == "MRW":
         return "unverified", "MRW", "MRW decoder (12-bit packed, 16-bit words)"
-    if e in ("CRW", "3FR", "FFF", "IIQ", "MOS", "ERF", "KDC", "X3F", "RAW", "ORI"):
+    if e in ("CRW", "3FR", "FFF", "IIQ", "MOS", "KDC", "X3F", "RAW", "ORI"):
         return "preview", e, f"{e} is opened from its embedded JPEG only"
     return "unsupported", e, f"{e or 'unknown'} is not imported"
 
