@@ -327,7 +327,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             .logarithmic(true)
                             .smallest_positive(1.0)
                             .custom_formatter(|v, _| crate::panels::dialogs::fmt_gap(v))
-                            .custom_parser(|s| s.trim().trim_end_matches('s').parse().ok()),
+                            .custom_parser(crate::panels::dialogs::parse_gap),
                     );
                     crate::widgets::named(r, crate::i18n::tr("Stack photos taken within this time of each other:"));
                     let preview = app.session.execute("stack.auto", &json!({"gap": *gap, "preview": true})).unwrap_or_default();
@@ -352,7 +352,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             .logarithmic(true)
                             .text(crate::i18n::tr("Burst: shots at most this far apart"))
                             .custom_formatter(|v, _| crate::panels::dialogs::fmt_gap(v))
-                            .custom_parser(|s| s.trim().trim_end_matches('s').trim().parse().ok()),
+                            .custom_parser(crate::panels::dialogs::parse_gap),
                     );
                     crate::widgets::register(ui.ctx(), "field:cullGap", r.rect);
                     let r = ui.add(egui::Slider::new(similarity, 0.70..=0.99).text(crate::i18n::tr("Burst: how alike (loose … strict)")).step_by(0.01).fixed_decimals(2));
@@ -1585,6 +1585,38 @@ fn dialog_body(ui: &mut egui::Ui, scroll: Option<&str>, max_height: f32, body: i
 }
 
 /// Apply a dialog's action (also used by `ui.dialog.confirm`).
+/// What [`fmt_gap`] writes, read back: `90`, `90 s`, `1 min 30 s`, `2 h 5 min`, `1 day`
+/// (units `s`, `min`, `h`, `day`, each optional after a plain number of seconds).
+pub fn parse_gap(text: &str) -> Option<f64> {
+    let mut total = 0.0;
+    let mut seen = false;
+    let mut words = text.split_whitespace().peekable();
+    while let Some(word) = words.next() {
+        // "90s" as well as "90 s"
+        let split = word.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(word.len());
+        let (num, unit) = word.split_at(split);
+        let n: f64 = num.parse().ok().filter(|n: &f64| n.is_finite())?;
+        let unit = if unit.is_empty() {
+            match words.peek() {
+                Some(u) if u.parse::<f64>().is_err() => words.next().unwrap_or_default(),
+                _ => "s",
+            }
+        } else {
+            unit
+        };
+        let scale = match unit.trim_end_matches('.').to_lowercase().as_str() {
+            "s" | "sec" | "secs" | "second" | "seconds" => 1.0,
+            "m" | "min" | "mins" | "minute" | "minutes" => 60.0,
+            "h" | "hr" | "hrs" | "hour" | "hours" => 3600.0,
+            "d" | "day" | "days" => 86400.0,
+            _ => return None,
+        };
+        total += n * scale;
+        seen = true;
+    }
+    seen.then_some(total)
+}
+
 /// `90` → `1 min 30 s`.
 pub fn fmt_gap(v: f64) -> String {
     let v = v.round() as u64;
@@ -2329,4 +2361,24 @@ fn only_shows(dlg: &Dialog) -> bool {
             | Dialog::WhatsNew
             | Dialog::ManageEffects { .. }
     )
+}
+
+#[cfg(test)]
+mod gap_tests {
+    use super::{fmt_gap, parse_gap};
+
+    #[test]
+    fn gap_text_reads_back_what_it_shows() {
+        for v in [0.0, 1.0, 12.0, 59.0, 60.0, 90.0, 600.0, 3599.0, 3600.0, 3900.0, 86340.0] {
+            // past an hour the text shows whole minutes
+            assert_eq!(parse_gap(&fmt_gap(v)), Some(v), "{}", fmt_gap(v));
+        }
+        assert_eq!(parse_gap("1 day"), Some(86400.0));
+        assert_eq!(parse_gap("45"), Some(45.0));
+        assert_eq!(parse_gap(" 45s "), Some(45.0));
+        assert_eq!(parse_gap("2min 5s"), Some(125.0));
+        for bad in ["", "abc", "5 parsecs", "NaN", "1 min x"] {
+            assert_eq!(parse_gap(bad), None, "{bad:?}");
+        }
+    }
 }
