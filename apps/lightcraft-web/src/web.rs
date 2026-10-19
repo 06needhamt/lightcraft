@@ -528,15 +528,17 @@ impl WebApp {
         if !paths.is_empty() {
             match self.app.run("library.import", json!({"paths": paths})) {
                 // what the import did, not what was submitted: duplicates and unsupported files add nothing,
-                // and a drop that only finds duplicates says nothing (as the desktop import's toast does
-                // when it shows where they are)
+                // a drop that only finds duplicates says nothing (as the desktop import's toast does when it
+                // shows where they are), and one whose files could not be read says so
                 Ok(report) => {
                     let count = |k: &str| report[k].as_array().map_or(0, Vec::len);
-                    let (added, restored) = (count("imported"), count("restored"));
+                    let (added, restored, failed) = (count("imported"), count("restored"), count("failed"));
                     if added > 0 {
                         self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_added(added));
                     } else if restored > 0 {
                         self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_restored(restored));
+                    } else if failed > 0 {
+                        self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_unreadable(failed));
                     }
                 }
                 Err(e) => {

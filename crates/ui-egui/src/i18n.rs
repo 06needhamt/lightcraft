@@ -283,6 +283,11 @@ pub fn dropped_photos_restored(n: usize) -> String {
     tr_format!("Restored {} photo{} from Recently Deleted", n, if n == 1 { "" } else { "s" })
 }
 
+/// The web build's notice for `n` dropped photos that could not be read (nothing else came of the drop).
+pub fn dropped_photos_unreadable(n: usize) -> String {
+    tr_format!("{} photo{} not readable", n, if n == 1 { "" } else { "s" })
+}
+
 /// The title and text of the message box shown when the desktop app's window can't start
 /// (issue #260), in the UI language: the error and, when there is one, the log file to look in.
 pub fn startup_failed_message(error: &str, log_file: Option<&str>) -> (String, String) {
