@@ -679,11 +679,9 @@ mod tests {
             assert!(near(g.rect.x0, 0.3) && near(g.rect.y0, 0.3), "{angle}: the anchor corner stays: {:?}", g.rect);
             // both sides grow (main stops at y1 0.600)
             assert!(g.rect.x1 > 0.9 && g.rect.y1 > 0.9, "{angle}: one side only: {:?}", g.rect);
-            // and the corner sits on the turned photo's edge: dragging further changes nothing
             let further = drag(g, BottomRight, p(g.rect.x1, g.rect.y1), p(1.2, 1.2), None);
             assert!((further.rect.x1 - g.rect.x1).abs() < 1e-4 && (further.rect.y1 - g.rect.y1).abs() < 1e-4, "{angle}: {:?}", further.rect);
         }
-        // every corner, out past its own side of the photo
         let start = CropGeometry { rect: Rect::new(0.3, 0.3, 0.6, 0.6), angle: 8.0 };
         for (hd, from, to) in [(TopLeft, p(0.3, 0.3), p(-0.5, -0.5)), (TopRight, p(0.6, 0.3), p(1.5, -0.5)), (BottomLeft, p(0.3, 0.6), p(-0.5, 1.5))]
         {
@@ -691,7 +689,6 @@ mod tests {
             assert!(g.is_within_image(W, H), "{hd:?}: {:?}", g.rect);
             assert!(g.rect.width() > 0.5 && g.rect.height() > 0.45, "{hd:?}: one side only: {:?}", g.rect);
             let (ax, ay) = (if from.x < 0.5 { g.rect.x1 } else { g.rect.x0 }, if from.y < 0.5 { g.rect.y1 } else { g.rect.y0 });
-            // the opposite corner stays
             assert!(near(ax, if from.x < 0.5 { 0.6 } else { 0.3 }) && near(ay, if from.y < 0.5 { 0.6 } else { 0.3 }), "{hd:?}: {:?}", g.rect);
         }
     }
