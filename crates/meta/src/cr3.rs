@@ -407,12 +407,15 @@ fn sample_entry(bytes: &[u8], e: &BoxRef, budget: &mut usize) -> Cr3TrackKind {
     Cr3TrackKind::Raw { width, height, cmp1, iad1 }
 }
 
+/// A big-endian `u16` at `at`, or `None` when the buffer is shorter than that.
 pub(crate) fn be16(b: &[u8], at: usize) -> Option<u16> {
     b.get(at..at.checked_add(2)?).map(|s| u16::from_be_bytes([s[0], s[1]]))
 }
+/// A big-endian `u32` at `at`, or `None` when the buffer is shorter than that.
 pub(crate) fn be32(b: &[u8], at: usize) -> Option<u32> {
     b.get(at..at.checked_add(4)?).map(|s| u32::from_be_bytes([s[0], s[1], s[2], s[3]]))
 }
+/// A big-endian `u64` at `at`, or `None` when the buffer is shorter than that.
 pub(crate) fn be64(b: &[u8], at: usize) -> Option<u64> {
     let s = b.get(at..at.checked_add(8)?)?;
     let mut a = [0u8; 8];

@@ -200,6 +200,7 @@ mod tests {
     use crate::embedded;
     use lightcraft_tiff::{ByteOrder, IfdBuilder, TiffWriter, Value, tags as t};
 
+    /// One box: its own size, its four-letter kind, then its payload.
     fn bx(kind: &[u8; 4], payload: &[u8]) -> Vec<u8> {
         let mut v = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
         v.extend_from_slice(kind);
@@ -207,6 +208,7 @@ mod tests {
         v
     }
 
+    /// A FullBox: a box whose payload begins with a version byte and three flag bytes.
     fn full_box(kind: &[u8; 4], version: u8, payload: &[u8]) -> Vec<u8> {
         bx(kind, &[&[version, 0, 0, 0][..], payload].concat())
     }
@@ -289,6 +291,7 @@ mod tests {
         [&(skip as u32).to_be_bytes()[..], &vec![0u8; skip], tiff].concat()
     }
 
+    /// One `Exif` item holding `tiff`, the only item in the file.
     fn exif_only(tiff: &[u8]) -> Vec<Item<'static>> {
         vec![Item { kind: b"Exif", content_type: "", data: exif_item(tiff, 0) }]
     }
@@ -308,6 +311,7 @@ mod tests {
         assert_eq!(m.iso, Some(64));
     }
 
+    /// The XMP packet is the `mime` item that declares `application/rdf+xml`, not any other one.
     #[test]
     fn the_xmp_packet_is_the_rdf_mime_item() {
         let xmp = crate::write_xmp(&crate::Metadata { title: Some("Cusco".into()), ..Default::default() }, None);
@@ -334,6 +338,8 @@ mod tests {
         }
     }
 
+    /// The `Exif` item's leading offset may point past padding, not only straight at the TIFF
+    /// header, and the reader has to follow it.
     #[test]
     fn the_exif_items_tiff_header_offset_is_honoured() {
         let tiff = iphone_exif("2026:10:18 13:00:00", "-05:00");
@@ -341,6 +347,7 @@ mod tests {
         assert_eq!(embedded(&heic(&items, 1, false)).exif.as_deref(), Some(tiff.as_slice()));
     }
 
+    /// Which `ftyp` brands count as a still image in this container, major or compatible.
     #[test]
     fn brands() {
         for brand in ["heic", "heix", "mif1", "avif", "hevc", "msf1"] {
