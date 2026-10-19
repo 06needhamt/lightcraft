@@ -1709,6 +1709,8 @@ fn has_library(s: &Session) -> std::result::Result<(), String> {
 /// Coordinates typed by a person: "51.5072, -0.1276", "51.5072 N 0.1276 W",
 /// "51°30'26\"N 0°7'39\"W" (degrees, minutes, seconds; N/S/E/W or signs).
 pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
+    // typographic minus signs and dashes mean a negative value, like ASCII '-'
+    let t = t.replace(['\u{2212}', '\u{2012}', '\u{2013}', '\u{FE63}', '\u{FF0D}'], "-");
     let t = t.trim();
     // split into the two coordinates: at a comma, else after the first N/S hemisphere letter
     let (a, b) = match t.split_once(',') {
@@ -1746,6 +1748,7 @@ mod gps_tests {
         assert!((la - 51.50722).abs() < 1e-4 && (lo + 0.1275).abs() < 1e-4, "{la} {lo}");
         let (la, lo) = p("33.8688 S, 151.2093 E").unwrap();
         assert!((la + 33.8688).abs() < 1e-9 && (lo - 151.2093).abs() < 1e-9);
+        assert_eq!(p("\u{2212}33.8688, 151.2093"), Some((-33.8688, 151.2093)));
         assert_eq!(p("95, 10"), None);
         assert_eq!(p("hello"), None);
     }
