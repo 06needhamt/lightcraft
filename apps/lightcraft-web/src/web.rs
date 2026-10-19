@@ -533,12 +533,8 @@ impl WebApp {
                 Ok(report) => {
                     let count = |k: &str| report[k].as_array().map_or(0, Vec::len);
                     let (added, restored, failed) = (count("imported"), count("restored"), count("failed"));
-                    if added > 0 {
-                        self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_added(added));
-                    } else if restored > 0 {
-                        self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_restored(restored));
-                    } else if failed > 0 {
-                        self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_photos_unreadable(failed));
+                    if let Some(notice) = lightcraft_ui_egui::i18n::dropped_photos_outcome(added, restored, failed) {
+                        self.app.toast(ctx, notice);
                     }
                 }
                 Err(e) => {

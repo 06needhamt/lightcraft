@@ -283,7 +283,19 @@ pub fn dropped_photos_restored(n: usize) -> String {
     tr_format!("Restored {} photo{} from Recently Deleted", n, if n == 1 { "" } else { "s" })
 }
 
-/// The web build's notice for `n` dropped photos that could not be read (nothing else came of the drop).
+/// The web build's notice for what a drop of photos came to: every outcome that happened, joined with
+/// " · " as the desktop import's notice joins its parts, or `None` when none did (duplicates only).
+pub fn dropped_photos_outcome(added: usize, restored: usize, unreadable: usize) -> Option<String> {
+    let parts: Vec<String> =
+        [(added, dropped_photos_added as fn(usize) -> String), (restored, dropped_photos_restored), (unreadable, dropped_photos_unreadable)]
+            .into_iter()
+            .filter(|(n, _)| *n > 0)
+            .map(|(n, say)| say(n))
+            .collect();
+    (!parts.is_empty()).then(|| parts.join(" · "))
+}
+
+/// The web build's notice for `n` dropped photos that could not be read.
 pub fn dropped_photos_unreadable(n: usize) -> String {
     tr_format!("{} photo{} not readable", n, if n == 1 { "" } else { "s" })
 }
@@ -546,6 +558,14 @@ pub fn rules_label(rules: &lightcraft_catalog::RuleSet, catalog: &lightcraft_cat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dropped_photos_notice_names_every_outcome_and_is_silent_for_duplicates_only() {
+        set_language(Locale::En);
+        assert_eq!(dropped_photos_outcome(2, 0, 1).as_deref(), Some("Added 2 photos · 1 photo not readable"));
+        assert_eq!(dropped_photos_outcome(1, 3, 0).as_deref(), Some("Added 1 photo · Restored 3 photos from Recently Deleted"));
+        assert_eq!(dropped_photos_outcome(0, 0, 0), None);
+    }
 
     #[test]
     fn czech_coverage_of_catalogs_commands_controls_and_rules_is_reported() {
