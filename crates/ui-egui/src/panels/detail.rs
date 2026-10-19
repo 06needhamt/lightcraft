@@ -717,16 +717,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         shown = draw(Slot::Before, img_rect, canvas);
         // on the photo itself, so it gets the hover label's dark pill to stay readable over light pictures
         let g = p.layout_no_wrap(crate::i18n::tr("Before").to_string(), t.font(12.0), Color32::WHITE);
-        let bg = label_badge_rect(img_rect, g.size());
+        let bg = label_badge_rect(img_rect, canvas, g.size());
         p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
+        register(ui.ctx(), "canvas:beforeLabel", bg);
     } else if let Some((_key, label)) = &hover_key
         && let Some(tex) = app.renderer.textures.get(&Slot::Hover).filter(|t| t.photo == id)
     {
         let hover_rect = fit_texture_rect(img_rect, tex.size);
         p.image(tex.tex.id(), hover_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         let g = p.layout_no_wrap(label.clone(), t.font(12.0), Color32::WHITE);
-        let bg = label_badge_rect(hover_rect, g.size());
+        let bg = label_badge_rect(hover_rect, canvas, g.size());
         p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         shown = "hover";
@@ -915,9 +916,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 }
 
 /// The dark pill behind a label drawn over the photo (`Before`, a hovered preset's name): at the
-/// photo's top left, inset 8 points, with the `text` size plus padding.
-fn label_badge_rect(photo: Rect, text: egui::Vec2) -> Rect {
-    Rect::from_min_size(photo.left_top() + vec2(8.0, 8.0), text + vec2(16.0, 8.0))
+/// photo's top left, inset 8 points, with the `text` size plus padding. Zoomed in, the photo
+/// reaches past its `pane` (the canvas): the pill then sits at the pane's top left, so the label
+/// stays in view (issue #2267: at 100 % it left the screen with the photo's corner).
+fn label_badge_rect(photo: Rect, pane: Rect, text: egui::Vec2) -> Rect {
+    let corner = pos2(photo.left().max(pane.left()), photo.top().max(pane.top()));
+    Rect::from_min_size(corner + vec2(8.0, 8.0), text + vec2(16.0, 8.0))
 }
 
 /// The info overlay at the canvas' top left (`view.infoOverlay`): file name with the capture date
@@ -2727,11 +2731,26 @@ mod preview_geometry_tests {
     #[test]
     fn before_label_badge_wraps_the_text() {
         let text = vec2(40.0, 14.0);
+        let pane = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
         let photo = Rect::from_min_size(pos2(20.0, 30.0), vec2(400.0, 300.0));
-        let bg = label_badge_rect(photo, text);
+        let bg = label_badge_rect(photo, pane, text);
         assert_eq!(bg.min, pos2(28.0, 38.0));
         assert_eq!(bg.size(), vec2(56.0, 22.0));
         assert!(photo.contains_rect(bg));
+    }
+
+    /// Zoomed in, the photo's corner is off the canvas: the pill moves to the canvas' corner
+    /// instead of leaving with it (issue #2267), on whichever axes the photo reaches past.
+    #[test]
+    fn before_label_badge_stays_in_the_pane_when_the_photo_reaches_past_it() {
+        let text = vec2(40.0, 14.0);
+        let pane = Rect::from_min_size(pos2(100.0, 50.0), vec2(800.0, 600.0));
+        let both = label_badge_rect(Rect::from_min_size(pos2(-900.0, -700.0), vec2(3000.0, 2000.0)), pane, text);
+        assert_eq!(both.min, pos2(108.0, 58.0));
+        assert!(pane.contains_rect(both));
+        let left_only = label_badge_rect(Rect::from_min_size(pos2(-900.0, 120.0), vec2(3000.0, 400.0)), pane, text);
+        assert_eq!(left_only.min, pos2(108.0, 128.0));
+        assert!(pane.contains_rect(left_only));
     }
 
     #[test]

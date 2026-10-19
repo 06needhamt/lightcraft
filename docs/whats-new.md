@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-19
+
+### The Before label stays in view when zoomed in
+- Zoomed in, the "Before" label (\ key or the Before view) now sits at the canvas' corner instead of leaving the
+  screen with the photo's corner (issue #2267).
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
