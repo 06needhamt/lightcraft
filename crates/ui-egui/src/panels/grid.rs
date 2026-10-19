@@ -554,7 +554,7 @@ pub fn request_thumb(app: &mut LightcraftApp, id: PhotoId, size: usize, priority
     // has arrived there is nothing left to ask for. Without this the grid would rebuild the render
     // job — and its cache key — on every frame, which is what the embedded-thumbnail record settles.
     if let Some(photo) = app.session.catalog.photo(id)
-        && (app.renderer.thumb_quick_is_final(photo, bucket, priority) || app.renderer.thumb_quick_pending(photo, bucket))
+        && (app.renderer.thumb_quick_is_final(photo, bucket, priority) || app.renderer.thumb_quick_pending(photo, bucket, priority))
     {
         return;
     }
