@@ -160,11 +160,13 @@ pub fn survey_step(app: &mut LightcraftApp, d: isize) -> Result<Value, String> {
 }
 
 /// After rating/flagging with Auto Advance: next candidate (Compare), next photo in the survey,
-/// else the next photo in the view.
-pub fn advance(app: &mut LightcraftApp) {
+/// else the next photo in the view. `was` is the active photo before the rating: a rating that took
+/// it out of the view made the photo after it active already, and that is the next one (#2312).
+pub fn advance(app: &mut LightcraftApp, was: Option<PhotoId>) {
     let _ = match app.ui.view {
         ViewMode::Compare => compare_step(app, 1),
         ViewMode::Survey => survey_step(app, 1),
+        _ if app.session.active() != was => Ok(Value::Null),
         _ => app.session.execute("library.next", &json!({})).map_err(|e| e.to_string()),
     };
 }

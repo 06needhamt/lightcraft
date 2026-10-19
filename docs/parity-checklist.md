@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-15 · **Change:** minor (LRC-PRINT-PAGE: Print Page Options) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-19 · **Change:** patch (LR-LIB-RATING: culling goes on from a photo rated out of the view, #2312) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -102,7 +102,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-LIB-SHARED-ALBUM | Shared albums | P2 | ⬜ | | needs a sharing service |
 | LR-LIB-OFFLINE | Keep album offline | P2 | 🚫 | | not applicable: local-first library |
 | LR-LIB-TARGET | Target album | P2 | ✅ | `cmd:album.setTarget`, `cmd:album.toggleTarget` | see LRC-LIB-COLLECTIONS |
-| LR-LIB-RATING | Star ratings | P0 | ✅ | `cmd:photo.rate` (`advance`), `cmd:photo.decreaseRating`, `cmd:photo.increaseRating`, `crates/ui-egui/src/shortcuts.rs` | 0 clears; 1–5 set; Shift+0–5 applies and advances once, including with Auto Advance. Default grid brackets adjust each photo by one, clamped to 0–5; one batch undo and AutoWrite. Batch grid and undo/redo regressions; macOS native ownership corrected (PR #261) |
+| LR-LIB-RATING | Star ratings | P0 | ✅ | `cmd:photo.rate` (`advance`), `cmd:photo.decreaseRating`, `cmd:photo.increaseRating`, `crates/ui-egui/src/shortcuts.rs` | 0 clears; 1–5 set; Shift+0–5 applies and advances once, including with Auto Advance. A rating, flag or label that takes the active photo out of the view (filter bar, Picks, smart album) makes the photo after it active (the one before at the end), and Shift / Auto Advance doesn't step past it (#2312). Default grid brackets adjust each photo by one, clamped to 0–5; one batch undo and AutoWrite. Batch grid and undo/redo regressions; macOS native ownership corrected (PR #261) |
 | LR-LIB-FLAG | Pick / reject flags | P0 | ✅ | `cmd:photo.pick`, `cmd:photo.reject`, `cmd:photo.unflag`, `cmd:photo.flag` | P pick, X reject, U clear; Shift+P picks and advances in both grids (Presets elsewhere); Shift+X/U and legacy Shift+Z advance; no flag cycle; rejection does not delete the file |
 | LR-LIB-LABEL | Colour labels | P1 | ✅ | `cmd:photo.label`, `cmd:label.setNames`, `cmd:label.names`, `cmd:dialog.labelNames`, keys 6–9 in `crates/ui-egui/src/shortcuts.rs` | Photo menu and grid context menu (coloured, named), Info-panel swatches, label dot plus translucent colour on square-grid/filmstrip surrounds and photo-grid footers (photo pixels unchanged); colour-label toasts have pale matching backgrounds; setting/clearing through keys (including Shift), menus or Info swatches shows the same bottom toast as ratings, with the colour/custom name; editable label names (undoable, journaled); no purple key (as in Lightroom), no custom extra labels |
 | LR-LIB-KEYWORD | Keywords | P0 | ✅ | `cmd:panel.keywords`, `cmd:photo.setMeta` (`addKeywords`/`removeKeywords`), `cmd:keyword.list`, `cmd:keyword.rename`, `cmd:keyword.delete`, `cmd:keyword.merge`, `cmd:keyword.suggest`, `crates/catalog/src/keywords.rs`, `crates/ui-egui/src/panels/left.rs` | left-panel keyword tree with counts (click filters, children included; context menu rename / merge / delete / add / remove); library-wide ops are one undo step and replay from the op log; suggestions (co-occurring / most used / completions) in the Keywords panel; keywords reorganize by drag and drop in the Keyword List (LRC-LIB-KEYWORDS) |
@@ -797,6 +797,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-19 | patch | LR-LIB-RATING: a rating, flag or label that takes the active photo out of the view makes the photo after it active instead of leaving an unseen photo active (→ then went to the view's first photo), and Shift / Auto Advance doesn't step past it (#2312); status unchanged (✅) |
 | 2026-10-14 | patch | LR-EXP-TYPE: opaque 8-bit PNG/TIFF/WebP use RGB; transparent exports retain alpha (#1670). Statuses and feature counts unchanged. |
 | 2026-10-15 | minor | LRC-PRINT-PAGE: Page Options (Page Numbers, Page Info, Crop Marks) on Single Image and Contact Sheet pages, in the Print dialog, `print.set` and templates; still 🟡 (no identity plate, watermark, photo info or Cut Guides) |
 | 2026-10-15 | minor | LR-IMP-FORMATS: Hasselblad 3FR and FFF show their uncompressed RGB preview (no JPEG in these files) in the grid and loupe until developed, and as the stand-in when a file fails to decode; status unchanged (🟡) |

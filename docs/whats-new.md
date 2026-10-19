@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-19
+
+### Rating in a filtered view keeps your place
+- When a filter shows only one-star photos and you take the star off a photo, it leaves the view and the photo after
+  it is now selected, so you carry on from where you were (issue #2312). The same goes for flags and colour labels,
+  in Picks and in smart albums. Before, the photo stayed selected although the grid no longer showed it, and → or
+  Auto Advance jumped back to the first photo of the view. With Auto Advance on, or with Shift+0–5, you land on the
+  photo after it: no photo is skipped.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
