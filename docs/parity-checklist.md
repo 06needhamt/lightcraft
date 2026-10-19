@@ -33,7 +33,7 @@ cited here still exists. Formerly docs/parity.md.
 | E. Metadata (META) | 5 | 1 | 0 | 0 | 2/2 (100%) | 2/2 (100%) |
 | F. Edit panel — global adjustments (EDIT) | 44 | 2 | 3 | 1 | 28/28 (100%) | 13/14 (93%) |
 | G. Profiles (PROF) | 7 | 1 | 3 | 0 | 3/4 (75%) | 3/3 (100%) |
-| H. Crop & rotate (CROP) | 9 | 0 | 0 | 1 | 6/6 (100%) | 3/3 (100%) |
+| H. Crop & rotate (CROP) | 11 | 0 | 0 | 1 | 8/8 (100%) | 3/3 (100%) |
 | I. Remove / healing (REM) | 8 | 1 | 2 | 2 | 4/4 (100%) | 2/3 (67%) |
 | J. Red eye (EYE) | 2 | 0 | 0 | 0 | — | 1/1 (100%) |
 | K. Masking (MASK) | 15 | 5 | 5 | 0 | 7/8 (88%) | 7/7 (100%) |
@@ -53,9 +53,9 @@ cited here still exists. Formerly docs/parity.md.
 | Y. Menus | 84 | 0 | 4 | 8 | 47/47 (100%) | 23/23 (100%) |
 | Z. Keyboard shortcuts (desktop) | 78 | 4 | 2 | 1 | 49/52 (94%) | 24/26 (92%) |
 | Lightroom Classic extras | 40 | 23 | 23 | 8 | — | 24/26 (92%) |
-| **Total** | 419 | 61 | 59 | 35 | 194/201 (97%) | 148/161 (92%) |
+| **Total** | 421 | 61 | 59 | 35 | 196/203 (97%) | 148/161 (92%) |
 
-Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **83.4%** of 539 in-scope rows — P0 98.3% of 201 · P1 95.0% of 161 · P2 55.7% of 176.
+Weighted completion (✅ = 1, 🟡 = ½, 🚫 left out): **83.5%** of 541 in-scope rows — P0 98.3% of 203 · P1 95.0% of 161 · P2 55.7% of 176.
 <!-- /parity:summary -->
 
 ## Top gaps and shortcut notes
@@ -254,6 +254,8 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 | LR-CROP-STRAIGHTEN | Straighten tool | P0 | ✅ | `cmd:crop.straighten`, `cmd:crop.autoStraighten`, `crates/ui-egui/src/panels/detail.rs` (`rotate_cursor`, `angle_readout`), `crates/ui-egui/src/panels/right.rs` (Angle field), `crates/ui-egui/src/tests_crop_rotate.rs` | Straighten Tool button: drag along a horizon/vertical; double-click or Auto levels automatically. Dragging outside the crop box rotates it: there the pointer is a curved double arrow that bulges away from the side of the box it is on, diagonally off a corner and following a rotated box (`rotate_cursor_turn`, tested by `rotate_cursor_faces_away_from_the_crop_box`) (with ⌘ held, the straighten crosshair), and while rotating the angle shows next to it, kept on the canvas (issue #534); an exact angle goes in the Angle field under Straighten (`cropAngleField`: applies on Return or leaving it, Esc keeps the old angle, takes a decimal comma; a drag on it is one undo step) or by clicking the Straighten value (its hover says so). Every way of setting the angle (rotate handle, Straighten slider, Angle field, `crop.straighten`, `crop.set {angle}`, and the generic `develop.set` / `develop.adjust` / `develop.quickAdjust` / `develop.resetControl` on `crop.angle`, as MCP, the control channel and `lightcraft-cli render --set` use them) keeps the crop if it still fits, else shrinks it about its own centre, keeping its aspect, until it fits; the full photo (or a crop an earlier turn shrank to the largest of its aspect) stays the largest, so it grows back towards 0° (issue #1388), and no other crop ever grows (issue #1794: a crop dragged in from a corner turned into nearly the whole photo) (`CropGeometry::with_angle`, `crates/engine/src/tests_crop_angle.rs`; before issue #742 the generic path left the box, and the export, past the photo with smeared edge pixels in the corners). The dimming outside the box is the photo minus the (rotated) box, drawn as one mesh (`outside_crop_mesh`), so rotating never dims wedges inside the box or doubles them outside (issue #731) |
 | LR-CROP-AUTO | Auto straighten | P1 | ✅ | `cmd:crop.autoStraighten` | crop-angle leveling from detected horizon/plumb lines (consensus required) |
 | LR-CROP-ANGLE | Angle slider | P0 | ✅ | `ctl:crop.angle`, `crates/ui-egui/src/panels/right.rs` | the Straighten slider; an exact angle can also be typed in the Angle field under it (see LR-CROP-STRAIGHTEN); setting `crop.angle` through `develop.set` fits the crop inside the photo as Straighten does (issue #742) |
+| LR-GUIDED-SELECT | Guide selection in Guided Upright mode | P0 | ✅ | `cmd:tool.guidedUpright`, `cmd:geometry.guides`, `crates/ui-egui/src/panels/detail.rs`, `crates/ui-egui/src/state.rs` (`selected_guide`), `crates/ui-egui/src/tests_guided_guides.rs` | a press near a guide's line selects it (`selected_guide = Some((photo id, index))`; another press on it deselects), a press on an empty spot starts a new guide at that point, and an endpoint drags to reshape the guide (`Gesture::GuideEndpoint`, one undo step; clicking an endpoint only selects); tested in `tests_guided_guides` 8/8 |
+| LR-GUIDED-DELETE | Delete removes the selected guide alone | P0 | ✅ | `cmd:photo.delete`, `crates/ui-egui/src/shortcuts.rs`, `crates/ui-egui/src/tests_guided_guides.rs` | with the Guided Upright tool open (`RightPanel::Crop && tool == "guidedUpright"`), Delete / Backspace removes only the selected guide and clears the selection; with nothing selected it removes nothing (the photo itself is never deleted while the tool is open); tested in `tests_guided_guides` |
 | LR-CROP-ROTATE90 | Rotate 90° | P0 | ✅ | `cmd:photo.rotateLeft`, `cmd:photo.rotateRight` | |
 | LR-CROP-FLIP | Flip | P0 | ✅ | `cmd:photo.flipHorizontal`, `cmd:photo.flipVertical`, `crates/pipeline/src/geometry.rs` | the crop tool's uncropped view shows the flips too, with the crop box and its dimming mirrored to match |
 | LR-CROP-OVERLAY | Crop overlays | P1 | ✅ | `cmd:view.cropOverlay`, `cmd:view.cropOverlayOrientation`, `crates/ui-egui/src/panels/crop_overlay.rs` | thirds, grid, golden ratio, diagonal, triangle, golden spiral (mirrored with ⇧O while cropping); no aspect-ratio overlays |
@@ -896,3 +898,4 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-14 | patch | LRC-LIB-CATALOG-IMPORT: reconciled with upstream phased progress, cancellation kinds, WAL-only import, translations and current progress tracking. Status and summary counts unchanged. |
 | 2026-10-13 | minor | KEYC-COMPARE: `=` / `-` (also `+`) increase / decrease the grid thumbnail size (`view.thumbSizeUp` / `view.thumbSizeDown`, View menu), grids only; status unchanged (🟡) |
 | 2026-10-16 | patch | LR-META-XMP: a TIFF or JPEG imported beside a raw of its stem reads its own `<file>.xmp` and takes nothing from the raw's `IMG_0001.xmp`, whether it arrives with the raw or after it (a stem sidecar belongs to one file: a raw first, then the first by name); status unchanged (✅) |
+| 2026-10-19 | minor | LR-GUIDED-SELECT and LR-GUIDED-DELETE: Guided Upright guides select on the press near their line (another press deselects), start a new guide where the press lands (not where egui's drag threshold was crossed), and an endpoint drags to reshape the guide (`Gesture::GuideEndpoint`, one undo step); Delete / Backspace with the tool open removes only the selected guide; new rows land as ✅ (`tests_guided_guides` 8/8) |
