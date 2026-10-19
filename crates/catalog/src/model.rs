@@ -653,6 +653,7 @@ mod edited_tests {
             ("SONY ILCE-1", "ARW", true),
             ("", "ARW", true),
             ("SONY ILCE-7M3", "DNG", false),
+            ("NIKON CORPORATION NIKON Z5_2", "NEF", false),
         ] {
             let mut p = Photo::new(PhotoId(1), Source::Demo { scene: 0 }, "a.raw", format, 10, 10, "2026-10-01T00:00:00");
             p.kind = MediaKind::Raw;

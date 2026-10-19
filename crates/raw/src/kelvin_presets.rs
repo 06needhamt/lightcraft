@@ -55,10 +55,9 @@ pub fn covers(make: Option<&str>, model: &str) -> bool {
 
 /// [`covers`] for make and model joined by a space, as the catalog keeps them (`"SONY ILCA-99M2"`).
 pub fn covers_camera(camera: &str) -> bool {
-    match camera.split_once(char::is_whitespace) {
-        Some((make, model)) => covers(Some(make), model),
-        None => covers(None, camera),
-    }
+    let words: Vec<&str> = camera.split_whitespace().collect();
+    // the make can be several words ("NIKON CORPORATION"), so try every split, as `spectral::find_camera` does
+    (1..words.len()).any(|i| covers(Some(&words[..i].join(" ")), &words[i..].join(" "))) || covers(None, camera)
 }
 
 /// A camera's multipliers at five stated temperatures, ascending, green = 1.
@@ -220,6 +219,7 @@ mod tests {
 
     #[test]
     fn covered_models() {
+        assert!(covers_camera("NIKON CORPORATION NIKON Z5_2") && covers_camera("NIKON Z5_2") && !covers_camera("NIKON CORPORATION NIKON Z6"));
         for c in ["SONY ILCA-99M2", "SONY DSC-RX10", "SONY ILCA-77M2", "SONY SLT-A33", "ILCA-99M2", "Sony ilca-99m2"] {
             assert!(covers_camera(c), "{c}");
         }
