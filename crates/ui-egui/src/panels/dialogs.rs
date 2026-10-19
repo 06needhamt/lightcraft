@@ -1588,6 +1588,10 @@ fn dialog_body(ui: &mut egui::Ui, scroll: Option<&str>, max_height: f32, body: i
 /// What [`fmt_gap`] writes, read back: `90`, `90 s`, `1 min 30 s`, `2 h 5 min`, `1 day`
 /// (units `s`, `min`, `h`, `day`, each optional after a plain number of seconds).
 pub fn parse_gap(text: &str) -> Option<f64> {
+    // the one translated text `fmt_gap` writes ("1 Tag")
+    if text.trim() == crate::i18n::tr("1 day") {
+        return Some(86400.0);
+    }
     let mut total = 0.0;
     let mut seen = false;
     let mut words = text.split_whitespace().peekable();
@@ -2380,5 +2384,11 @@ mod gap_tests {
         for bad in ["", "abc", "5 parsecs", "NaN", "1 min x"] {
             assert_eq!(parse_gap(bad), None, "{bad:?}");
         }
+        // a day reads back in the UI language too ("1 Tag")
+        crate::i18n::set_language(crate::i18n::Locale::De);
+        let shown = fmt_gap(86400.0);
+        let back = parse_gap(&shown);
+        crate::i18n::set_language(crate::i18n::Locale::En);
+        assert_eq!((shown.as_str(), back), ("1 Tag", Some(86400.0)));
     }
 }
