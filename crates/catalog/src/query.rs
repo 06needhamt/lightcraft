@@ -135,6 +135,12 @@ fn shuffle_rank(seed: u64, id: PhotoId) -> u64 {
     mix64(mix64(seed) ^ id.0)
 }
 
+/// What [`Filter::prepare`] works out once for a pass over many photos.
+pub(crate) struct Prepared {
+    root: Option<String>,
+    only: Option<std::collections::HashSet<PhotoId>>,
+}
+
 /// The tokens of a search text: split at whitespace, except inside double quotes, so
 /// `person:"Jane Doe"` is one token (issue #1449). An unclosed quote runs to the end of the text; a
 /// backslash is an ordinary character. One pass over the text, nothing allocated.
@@ -164,17 +170,11 @@ fn unquote(s: &str) -> &str {
     s.strip_prefix('"').map_or(s, |inner| inner.strip_suffix('"').unwrap_or(inner))
 }
 
-/// What [`Filter::prepare`] works out once for a pass over many photos.
-pub(crate) struct Prepared {
-    root: Option<String>,
-    only: Option<std::collections::HashSet<PhotoId>>,
-}
-
 fn token_matches(p: &Photo, tok: &str) -> bool {
     let t = tok.to_lowercase();
     // a token that starts with a quote is a phrase, even with a colon in it
-    if let Some((field, val)) = t.split_once(':').filter(|_| !t.starts_with('"')) {
-        let val = unquote(val);
+    if let Some((field, quoted)) = t.split_once(':').filter(|_| !t.starts_with('"')) {
+        let val = unquote(quoted);
         let num = |s: &str| -> Option<(char, f64)> {
             let (op, rest) = match s.chars().next()? {
                 c @ ('>' | '<' | '=') => (c, &s[1..]),
@@ -188,13 +188,20 @@ fn token_matches(p: &Photo, tok: &str) -> bool {
             Some((_, v)) => (x - v).abs() < 1e-9,
             None => false,
         };
+        // Fields stored as `f32` compare at f32 precision: 2.8f32 widened to f64 is not 2.8.
+        let cmp32 = |x: f32, s: &str| match num(s) {
+            Some(('>', v)) => x > v as f32,
+            Some(('<', v)) => x < v as f32,
+            Some((_, v)) => x == v as f32,
+            None => false,
+        };
         return match field {
             "rating" | "stars" => cmp(p.rating as f64, val),
             "flag" => Flag::parse(val) == Some(p.flag),
             "label" | "color" => p.label.is_some_and(|l| format!("{l:?}").eq_ignore_ascii_case(val)),
             "iso" => p.meta.iso.is_some_and(|i| cmp(i as f64, val)),
-            "f" | "aperture" => p.meta.aperture.is_some_and(|a| cmp(a as f64, val)),
-            "focal" => p.meta.focal_mm.is_some_and(|a| cmp(a as f64, val)),
+            "f" | "aperture" => p.meta.aperture.is_some_and(|a| cmp32(a, val)),
+            "focal" => p.meta.focal_mm.is_some_and(|a| cmp32(a, val)),
             "camera" => p.meta.camera.to_lowercase().contains(val),
             "lens" => p.meta.lens.to_lowercase().contains(val),
             "keyword" | "kw" => p.meta.keywords.iter().any(|k| crate::keywords::is_under(k, val)),
@@ -204,10 +211,18 @@ fn token_matches(p: &Photo, tok: &str) -> bool {
             "date" => p.captured.as_deref().is_some_and(|c| c.starts_with(val)),
             "copy" | "virtual" => (val == "true" || val == "yes") == p.copy_of.is_some(),
             "name" | "file" => p.file_name.to_lowercase().contains(val),
-            _ => false,
+            // Not a known field: the colon is part of a plain word ("10:30", "Re:"), its value unquoted
+            // (`re:"a b"` is the text `re:a b`).
+            _ if val.len() != quoted.len() => text_matches(p, &format!("{field}:{val}")),
+            _ => text_matches(p, &t),
         };
     }
-    let t = unquote(&t);
+    text_matches(p, unquote(&t))
+}
+
+/// Whether the lower-cased word `t` is in the file name, title, caption, camera, lens, location,
+/// format, a keyword or the name of a person (a named face) of `p`.
+fn text_matches(p: &Photo, t: &str) -> bool {
     let hay = [&p.file_name, &p.meta.title, &p.meta.caption, &p.meta.camera, &p.meta.lens, &p.meta.location, &p.format];
     hay.iter().any(|h| h.to_lowercase().contains(t))
         || p.meta.keywords.iter().any(|k| k.to_lowercase().contains(t))
