@@ -19,7 +19,7 @@ const MAX_LSB: u8 = 3;
 fn gpu() -> bool {
     let ok = lightcraft_gpu::available();
     if !ok {
-        eprintln!("skipped: no GPU adapter");
+        lightcraft_testkit::skip!(Gpu, "no GPU adapter");
     }
     ok
 }
@@ -79,6 +79,19 @@ fn check(name: &str, src: &Arc<Rgb32f>, info: &SourceInfo, s: &DevelopSettings, 
     (mean, max)
 }
 
+/// [`check`] for gamut-warning renders: a warning is a hard decision at the gamut boundary, so a
+/// pixel sitting exactly on it may be painted by one renderer and not the other (float rounding).
+/// Such flips are allowed for at most 0.01 % of the pixels; everything else is held to [`check`]'s bounds.
+fn check_warned(name: &str, src: &Arc<Rgb32f>, info: &SourceInfo, s: &DevelopSettings, req: &RenderRequest) {
+    let cpu = render(src, info, s, req).image;
+    let gpu = lightcraft_gpu::render(src, info, s, req, None).expect("gpu render");
+    let (mean, _, over) = diff(&cpu, &gpu.image);
+    let flips = cpu.data.iter().zip(&gpu.image.data).filter(|(p, q)| (0..3).any(|c| p[c].abs_diff(q[c]) > MAX_LSB)).count();
+    let share = flips as f64 / cpu.data.len() as f64;
+    eprintln!("{name:<28} {}x{}  mean {mean:.4}  >1: {:.4}%  boundary flips {flips}", cpu.width, cpu.height, over * 100.0);
+    assert!(mean < MEAN_LSB && share <= 1e-4, "{name}: mean {mean:.4} LSB, {flips} pixels differ by more than {MAX_LSB} LSB");
+}
+
 type Edit = fn(&mut DevelopSettings);
 
 fn typical(s: &mut DevelopSettings) {
@@ -91,6 +104,26 @@ fn typical(s: &mut DevelopSettings) {
     s.detail.nr_luminance = 30.0;
     s.detail.nr_color = 25.0;
     s.detail.sharpen_amount = 40.0;
+}
+
+/// Issue #960: a preview's noise reduction works in the original's pixels (a smaller radius, a
+/// smaller `eps`, faded below one pixel). The GPU takes the same parameters (`local::nr_params`).
+#[test]
+fn preview_noise_reduction_matches() {
+    if !gpu() {
+        return;
+    }
+    let src = scene(3, 640, 480);
+    let mut s = DevelopSettings::default();
+    s.detail.nr_luminance = 70.0;
+    s.detail.nr_detail = 30.0;
+    s.detail.nr_color = 60.0;
+    s.detail.nr_color_smoothness = 50.0;
+    // a preview level of a 6000-px original: loupe-, grid- and tiny-thumbnail-sized outputs
+    let info = SourceInfo { raw: true, native_long: Some(6000), ..Default::default() };
+    for (name, edge) in [("NR preview 640 of 6000", 640), ("NR preview 320 of 6000", 320), ("NR preview 128 of 6000", 128)] {
+        check(name, &src, &info, &s, &RenderRequest::fit(edge, edge));
+    }
 }
 
 /// A render big enough for the per-pixel stage to run in several bands of rows (and the render
@@ -876,7 +909,7 @@ fn soft_proofs_match() {
                 saturated(&mut s);
                 let proof = Some(Proof { space, dest_warning, display_warning, profile: 0 });
                 let req = RenderRequest { space: out, proof, ..RenderRequest::fit(640, 640) };
-                check(&format!("proof {space:?} → {out:?} warn {dest_warning}/{display_warning}"), &src, &raw, &s, &req);
+                check_warned(&format!("proof {space:?} → {out:?} warn {dest_warning}/{display_warning}"), &src, &raw, &s, &req);
             }
         }
     }
