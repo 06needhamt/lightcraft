@@ -283,15 +283,20 @@ pub fn dropped_photos_restored(n: usize) -> String {
     tr_format!("Restored {} photo{} from Recently Deleted", n, if n == 1 { "" } else { "s" })
 }
 
-/// The web build's notice for what a drop of photos came to: every outcome that happened, joined with
-/// " · " as the desktop import's notice joins its parts, or `None` when none did (duplicates only).
-pub fn dropped_photos_outcome(added: usize, restored: usize, unreadable: usize) -> Option<String> {
-    let parts: Vec<String> =
-        [(added, dropped_photos_added as fn(usize) -> String), (restored, dropped_photos_restored), (unreadable, dropped_photos_unreadable)]
-            .into_iter()
-            .filter(|(n, _)| *n > 0)
-            .map(|(n, say)| say(n))
-            .collect();
+/// The web build's notice for what a drop of photos came to, from the `library.import` report: every outcome that
+/// happened (added, restored from Recently Deleted, not readable), joined with " · " as the desktop import's notice
+/// joins its parts, or `None` when none did (duplicates only).
+pub fn dropped_photos_outcome(report: &serde_json::Value) -> Option<String> {
+    let count = |k: &str| report[k].as_array().map_or(0, Vec::len);
+    let parts: Vec<String> = [
+        (count("imported"), dropped_photos_added as fn(usize) -> String),
+        (count("restored"), dropped_photos_restored),
+        (count("failed"), dropped_photos_unreadable),
+    ]
+    .into_iter()
+    .filter(|(n, _)| *n > 0)
+    .map(|(n, say)| say(n))
+    .collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
@@ -559,12 +564,37 @@ pub fn rules_label(rules: &lightcraft_catalog::RuleSet, catalog: &lightcraft_cat
 mod tests {
     use super::*;
 
+    /// A drop's notice comes from what `library.import` reported: a photo added, one brought back from Recently
+    /// Deleted and a file that could not be read are each named; a drop of duplicates only says nothing.
     #[test]
-    fn a_dropped_photos_notice_names_every_outcome_and_is_silent_for_duplicates_only() {
+    fn a_dropped_photos_notice_names_every_outcome_of_the_import_and_is_silent_for_duplicates_only() {
         set_language(Locale::En);
-        assert_eq!(dropped_photos_outcome(2, 0, 1).as_deref(), Some("Added 2 photos · 1 photo not readable"));
-        assert_eq!(dropped_photos_outcome(1, 3, 0).as_deref(), Some("Added 1 photo · Restored 3 photos from Recently Deleted"));
-        assert_eq!(dropped_photos_outcome(0, 0, 0), None);
+        let dir = std::env::temp_dir().join(format!("lc-drop-notice-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = |name: &str, seed: u8| {
+            let data: Vec<[u8; 4]> = (0..48 * 32).map(|i| [(i % 48 * 5) as u8, (i / 48 * 7) as u8, seed, 255]).collect();
+            let img = lightcraft_raster::Rgba8 { width: 48, height: 32, data };
+            let bytes =
+                lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+            std::fs::write(dir.join(name), bytes).unwrap();
+            dir.join(name).to_string_lossy().into_owned()
+        };
+        let (trashed, added) = (png("trashed.png", 1), png("new.png", 2));
+        let broken = dir.join("broken.jpg");
+        std::fs::write(&broken, b"not a jpeg at all").unwrap();
+        let mut s = lightcraft_engine::Session::new().with_fs();
+        let r = s.execute("library.import", &serde_json::json!({"paths": [trashed]})).unwrap();
+        s.execute("photo.delete", &serde_json::json!({"ids": [r["imported"][0]]})).unwrap();
+        let report = s.execute("library.import", &serde_json::json!({"paths": [trashed, added, broken]})).unwrap();
+        assert_eq!(
+            dropped_photos_outcome(&report).as_deref(),
+            Some("Added 1 photo · Restored 1 photo from Recently Deleted · 1 photo not readable"),
+            "{report}"
+        );
+        let again = s.execute("library.import", &serde_json::json!({"paths": [added]})).unwrap();
+        assert_eq!(dropped_photos_outcome(&again), None, "a duplicate only: {again}");
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

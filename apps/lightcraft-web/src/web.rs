@@ -531,9 +531,7 @@ impl WebApp {
                 // a drop that only finds duplicates says nothing (as the desktop import's toast does when it
                 // shows where they are), and one whose files could not be read says so
                 Ok(report) => {
-                    let count = |k: &str| report[k].as_array().map_or(0, Vec::len);
-                    let (added, restored, failed) = (count("imported"), count("restored"), count("failed"));
-                    if let Some(notice) = lightcraft_ui_egui::i18n::dropped_photos_outcome(added, restored, failed) {
+                    if let Some(notice) = lightcraft_ui_egui::i18n::dropped_photos_outcome(&report) {
                         self.app.toast(ctx, notice);
                     }
                 }
