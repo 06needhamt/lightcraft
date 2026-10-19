@@ -6,7 +6,7 @@
 //! bounds decide how far the drag may go. [`drag_crop`] answers all three in one place so the app,
 //! CLI, control channel and MCP agree.
 
-use crate::{CropGeometry, Point, Rect};
+use crate::{Affine, CropGeometry, Point, Rect, Vec2};
 
 /// Smallest crop side, as a fraction of the image's shorter side.
 pub const MIN_CROP_FRACTION: f64 = 0.02;
@@ -109,11 +109,18 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
     let out = match (handle, aspect) {
         (CropHandle::Move, _) => {
             let slide = |cur: Rect, ax: f64, ay: f64| {
-                let t = bisect(0.0, 1.0, |t| feasible(cur.translate(crate::Vec2::new(ax * t, ay * t))));
-                cur.translate(crate::Vec2::new(ax * t, ay * t))
+                let t = bisect(0.0, 1.0, |t| feasible(cur.translate(Vec2::new(ax * t, ay * t))));
+                cur.translate(Vec2::new(ax * t, ay * t))
             };
-            let cur = slide(sr, dx, 0.0);
-            slide(cur, 0.0, dy)
+            // Straightened, the frame goes to the place nearest the pointer's that keeps it inside,
+            // so it slides along the tilted edges: across-then-down stops a frame that fills the
+            // photo's height dead, as no straight sideways step stays inside (issue #2299).
+            let nearest = (base.angle != 0.0)
+                .then(|| nearest_move(sr, base.angle, w, h, Vec2::new(dx, dy)))
+                .flatten()
+                .map(|v| sr.translate(v))
+                .filter(|r| feasible(*r));
+            nearest.unwrap_or_else(|| slide(slide(sr, dx, 0.0), 0.0, dy))
         }
         (hd, None) => {
             let (mx0, mx1, my0, my1) = sides(hd);
@@ -200,6 +207,59 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
     };
     let rect = out.scale(1.0 / w, 1.0 / h);
     if [rect.x0, rect.y0, rect.x1, rect.y1].iter().all(|v| v.is_finite()) { CropGeometry { rect, angle: base.angle } } else { start }
+}
+
+/// The translation (pixels) nearest `want` that keeps the frame `r` inside a `w × h` image turned
+/// by `angle` degrees: every corner of the moved frame, turned back into the image, must lie in
+/// `0..w × 0..h`. That is 16 half-planes, a convex polygon of translations; `None` when it's empty.
+fn nearest_move(r: Rect, angle: f64, w: f64, h: f64, want: Vec2) -> Option<Vec2> {
+    let back = Affine::rotate_about(-angle.to_radians(), Point::new(w / 2.0, h / 2.0));
+    // how a translation `v` moves a turned-back point: x by `nx · v`, y by `ny · v`
+    let (ex, ey) = (back.apply_vec(Vec2::new(1.0, 0.0)), back.apply_vec(Vec2::new(0.0, 1.0)));
+    let (nx, ny) = (Vec2::new(ex.x, ey.x), Vec2::new(ex.y, ey.y));
+    // half-planes `n · v <= b`, with a slack under `is_within_image`'s tolerance: a frame that fills
+    // the photo's height leaves a strip of zero width, which rounding would otherwise empty
+    let (sx, sy) = (1e-7 * w, 1e-7 * h);
+    let mut planes = Vec::with_capacity(16);
+    for c in r.corners() {
+        let q = back.apply(c);
+        planes.extend([(nx, w - q.x + sx), (-nx, q.x + sx), (ny, h - q.y + sy), (-ny, q.y + sy)]);
+    }
+    if planes.iter().all(|(n, b)| n.dot(want) <= *b) {
+        return Some(want);
+    }
+    // the polygon, clipped from a box well past any move that matters (a move is at most 2× the image)
+    let lim = 4.0 * w.max(h);
+    let mut poly = vec![Vec2::new(-lim, -lim), Vec2::new(lim, -lim), Vec2::new(lim, lim), Vec2::new(-lim, lim)];
+    for (n, b) in &planes {
+        poly = clip_half_plane(&poly, *n, *b);
+    }
+    // outside it, the nearest translation lies on its boundary
+    poly.iter()
+        .zip(poly.iter().cycle().skip(1))
+        .map(|(a, b)| {
+            let ab = *b - *a;
+            let l2 = ab.dot(ab);
+            let t = if l2 > 0.0 { ((want - *a).dot(ab) / l2).clamp(0.0, 1.0) } else { 0.0 };
+            *a + ab * t
+        })
+        .filter(|v| v.x.is_finite() && v.y.is_finite())
+        .min_by(|a, b| (*a - want).len().total_cmp(&(*b - want).len()))
+}
+
+/// The part of the convex polygon `poly` where `n · v <= b`.
+fn clip_half_plane(poly: &[Vec2], n: Vec2, b: f64) -> Vec<Vec2> {
+    let mut out = Vec::with_capacity(poly.len() + 1);
+    for (p, q) in poly.iter().zip(poly.iter().cycle().skip(1)) {
+        let (dp, dq) = (n.dot(*p) - b, n.dot(*q) - b);
+        if dp <= 0.0 {
+            out.push(*p);
+        }
+        if (dp <= 0.0) != (dq <= 0.0) {
+            out.push(*p + (*q - *p) * (dp / (dp - dq)));
+        }
+    }
+    out
 }
 
 /// Which sides a handle moves: (left, right, top, bottom).
@@ -479,5 +539,34 @@ mod tests {
                 prop_assert!(g.rect.x0.is_finite() && g.rect.y1.is_finite());
             }
         }
+    }
+
+    //   Scenario: moving a frame that fills a straightened photo's height (issue #2299)
+    #[test]
+    fn given_largest_locked_frame_on_a_straightened_photo_when_moved_sideways_then_it_slides_along_the_tilt() {
+        for angle in [3.0, -10.0] {
+            let a = 2.0 / 3.0;
+            let start = crate::crop_fit_angle(W, H, angle, Some(a));
+            let c = start.rect.center();
+            let g = drag(start, Move, c, p(c.x - 0.5, c.y), Some(a));
+            assert!(g.is_within_image(W, H), "{angle}: {:?}", g.rect);
+            assert!(near(g.rect.width(), start.rect.width()) && near(g.rect.height(), start.rect.height()), "a move keeps the size");
+            // it reaches the photo's left side: no frame of this size fits further left
+            assert!(g.rect.x0 < start.rect.x0 - 0.2, "{angle}: stuck at {:?} (from {:?})", g.rect, start.rect);
+            let gc = g.rect.center();
+            let further = drag(g, Move, gc, p(gc.x - 0.5, gc.y), Some(a));
+            assert!((further.rect.x0 - g.rect.x0).abs() < 1e-4, "{angle}: not at the left side: {:?} → {:?}", g.rect, further.rect);
+            // and back: the pointer's own path is free again
+            let back = drag(g, Move, c, p(c.x + 0.5, c.y), Some(a));
+            assert!(back.rect.x1 > start.rect.x1 + 0.2, "{angle}: {:?}", back.rect);
+        }
+    }
+
+    //   Scenario: a straightened move that fits goes exactly where the pointer says
+    #[test]
+    fn given_straightened_photo_when_a_small_frame_is_moved_inside_then_it_follows_the_pointer() {
+        let start = CropGeometry { rect: Rect::new(0.4, 0.4, 0.5, 0.5), angle: 8.0 };
+        let g = drag(start, Move, p(0.45, 0.45), p(0.5, 0.42), None);
+        assert!(near(g.rect.x0, 0.45) && near(g.rect.y0, 0.37), "{:?}", g.rect);
     }
 }
