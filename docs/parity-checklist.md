@@ -798,6 +798,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-20 | patch | LR-VIEW-ZOOM: the 20 ms rule clears a slow-drag verdict only on a drag timed at full size; a drag that drafts small leaves it unchanged, as the code does; status unchanged |
+| 2026-10-19 | patch | LR-CROP-RECT: on a straightened photo a moved crop slides along the tilted edges, so a box that fills the photo's height reaches its sides (#2299); status unchanged |
 | 2026-10-19 | patch | LR-VIEW-ZOOM: the slow slider-drag verdict is described as per photo and control, as the code keys it; status unchanged |
 | 2026-10-15 | minor | LR-VIEW-ZOOM: a slow slider-drag verdict needs two drags over 20 ms and expires after 30 s (doubling to 240 s); hidden-window frame times are ignored; the slow set forgets its oldest entry, not all (issue #330); status unchanged |
 | 2026-10-15 | minor | LR-BEHAV-BG-TASKS: Reload from Disk reads its files on a worker thread with a cancellable activity row instead of freezing the window on a selection of raws; its result is committed through the command wrapper (XMP sidecars auto-written as before) and an older reload finishing late no longer overwrites a newer one; status unchanged (✅) |

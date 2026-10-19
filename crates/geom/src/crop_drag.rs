@@ -115,12 +115,11 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
             // Straightened, the frame goes to the place nearest the pointer's that keeps it inside,
             // so it slides along the tilted edges: across-then-down stops a frame that fills the
             // photo's height dead, as no straight sideways step stays inside (issue #2299).
-            let nearest = (base.angle != 0.0)
-                .then(|| nearest_move(sr, base.angle, w, h, Vec2::new(dx, dy)))
-                .flatten()
-                .map(|v| sr.translate(v))
-                .filter(|r| feasible(*r));
-            nearest.unwrap_or_else(|| slide(slide(sr, dx, 0.0), 0.0, dy))
+            let nearest = if base.angle != 0.0 { nearest_move(sr, base.angle, w, h, Vec2::new(dx, dy)) } else { None };
+            match nearest.map(|v| sr.translate(v)).filter(|r| feasible(*r)) {
+                Some(r) => r,
+                None => slide(slide(sr, dx, 0.0), 0.0, dy),
+            }
         }
         (hd, None) => {
             let (mx0, mx1, my0, my1) = sides(hd);
@@ -211,19 +210,24 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
 
 /// The translation (pixels) nearest `want` that keeps the frame `r` inside a `w × h` image turned
 /// by `angle` degrees: every corner of the moved frame, turned back into the image, must lie in
-/// `0..w × 0..h`. That is 16 half-planes, a convex polygon of translations; `None` when it's empty.
+/// `0..w × 0..h`. That is 16 half-planes, a convex polygon of translations. The frame where it is
+/// always counts as inside (it may sit within `is_within_image`'s tolerance past an edge, as a
+/// handle drag leaves it), so the polygon holds `0` and a move of nothing moves nothing.
 fn nearest_move(r: Rect, angle: f64, w: f64, h: f64, want: Vec2) -> Option<Vec2> {
     let back = Affine::rotate_about(-angle.to_radians(), Point::new(w / 2.0, h / 2.0));
     // how a translation `v` moves a turned-back point: x by `nx · v`, y by `ny · v`
     let (ex, ey) = (back.apply_vec(Vec2::new(1.0, 0.0)), back.apply_vec(Vec2::new(0.0, 1.0)));
     let (nx, ny) = (Vec2::new(ex.x, ey.x), Vec2::new(ex.y, ey.y));
-    // half-planes `n · v <= b`, with a slack under `is_within_image`'s tolerance: a frame that fills
-    // the photo's height leaves a strip of zero width, which rounding would otherwise empty
-    let (sx, sy) = (1e-7 * w, 1e-7 * h);
+    // half-planes `n · v <= b`, never tighter than where the frame is, with a slack far under
+    // `is_within_image`'s tolerance: a frame that fills the photo's height leaves a strip of zero
+    // width, which rounding would otherwise empty
+    let (sx, sy) = (1e-9 * w, 1e-9 * h);
     let mut planes = Vec::with_capacity(16);
     for c in r.corners() {
         let q = back.apply(c);
-        planes.extend([(nx, w - q.x + sx), (-nx, q.x + sx), (ny, h - q.y + sy), (-ny, q.y + sy)]);
+        for (n, b, s) in [(nx, w - q.x, sx), (-nx, q.x, sx), (ny, h - q.y, sy), (-ny, q.y, sy)] {
+            planes.push((n, b.max(0.0) + s));
+        }
     }
     if planes.iter().all(|(n, b)| n.dot(want) <= *b) {
         return Some(want);
@@ -568,5 +572,40 @@ mod tests {
         let start = CropGeometry { rect: Rect::new(0.4, 0.4, 0.5, 0.5), angle: 8.0 };
         let g = drag(start, Move, p(0.45, 0.45), p(0.5, 0.42), None);
         assert!(near(g.rect.x0, 0.45) && near(g.rect.y0, 0.37), "{:?}", g.rect);
+    }
+
+    //   Scenario: a frame a handle drag left within the tolerance past a tilted edge (review of #2299)
+    #[test]
+    fn given_a_frame_just_past_a_tilted_edge_when_moved_then_it_still_slides_and_a_click_changes_nothing() {
+        let a = 2.0 / 3.0;
+        let fit = crate::crop_fit_angle(W, H, 3.0, Some(a));
+        // 5e-7 of the height past the top and bottom edges: still inside `is_within_image`'s tolerance
+        let k = 1.0 + 5e-7 / fit.rect.height();
+        let start = CropGeometry { rect: Rect::from_center(fit.rect.center(), fit.rect.width() * k, fit.rect.height() * k), angle: 3.0 };
+        assert!(start.is_within_image(W, H));
+        let c = start.rect.center();
+        let z = drag(start, Move, c, c, Some(a)).rect;
+        let s = start.rect;
+        assert!(near(z.x0, s.x0) && near(z.y0, s.y0) && near(z.x1, s.x1) && near(z.y1, s.y1), "a click inside the frame moves nothing: {z:?}");
+        let g = drag(start, Move, c, p(c.x - 0.5, c.y), Some(a));
+        assert!(g.rect.x0 < start.rect.x0 - 0.2, "stuck at {:?}", g.rect);
+        assert!(g.is_within_image(W, H));
+    }
+
+    //   Scenario: a smaller frame pushed sideways past a tilted edge slides along it (#2299)
+    #[test]
+    fn given_a_small_frame_pushed_past_a_tilted_edge_then_it_stops_on_the_edge_and_slides_along_it() {
+        let start = CropGeometry { rect: Rect::new(0.35, 0.35, 0.55, 0.65), angle: 6.0 };
+        let c = start.rect.center();
+        // short of the edge it follows the pointer straight across
+        let g = drag(start, Move, c, p(c.x - 0.2, c.y), None);
+        assert!(near(g.rect.x0, 0.15) && near(g.rect.y0, 0.35), "{:?}", g.rect);
+        // past it, the frame stays on the photo's (tilted) left edge and moves along it, further the
+        // further the pointer goes, as the place nearest the pointer's
+        let (a, b) = (drag(start, Move, c, p(c.x - 0.6, c.y), None), drag(start, Move, c, p(c.x - 1.0, c.y), None));
+        for g in [a, b] {
+            assert!(g.is_within_image(W, H) && g.rect.x0 < 0.01, "{:?}", g.rect);
+        }
+        assert!(b.rect.y0 > a.rect.y0 + 0.01 && a.rect.y0 > start.rect.y0, "{:?} then {:?}", a.rect, b.rect);
     }
 }
