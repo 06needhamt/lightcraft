@@ -34,7 +34,11 @@ fn guides_len(h: &Headless) -> usize {
 }
 
 fn guide_at(h: &Headless, i: usize) -> egui::Pos2 {
-    h.app.widgets.iter().rev().find(|(w, _)| *w == format!("uprightGuide:{i}")).map(|(_, r)| r.center()).expect("the guide is on screen")
+    guide_rect(h, i).center()
+}
+
+fn guide_rect(h: &Headless, i: usize) -> egui::Rect {
+    h.app.widgets.iter().rev().find(|(w, _)| *w == format!("uprightGuide:{i}")).map(|(_, r)| *r).expect("the guide is on screen")
 }
 
 /// A click near a guide selects it (Delete has a visible target); the guides stay put.
@@ -69,7 +73,7 @@ fn delete_removes_the_selected_guide() {
     let (a, b) = d.develop.geometry.guides[0];
     assert!(
         (a.x - 0.2).abs() < 1e-6 && (a.y - 0.3).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.3).abs() < 1e-6,
-        "the first guide survived: {a:?}–{b:?}"
+        "the first guide survived: {a:?}â€“{b:?}"
     );
 }
 
@@ -122,4 +126,83 @@ fn drawing_a_new_guide_clears_the_selection() {
     h.settle(SETTLE);
     assert_eq!(guides_len(&h), 3, "the drawn guide is added");
     assert_eq!(h.app.ui.selected_guide, None, "and the click's selection is gone");
+}
+
+/// A press on an endpoint drags it: the guide follows the pointer â€” the other end and the other
+/// guide untouched â€” the moved guide ends up selected, and nothing is added (one edit, on release).
+#[test]
+fn dragging_a_guide_endpoint_moves_it() {
+    let mut h = guided();
+    assert_eq!(guides_len(&h), 2);
+    let id = h.app.session.active().expect("a photo");
+    let img = h.app.image_rect.expect("the photo on screen");
+    let before = guide_rect(&h, 0);
+    let from = before.left_top();
+    let to = egui::pos2(from.x + 24.0, from.y + 60.0);
+    // ui.pointer speaks normalized image coordinates
+    let norm = |p: egui::Pos2| (((p.x - img.left()) / img.width()) as f64, ((p.y - img.top()) / img.height()) as f64);
+    let (fx, fy) = norm(from);
+    let (tx, ty) = norm(to);
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": fx, "y": fy}, {"kind": "drag", "x": tx, "y": ty}, {"kind": "up", "x": tx, "y": ty}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(guides_len(&h), 2, "no guide is added");
+    let d = h.app.session.catalog.photo(id).expect("the photo");
+    let (a, b) = d.develop.geometry.guides[0];
+    assert!((a.x - tx).abs() < 1e-3 && (a.y - ty).abs() < 1e-3, "the pressed end followed the pointer: {a:?} vs ({tx}, {ty})");
+    assert!((b.x - 0.8).abs() < 1e-6 && (b.y - 0.3).abs() < 1e-6, "the far end stays: {b:?}");
+    assert_eq!(h.app.ui.selected_guide, Some((id.0, 0)), "the moved guide is selected");
+}
+
+/// A press-release on an endpoint without moving it selects the guide and changes nothing: no
+/// coordinate moves and no undo entry appears for a click.
+#[test]
+fn clicking_an_endpoint_selects_it_without_changing_it() {
+    let mut h = guided();
+    let id = h.app.session.active().expect("a photo");
+    let undo = h.app.session.undo.len();
+    let img = h.app.image_rect.expect("the photo on screen");
+    let at = guide_rect(&h, 1).left_top();
+    let x = ((at.x - img.left()) / img.width()) as f64;
+    let y = ((at.y - img.top()) / img.height()) as f64;
+    let r = h.request("ui.pointer", json!({"events": [{"kind": "down", "x": x, "y": y}, {"kind": "up", "x": x, "y": y}]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.selected_guide, Some((id.0, 1)), "the endpoint's guide is selected");
+    assert_eq!(guides_len(&h), 2);
+    let d = h.app.session.catalog.photo(id).expect("the photo");
+    let (a, b) = d.develop.geometry.guides[1];
+    assert!(
+        (a.x - 0.2).abs() < 1e-6 && (a.y - 0.7).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.7).abs() < 1e-6,
+        "the guide is untouched: {a:?}â€“{b:?}"
+    );
+    assert_eq!(h.app.session.undo.len(), undo, "a click is not an edit");
+}
+
+/// A new guide starts at the press point itself: a press, one far jump, a release â€” the guide
+/// spans exactly those two points (it used to start where the drag threshold was crossed, so the
+/// anchor was already at the far end).
+#[test]
+fn a_new_guide_starts_at_the_press_point() {
+    let mut h = guided();
+    assert_eq!(guides_len(&h), 2);
+    let img = h.app.image_rect.expect("the photo on screen");
+    let p1 = egui::pos2(img.left() + 0.35 * img.width(), img.top() + 0.55 * img.height());
+    let p2 = egui::pos2(img.left() + 0.6 * img.width(), img.top() + 0.55 * img.height());
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": 0.35, "y": 0.55}, {"kind": "drag", "x": 0.6, "y": 0.55}, {"kind": "up", "x": 0.6, "y": 0.55}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(guides_len(&h), 3, "the drawn guide is added");
+    assert_eq!(h.app.ui.selected_guide, None, "drawing a new guide leaves nothing selected");
+    let rect = guide_rect(&h, 2);
+    assert!(rect.left_top().distance(p1) < 2.0, "the guide starts at the press point: {rect:?} vs {p1:?}");
+    assert!(rect.right_top().distance(p2) < 2.0, "and ends at the release point: {rect:?} vs {p2:?}");
 }

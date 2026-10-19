@@ -60,6 +60,11 @@ pub enum Gesture {
     Guide {
         a: Point,
     },
+    /// Guided Upright: dragging the endpoint `end` (0 = `guide.0`, 1 = `guide.1`) of guide `i`.
+    GuideEndpoint {
+        i: usize,
+        end: usize,
+    },
     /// Red Eye: an ellipse being dragged from corner `a` (normalized).
     Eye {
         a: Point,
@@ -1865,39 +1870,86 @@ fn guided_overlay(
         draw(sa, sb, selected == Some(i));
     }
     ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-    // a click near a guide selects it (Delete / Backspace removes it alone); a click away clears
-    if resp.clicked()
-        && let Some(q) = resp.interact_pointer_pos()
+    // A press starts what it means, right away (the pointer's press point, not where a drag
+    // threshold would have been crossed): on an endpoint it drags that endpoint (the guide is
+    // selected when it lands), on a line it selects the guide (a press on the selected one
+    // deselects), anywhere else it starts a new guide from the press point.
+    if ui.input(|i| i.pointer.any_pressed())
+        && let Some(q) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos())
+        && resp.rect.contains(q)
     {
-        let hit = d.geometry.guides.iter().position(|guide| {
+        let endpoint = d.geometry.guides.iter().enumerate().find_map(|(i, guide)| {
+            let (a, b) = on_screen(guide);
+            if a.distance(q) <= 7.0 {
+                Some((i, 0))
+            } else if b.distance(q) <= 7.0 {
+                Some((i, 1))
+            } else {
+                None
+            }
+        });
+        let line = d.geometry.guides.iter().position(|guide| {
             let (a, b) = on_screen(guide);
             point_segment_dist(q, a, b) <= 6.0
         });
-        app.ui.selected_guide = match hit {
-            Some(i) if selected != Some(i) => Some((id.0, i)),
-            _ => None,
-        };
+        match (endpoint, line) {
+            (Some((i, end)), _) => app.gesture = Some(Gesture::GuideEndpoint { i, end }),
+            (None, Some(i)) => app.ui.selected_guide = if selected == Some(i) { None } else { Some((id.0, i)) },
+            // drawing a new guide leaves nothing selected
+            (None, None) => {
+                app.ui.selected_guide = None;
+                app.gesture = Some(Gesture::Guide { a: map.norm(q) });
+            }
+        }
     }
-    if resp.drag_started() {
-        // drawing a new guide leaves nothing selected
-        app.ui.selected_guide = None;
-    }
-    if resp.drag_started()
-        && let Some(q) = resp.interact_pointer_pos()
-    {
-        app.gesture = Some(Gesture::Guide { a: map.norm(q) });
-    }
-    if let (Some(Gesture::Guide { a }), Some(q)) = (&app.gesture, resp.interact_pointer_pos()) {
+    let q = resp.interact_pointer_pos().or_else(|| ui.input(|i| i.pointer.latest_pos()));
+    if let (Some(Gesture::Guide { a }), Some(q)) = (&app.gesture, q) {
         draw(map.screen(*a), q, false);
     }
-    if resp.drag_stopped()
-        && let (Some(Gesture::Guide { a }), Some(q)) = (app.gesture.clone(), resp.interact_pointer_pos())
+    // the endpoint being dragged: the guide follows the pointer, bright
+    if let (Some(Gesture::GuideEndpoint { i, end }), Some(q)) = (&app.gesture, q)
+        && let Some(guide) = d.geometry.guides.get(*i)
     {
-        app.gesture = None;
-        let b = map.norm(q);
-        if a.dist(b) > 0.02 {
-            let (ca, cb) = (frame.transformed_to_corrected(a), frame.transformed_to_corrected(b));
-            let _ = app.run("geometry.guides", json!({"guides": [[ca.x, ca.y, cb.x, cb.y]], "add": true}));
+        let fixed = if *end == 0 { guide.1 } else { guide.0 };
+        draw(map.screen(frame.corrected_to_transformed(fixed)), q, true);
+    }
+    if ui.input(|i| i.pointer.any_released()) {
+        match app.gesture.take() {
+            // the endpoint lands: the guide stays (one undo step) and is selected. A press
+            // without a real drag only selects — no no-op undo entry for a click.
+            Some(Gesture::GuideEndpoint { i, end }) => {
+                app.ui.selected_guide = Some((id.0, i));
+                if let (Some(q), Some(guide)) = (q, d.geometry.guides.get(i)) {
+                    let (old_t, fixed_t) = if end == 0 { (guide.0, guide.1) } else { (guide.1, guide.0) };
+                    let new_t = frame.transformed_to_corrected(map.norm(q));
+                    let (a, b) = if end == 0 { (new_t, fixed_t) } else { (fixed_t, new_t) };
+                    let (na, nb) = (frame.corrected_to_transformed(a), frame.corrected_to_transformed(b));
+                    let moved = map.screen(frame.corrected_to_transformed(old_t)).distance(q) > 2.0;
+                    if moved && na.dist(nb) > 0.02 {
+                        let all: Vec<[f64; 4]> = d
+                            .geometry
+                            .guides
+                            .iter()
+                            .enumerate()
+                            .map(|(j, g)| {
+                                let (x, y) = if j == i { (a, b) } else { *g };
+                                [x.x, x.y, y.x, y.y]
+                            })
+                            .collect();
+                        let _ = app.run("geometry.guides", json!({"guides": all}));
+                    }
+                }
+            }
+            Some(Gesture::Guide { a }) => {
+                if let Some(q) = q
+                    && map.norm(q).dist(a) > 0.02
+                {
+                    let b = map.norm(q);
+                    let (ca, cb) = (frame.transformed_to_corrected(a), frame.transformed_to_corrected(b));
+                    let _ = app.run("geometry.guides", json!({"guides": [[ca.x, ca.y, cb.x, cb.y]], "add": true}));
+                }
+            }
+            other => app.gesture = other,
         }
     }
 }
