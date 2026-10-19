@@ -703,6 +703,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.text(pos2(canvas.right() - 16.0, canvas.top() + 14.0), Align2::RIGHT_CENTER, label, t.font(12.5), Color32::from_gray(60));
     }
     let shown;
+    // the Before label's pill, painted once the window renders are down (they would cover it)
+    let mut before_badge: Option<(Rect, std::sync::Arc<egui::Galley>)> = None;
+    // below the filter pill when it is there (the canvas' top-left corner is its place)
+    let badge_top_inset = if !fullscreen && filter_pill_shown(app) { FILTER_PILL_INSET + FILTER_PILL_HEIGHT } else { 0.0 };
     if split {
         // each view stays in its pane: zoomed in, a photo reaches past it (and would cover the
         // other view's margins with its whole-frame render, magnified and blurred)
@@ -715,19 +719,17 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.text(label_at(img_rect, main_area), Align2::LEFT_CENTER, crate::i18n::tr("After"), t.font(12.0), t.text_dim);
     } else if show_before {
         shown = draw(Slot::Before, img_rect, canvas);
-        // on the photo itself, so it gets the hover label's dark pill to stay readable over light pictures
+        // on the photo itself, so it gets the hover label's dark pill to stay readable over light
+        // pictures; painted after the window renders below, which would cover it zoomed in
         let g = p.layout_no_wrap(crate::i18n::tr("Before").to_string(), t.font(12.0), Color32::WHITE);
-        let bg = label_badge_rect(img_rect, canvas, g.size());
-        p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
-        p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
-        register(ui.ctx(), "canvas:beforeLabel", bg);
+        before_badge = Some((label_badge_rect(img_rect, canvas, g.size(), badge_top_inset), g));
     } else if let Some((_key, label)) = &hover_key
         && let Some(tex) = app.renderer.textures.get(&Slot::Hover).filter(|t| t.photo == id)
     {
         let hover_rect = fit_texture_rect(img_rect, tex.size);
         p.image(tex.tex.id(), hover_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         let g = p.layout_no_wrap(label.clone(), t.font(12.0), Color32::WHITE);
-        let bg = label_badge_rect(hover_rect, canvas, g.size());
+        let bg = label_badge_rect(hover_rect, canvas, g.size(), badge_top_inset);
         p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         shown = "hover";
@@ -777,6 +779,11 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let mode = if show_before { BeforeAfter::Original } else { app.ui.before_after };
         let clip = crate::region::window_clip(mode, v.before, v.visible, canvas, img_rect);
         draw_window(&p.with_clip_rect(clip), app, &window_ctx, v, view);
+    }
+    if let Some((bg, g)) = before_badge {
+        p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
+        p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
+        register(ui.ctx(), "canvas:beforeLabel", bg);
     }
     // the line of a wipe over both
     if app.ui.before_after == BeforeAfter::Split {
@@ -918,10 +925,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 /// The dark pill behind a label drawn over the photo (`Before`, a hovered preset's name): at the
 /// photo's top left, inset 8 points, with the `text` size plus padding. Zoomed in, the photo
 /// reaches past its `pane` (the canvas): the pill then sits at the pane's top left, so the label
-/// stays in view (issue #2267: at 100 % it left the screen with the photo's corner).
-fn label_badge_rect(photo: Rect, pane: Rect, text: egui::Vec2) -> Rect {
-    let corner = pos2(photo.left().max(pane.left()), photo.top().max(pane.top()));
-    Rect::from_min_size(corner + vec2(8.0, 8.0), text + vec2(16.0, 8.0))
+/// stays in view (issue #2267: at 100 % it left the screen with the photo's corner), below the
+/// `top_inset` the filter pill takes in that corner, and never past the pane's right edge.
+fn label_badge_rect(photo: Rect, pane: Rect, text: egui::Vec2, top_inset: f32) -> Rect {
+    let size = text + vec2(16.0, 8.0);
+    let left = photo.left().max(pane.left()).min(pane.right() - size.x - 16.0).max(pane.left());
+    let corner = pos2(left, photo.top().max(pane.top() + top_inset));
+    Rect::from_min_size(corner + vec2(8.0, 8.0), size)
 }
 
 /// The info overlay at the canvas' top left (`view.infoOverlay`): file name with the capture date
@@ -1147,6 +1157,16 @@ fn region_overlay(
     edit
 }
 
+/// The filter pill's inset from the canvas' top-left corner and its height (the same inset from
+/// the left as from the top, so the pill sits in the corner, #1645).
+const FILTER_PILL_INSET: f32 = 3.0;
+const FILTER_PILL_HEIGHT: f32 = 20.0;
+
+/// Whether [`filter_pill`] has something to show (a filter is active).
+fn filter_pill_shown(app: &LightcraftApp) -> bool {
+    !lightcraft_engine::filter_chips(&app.session.filter, &app.session.catalog).is_empty()
+}
+
 /// A small pill at the loupe's top left naming the active filters: the filmstrip and Next / Previous
 /// follow them, so a filter must never be invisible here. A click clears them all. It sits in the
 /// canvas margin, so the photo does not move.
@@ -1160,10 +1180,9 @@ fn filter_pill(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect) {
     let label =
         chips.iter().map(|c| crate::panels::chips::display_label(c, &app.session.filter, &app.session.catalog)).collect::<Vec<_>>().join("  ·  ");
     let g = p.layout_no_wrap(crate::i18n::tr_format!("Filtered: {label}", label = label), t.font(12.0), Color32::from_gray(225));
-    // the same inset from the left as from the top, so the pill sits in the corner (#1645)
-    let inset = 3.0;
+    let inset = FILTER_PILL_INSET;
     let w = (g.size().x + 40.0).min((canvas.width() - 2.0 * inset).max(60.0));
-    let r = Rect::from_min_size(canvas.min + vec2(inset, inset), vec2(w, 20.0));
+    let r = Rect::from_min_size(canvas.min + vec2(inset, inset), vec2(w, FILTER_PILL_HEIGHT));
     let resp = ui.interact(r, egui::Id::new("loupe-filter-pill"), Sense::click());
     crate::widgets::announce(&resp, crate::i18n::tr("Filters"));
     register(ui.ctx(), "loupe:filters", r);
@@ -2733,7 +2752,7 @@ mod preview_geometry_tests {
         let text = vec2(40.0, 14.0);
         let pane = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
         let photo = Rect::from_min_size(pos2(20.0, 30.0), vec2(400.0, 300.0));
-        let bg = label_badge_rect(photo, pane, text);
+        let bg = label_badge_rect(photo, pane, text, 0.0);
         assert_eq!(bg.min, pos2(28.0, 38.0));
         assert_eq!(bg.size(), vec2(56.0, 22.0));
         assert!(photo.contains_rect(bg));
@@ -2745,12 +2764,31 @@ mod preview_geometry_tests {
     fn before_label_badge_stays_in_the_pane_when_the_photo_reaches_past_it() {
         let text = vec2(40.0, 14.0);
         let pane = Rect::from_min_size(pos2(100.0, 50.0), vec2(800.0, 600.0));
-        let both = label_badge_rect(Rect::from_min_size(pos2(-900.0, -700.0), vec2(3000.0, 2000.0)), pane, text);
+        let both = label_badge_rect(Rect::from_min_size(pos2(-900.0, -700.0), vec2(3000.0, 2000.0)), pane, text, 0.0);
         assert_eq!(both.min, pos2(108.0, 58.0));
         assert!(pane.contains_rect(both));
-        let left_only = label_badge_rect(Rect::from_min_size(pos2(-900.0, 120.0), vec2(3000.0, 400.0)), pane, text);
+        let left_only = label_badge_rect(Rect::from_min_size(pos2(-900.0, 120.0), vec2(3000.0, 400.0)), pane, text, 0.0);
         assert_eq!(left_only.min, pos2(108.0, 128.0));
         assert!(pane.contains_rect(left_only));
+    }
+
+    /// With a filter active, the pill in the canvas' corner has that corner: the label sits below
+    /// it, whether the photo is past the pane or just under the pill. A photo lower down is left
+    /// alone. A wide label near the pane's right edge stays inside the pane.
+    #[test]
+    fn before_label_badge_keeps_clear_of_the_filter_pill_and_the_right_edge() {
+        let text = vec2(40.0, 14.0);
+        let pane = Rect::from_min_size(pos2(100.0, 50.0), vec2(800.0, 600.0));
+        let inset = super::FILTER_PILL_INSET + super::FILTER_PILL_HEIGHT;
+        let past = label_badge_rect(Rect::from_min_size(pos2(-900.0, -700.0), vec2(3000.0, 2000.0)), pane, text, inset);
+        assert_eq!(past.min, pos2(108.0, 50.0 + inset + 8.0));
+        let under = label_badge_rect(Rect::from_min_size(pos2(200.0, 60.0), vec2(400.0, 300.0)), pane, text, inset);
+        assert_eq!(under.min.y, 50.0 + inset + 8.0, "a photo whose corner is under the pill moves down too");
+        let lower = label_badge_rect(Rect::from_min_size(pos2(200.0, 200.0), vec2(400.0, 300.0)), pane, text, inset);
+        assert_eq!(lower.min, pos2(208.0, 208.0));
+        let wide = label_badge_rect(Rect::from_min_size(pos2(860.0, 200.0), vec2(400.0, 300.0)), pane, text, 0.0);
+        assert!(pane.contains_rect(wide), "{wide:?}");
+        assert_eq!(wide.max.x, pane.right() - 8.0, "8 points from the pane's right edge, like the left inset");
     }
 
     #[test]
