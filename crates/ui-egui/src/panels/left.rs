@@ -798,7 +798,7 @@ fn date_rows(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 if date_row(app, ui, m, &label, *n, INDENT_STEP) {
                     for (d, n) in g.days.iter().filter(|(d, _)| d.starts_with(m.as_str())) {
                         let label = crate::i18n::date_group_label(d, true);
-                        date_row(app, ui, d, &label, *n, 32.0);
+                        date_row(app, ui, d, &label, *n, 2.0 * INDENT_STEP);
                     }
                 }
             }
