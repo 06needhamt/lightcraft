@@ -2858,16 +2858,25 @@ mod tests {
         assert!(!h.app.ui.hidden_locations.iter().any(|x| x == &path), "{:?}", h.app.ui.hidden_locations);
         assert!(h.app.ui.hidden_locations.iter().any(|x| x == &path2), "the other place stays hidden");
         assert!(ids(&mut h).iter().any(|i| i == "source:local:restoreHidden"), "still something to restore");
-        // one place left: the row brings it back itself; several: Restore All
+        // two hidden again: Restore All brings every one back
+        let r = h.request("engine.execute", json!({"command": "local.hide", "params": {"path": path}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert!(h.app.ui.hidden_locations.len() >= 2, "{:?}", h.app.ui.hidden_locations);
         assert_eq!(h.request("ui.clickWidget", json!({"id": "source:local:restoreHidden"}), t)["ok"], true);
         h.settle(SETTLE);
-        if !h.app.ui.hidden_locations.is_empty() {
-            assert!(hidden_before, "{:?}", h.app.ui.hidden_locations);
-            assert_eq!(h.request("ui.clickWidget", json!({"id": "local:restoreHidden:all"}), t)["ok"], true);
-            h.settle(SETTLE);
-        }
-        assert!(h.app.ui.hidden_locations.is_empty());
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "local:restoreHidden:all"}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert!(h.app.ui.hidden_locations.is_empty(), "{:?}", h.app.ui.hidden_locations);
         assert!(!ids(&mut h).iter().any(|i| i == "source:local:restoreHidden"), "nothing left to restore");
+        // one hidden: the row brings it back itself, no list
+        let r = h.request("engine.execute", json!({"command": "local.hide", "params": {"path": path2}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "source:local:restoreHidden"}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert!(menu(&mut h).is_empty(), "no list for a single hidden place");
+        assert!(h.app.ui.hidden_locations.is_empty(), "{:?}", h.app.ui.hidden_locations);
         if !hidden_before {
             // (with Home hidden for this test, the folder is back inside Home's tree instead)
             assert!(ids(&mut h).contains(&format!("source:local:{path}")));
