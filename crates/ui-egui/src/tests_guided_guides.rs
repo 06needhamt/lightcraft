@@ -73,7 +73,7 @@ fn delete_removes_the_selected_guide() {
     let (a, b) = d.develop.geometry.guides[0];
     assert!(
         (a.x - 0.2).abs() < 1e-6 && (a.y - 0.3).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.3).abs() < 1e-6,
-        "the first guide survived: {a:?}â€“{b:?}"
+        "the first guide survived: {a:?}–{b:?}"
     );
 }
 
@@ -128,8 +128,8 @@ fn drawing_a_new_guide_clears_the_selection() {
     assert_eq!(h.app.ui.selected_guide, None, "and the click's selection is gone");
 }
 
-/// A press on an endpoint drags it: the guide follows the pointer â€” the other end and the other
-/// guide untouched â€” the moved guide ends up selected, and nothing is added (one edit, on release).
+/// A press on an endpoint drags it: the guide follows the pointer — the other end and the other
+/// guide untouched — the moved guide ends up selected, and nothing is added (one edit, on release).
 #[test]
 fn dragging_a_guide_endpoint_moves_it() {
     let mut h = guided();
@@ -178,12 +178,12 @@ fn clicking_an_endpoint_selects_it_without_changing_it() {
     let (a, b) = d.develop.geometry.guides[1];
     assert!(
         (a.x - 0.2).abs() < 1e-6 && (a.y - 0.7).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.7).abs() < 1e-6,
-        "the guide is untouched: {a:?}â€“{b:?}"
+        "the guide is untouched: {a:?}–{b:?}"
     );
     assert_eq!(h.app.session.undo.len(), undo, "a click is not an edit");
 }
 
-/// A new guide starts at the press point itself: a press, one far jump, a release â€” the guide
+/// A new guide starts at the press point itself: a press, one far jump, a release — the guide
 /// spans exactly those two points (it used to start where the drag threshold was crossed, so the
 /// anchor was already at the far end).
 #[test]

@@ -564,6 +564,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                         if let (Some((photo, i)), Some(active)) = (app.ui.selected_guide, app.session.active()) {
                             if photo == active.0
                                 && let Some(d) = app.session.develop_of(active)
+                                && i < d.geometry.guides.len()
                             {
                                 let guides: Vec<[f64; 4]> =
                                     d.geometry.guides.iter().enumerate().filter(|(k, _)| *k != i).map(|(_, (a, b))| [a.x, a.y, b.x, b.y]).collect();
