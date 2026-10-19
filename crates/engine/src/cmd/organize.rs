@@ -188,12 +188,27 @@ pub fn specs() -> Vec<CommandSpec> {
                 Ok(json!({"changed": commit_ops(s, "Split Stack", vec![op])?}))
             }
         ),
-        cmd!("stack.toggle", "Expand/Collapse Stack", ["Photo", "Stack"], Some("S"), "{ids?, collapsed?: bool}", in_stack, |s, p| {
-            let stacks = stacks_of(s, &s.targets(p)?);
-            let first = stacks.first().and_then(|id| s.catalog.stack(*id)).map(|st| st.collapsed).unwrap_or(false);
-            let collapsed = bool_or(p, "collapsed", !first);
-            set_collapsed(s, stacks, collapsed, if collapsed { "Collapse Stack" } else { "Expand Stack" })
-        }),
+        // `ids` names the stacks' photos without selecting them (a click on a stack badge)
+        CommandSpec {
+            explicit_targets: true,
+            ..cmd!(
+                "stack.toggle",
+                "Expand/Collapse Stack",
+                ["Photo", "Stack"],
+                Some("S"),
+                "{ids?, collapsed?: bool} — the stacks of the named photos (else of the selection)",
+                in_stack,
+                |s, p| {
+                    let stacks = stacks_of(s, &s.targets(p)?);
+                    if stacks.is_empty() {
+                        return Err(bad("stack.toggle", "none of the photos is in a stack"));
+                    }
+                    let first = stacks.first().and_then(|id| s.catalog.stack(*id)).map(|st| st.collapsed).unwrap_or(false);
+                    let collapsed = bool_or(p, "collapsed", !first);
+                    set_collapsed(s, stacks, collapsed, if collapsed { "Collapse Stack" } else { "Expand Stack" })
+                }
+            )
+        },
         cmd!("stack.expandAll", "Expand All Stacks", ["View", "Stacks"], None, "{}", has_stacks, |s, _| {
             let all: Vec<StackId> = s.catalog.stacks().map(|st| st.id).collect();
             set_collapsed(s, all, false, "Expand All Stacks")

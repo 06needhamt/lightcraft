@@ -51,6 +51,7 @@ fn filmstrip_stack_badge_expands_and_collapses_the_stack() {
     h.settle(SETTLE);
     assert!(!h.app.session.catalog.stack(StackId(1)).unwrap().collapsed, "a click on the badge expands the stack");
     assert!(h.app.session.visible_cloned().contains(&member));
+    assert_eq!(h.app.session.selection.active, Some(loose), "the loupe keeps its photo");
     let r = h.request("ui.clickWidget", json!({"id": badge}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);

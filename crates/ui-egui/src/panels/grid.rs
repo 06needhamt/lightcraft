@@ -1026,6 +1026,7 @@ pub fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, sid:
     } else {
         "Stack — click to collapse (S)"
     });
+    crate::widgets::announce(&resp, crate::i18n::tr(if collapsed { "Expand Stack" } else { "Collapse Stack" }));
     register(ui.ctx(), format!("stack:{}", id.0), br);
     let fill = if resp.hovered() { Color32::from_black_alpha(220) } else { Color32::from_black_alpha(165) };
     p.rect_filled(br, 10.0, fill);
@@ -1039,12 +1040,9 @@ pub fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, sid:
     }
 }
 
-/// A click on a stack badge (grid or filmstrip): expand / collapse that photo's stack. The
-/// photo is selected first when it isn't, as `stack.toggle` acts on a selected stack.
+/// A click on a stack badge (grid or filmstrip): expand / collapse that photo's stack, selected or
+/// not. The selection stays as it is (Compare keeps its pair).
 pub fn toggle_stack(app: &mut LightcraftApp, ctx: &egui::Context, id: PhotoId) {
-    if !app.session.selection.contains(id) {
-        let _ = app.run("library.select", json!({"ids": [id.0]}));
-    }
     if let Err(e) = app.run("stack.toggle", json!({"ids": [id.0]})) {
         app.toast(ctx, e);
     }

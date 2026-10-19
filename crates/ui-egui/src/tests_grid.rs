@@ -189,4 +189,5 @@ fn grid_stack_badge_toggles_a_stack_that_is_not_selected() {
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
     assert!(h.app.session.catalog.stack_of(top).unwrap().collapsed, "a click on an unselected stack's badge toggles it");
+    assert_eq!((h.app.session.selection.ids.clone(), h.app.session.selection.active), (vec![loose], Some(loose)), "and leaves the selection alone");
 }

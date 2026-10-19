@@ -2654,6 +2654,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                     } else {
                         "Stack — click to collapse"
                     });
+                    crate::widgets::announce(&badge, crate::i18n::tr(if collapsed { "Expand Stack" } else { "Collapse Stack" }));
                     register(ui.ctx(), format!("filmstack:{}", id.0), br);
                     let p = ui.painter();
                     let fill = if badge.hovered() { Color32::from_black_alpha(230) } else { Color32::from_black_alpha(170) };
