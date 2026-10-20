@@ -4,12 +4,13 @@
 //! badges, the compare caption and the filter bar.
 //!
 //! ```ignore
-//! if let Some(r) = Rating::new("bottom", photo.rating).size(RatingSize::Large).show(ui) { … }
-//! Rating::new("row", 3).size(RatingSize::Small).read_only().show(ui);
+//! if let Some(r) = Rating::new("bottom", photo.rating).show(ui) { … }
+//! paint_rating(ui.painter(), pos, 3, RatingSize::Small, color);
 //! ```
 //!
 //! Hovering a star previews the rating a click would set; clicking the current rating clears it.
-//! With a star focused, ← and → lower and raise the rating (0 to 5).
+//! The row is one Tab stop (the star of the current rating, or the first when unrated); inside it, ← and →
+//! lower and raise the rating (0 to 5) and the focus follows.
 
 use egui::{Color32, Key, Modifiers, Painter, Pos2, Rect, Sense, Ui, pos2, vec2};
 
@@ -120,6 +121,10 @@ impl Rating {
         }
     }
 
+    fn star_id(&self, ui: &Ui, i: u8) -> egui::Id {
+        ui.id().with(("rating-star", &self.id, i))
+    }
+
     /// Draw the row. Returns the new rating when a click or an arrow key changed it.
     pub fn show(self, ui: &mut Ui) -> Option<u8> {
         let t = Tokens::get(ui.ctx());
@@ -128,8 +133,14 @@ impl Rating {
         let mut hover_n = None;
         let mut focused = false;
         let mut cells = [Rect::NOTHING; STARS as usize];
+        // One Tab stop for the row, like a radio group: the star of the current rating (the first when
+        // unrated), plus whichever star already has the focus so it keeps it
+        let stop = self.rating.max(1) - 1;
         for (i, slot) in (0..STARS).zip(cells.iter_mut()) {
-            let (r, resp) = ui.allocate_exact_size(vec2(cell, cell), Sense::click());
+            let id = self.star_id(ui, i);
+            let (r, _) = ui.allocate_exact_size(vec2(cell, cell), Sense::hover());
+            let sense = if i == stop || ui.memory(|m| m.has_focus(id)) { Sense::click() } else { Sense::CLICK };
+            let resp = ui.interact(r, id, sense);
             announce_selected(&resp, format!("{} ★", i + 1), i < self.rating);
             register(ui.ctx(), self.widget_id(i + 1), r);
             if resp.hovered() {
@@ -156,6 +167,11 @@ impl Rating {
                 ui.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
             }
             out = nudged_rating(self.rating, left, right);
+            if let Some(n) = out {
+                // keep the focus on the star that is now the row's Tab stop
+                let to = self.star_id(ui, n.max(1) - 1);
+                ui.memory_mut(|m| m.request_focus(to));
+            }
         }
         // The hovered star also gets the icon-button hover square, so hovering the current rating (where
         // the preview looks the same) still shows feedback.
@@ -178,7 +194,10 @@ pub fn favorite_button(ui: &mut Ui, widget: String, favorite: bool, name: &str) 
     let side = ui.spacing().interact_size.y;
     let (r, resp) = ui.allocate_exact_size(vec2(side, side), Sense::click());
     announce_selected(&resp, name, favorite);
-    register(ui.ctx(), widget, r);
+    // (rows scrolled out of view can't be clicked)
+    if ui.is_rect_visible(r) {
+        register(ui.ctx(), widget, r);
+    }
     if resp.hovered() {
         ui.painter().rect_filled(r, 4.0, t.hover.gamma_multiply(0.7));
     }
@@ -210,5 +229,22 @@ mod tests {
         assert_eq!(nudged_rating(3, true, false), Some(2));
         assert_eq!(nudged_rating(3, false, true), Some(4));
         assert_eq!(nudged_rating(3, true, true), None);
+    }
+
+    #[test]
+    fn rows_scrolled_out_of_view_are_not_registered() {
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(300.0, 100.0))), ..Default::default() }, |ui| {
+            egui::ScrollArea::vertical().max_height(60.0).show(ui, |ui| {
+                for i in 0..30 {
+                    favorite_button(ui, format!("effectStar:{i}"), false, "Favorite");
+                }
+            });
+        });
+        out.textures_delta.clear();
+        let ids: Vec<String> = crate::widgets::take_registry(&ctx).into_iter().map(|(id, _)| id).collect();
+        assert!(ids.contains(&"effectStar:0".to_string()), "{ids:?}");
+        assert!(!ids.contains(&"effectStar:29".to_string()), "{ids:?}");
     }
 }

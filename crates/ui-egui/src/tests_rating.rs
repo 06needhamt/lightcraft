@@ -1,5 +1,5 @@
-//! The star rating: clicking sets the rating, clicking the current one clears it, a read-only or
-//! disabled row ignores clicks, the arrow keys step it, and screen readers hear every star.
+//! The star rating: clicking sets the rating, clicking the current one clears it, the row is one
+//! Tab stop, the arrow keys step it, and screen readers hear every star.
 
 use egui::{Pos2, Rect, vec2};
 
@@ -133,4 +133,33 @@ fn arrows_keep_stepping_between_other_focusable_widgets() {
     assert_eq!(seen.last(), Some(&0), "{seen:?}");
     let seen = step_with_neighbours(0, &[Tab, Tab, ArrowRight, ArrowRight, ArrowRight, ArrowRight, ArrowRight, ArrowLeft]);
     assert_eq!(seen.last(), Some(&4), "{seen:?}");
+}
+
+#[test]
+fn a_rating_row_is_one_tab_stop() {
+    use egui::Key::Tab;
+    // left neighbour, one stop for the five stars, right neighbour: the third Tab is already past the row
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let mut focused = Vec::new();
+    for frame in 0..5 {
+        let events = if frame >= 1 {
+            vec![egui::Event::Key { key: Tab, physical_key: Some(Tab), pressed: true, repeat: false, modifiers: Default::default() }]
+        } else {
+            Vec::new()
+        };
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 200.0))), events, ..Default::default() };
+        let mut right = None;
+        let mut out = ctx.run_ui(raw, |ui| {
+            ui.horizontal(|ui| {
+                let _ = ui.button("left neighbour");
+                let _ = row(3).show(ui);
+                right = Some(ui.button("right neighbour").id);
+            });
+        });
+        out.textures_delta.clear();
+        focused.push(right.is_some_and(|id| ctx.memory(|m| m.has_focus(id))));
+    }
+    // frames 1 to 3 press Tab: left neighbour, the row, right neighbour
+    assert_eq!(focused, vec![false, false, false, true, false], "{focused:?}");
 }
