@@ -78,8 +78,10 @@ impl SyncProgress {
     /// While a scan lists the folder (before any file can be checked): the folders and files
     /// listed so far. `None` once the listing is over.
     pub fn listing(&self) -> Option<(usize, usize)> {
-        use std::sync::atomic::Ordering::Relaxed;
-        (!self.listed.load(Relaxed)).then(|| (self.folders_listed.load(Relaxed), self.files_listed.load(Relaxed)))
+        use std::sync::atomic::Ordering::{Acquire, Relaxed};
+        // (Acquire pairs with the Release store of `listed`: once the listing is seen to be
+        // over, so is what was stored before it, and the counts that follow are the final ones)
+        (!self.listed.load(Acquire)).then(|| (self.folders_listed.load(Relaxed), self.files_listed.load(Relaxed)))
     }
 }
 
@@ -209,7 +211,7 @@ pub fn scan_with(input: SyncInput, progress: &SyncProgress) -> FolderChanges {
     let SyncInput { folder, scan, ids, naming, labels } = input;
     let seen: Vec<Arc<Photo>> = ids.iter().filter_map(|id| labels.photo(*id)).map(Arc::clone).collect();
     if !cfg!(target_arch = "wasm32") && !Path::new(&folder).is_dir() {
-        progress.listed.store(true, std::sync::atomic::Ordering::Relaxed);
+        progress.listed.store(true, std::sync::atomic::Ordering::Release);
         return FolderChanges { path: folder, seen, offline: true, ..Default::default() };
     }
     // (how each photo's sidecar is named: a pass over the library, made here and not while the
@@ -239,7 +241,7 @@ pub fn scan_with(input: SyncInput, progress: &SyncProgress) -> FolderChanges {
             !progress.files.cancel.load(Relaxed)
         }),
     );
-    progress.listed.store(true, std::sync::atomic::Ordering::Relaxed);
+    progress.listed.store(true, std::sync::atomic::Ordering::Release);
     let listing = &listing;
     // (no threads on the web: one after the other there)
     #[cfg(target_arch = "wasm32")]
