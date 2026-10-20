@@ -11,7 +11,7 @@
 //! Canon CR2s list theirs by name in the maker note's `ColorData`, each with Canon's temperature for it (see
 //! `vendor::cr2`): five planckian ones (Daylight, Shade, Cloudy, Tungsten, Flash) make the curve the same way,
 //! taken in Kelvin order ([`KelvinPresets::from_unordered`]). On the PowerShot G1 X Mark III's nine settings the
-//! curve reads the as-shot levels within 4 % of the camera's own `ColorTempAsShot`.
+//! curve reads the as-shot levels within 5 % of the camera's own `ColorTempAsShot`.
 //!
 //! The model, in `(ln R/G, ln B/G)` of the multipliers ([`KelvinPresets::temp_tint`]):
 //! - The presets (three or more) are joined piecewise linearly, with mired linear along each segment and the end segments
