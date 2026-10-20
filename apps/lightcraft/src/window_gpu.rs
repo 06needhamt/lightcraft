@@ -235,6 +235,22 @@ pub fn relaunch_after_failure(files: &Files) -> bool {
         .is_ok()
 }
 
+/// Only DX12 windows use the compositor; fallback renderers retain their normal presentation.
+/// Adapted from kmnkv1's PhotoCraft PR: https://github.com/storytold/photocraft/pull/7035.
+pub fn composes_window(enabled: bool, renderer: WindowRenderer) -> bool {
+    cfg!(target_os = "windows") && enabled && renderer == WindowRenderer::Wgpu(Backends::DX12)
+}
+
+/// Select DirectComposition for opted-in Windows DX12 windows, preserving
+/// the default presentation options for other renderers.
+fn presentation_options(backends: Backends, enabled: bool) -> wgpu::BackendOptions {
+    let mut options = backend::backend_options();
+    if composes_window(enabled, WindowRenderer::Wgpu(backends)) {
+        options.dx12.presentation_system = wgpu::Dx12SwapchainKind::DxgiFromVisual;
+    }
+    options
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -313,35 +329,22 @@ mod tests {
         // outside a scope: logged by our handler, not a panic
         let _ = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl("not wgsl".into()) });
     }
-}
 
-/// Only DX12 windows use the compositor; fallback renderers retain their normal presentation.
-/// Adapted from kmnkv1's PhotoCraft PR: https://github.com/storytold/photocraft/pull/7035.
-pub fn composes_window(enabled: bool, renderer: WindowRenderer) -> bool {
-    cfg!(target_os = "windows") && enabled && renderer == WindowRenderer::Wgpu(Backends::DX12)
-}
-
-fn presentation_options(backends: Backends, enabled: bool) -> wgpu::BackendOptions {
-    let mut options = backend::backend_options();
-    if composes_window(enabled, WindowRenderer::Wgpu(backends)) {
-        options.dx12.presentation_system = wgpu::Dx12SwapchainKind::DxgiFromVisual;
+    /// The workaround is opt-in and changes presentation only for Windows DX12.
+    #[test]
+    fn composition_only_changes_windows_dx12_presentation() {
+        let legacy: lightcraft_ui_egui::state::AppSettings = serde_json::from_str("{}").unwrap();
+        assert!(!legacy.compose_window, "existing settings keep the workaround off until opted in");
+        assert!(!lightcraft_ui_egui::state::AppSettings::default().compose_window);
+        let enabled: lightcraft_ui_egui::state::AppSettings = serde_json::from_str(r#"{"composeWindow":true}"#).unwrap();
+        let saved = serde_json::to_value(&enabled).unwrap();
+        assert_eq!(saved["composeWindow"], true);
+        for backend in [Backends::DX12, Backends::VULKAN, Backends::GL] {
+            let wanted = cfg!(target_os = "windows") && backend == Backends::DX12;
+            assert_eq!(composes_window(true, WindowRenderer::Wgpu(backend)), wanted);
+            assert_eq!(presentation_options(backend, true).dx12.presentation_system == wgpu::Dx12SwapchainKind::DxgiFromVisual, wanted);
+            assert!(!composes_window(false, WindowRenderer::Wgpu(backend)));
+        }
+        assert!(!composes_window(true, WindowRenderer::Glow));
     }
-    options
-}
-
-#[test]
-fn composition_only_changes_windows_dx12_presentation() {
-    let legacy: lightcraft_ui_egui::state::AppSettings = serde_json::from_str("{}").unwrap();
-    assert!(!legacy.compose_window, "existing settings keep the workaround off until opted in");
-    assert!(!lightcraft_ui_egui::state::AppSettings::default().compose_window);
-    let enabled: lightcraft_ui_egui::state::AppSettings = serde_json::from_str(r#"{"composeWindow":true}"#).unwrap();
-    let saved = serde_json::to_value(&enabled).unwrap();
-    assert_eq!(saved["composeWindow"], true);
-    for backend in [Backends::DX12, Backends::VULKAN, Backends::GL] {
-        let wanted = cfg!(target_os = "windows") && backend == Backends::DX12;
-        assert_eq!(composes_window(true, WindowRenderer::Wgpu(backend)), wanted);
-        assert_eq!(presentation_options(backend, true).dx12.presentation_system == wgpu::Dx12SwapchainKind::DxgiFromVisual, wanted);
-        assert!(!composes_window(false, WindowRenderer::Wgpu(backend)));
-    }
-    assert!(!composes_window(true, WindowRenderer::Glow));
 }
