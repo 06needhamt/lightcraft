@@ -14,8 +14,11 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  # superseded PR pushes only: every push to main keeps its own full run
+  # A pull request's pushes share one group, so a new push supersedes the run of the old one.
+  # Every other run (a push to main, a manual one) gets a group of its own: a group keeps only one
+  # active and one pending run, so sharing one would let a later push replace a queued run and skip
+  # its `cargo xtask ci` — and every push to main is meant to get a full run.
+  group: ${{ github.event_name == 'pull_request' && format('ci-{0}', github.ref) || format('ci-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
