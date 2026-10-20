@@ -2329,5 +2329,10 @@
   "Slideshow Title Settings": "Impostazioni titoli presentazione",
   "Update Mask Effect": "Aggiorna effetto maschera",
   "Update Slideshow Template": "Aggiorna modello di presentazione",
-  "Write Waiting XMP Sidecars": "Scrivi i file XMP in attesa"
+  "Write Waiting XMP Sidecars": "Scrivi i file XMP in attesa",
+  "Color Overlay": "Sovrapposizione colore",
+  "Color Overlay on B&W": "Sovrapposizione colore su B/N",
+  "Image on Black": "Immagine su nero",
+  "Image on White": "Immagine su bianco",
+  "White on Black": "Bianco su nero"
 }
