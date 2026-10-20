@@ -167,6 +167,23 @@ fn a_long_segment_gets_dabs_at_most_the_spacing_apart() {
     assert!(v.len() <= 1_000_002, "{}", v.len());
 }
 
+#[test]
+fn oversized_brush_segments_skip_intermediate_dabs() {
+    let mut dabs = vec![Point::new(10.0, 10.0)];
+    let far = Point::new(10_000_000.0, 10.0);
+    assert!(push_dabs(&mut dabs, Some(Point::new(10.0, 10.0)), far, 2.0));
+    assert_eq!(dabs.len(), 2, "an extreme segment must not allocate a million intermediate dabs");
+    assert_eq!(dabs.last(), Some(&far));
+
+    // Ordinary feathered-brush paths still get overlapping dabs and their endpoint.
+    let mut regular = vec![Point::new(10.0, 10.0)];
+    let end = Point::new(30.0, 10.0);
+    assert!(push_dabs(&mut regular, Some(Point::new(10.0, 10.0)), end, 4.0));
+    assert_eq!(regular.len(), 21);
+    assert_eq!(regular.last(), Some(&end));
+    assert!(regular.windows(2).all(|pair| pair[0].dist(pair[1]) <= dab_spacing(4.0)));
+}
+
 /// A temporary output buffer must spend the same stroke budget as a retained one.
 #[test]
 fn incremental_dab_buffers_share_the_stroke_budget() {
