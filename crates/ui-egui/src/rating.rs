@@ -235,13 +235,14 @@ mod tests {
     fn rows_scrolled_out_of_view_are_not_registered() {
         let ctx = egui::Context::default();
         crate::theme::install_fonts(&ctx);
-        let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(300.0, 100.0))), ..Default::default() }, |ui| {
-            egui::ScrollArea::vertical().max_height(60.0).show(ui, |ui| {
-                for i in 0..30 {
-                    favorite_button(ui, format!("effectStar:{i}"), false, "Favorite");
-                }
+        let mut out =
+            ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(300.0, 100.0))), ..Default::default() }, |ui| {
+                egui::ScrollArea::vertical().max_height(60.0).show(ui, |ui| {
+                    for i in 0..30 {
+                        favorite_button(ui, format!("effectStar:{i}"), false, "Favorite");
+                    }
+                });
             });
-        });
         out.textures_delta.clear();
         let ids: Vec<String> = crate::widgets::take_registry(&ctx).into_iter().map(|(id, _)| id).collect();
         assert!(ids.contains(&"effectStar:0".to_string()), "{ids:?}");
