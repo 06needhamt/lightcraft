@@ -805,11 +805,13 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
         if active {
             p.rect_stroke(ph, 0.0, Stroke::new(2.0, Color32::WHITE), StrokeKind::Outside);
         } else if selected {
-            p.rect_stroke(ph, 0.0, Stroke::new(2.0, Color32::from_gray(170)), StrokeKind::Outside);
+            // a light theme's skeleton is itself mid-grey: the ring takes the dim text colour
+            let ring = if t.skeleton.r() > 0x80 { t.text_dim } else { Color32::from_gray(170) };
+            p.rect_stroke(ph, 0.0, Stroke::new(2.0, ring), StrokeKind::Outside);
         }
         if app.renderer.failure(Slot::Thumb(id)).is_some() {
             // unreadable / missing file
-            p.text(ph.center(), Align2::CENTER_CENTER, "!", t.semibold(18.0), t.text_dim);
+            p.text(ph.center(), Align2::CENTER_CENTER, "!", t.semibold(18.0), t.text);
         }
     }
     // labels and badges

@@ -175,7 +175,25 @@ fn the_thumbnail_placeholder_stands_apart_in_every_theme() {
         let t = Tokens::for_kind(kind);
         for (name, behind) in [("grid", t.grid_bg), ("cell", t.cell), ("selected cell", t.cell_selected), ("canvas", t.canvas)] {
             let c = contrast(t.skeleton, behind);
-            assert!(c >= 1.1, "{kind:?}: the placeholder on the {name} is {c:.2}:1");
+            // the light themes' surfaces are close together, so the placeholder has to be set
+            // further off them to read at all
+            let floor = if matches!(kind, ThemeKind::Silver | ThemeKind::Paper) { 1.15 } else { 1.1 };
+            assert!(c >= floor, "{kind:?}: the placeholder on the {name} is {c:.2}:1");
         }
+        let mark = contrast(t.text, t.skeleton);
+        assert!(mark >= 3.0, "{kind:?}: the failure mark on the placeholder is {mark:.2}:1");
     }
+}
+
+#[test]
+fn a_failed_filmstrip_thumbnail_is_announced_with_its_reason() {
+    let spoken = |failed: bool| {
+        let (nodes, _, _) = frames(Vec::new(), |ui| {
+            let resp = ui.interact(Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, 80.0)), egui::Id::new("film-test"), egui::Sense::click());
+            crate::widgets::announce(&resp, crate::panels::detail::film_spoken("IMG_0001.jpg", failed));
+        });
+        nodes.into_iter().find(|n| n.role == "Button").map(|n| n.label)
+    };
+    assert_eq!(spoken(false).as_deref(), Some("IMG_0001.jpg"));
+    assert_eq!(spoken(true).as_deref(), Some("IMG_0001.jpg, This photo can't be opened"));
 }

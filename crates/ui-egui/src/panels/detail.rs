@@ -2836,7 +2836,8 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 continue;
             }
             let resp = ui.interact(cr, egui::Id::new(("film", id.0)), Sense::click());
-            crate::widgets::announce(&resp, app.session.catalog.photo(*id).map(|p| p.file_name.clone()).unwrap_or_default());
+            let failed = app.renderer.thumb(*id).is_none() && app.renderer.failure(Slot::Thumb(*id)).is_some();
+            crate::widgets::announce(&resp, film_spoken(app.session.catalog.photo(*id).map_or("", |p| p.file_name.as_str()), failed));
             register(ui.ctx(), format!("film:{}", id.0), cr);
             let state = app.session.selection.state_of(*id);
             let sel = state == lightcraft_engine::SelectionState::Active;
@@ -2862,8 +2863,8 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             let thumb = app.renderer.thumb(*id);
             if thumb.is_none() {
                 p.rect_filled(img_area, 0.0, t.skeleton);
-                if app.renderer.failure(Slot::Thumb(*id)).is_some() {
-                    p.text(img_area.center(), Align2::CENTER_CENTER, "!", t.semibold(14.0), t.text_dim);
+                if failed {
+                    p.text(img_area.center(), Align2::CENTER_CENTER, "!", t.semibold(14.0), t.text);
                 }
             }
             if let Some(tex) = thumb {
@@ -2932,6 +2933,12 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             crate::widgets::context_menu(&resp, |ui| super::grid::context_menu(app, ui, *id));
         }
     });
+}
+
+/// What a screen reader says for a filmstrip thumbnail: the file, and why there is no picture
+/// when the thumbnail failed (the painted `!` has no name of its own).
+pub(crate) fn film_spoken(file_name: &str, failed: bool) -> String {
+    if failed { format!("{file_name}, {}", crate::i18n::tr("This photo can't be opened")) } else { file_name.to_string() }
 }
 
 /// Rating, flag and edited badges along a filmstrip thumbnail's bottom edge (Settings → Interface).
