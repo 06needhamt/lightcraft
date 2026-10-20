@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-15 · **Change:** minor (LRC-PRINT-PAGE: Print Page Options) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (LR-PRE-PANEL: the applied preset stays marked per photo) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -319,7 +319,7 @@ differences and missing bindings are in [ui-parity.md](ui-parity.md#shortcuts).
 
 | Id | Feature | Tier | Status | Evidence | Missing / notes |
 |---|---|---|---|---|---|
-| LR-PRE-PANEL | Presets panel | P0 | ✅ | `cmd:panel.presets`, `cmd:preset.apply`, `crates/ui-egui/src/panels/presets.rs` | grouped list with amount; resting on a preset previews it in the loupe (no history entry); optional live thumbnails (⋯ → Show Thumbnails) |
+| LR-PRE-PANEL | Presets panel | P0 | ✅ | `cmd:panel.presets`, `cmd:preset.apply`, `crates/ui-egui/src/panels/presets.rs` | grouped list with amount; the preset applied to a photo stays marked on returning to it until the photo is edited further (issue #2392); resting on a preset previews it in the loupe (no history entry); optional live thumbnails (⋯ → Show Thumbnails) |
 | LR-PRE-CREATE | Create preset | P0 | ✅ | `cmd:dialog.createPreset`, `cmd:preset.create` (`groups`) | name, group and a checklist of settings groups (crop, masks, remove, red eye off by default; All / None) |
 | LR-PRE-MANAGE | Manage presets | P1 | ✅ | `cmd:preset.delete`, `cmd:preset.favorite`, `cmd:preset.import`, `cmd:preset.export`, `cmd:preset.rename`, `cmd:preset.update`, `cmd:preset.move` | rename, update with current settings, move to a group (existing or new); no hiding of groups |
 | LR-PRE-AMOUNT | Preset amount | P1 | ✅ | `cmd:preset.apply` (`amount` 0–200) | |
@@ -797,6 +797,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-20 | minor | LR-PRE-PANEL: the preset applied to a photo is marked again (with its Amount slider) on returning to the photo, until the photo is edited further (#2392); status unchanged (✅) |
 | 2026-10-14 | patch | LR-EXP-TYPE: opaque 8-bit PNG/TIFF/WebP use RGB; transparent exports retain alpha (#1670). Statuses and feature counts unchanged. |
 | 2026-10-15 | minor | LRC-PRINT-PAGE: Page Options (Page Numbers, Page Info, Crop Marks) on Single Image and Contact Sheet pages, in the Print dialog, `print.set` and templates; still 🟡 (no identity plate, watermark, photo info or Cut Guides) |
 | 2026-10-15 | minor | LR-IMP-FORMATS: Hasselblad 3FR and FFF show their uncompressed RGB preview (no JPEG in these files) in the grid and loupe until developed, and as the stand-in when a file fails to decode; status unchanged (🟡) |
