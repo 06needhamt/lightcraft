@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-20
+
+### Smart albums check File Path rules faster
+- A smart album rule on File Path (contains, doesn't contain, is, isn't, starts with, ends with, is empty, isn't
+  empty) no longer builds new text for every photo. On a synthetic library of 312,000 photos, a File Path "contains"
+  or "doesn't contain" rule took about 17 ms per pass instead of about 62 ms, around 3.5 times faster, with the same
+  photos matched; about 6 ms of that is only reading the paths. Paths and rule text with letters beyond A–Z are
+  compared as before.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
