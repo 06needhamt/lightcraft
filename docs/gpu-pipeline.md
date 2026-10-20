@@ -56,10 +56,11 @@ FXC builds the compute kernels somewhat slower than DXC (≈ 9 s vs 7.5 s for th
 RTX 4080), off the startup path.
 
 FXC merges stores to neighbouring elements of a storage array into one wider store. NVIDIA's DX12 driver ran
-the 16-byte stores it made of the denoise convolution's output wrong on a GTX 1070 (every second pixel's channels
+the 16-byte store it made of a denoise convolution's output wrong on a GTX 1070 (every second pixel's channels
 shifted; DXC and Vulkan were right), so `nn_conv.wgsl` steps those stores by `1 + zero` from its uniform and FXC
-leaves them apart. `nn::tests::a_layer_stores_every_pixels_channels_where_the_next_reads_them` catches it on such
-a card.
+leaves them apart. The transposed convolution's merged store ran right on that card, but it steps the same way.
+`nn::tests::a_layer_stores_every_pixels_channels_where_the_next_reads_them` catches the fault on such a card;
+`a_transposed_convolution_stores_every_pixels_channels_where_the_next_reads_them` checks the other store exactly.
 
 **Off the startup path.** The compute device is created on a background thread once the window is
 up (`gpu::warm_up` from the first frame's settings), and never while GPU rendering is off: with

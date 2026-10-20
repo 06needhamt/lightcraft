@@ -124,8 +124,9 @@ fn main(@builtin(workgroup_id) wg: vec3<u32>, @builtin(local_invocation_index) t
     }
     let bv = bias[n / 4u];
     // Four channels that follow each other are stored one by one, `one` apart. With a literal 1u, FXC
-    // (DX12) merges them into one 16-byte store, and NVIDIA's DX12 driver ran that wrong on a GTX
-    // 1070: every second pixel's channels came out shifted. FXC cannot see that `one` is 1.
+    // (DX12) merges them into one 16-byte store, and NVIDIA's DX12 driver ran mode 0's wrong on a
+    // GTX 1070: every second pixel's channels came out shifted. Mode 1's merged store ran right
+    // there, but it is the same instruction, so it steps the same way. FXC cannot see that `one` is 1.
     let one = 1u + p.zero;
     for (var i = 0u; i < 4u; i++) {
         let m = m0 + ty * 4u + i;
