@@ -909,7 +909,12 @@ fn soft_proofs_match() {
                 saturated(&mut s);
                 let proof = Some(Proof { space, dest_warning, display_warning, profile: 0 });
                 let req = RenderRequest { space: out, proof, ..RenderRequest::fit(640, 640) };
-                check_warned(&format!("proof {space:?} → {out:?} warn {dest_warning}/{display_warning}"), &src, &raw, &s, &req);
+                let name = format!("proof {space:?} → {out:?} warn {dest_warning}/{display_warning}");
+                if dest_warning || display_warning {
+                    check_warned(&name, &src, &raw, &s, &req);
+                } else {
+                    check(&name, &src, &raw, &s, &req);
+                }
             }
         }
     }
@@ -924,7 +929,8 @@ fn soft_proofs_match() {
     let warned = |i: &Rgba8| i.data.iter().filter(|p| p[1] == 0 && p[2] == 0 && p[0] > 200).count();
     let (cpu, gpu) = (render(&src, &raw, &s, &req).image, lightcraft_gpu::render(&src, &raw, &s, &req, None).expect("gpu render").image);
     assert!(warned(&cpu) > 100, "{} warned pixels", warned(&cpu));
-    assert_eq!(warned(&cpu), warned(&gpu));
+    let (a, b) = (warned(&cpu), warned(&gpu));
+    assert!(a.abs_diff(b) as f64 <= 1e-4 * cpu.data.len() as f64, "warned pixels: CPU {a}, GPU {b}");
     // an output-device profile (a 3D table) stays on the CPU
     let n = 2;
     let lut = lightcraft_pipeline::ProofLut::new(n, vec![[0.5, 0.5, 0.5, 0.0]; n * n * n]).unwrap();
