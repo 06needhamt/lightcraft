@@ -285,74 +285,77 @@ fn a_batch_of_new_photos_or_an_edit_to_one_is_read_photo_by_photo() {
 /// the list changed by the photos the edit touched, else read whole.
 #[test]
 fn a_grid_followed_through_edits_shows_what_a_grid_made_afresh_shows() {
-    let mut h = grid(ViewMode::PhotoGrid);
-    let mut dice = 11u64;
-    let mut roll = |sides: u64| {
-        dice = lightcraft_catalog::mix64(dice);
-        dice % sides
-    };
-    for step in 0..120 {
-        let vis = h.app.session.visible().to_vec();
-        if vis.is_empty() {
-            // (no picks shown: back to every photo)
-            h.app.session.filter.flag = None;
-            continue;
-        }
-        let id = vis[roll(vis.len() as u64) as usize].0;
-        let n = roll(1000);
-        match roll(12) {
-            0 => {
-                let ops: Vec<Op> =
-                    (0..1 + roll(20)).map(|k| photo(&mut h, n * 100 + k, &format!("2026-{:02}-{:02}T10:00:00", 1 + n % 12, 1 + k % 28))).collect();
-                h.app.session.commit("Import", Op::Batch { ops }).unwrap();
+    for seed in [11u64, 12, 13, 14, 15] {
+        let mut h = grid(ViewMode::PhotoGrid);
+        let mut dice = seed;
+        let mut roll = |sides: u64| {
+            dice = lightcraft_catalog::mix64(dice);
+            dice % sides
+        };
+        for step in 0..120 {
+            let vis = h.app.session.visible().to_vec();
+            if vis.is_empty() {
+                // (no picks shown: back to every photo)
+                h.app.session.filter.flag = None;
+                continue;
             }
-            1 => {
-                let _ = h.app.session.commit("Delete", Op::SetDeleted { id: PhotoId(id), deleted: true });
-            }
-            2 => {
-                let _ = h
-                    .app
-                    .session
-                    .commit("Capture time", Op::SetCaptured { id: PhotoId(id), captured: Some(format!("2026-{:02}-03T10:00:00", 1 + n % 12)) });
-            }
-            3 => {
-                h.app.session.execute("library.select", &json!({"ids": [id]})).unwrap();
-                let r = h.app.session.execute("photo.rotateRight", &json!({}));
-                assert!(r.is_ok(), "{r:?}");
-            }
-            4 => {
-                let mut d = (*h.app.session.catalog.photo(PhotoId(id)).unwrap().develop).clone();
-                d.crop.geometry.rect = lightcraft_geom::Rect::new(0.1, 0.0, 0.9 - 0.1 * (n % 4) as f64, 1.0);
-                h.app
-                    .session
-                    .commit("Crop", Op::SetDevelop { id: PhotoId(id), settings: std::sync::Arc::new(d), label: "Crop".into(), edited: None })
-                    .unwrap();
-            }
-            5 => h.app.session.commit("Rating", Op::SetRating { id: PhotoId(id), rating: (n % 6) as u8 }).unwrap(),
-            6 => {
-                let key = ["captureDate", "fileName", "importDate"][n as usize % 3];
-                let r = h.app.session.execute("library.sort", &json!({"key": key, "ascending": n.is_multiple_of(2)}));
-                assert!(r.is_ok(), "{r:?}");
-            }
-            7 => {
-                // a stack: an edit to more than its photos, read whole
-                let other = vis[n as usize % vis.len()].0;
-                let _ = h.app.session.execute("stack.group", &json!({"ids": [id, other], "top": id, "collapsed": n.is_multiple_of(2)}));
-            }
-            8 => {
-                let _ = h.app.session.execute("edit.undo", &json!({}));
-            }
-            9 => {
-                // picks, for the filter below to show some
-                for k in 0..1 + n % 40 {
-                    let p = vis[(n as usize * 7 + k as usize * 13) % vis.len()];
-                    h.app.session.commit("Flag", Op::SetFlag { id: p, flag: lightcraft_catalog::Flag::Pick }).unwrap();
+            let id = vis[roll(vis.len() as u64) as usize].0;
+            let n = roll(1000);
+            match roll(12) {
+                0 => {
+                    let ops: Vec<Op> = (0..1 + roll(20))
+                        .map(|k| photo(&mut h, n * 100 + k, &format!("2026-{:02}-{:02}T10:00:00", 1 + n % 12, 1 + k % 28)))
+                        .collect();
+                    h.app.session.commit("Import", Op::Batch { ops }).unwrap();
                 }
+                1 => {
+                    let _ = h.app.session.commit("Delete", Op::SetDeleted { id: PhotoId(id), deleted: true });
+                }
+                2 => {
+                    let _ = h
+                        .app
+                        .session
+                        .commit("Capture time", Op::SetCaptured { id: PhotoId(id), captured: Some(format!("2026-{:02}-03T10:00:00", 1 + n % 12)) });
+                }
+                3 => {
+                    h.app.session.execute("library.select", &json!({"ids": [id]})).unwrap();
+                    let r = h.app.session.execute("photo.rotateRight", &json!({}));
+                    assert!(r.is_ok(), "{r:?}");
+                }
+                4 => {
+                    let mut d = (*h.app.session.catalog.photo(PhotoId(id)).unwrap().develop).clone();
+                    d.crop.geometry.rect = lightcraft_geom::Rect::new(0.1, 0.0, 0.9 - 0.1 * (n % 4) as f64, 1.0);
+                    h.app
+                        .session
+                        .commit("Crop", Op::SetDevelop { id: PhotoId(id), settings: std::sync::Arc::new(d), label: "Crop".into(), edited: None })
+                        .unwrap();
+                }
+                5 => h.app.session.commit("Rating", Op::SetRating { id: PhotoId(id), rating: (n % 6) as u8 }).unwrap(),
+                6 => {
+                    let key = ["captureDate", "fileName", "importDate"][n as usize % 3];
+                    let r = h.app.session.execute("library.sort", &json!({"key": key, "ascending": n.is_multiple_of(2)}));
+                    assert!(r.is_ok(), "{r:?}");
+                }
+                7 => {
+                    // a stack: an edit to more than its photos, read whole
+                    let other = vis[n as usize % vis.len()].0;
+                    let _ = h.app.session.execute("stack.group", &json!({"ids": [id, other], "top": id, "collapsed": n.is_multiple_of(2)}));
+                }
+                8 => {
+                    let _ = h.app.session.execute("edit.undo", &json!({}));
+                }
+                9 => {
+                    // picks, for the filter below to show some
+                    for k in 0..1 + n % 40 {
+                        let p = vis[(n as usize * 7 + k as usize * 13) % vis.len()];
+                        h.app.session.commit("Flag", Op::SetFlag { id: p, flag: lightcraft_catalog::Flag::Pick }).unwrap();
+                    }
+                }
+                10 => h.app.ui.view = if h.app.ui.view == ViewMode::PhotoGrid { ViewMode::SquareGrid } else { ViewMode::PhotoGrid },
+                _ => h.app.session.filter.flag = n.is_multiple_of(2).then_some(lightcraft_catalog::Flag::Pick),
             }
-            10 => h.app.ui.view = if h.app.ui.view == ViewMode::PhotoGrid { ViewMode::SquareGrid } else { ViewMode::PhotoGrid },
-            _ => h.app.session.filter.flag = n.is_multiple_of(2).then_some(lightcraft_catalog::Flag::Pick),
+            h.step();
+            assert_as_made_afresh(&mut h, &format!("seed {seed}, after step {step}"));
         }
-        h.step();
-        assert_as_made_afresh(&mut h, &format!("after step {step}"));
     }
 }

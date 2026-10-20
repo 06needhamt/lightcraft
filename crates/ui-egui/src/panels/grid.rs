@@ -150,6 +150,8 @@ impl ListRead {
     /// than photos of its own, such as a stack): read it whole then.
     fn follow(self, stats: &mut GridStats, cat: &Catalog, ids: &Arc<[PhotoId]>, dates: Option<(SortKey, GroupBy)>, shaped: bool) -> Option<ListRead> {
         if self.dates != dates || self.shapes.is_some() != shaped {
+            // (a switch between the photo grid and the square grid reads every photo once, on
+            // purpose: the other mode's data was never read, so there is nothing to follow)
             return None;
         }
         let touched: HashSet<PhotoId> = cat.touched_since(self.revision)?.into_iter().collect();
@@ -157,7 +159,9 @@ impl ListRead {
             return None;
         }
         let mut r = ListRead::new(ids.clone(), cat.revision, dates, shaped);
-        // (the groups' names go on: an import adds a day or two at most)
+        // (the groups' names go on, unpruned: pruning would renumber every photo's group; they are
+        // only reset by a whole read, and grow by a short string per day or month an edit puts a
+        // photo in that no photo was in before)
         r.names = self.names;
         r.named = self.named;
         let mut was = 0;
