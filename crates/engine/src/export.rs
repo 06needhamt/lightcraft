@@ -515,11 +515,16 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         return;
     }
     let turns = wm.quarter_turns();
-    // Fit the turned box with one scale: clamping height alone distorts tall graphics.
-    let (max_w, max_h) = if turns % 2 == 1 { (height, width) } else { (width, height) };
-    let scale = (wm.image_width.clamp(0.01, 1.0) as f64 * width as f64 / logo.width as f64)
-        .min(max_w as f64 / logo.width as f64)
-        .min(max_h as f64 / logo.height as f64);
+    // Reserve the inset on anchored axes before fitting the turned box. Centered axes
+    // ignore insets, just as placement below does. One scale preserves the graphic's shape.
+    let short = width.min(height) as f32;
+    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
+    use Anchor::*;
+    let available_w = width as f64 - if matches!(wm.anchor, Top | Center | Bottom) { 0.0 } else { ix as f64 };
+    let available_h = height as f64 - if matches!(wm.anchor, Left | Center | Right) { 0.0 } else { iy as f64 };
+    let (max_w, max_h) = if turns % 2 == 1 { (available_h, available_w) } else { (available_w, available_h) };
+    let scale =
+        (wm.image_width.clamp(0.01, 1.0) as f64 * width as f64 / logo.width as f64).min(max_w / logo.width as f64).min(max_h / logo.height as f64);
     let lw = (logo.width as f64 * scale).round().max(1.0) as usize;
     let lh = (logo.height as f64 * scale).round().max(1.0) as usize;
     let pre: lightcraft_raster::Image<[f32; 4]> = lightcraft_raster::Image::from_fn(logo.width, logo.height, |x, y| {
@@ -528,11 +533,8 @@ fn logo_coverage(width: usize, height: usize, wm: &Watermark, mut blend_px: impl
         [p[0] as f32 * a, p[1] as f32 * a, p[2] as f32 * a, a]
     });
     let scaled = lightcraft_raster::resample::resize(&pre, lw, lh, lightcraft_raster::resample::Filter::Mitchell);
-    let short = width.min(height) as f32;
-    let (ix, iy) = (wm.inset_x.clamp(0.0, 0.4) * short, wm.inset_y.clamp(0.0, 0.4) * short);
     let (bw, bh) = if turns % 2 == 1 { (lh, lw) } else { (lw, lh) };
     let (w, h, lwf, lhf) = (width as f32, height as f32, bw as f32, bh as f32);
-    use Anchor::*;
     let ox = match wm.anchor {
         TopLeft | Left | BottomLeft => ix,
         Top | Center | Bottom => (w - lwf) / 2.0,
@@ -2437,6 +2439,49 @@ mod tests {
                 lit.iter().map(|p| p.1).max().unwrap() - lit.iter().map(|p| p.1).min().unwrap() + 1,
             );
             assert_eq!(bounds, expected, "{rotation} degrees: fitting must preserve the logo's aspect ratio");
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn graphic_watermark_fit_preserves_anchor_insets() {
+        let dir = std::env::temp_dir().join(format!("lc-wm-insets-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tall.png");
+        let logo = Rgba8::from_fn(40, 160, |_, _| [255, 0, 0, 255]);
+        std::fs::write(&path, lightcraft_codecs::encode_png(&EncodeImage::rgba8(&logo), &EncodeMeta::default()).unwrap()).unwrap();
+        use Anchor::*;
+        for (anchor, rotation, expected) in [
+            (BottomRight, 90, (0, 44, 111, 71)),
+            (TopLeft, 270, (8, 8, 119, 35)),
+            (Right, 90, (0, 26, 111, 53)),
+            (BottomRight, 0, (94, 0, 111, 71)),
+            (TopLeft, 180, (8, 8, 25, 79)),
+            (Bottom, 0, (51, 0, 68, 71)),
+            // Centered axes ignore their inset rather than shrinking the image unnecessarily.
+            (Center, 90, (0, 25, 119, 54)),
+            (Top, 90, (0, 8, 119, 37)),
+        ] {
+            let wm = Watermark {
+                image: path.to_string_lossy().into(),
+                image_width: 0.5,
+                opacity: 1.0,
+                inset_x: 0.1,
+                inset_y: 0.1,
+                rotation,
+                anchor,
+                ..Default::default()
+            };
+            let mut img = Rgba8::from_fn(120, 80, |_, _| [0, 0, 0, 255]);
+            draw_watermark(&mut img, &wm);
+            let lit: Vec<_> = img.data.iter().enumerate().filter(|(_, p)| p[0] > 200).map(|(i, _)| (i % 120, i / 120)).collect();
+            let bounds = (
+                lit.iter().map(|p| p.0).min().unwrap(),
+                lit.iter().map(|p| p.1).min().unwrap(),
+                lit.iter().map(|p| p.0).max().unwrap(),
+                lit.iter().map(|p| p.1).max().unwrap(),
+            );
+            assert_eq!(bounds, expected, "{anchor:?}, {rotation} degrees");
         }
         std::fs::remove_dir_all(dir).unwrap();
     }

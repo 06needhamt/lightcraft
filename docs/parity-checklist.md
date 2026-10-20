@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-18 · **Change:** maintenance (refresh export watermark and HDR size-limit fixes onto current main, retaining Print Page Options and opaque RGB export) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (graphic watermark fitting retains anchored insets) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -895,3 +895,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 ### 2026-10-18 — export regression integration (maintenance)
 
 Graphic watermarks honour EXIF rotation/mirroring through the shared `read_graphic` path and keep their aspect ratio when fitted to the output. HDR JPEG `limitKb` includes the gain map and metadata. Refreshed onto main fb7ac08b, retaining upstream export bounds, colour metadata, JPEG encoding and opaque RGB/real-alpha handling (#1691); no feature-count or readiness estimate changes.
+
+### 2026-10-20 — graphic watermark inset regression
+
+Oversized graphics fit the space remaining after the applicable anchor insets, with one aspect-preserving scale before quarter-turn rotation. Centered axes continue to ignore insets. Pixel-bound regressions cover edge/corner anchors, centered placement and all four rotations. Main d999e382 is integrated; HDR size-limit and EXIF-orientation fixes are unchanged.
