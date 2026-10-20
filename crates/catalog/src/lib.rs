@@ -1231,6 +1231,8 @@ impl Catalog {
         if !changed.is_empty() {
             // stacks and albums changed outside `apply`: the lookups are built again when asked
             self.index = index::Indexes::default();
+            // (and what was worked out from the albums, the guard of [`Self::keeps_written_order`] too)
+            self.plans = PlansMemo::default();
         }
         changed
     }
