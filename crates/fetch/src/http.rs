@@ -58,6 +58,37 @@ pub struct Url {
     pub path: String,
 }
 
+/// Remove `.` and `..` segments from the path part of `path` (RFC 3986 section 5.2.4); the query is kept as is.
+fn remove_dot_segments(path: &str) -> String {
+    let (p, query) = match path.find('?') {
+        Some(i) => (path.get(..i).unwrap_or_default(), path.get(i..).unwrap_or_default()),
+        None => (path, ""),
+    };
+    let mut out: Vec<&str> = Vec::new();
+    let mut segments = p.split('/').skip(1).peekable();
+    let mut trailing_slash = false;
+    while let Some(seg) = segments.next() {
+        let last = segments.peek().is_none();
+        match seg {
+            "." => trailing_slash = last,
+            ".." => {
+                out.pop();
+                trailing_slash = last;
+            }
+            _ => {
+                out.push(seg);
+                trailing_slash = false;
+            }
+        }
+    }
+    let mut result = format!("/{}", out.join("/"));
+    if trailing_slash && !result.ends_with('/') {
+        result.push('/');
+    }
+    result.push_str(query);
+    result
+}
+
 impl Url {
     pub fn parse(s: &str) -> Result<Url, HttpError> {
         let bad = |why: &str| HttpError::BadUrl(why.to_string());
@@ -81,6 +112,7 @@ impl Url {
             None => (rest, ""),
         };
         let path = if path.starts_with('/') { path.to_string() } else { format!("/{path}") };
+        let path = remove_dot_segments(&path);
         if authority.contains('@') {
             return Err(bad("user names and passwords in URLs are not supported"));
         }
@@ -616,6 +648,16 @@ mod tests {
     fn rejects_oversized_and_control_character_urls() {
         assert!(Url::parse(&format!("https://example.com/{}", "x".repeat(16 * 1024))).is_err());
         assert!(Url::parse("https://example.com/x?secret=abc\r\nInjected: 1").is_err());
+    }
+
+    #[test]
+    fn join_removes_dot_segments() {
+        let base = Url::parse("https://a.example/x/y/file").unwrap();
+        for (loc, want) in
+            [("../z", "/x/z"), ("./z", "/x/y/z"), ("../../../z", "/z"), ("/a/./b/../c", "/a/c"), ("../z?q=1", "/x/z?q=1"), ("..", "/x/")]
+        {
+            assert_eq!(base.join(loc).unwrap().path, want, "{loc}");
+        }
     }
 
     #[test]
