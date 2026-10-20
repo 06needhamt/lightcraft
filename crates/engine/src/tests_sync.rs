@@ -720,3 +720,22 @@ fn sidecar_namings_for_many_photos_agree_with_one_at_a_time() {
     assert_eq!(s.sidecar_namings(&ids), one_by_one);
     assert!(one_by_one.contains(&crate::sidecar::SidecarNaming::Full), "the case that matters is there");
 }
+
+/// ✕ set after the listing, while the scan goes through the files: the probes a preceding scan
+/// kept are not checked against the disk one by one (a round trip per file on a network share);
+/// the files not reached come back as errors.
+#[test]
+fn a_cancelled_scan_does_not_check_the_cached_probes_against_the_disk() {
+    let dir = Scratch::new("cancel-cached");
+    let mut s = library(&dir);
+    write_png(&dir.path("trip/new.png"), 9);
+    let found = crate::import::scan(&mut s, &[dir.path("trip")]);
+    assert!(found.iter().any(|c| c.name == "new.png" && c.error.is_none()), "{found:?}");
+    assert!(!s.import_probes.is_empty(), "the scan kept the new file's probe");
+    let (input, paths) = crate::import::ScanInput::new(&mut s, &[dir.path("trip")]);
+    let progress = crate::import::ScanProgress::default();
+    progress.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    let out = crate::import::scan_with(input, &paths, &progress);
+    let new = out.candidates.iter().find(|c| c.name == "new.png").expect("new.png is a candidate");
+    assert!(new.error.is_some(), "the cached probe was used after ✕: {new:?}");
+}
