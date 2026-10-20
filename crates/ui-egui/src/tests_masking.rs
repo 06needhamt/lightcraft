@@ -192,6 +192,37 @@ fn mask_adjustments_hide_overlay_without_disabling_the_mask() {
     h.settle(SETTLE);
 }
 
+/// A slider hides the overlay (above); a new mask, an added part, a duplicate or picking a mask in
+/// the list shows it again, so the Overlay menu's mode is what the photo shows (issue #1800).
+#[test]
+fn a_new_or_picked_mask_shows_the_overlay_hidden_by_a_slider() {
+    use lightcraft_pipeline::Overlay;
+    let mut h = detail("panel.masking");
+    exec(&mut h, "mask.add", json!({"kind": "linear", "start": [0.5, 0.2], "end": [0.5, 0.7]}));
+    let first = h.app.session.active_mask.unwrap();
+    let hide = |h: &mut Headless| {
+        exec(h, "mask.adjust", json!({"values": {"exposure": 0.5}}));
+        assert!(!h.app.ui.mask_overlay);
+    };
+    let shown = |h: &Headless| matches!(crate::panels::detail::view_overlay(&h.app, &develop(h)), Overlay::Mask { .. });
+    hide(&mut h);
+    exec(&mut h, "mask.add", json!({"kind": "radial", "center": [0.4, 0.5], "rx": 0.2, "ry": 0.2}));
+    assert!(shown(&h), "a new mask shows its overlay");
+    hide(&mut h);
+    let r = h.request("ui.clickWidget", json!({"id": format!("mask:{first}")}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(h.app.session.active_mask, Some(first));
+    assert!(shown(&h), "picking a mask in the list shows its overlay");
+    for (cmd, params) in
+        [("mask.addComponent", json!({"kind": "radial", "op": "add", "center": [0.6, 0.5], "rx": 0.1, "ry": 0.1})), ("mask.duplicate", json!({}))]
+    {
+        hide(&mut h);
+        exec(&mut h, cmd, params);
+        assert!(shown(&h), "{cmd} shows the overlay");
+    }
+    h.settle(SETTLE);
+}
+
 #[test]
 fn radial_body_drag_moves_rotated_components_and_undoes_once() {
     let mut h = detail("panel.masking");
