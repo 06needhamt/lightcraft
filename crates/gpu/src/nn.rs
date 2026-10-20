@@ -161,7 +161,8 @@ struct ConvParams {
     cout: u32,
     leaky: u32,
     alpha: f32,
-    pad: u32,
+    /// Always 0: the kernel steps its output stores by `1 + zero`, so FXC cannot merge them (`nn_conv.wgsl`).
+    zero: u32,
 }
 
 #[repr(C)]
@@ -349,7 +350,7 @@ fn plan(net: &Net, tile: usize, max_binding: u64) -> Result<(Layout, Vec<Layer>)
                     cout: c.cout as u32,
                     leaky: u32::from(c.leaky.is_some()),
                     alpha: c.leaky.unwrap_or(0.0),
-                    pad: 0,
+                    zero: 0,
                 };
                 let src = get(&place, c.src)?;
                 let src2 = c.src2.map(|t| get(&place, t)).transpose()?;
@@ -416,7 +417,7 @@ fn plan(net: &Net, tile: usize, max_binding: u64) -> Result<(Layout, Vec<Layer>)
                     cout: c.cout as u32,
                     leaky: u32::from(c.leaky.is_some()),
                     alpha: c.leaky.unwrap_or(0.0),
-                    pad: 0,
+                    zero: 0,
                 };
                 let src = get(&place, c.src)?;
                 let slot = alloc((4 * m * c.cout * 4) as u64, &mut slots, &mut free);
@@ -918,6 +919,24 @@ mod tests {
         assert!(a.iter().chain(b).all(|v| v.is_finite()), "non-finite denoise output");
         let scale = b.iter().fold(1e-3f32, |m, v| m.max(v.abs()));
         a.iter().zip(b).fold(0f32, |m, (x, y)| m.max((x - y).abs())) / scale
+    }
+
+    /// Two 1 × 1 layers that only copy channels, so the right answer is exact: the first layer's stores (mode 0) went
+    /// wrong on DX12 with FXC on an NVIDIA GTX 1070, where every second pixel came out with its channels shifted.
+    #[test]
+    fn a_layer_stores_every_pixels_channels_where_the_next_reads_them() {
+        use lightcraft_denoise::net::{Conv, Op};
+        let copy = |src: usize, cout: usize| {
+            let mut weight = vec![0f32; cout * 4];
+            for co in 0..cout {
+                weight[co * 4 + co % 4] = 1.0;
+            }
+            Op::Conv(Conv { src, src2: None, cin: 4, cout, k: 1, weight, bias: vec![0.0; cout], leaky: None })
+        };
+        let n = Net::new(4, vec![copy(0, 4), copy(1, 12), Op::DepthToSpace2 { src: 2 }]).unwrap();
+        let Some(g) = gpu(&n, 3) else { return };
+        let x: Vec<f32> = (1..=36).map(|i| i as f32).collect();
+        assert_eq!(g.run(&x).unwrap(), reference::run(&n, 3, &x).unwrap());
     }
 
     #[test]
