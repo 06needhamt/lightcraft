@@ -78,7 +78,7 @@ Weights and evidence: [target-app-parity.md](docs/target-app-parity.md#features)
 
 ## Languages
 
-Measured from `crates/ui-egui/locales` (share of 2,304 catalog messages translated); none is `full`
+Measured from `crates/ui-egui/locales` (share of 2,304 catalog messages translated; German counts 3,644 of 3,754, because its What's New lines add keys); none is `full`
 while lower-layer errors stay English. Detail: [localization-parity.md](docs/localization-parity.md).
 
 | Language | Code | Translated | Status |
@@ -92,7 +92,7 @@ while lower-layer errors stay English. Detail: [localization-parity.md](docs/loc
 | Portuguese (Brazil) | pt-br | 85% | partial |
 | Indonesian | id | 0% | none |
 | Japanese | ja | 87% | partial |
-| German | de | 97% | partial |
+| German | de | 97% (3,644/3,754) | partial |
 | Korean | ko | 0% | none (no Hangul face) |
 | Vietnamese | vi | 0% | none |
 
