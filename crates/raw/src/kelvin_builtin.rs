@@ -2,7 +2,7 @@
 //! the Kelvin scale of [`crate::kelvin_presets`].
 //!
 //! Nikon NEFs store only the as-shot multipliers (`WB_RBLevels`) and, in the maker note, the colour temperature the
-//! camera states for the white-balance setting it shot with (`ColorTemperatureAuto`, `0x0045`: tag name from the
+//! camera states for the white-balance setting it shot with (`ColorTemperatureAuto`, `0x004f`: tag name from the
 //! ExifTool Nikon tag documentation, read with exiftool run as a black-box tool on the files). A body's points are
 //! the as-shot multipliers of its own photos shot at one preset each, placed at the temperature the camera itself
 //! wrote for that preset. Presets off the daylight locus (fluorescent, flash) and shots with a fine-tune shift are
