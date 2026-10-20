@@ -114,6 +114,18 @@ fn a_click_outside_closes_the_dialog_when_settings_allow_it() {
     h.step();
     assert!(h.app.ui.dialog.is_none(), "a click on the backdrop closes the dialog");
     assert_eq!(h.app.session.catalog.photo(active).unwrap().rating, rating, "the click doesn't reach the panel below");
+    // the click that opens a dialog lands outside its window; a quick one on a slow frame arrives
+    // pressed and released in that one frame
+    let gear = h.app.widgets.iter().find(|(id, _)| id == "icon:copyGear").map(|(_, r)| r.center()).unwrap();
+    let press = |pressed| egui::Event::PointerButton { pos: gear, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    h.events.extend([egui::Event::PointerMoved(gear), press(true), press(false)]);
+    h.step();
+    h.step();
+    assert!(h.app.ui.dialog.is_some(), "the click that opens a dialog doesn't close it");
+    let r = h.request("ui.clickWidget", json!({"id": "star:bottom:5"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(h.app.ui.dialog.is_none(), "the next click on the backdrop does");
 }
 
 #[test]

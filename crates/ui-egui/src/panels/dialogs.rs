@@ -1515,16 +1515,31 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.ui.dialog.as_ref().is_some_and(|now| *now != at_start) {
         return;
     }
+    if !close {
+        let frame = ctx.cumulative_frame_nr();
+        ctx.data_mut(|d| d.insert_temp(egui::Id::new(BACKDROP_SHOWN), frame));
+    }
     app.ui.dialog = if close { None } else { Some(dlg) };
 }
+
+/// The last frame a dialog was drawn and stayed open, for [`clicked_backdrop`].
+const BACKDROP_SHOWN: &str = "dialog-backdrop-shown";
 
 /// A click on the dimmed backdrop around the dialog: it closes the dialog like Esc. Pressed and
 /// released outside the window, so a slider dragged past its edge doesn't close it; a press while a
 /// popup is open (a dropdown, a date picker's calendar) only closes the popup. Only a press made
-/// while the dialog is shown counts, so the click that opened it never closes it. (Read from the
-/// raw events: egui forgets the press origin on release, and a scripted click is one frame.)
+/// while the dialog is shown counts: in the frame a dialog appears, its input is the click that
+/// opened it (a quick click on a slow frame presses and releases in that one frame), so it never
+/// closes it. (Read from the raw events: egui forgets the press origin on release.)
 fn clicked_backdrop(ctx: &egui::Context, window: egui::Rect) -> bool {
     let press_id = egui::Id::new("dialog-backdrop-press");
+    let frame = ctx.cumulative_frame_nr();
+    // the same frame too: a second pass of it gets no input
+    let shown = ctx.data(|d| d.get_temp::<u64>(egui::Id::new(BACKDROP_SHOWN))).is_some_and(|f| f + 1 >= frame);
+    if !shown {
+        ctx.data_mut(|d| d.remove_temp::<bool>(press_id));
+        return false;
+    }
     let (press, release, clicked) = ctx.input(|i| {
         let at = |down: bool| {
             i.events.iter().rev().find_map(|e| match e {
