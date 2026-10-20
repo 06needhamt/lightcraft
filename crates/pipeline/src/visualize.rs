@@ -190,10 +190,11 @@ impl Overlay {
         }
     }
 
-    /// The ⌥-drag clipping views, which test the sRGB values the histogram counts (a display
-    /// render draws them in sRGB, then converts).
-    pub fn is_clipping(self) -> bool {
-        matches!(self, Overlay::ShadowClip | Overlay::HighlightClip)
+    /// The ⌥-drag views that show none of the photo's colours: the clipping views (which test the
+    /// sRGB values the histogram counts) and the grey ones. A display render draws them in sRGB,
+    /// then converts, so their histogram (taken before the overlay) is the photo's sRGB one.
+    pub fn renders_in_srgb(self) -> bool {
+        matches!(self, Overlay::ShadowClip | Overlay::HighlightClip | Overlay::SharpenMask | Overlay::Grey)
     }
 
     /// The mask an [`Overlay::Mask`] shows (if it exists in `s` and has components).
