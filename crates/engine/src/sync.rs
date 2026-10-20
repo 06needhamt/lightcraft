@@ -34,8 +34,8 @@
 //! - a sidecar is found as Read Metadata from File finds it, including the other naming
 //!   scheme's file (`IMG_1.xmp` for `IMG_1.JPG` beside `IMG_1.CR3`).
 //!
-//! The walk for new files stops at the import's limits on depth and entries (logged), and is
-//! not cancelled midway.
+//! The walk for new files stops at the import's limits on depth and entries (logged), or when the
+//! scan is cancelled.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
