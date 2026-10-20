@@ -60,10 +60,12 @@ pub enum Gesture {
     Guide {
         a: Point,
     },
-    /// Guided Upright: dragging the endpoint `end` (0 = `guide.0`, 1 = `guide.1`) of guide `i`.
+    /// Guided Upright: dragging the endpoint `end` (0 = `guide.0`, 1 = `guide.1`) of guide `i`,
+    /// from where the pointer went down (`from` — egui forgets the press origin at the release).
     GuideEndpoint {
         i: usize,
         end: usize,
+        from: Pos2,
     },
     /// Red Eye: an ellipse being dragged from corner `a` (normalized).
     Eye {
@@ -1540,8 +1542,9 @@ fn general_interaction(
 // ------------------------------------------------------------------------ crop
 
 fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings, id: PhotoId) {
-    // the selected guide belongs to this photo and to the Guided Upright tool
-    if app.ui.tool != "guidedUpright" || app.ui.selected_guide.is_some_and(|(photo, _)| photo != id.0) {
+    // the selected guide belongs to this photo and to the Guided Upright tool, and to a guide
+    // that still exists (a Delete after the last one leaves the selection behind)
+    if app.ui.tool != "guidedUpright" || app.ui.selected_guide.is_some_and(|(photo, i)| photo != id.0 || i >= d.geometry.guides.len()) {
         app.ui.selected_guide = None;
     }
     if app.ui.tool == "guidedUpright" {
@@ -1873,10 +1876,13 @@ fn guided_overlay(
     // A press starts what it means, right away (the pointer's press point, not where a drag
     // threshold would have been crossed): on an endpoint it drags that endpoint (the guide is
     // selected when it lands), on a line it selects the guide (a press on the selected one
-    // deselects), anywhere else it starts a new guide from the press point.
-    if ui.input(|i| i.pointer.any_pressed())
+    // deselects), anywhere else it starts a new guide from the press point. The primary button
+    // only, and never on the navigator — it pans the photo, it draws no guide.
+    let nav = app.widgets.iter().rev().find(|(w, _)| w == "canvas:navigator").map(|(_, r)| *r);
+    if ui.input(|i| i.pointer.primary_pressed())
         && let Some(q) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos())
         && resp.rect.contains(q)
+        && !nav.is_some_and(|n| n.expand(5.0).contains(q))
     {
         let endpoint = d.geometry.guides.iter().enumerate().find_map(|(i, guide)| {
             let (a, b) = on_screen(guide);
@@ -1893,7 +1899,7 @@ fn guided_overlay(
             point_segment_dist(q, a, b) <= 6.0
         });
         match (endpoint, line) {
-            (Some((i, end)), _) => app.gesture = Some(Gesture::GuideEndpoint { i, end }),
+            (Some((i, end)), _) => app.gesture = Some(Gesture::GuideEndpoint { i, end, from: q }),
             (None, Some(i)) => app.ui.selected_guide = if selected == Some(i) { None } else { Some((id.0, i)) },
             // drawing a new guide leaves nothing selected
             (None, None) => {
@@ -1907,7 +1913,7 @@ fn guided_overlay(
         draw(map.screen(*a), q, false);
     }
     // the endpoint being dragged: the guide follows the pointer, bright
-    if let (Some(Gesture::GuideEndpoint { i, end }), Some(q)) = (&app.gesture, q)
+    if let (Some(Gesture::GuideEndpoint { i, end, .. }), Some(q)) = (&app.gesture, q)
         && let Some(guide) = d.geometry.guides.get(*i)
     {
         let fixed = if *end == 0 { guide.1 } else { guide.0 };
@@ -1917,14 +1923,16 @@ fn guided_overlay(
         match app.gesture.take() {
             // the endpoint lands: the guide stays (one undo step) and is selected. A press
             // without a real drag only selects — no no-op undo entry for a click.
-            Some(Gesture::GuideEndpoint { i, end }) => {
+            Some(Gesture::GuideEndpoint { i, end, from }) => {
                 app.ui.selected_guide = Some((id.0, i));
                 if let (Some(q), Some(guide)) = (q, d.geometry.guides.get(i)) {
-                    let (old_t, fixed_t) = if end == 0 { (guide.0, guide.1) } else { (guide.1, guide.0) };
+                    let fixed_t = if end == 0 { guide.1 } else { guide.0 };
                     let new_t = frame.transformed_to_corrected(map.norm(q));
                     let (a, b) = if end == 0 { (new_t, fixed_t) } else { (fixed_t, new_t) };
                     let (na, nb) = (frame.corrected_to_transformed(a), frame.corrected_to_transformed(b));
-                    let moved = map.screen(frame.corrected_to_transformed(old_t)).distance(q) > 2.0;
+                    // a press that only selected (it landed within the endpoint's grab radius
+                    // and never moved) writes no guide: compare against where it went down
+                    let moved = from.distance(q) > 2.0;
                     if moved && na.dist(nb) > 0.02 {
                         let all: Vec<[f64; 4]> = d
                             .geometry

@@ -206,3 +206,38 @@ fn a_new_guide_starts_at_the_press_point() {
     assert!(rect.left_top().distance(p1) < 2.0, "the guide starts at the press point: {rect:?} vs {p1:?}");
     assert!(rect.right_top().distance(p2) < 2.0, "and ends at the release point: {rect:?} vs {p2:?}");
 }
+
+/// The right button is the pan / context menu's, never the guides': on a guide it selects
+/// nothing and draws nothing.
+#[test]
+fn a_right_click_on_a_guide_selects_nothing() {
+    let mut h = guided();
+    let r = h.request("ui.click", json!({"x": guide_at(&h, 0).x, "y": guide_at(&h, 0).y, "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.selected_guide, None, "the right button selects nothing");
+    assert_eq!(guides_len(&h), 2, "and draws nothing");
+}
+
+/// The navigator pans the zoomed photo: a press on it never reaches the guides — it neither
+/// selects one under it nor starts drawing a new guide from it.
+#[test]
+fn a_press_on_the_navigator_draws_no_guide() {
+    let mut h = guided();
+    let r = h.request("engine.execute", json!({"command": "view.zoom100"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    let nav = h.app.widgets.iter().rev().find(|(w, _)| *w == "canvas:navigator").map(|(_, r)| *r).expect("navigator shown when zoomed");
+    let img = h.app.image_rect.expect("the photo on screen");
+    let c = nav.center();
+    let (nx, ny) = ((c.x - img.left()) / img.width(), (c.y - img.top()) / img.height());
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": nx, "y": ny}, {"kind": "drag", "x": nx + 0.05, "y": ny}, {"kind": "up", "x": nx + 0.05, "y": ny}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(guides_len(&h), 2, "the press on the navigator drew no guide");
+    assert_eq!(h.app.ui.selected_guide, None, "and selected nothing");
+}
