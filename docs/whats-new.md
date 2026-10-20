@@ -2,7 +2,7 @@
 
 ## 2026-10-21
 
-### One star rating everywhere
+### One star rating control
 - The stars in the bottom bar, the Info panel and the filter bar are now one shared control, and the badges on grid
   cells, filmstrip thumbnails and the Compare caption use the same drawing. Hovering a star in the filter bar now
   previews the rating like the others do, and with a star focused (Tab), ← and → lower and raise the rating.
