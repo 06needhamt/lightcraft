@@ -58,6 +58,11 @@ fn app_icon() -> egui::IconData {
 struct App(LightcraftApp, PrefsWriter, #[cfg(target_os = "macos")] Option<native_menu::NativeMenu>);
 
 impl eframe::App for App {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        // The transparency-capable DirectComposition window is a presentation workaround;
+        // translucent UI layers (disabled panels, modal dimming) must not reveal the desktop.
+        egui::Color32::from_rgb(12, 12, 12).to_normalized_gamma_f32()
+    }
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
         if let Some(m) = self.2.as_mut()
@@ -1119,6 +1124,21 @@ fn startup_failed(error: &str, log_file: Option<&std::path::Path>) {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn desktop_clear_color_stays_opaque_with_a_modal_open() {
+        let mut app = App(
+            LightcraftApp::new(Session::new(), Services::default()),
+            PrefsWriter::default(),
+            #[cfg(target_os = "macos")]
+            None,
+        );
+        app.0.run("app.settings", serde_json::json!({})).unwrap();
+        assert!(app.0.ui.dialog.is_some());
+        for visuals in [egui::Visuals::dark(), egui::Visuals::light()] {
+            assert_eq!(eframe::App::clear_color(&app, &visuals)[3], 1.0);
+        }
+    }
 
     fn dir(tag: &str) -> std::path::PathBuf {
         let d = std::env::temp_dir().join(format!("lc-app-prefs-{tag}-{}", std::process::id()));
