@@ -113,8 +113,14 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
                 cur.translate(Vec2::new(ax * t, ay * t))
             };
             // straightened, go to the nearest place that fits, so the frame slides along tilted edges (#2299)
-            let nearest = if base.angle != 0.0 { nearest_move(sr, base.angle, w, h, Vec2::new(dx, dy)) } else { None };
-            match nearest.map(|v| sr.translate(v)).filter(|r| feasible(*r)) {
+            let nearest = if base.angle != 0.0 {
+                let from = |r: Rect| nearest_move(r, base.angle, w, h, Vec2::new(dx, dy)).map(|v| r.translate(v)).filter(|r| feasible(*r));
+                // a frame at the tolerance's edge on opposite sides moves only once it is inside it
+                from(sr).or_else(|| shrunk_inside(sr, base.angle, w, h).and_then(from))
+            } else {
+                None
+            };
+            match nearest {
                 Some(r) => r,
                 None => slide(slide(sr, dx, 0.0), 0.0, dy),
             }
@@ -208,22 +214,16 @@ pub fn drag_crop(start: CropGeometry, handle: CropHandle, grab: Point, pointer: 
 
 /// The translation (pixels) nearest `want` that keeps the frame `r` inside a `w × h` image turned by `angle` degrees.
 fn nearest_move(r: Rect, angle: f64, w: f64, h: f64, want: Vec2) -> Option<Vec2> {
-    // first within half of `is_within_image`'s tolerance, so a frame a handle drag left at its edge still moves
-    solve_move(r, angle, (w, h), want, 5e-7).or_else(|| solve_move(r, angle, (w, h), want, f64::INFINITY))
-}
-
-/// [`nearest_move`] with each corner kept at most `pull` (a fraction of the size) past the image, or where it is.
-fn solve_move(r: Rect, angle: f64, (w, h): (f64, f64), want: Vec2, pull: f64) -> Option<Vec2> {
     let back = Affine::rotate_about(-angle.to_radians(), Point::new(w / 2.0, h / 2.0));
     let (ex, ey) = (back.apply_vec(Vec2::new(1.0, 0.0)), back.apply_vec(Vec2::new(0.0, 1.0)));
     let (nx, ny) = (Vec2::new(ex.x, ey.x), Vec2::new(ex.y, ey.y));
-    // plus a slack so a zero-width strip survives rounding
+    // never tighter than where the frame is, plus a slack so a zero-width strip survives rounding
     let (sx, sy) = (1e-9 * w, 1e-9 * h);
     let mut planes = Vec::with_capacity(16);
     for c in r.corners() {
         let q = back.apply(c);
-        for (n, b, s, size) in [(nx, w - q.x, sx, w), (-nx, q.x, sx, w), (ny, h - q.y, sy, h), (-ny, q.y, sy, h)] {
-            planes.push((n, b.max(0.0).min(b + pull * size) + s));
+        for (n, b, s) in [(nx, w - q.x, sx), (-nx, q.x, sx), (ny, h - q.y, sy), (-ny, q.y, sy)] {
+            planes.push((n, b.max(0.0) + s));
         }
     }
     if planes.iter().all(|(n, b)| n.dot(want) <= *b) {
@@ -244,6 +244,21 @@ fn solve_move(r: Rect, angle: f64, (w, h): (f64, f64), want: Vec2, pull: f64) ->
         })
         .filter(|v| v.x.is_finite() && v.y.is_finite())
         .min_by(|a, b| (*a - want).len().total_cmp(&(*b - want).len()))
+}
+
+/// `r` scaled about its centre by the largest factor down to `1 - 1e-5` that puts it exactly inside a `w × h` image
+/// turned by `angle` degrees.
+fn shrunk_inside(r: Rect, angle: f64, w: f64, h: f64) -> Option<Rect> {
+    let back = Affine::rotate_about(-angle.to_radians(), Point::new(w / 2.0, h / 2.0));
+    let scaled = |k: f64| Rect::from_center(r.center(), r.width() * k, r.height() * k);
+    let inside = |k: f64| {
+        scaled(k).corners().iter().all(|c| {
+            let q = back.apply(*c);
+            q.x >= 0.0 && q.y >= 0.0 && q.x <= w && q.y <= h
+        })
+    };
+    let lo = 1.0 - 1e-5;
+    inside(lo).then(|| scaled(bisect_range(lo, 1.0, inside)))
 }
 
 /// The part of the convex polygon `poly` where `n · v <= b`.
@@ -591,15 +606,21 @@ mod tests {
         for angle in [3.0, 6.0, -10.0, 12.0] {
             let fit = crate::crop_fit_angle(W, H, angle, Some(a));
             let small = CropGeometry { rect: Rect::from_center(fit.rect.center(), fit.rect.width() * 0.6, fit.rect.height() * 0.6), angle };
-            let big = drag(small, BottomRight, p(small.rect.x1, small.rect.y1), p(1.5, 1.5), Some(a));
-            let c = big.rect.center();
-            let g = drag(big, Move, c, p(c.x - 0.5, c.y), Some(a));
-            assert!(g.rect.x0 < big.rect.x0 - 0.2, "{angle}: stuck at {:?}", g.rect);
-            assert!(
-                g.is_within_image(W, H) && near(g.rect.width(), big.rect.width()) && near(g.rect.height(), big.rect.height()),
-                "{angle}: {:?}",
-                g.rect
-            );
+            // the second fills the photo's height, at the tolerance's edge top and bottom
+            let shrunk = drag(fit, BottomRight, p(0.5, 0.5), p(0.35, 0.35), Some(a));
+            for start in [small, shrunk] {
+                let big = drag(start, BottomRight, p(0.5, 0.5), p(1.5, 1.5), Some(a));
+                let c = big.rect.center();
+                let g = drag(big, Move, c, p(c.x - 0.5, c.y), Some(a));
+                assert!(g.rect.x0 < big.rect.x0 - 0.2, "{angle}: stuck at {:?}", g.rect);
+                assert!(
+                    g.is_within_image(W, H)
+                        && (g.rect.width() / big.rect.width() - 1.0).abs() < 1e-5
+                        && (g.rect.height() / big.rect.height() - 1.0).abs() < 1e-5,
+                    "{angle}: {:?}",
+                    g.rect
+                );
+            }
         }
     }
 
