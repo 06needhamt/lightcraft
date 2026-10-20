@@ -163,3 +163,30 @@ fn a_rating_row_is_one_tab_stop() {
     // frames 1 to 3 press Tab: left neighbour, the row, right neighbour
     assert_eq!(focused, vec![false, false, false, true, false], "{focused:?}");
 }
+
+#[test]
+fn a_rating_changed_from_outside_moves_the_focus_to_the_tab_stop() {
+    use egui::Key::Tab;
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let rating = std::cell::Cell::new(2u8);
+    let mut stars_focused = Vec::new();
+    for frame in 0..5 {
+        // frame 1: Tab focuses the row's stop (star 2); frame 2: the rating changes elsewhere to 5
+        if frame == 2 {
+            rating.set(5);
+        }
+        let events = if frame == 1 {
+            vec![egui::Event::Key { key: Tab, physical_key: Some(Tab), pressed: true, repeat: false, modifiers: Default::default() }]
+        } else {
+            Vec::new()
+        };
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(600.0, 200.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let _ = row(rating.get()).show(ui);
+            stars_focused = (0..5).map(|i| ctx.memory(|m| m.has_focus(ui.id().with(("rating-star", "t", i as u8))))).collect();
+        });
+        out.textures_delta.clear();
+    }
+    assert_eq!(stars_focused, vec![false, false, false, false, true], "{stars_focused:?}");
+}

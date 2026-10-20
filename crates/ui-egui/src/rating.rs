@@ -131,7 +131,7 @@ impl Rating {
         let cell = RatingSize::Large.cell();
         let mut out = None;
         let mut hover_n = None;
-        let mut focused = false;
+        let mut focused_at = None;
         let mut cells = [Rect::NOTHING; STARS as usize];
         // One Tab stop for the row, like a radio group: the star of the current rating (the first when
         // unrated), plus whichever star already has the focus so it keeps it
@@ -150,7 +150,7 @@ impl Rating {
                 out = Some(clicked_rating(self.rating, i + 1));
             }
             if resp.has_focus() {
-                focused = true;
+                focused_at = Some(i);
                 // ← and → step the rating instead of moving the focus to the neighbouring widget
                 ui.memory_mut(|m| {
                     m.set_focus_lock_filter(resp.id, egui::EventFilter { horizontal_arrows: true, ..Default::default() });
@@ -159,6 +159,7 @@ impl Rating {
             }
             *slot = r;
         }
+        let focused = focused_at.is_some();
         if focused && out.is_none() {
             let (left, right) = ui.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::ArrowLeft), i.consume_key(Modifiers::NONE, Key::ArrowRight)));
             if left || right {
@@ -170,6 +171,10 @@ impl Rating {
             if let Some(n) = out {
                 // keep the focus on the star that is now the row's Tab stop
                 let to = self.star_id(ui, n.max(1) - 1);
+                ui.memory_mut(|m| m.request_focus(to));
+            } else if focused_at != Some(stop) {
+                // the rating changed from outside (undo, a shortcut, another photo): the focus follows the Tab stop
+                let to = self.star_id(ui, stop);
                 ui.memory_mut(|m| m.request_focus(to));
             }
         }
