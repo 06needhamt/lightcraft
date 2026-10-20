@@ -1,6 +1,6 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (de catalog: missing interface strings and What's New lines translated; German row re-measured) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (German form of address: *du*) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 How far each interface language is from `full`. How to add or maintain a language is in
 [localization.md](localization.md); per-language notes are in `localization-<code>.md`
@@ -40,6 +40,10 @@ render correctly today.
 Native-speaker review: no catalog has had a formal review. Several catalogs have edits from community
 contributors whose commits only touch that language (ja, zh-hans, zh-hant, fr, de, ru, uk, pt-br);
 that is promising but is not recorded as review, so the column says `no (community edits)`.
+
+Form of address: German speaks to the user with *du* ("Wähle ein Foto", "Dein Name"), never *Sie*.
+LightCraft is built by its community, and *du* is how people helping each other talk. A new German
+string follows that.
 
 ## The twelve key languages
 
@@ -99,3 +103,4 @@ Target languages LightCraft lacks: Korean, Dutch, Polish, Swedish, Norwegian Bok
 | 2026-10-10 | major | Created: per-language counts measured from the catalogs, the twelve key languages, script support, estimates |
 | 2026-10-12 | minor | de, es, fr, ja and uk catalogs filled to every message another catalog knows (agent translations, native review welcome); those rows re-measured against the current 2,398 messages. Other rows keep their 2026-10-10 counts (open PRs for pt-BR, ru, zh) |
 | 2026-10-16 | minor | German (`de`): 217 interface strings and 862 What's New lines added (agent translations, native review welcome); re-measured 2,572 → 3,644 of 3,754 messages (80% → 97%). The denominator grew because German now translates What's New lines no other catalog has; other rows keep their earlier counts |
+| 2026-10-20 | minor | German (`de`) speaks to the user with *du*; the 11 messages that used *Sie* changed, no count changes |
