@@ -236,7 +236,7 @@ fn nearest_offset(points: &[(Point, Vec2)], extra: &[(Vec2, f64)], angle: f64, w
             planes.push((n, b.max(0.0) + s));
         }
     }
-    planes.extend(extra.iter().map(|(n, b)| (*n, b.max(0.0))));
+    planes.extend_from_slice(extra);
     if planes.iter().all(|(n, b)| n.dot(want) <= *b) {
         return Some(want);
     }
@@ -705,6 +705,15 @@ mod tests {
             let g = drag(start, BottomRight, p(0.6, 0.6), p(0.6, 1.3), None);
             assert!(near(g.rect.x1, 0.6) && g.rect.y1 > 0.8, "{angle}: the width changed: {:?}", g.rect);
         }
+    }
+
+    //   Scenario: a free corner of a crop under the minimum size on a straightened photo
+    #[test]
+    fn given_straightened_photo_when_a_corner_of_a_too_small_crop_is_dragged_then_it_reaches_the_minimum() {
+        let start = CropGeometry { rect: Rect::new(0.3, 0.3, 0.3 + 2.0 / W, 0.6), angle: 6.0 };
+        let g = drag(start, BottomRight, p(start.rect.x1, 0.6), p(start.rect.x1 + 2.0 / W, 0.62), None);
+        assert!(g.rect.width() * W >= MIN_CROP_FRACTION * H - EPS, "{:?}", g.rect);
+        assert!(g.is_within_image(W, H) && near(g.rect.x0, 0.3) && near(g.rect.y0, 0.3), "{:?}", g.rect);
     }
 
     //   Scenario: a free corner moved inside, or across its anchor, on a straightened photo
