@@ -242,6 +242,11 @@ pub fn scan_with(input: SyncInput, progress: &SyncProgress) -> FolderChanges {
         }),
     );
     progress.listed.store(true, std::sync::atomic::Ordering::Release);
+    // ✕ during the listing: its result is not used, so nothing more is asked of the disk (the files' cached probes
+    // would each be checked against the file, a round trip per file on a network share)
+    if progress.files.cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return FolderChanges { path: folder, seen, ..Default::default() };
+    }
     let listing = &listing;
     // (no threads on the web: one after the other there)
     #[cfg(target_arch = "wasm32")]
