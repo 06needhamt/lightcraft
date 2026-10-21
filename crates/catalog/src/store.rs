@@ -242,9 +242,8 @@ impl Store for MemStore {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests_staging {
-    #[cfg(unix)]
     use super::*;
 
     /// A link planted at a staging name (`<name>.tmp`) is removed, never followed: the file it points to keeps its
