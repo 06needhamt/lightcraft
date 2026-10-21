@@ -61,7 +61,17 @@ fn save(s: &mut Session, p: &Value) -> Result<Value> {
     let mut params = match p.get("params") {
         Some(v @ Value::Object(_)) => v.clone(),
         Some(_) => return Err(bad(ID, "`params` must be an object of app.export params")),
-        None => s.last_export.clone().ok_or_else(|| bad(ID, "no `params` and no previous export to save"))?,
+        // a stored setting, not the caller's typo: a depth it holds that its `format` lacks was
+        // written before #1952 and is dropped, as Export with Previous does; without `format`
+        // it is judged when the preset exports
+        None => {
+            let last = s.last_export.as_ref().ok_or_else(|| bad(ID, "no `params` and no previous export to save"))?;
+            let mut last = crate::export::ExportOptions::known_keys(last);
+            if last.get("format").is_some_and(Value::is_string) {
+                crate::export::ExportOptions::drop_unfit_depth(&mut last, Default::default());
+            }
+            last
+        }
     };
     if let Some(o) = params.as_object_mut() {
         o.retain(|k, _| !NOT_SETTINGS.contains(&k.as_str()));

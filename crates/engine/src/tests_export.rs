@@ -120,6 +120,21 @@ fn a_preset_depth_is_judged_against_the_format_written() {
     assert!(s.execute("export.savePreset", &json!({"name": "Deep 3", "params": {"format": "jpeg", "bitDepth": 16}})).is_err());
 }
 
+/// Review of #1966: savePreset without `params` saves the previous export, a stored setting. A
+/// depth written before #1952 at the format's own depth is dropped, as Export with Previous does,
+/// instead of refusing the save; without `format`, the depth waits for the format written.
+#[test]
+fn a_preset_saved_from_the_previous_export_drops_its_unfit_depth() {
+    let mut s = Session::with_demo();
+    s.last_export = Some(json!({"format": "jpeg", "bitDepth": 16, "quality": 80, "dir": "/out"}));
+    s.execute("export.savePreset", &json!({"name": "Old"})).unwrap();
+    assert_eq!(s.export_presets[0].params, json!({"format": "jpeg", "quality": 80}));
+    s.last_export = Some(json!({"bitDepth": 16, "dir": "/out"}));
+    s.execute("export.savePreset", &json!({"name": "Deep"})).unwrap();
+    let p = s.export_params(&json!({"preset": "Deep", "path": "/out/a.png"})).unwrap();
+    assert_eq!(ExportOptions::from_params(&p).unwrap().bit_depth, Some(16));
+}
+
 #[test]
 fn presets_conflicts_and_subfolders() {
     use crate::export::{Destination, export_batch};
