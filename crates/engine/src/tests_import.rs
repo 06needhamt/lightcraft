@@ -1132,6 +1132,25 @@ fn import_can_replace_a_duplicate_from_recently_deleted() {
     let _ = std::fs::remove_dir_all(&src);
 }
 
+/// A trashed photo imported again as a new one owns its stem sidecar: its own old record is not a
+/// rival for `a.xmp` (issue #1905's ranking), so the fresh photo reads it.
+#[test]
+fn a_fresh_reimport_reads_its_own_stem_sidecar() {
+    let (mut s, src, id) = trashed_photo("trash-fresh-sidecar");
+    std::fs::write(
+        src.join("a.xmp"),
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="3"/></rdf:RDF></x:xmpmeta>"#,
+    )
+    .unwrap();
+    let r = s.execute("library.import", &json!({"paths": [src.to_string_lossy()], "onDeleted": "fresh"})).unwrap();
+    assert_eq!(ids(&r, "imported"), 1, "{r}");
+    let new = r["imported"][0].as_u64().unwrap();
+    assert_ne!(new, id);
+    assert_eq!(s.catalog.photo(lightcraft_catalog::PhotoId(new)).unwrap().rating, 3, "the fresh photo reads a.xmp: {r}");
+    let _ = std::fs::remove_dir_all(&src);
+}
+
 #[test]
 fn unknown_on_deleted_is_an_error() {
     let mut s = Session::new().with_fs();

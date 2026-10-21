@@ -644,7 +644,9 @@ impl ImportStems {
     pub(crate) fn for_import<'a>(cat: Option<&lightcraft_catalog::Catalog>, incoming: impl Iterator<Item = (&'a str, MediaKind)>) -> ImportStems {
         // per stem: the best of the library's files, and the best arriving file with its path
         let mut best: HashMap<String, (Option<Rank>, Option<(Rank, &'a str)>)> = HashMap::new();
+        let mut arriving_paths = HashSet::new();
         for (arriving, (path, kind)) in incoming.enumerate() {
+            arriving_paths.insert(path);
             let e = best.entry(stem_key(path)).or_default();
             let rank = rank_of(path, kind, arriving as u64);
             if e.1.as_ref().is_none_or(|(b, _)| rank < *b) {
@@ -654,7 +656,8 @@ impl ImportStems {
         if let Some(cat) = cat {
             let mut key = String::new();
             for p in cat.photos().filter(|p| p.copy_of.is_none()) {
-                let Some(path) = file_path(p) else { continue };
+                // the arriving file's own record (a trashed photo imported again) is not a rival
+                let Some(path) = file_path(p).filter(|path| !arriving_paths.contains(*path)) else { continue };
                 stem_key_into(&mut key, path);
                 let Some(e) = best.get_mut(key.as_str()) else { continue };
                 let rank = rank_of(path, p.kind, p.id.0);
