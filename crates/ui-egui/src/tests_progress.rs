@@ -208,6 +208,19 @@ fn a_failed_filmstrip_thumbnail_is_announced_with_its_reason() {
 }
 
 #[test]
+fn the_sam_bar_keeps_its_name_and_height_while_the_size_is_unknown() {
+    let (nodes, _, (known, unknown)) = frames(Vec::new(), |ui| {
+        let known = crate::panels::masking::sam_download_bar(ui, 5, 10, 200.0).rect.height();
+        let unknown = crate::panels::masking::sam_download_bar(ui, 0, 0, 200.0).rect.height();
+        (known, unknown)
+    });
+    assert_eq!(known, unknown);
+    let bars: Vec<_> = nodes.iter().filter(|n| n.role == "ProgressIndicator").collect();
+    assert_eq!(bars.len(), 2, "{nodes:?}");
+    assert!(bars.iter().all(|b| b.label.starts_with("SAM 3")), "{bars:?}");
+}
+
+#[test]
 fn the_denoise_bars_keep_their_widths_in_a_wide_container() {
     let (_, ids, (detail, settings, unknown)) = frames(Vec::new(), |ui| {
         let detail = crate::panels::denoise::detail_bar(ui, 3, 10).rect.width();

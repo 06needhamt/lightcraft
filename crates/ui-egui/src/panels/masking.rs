@@ -180,15 +180,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         if download.running && app.ui.dialog.is_none() {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                let pct = if download.total > 0 { download.done as f64 / download.total as f64 } else { 0.0 };
                 // the bar takes what the Details button leaves
                 let details = ui.spacing().interact_size.x + 30.0;
-                crate::progress::Progress::new(crate::progress::fraction_of(download.done, download.total))
-                    // no percentage to say while the size is unknown
-                    .label(if download.total > 0 { format!("SAM 3: {} %", (pct * 100.0).floor()) } else { String::new() })
-                    .width((ui.available_width() - details).max(96.0))
-                    .widget("maskSamProgress")
-                    .show(ui);
+                sam_download_bar(ui, download.done, download.total, (ui.available_width() - details).max(96.0));
                 if text_button(ui, "maskSamDetails", crate::i18n::tr("Details"), false).clicked() {
                     app.offer_sam_download(None);
                 }
@@ -767,12 +761,23 @@ pub(crate) fn start_describe(app: &mut LightcraftApp, op: &str) {
     app.ui.describe = Some((op.to_string(), String::new()));
 }
 
-/// The Describe field: type what to select ("sky", "the red car") and press Return.
+/// The SAM model's download, `width` wide. The label is a percentage once the size is known and
+/// just the model's name before, so the bar keeps its height and its accessible name.
+pub(crate) fn sam_download_bar(ui: &mut egui::Ui, done: u64, total: u64, width: f32) -> egui::Response {
+    let fraction = crate::progress::fraction_of(done, total);
+    let label = match fraction {
+        Some(f) => format!("SAM 3: {} %", (f64::from(f) * 100.0).floor()),
+        None => "SAM 3".to_string(),
+    };
+    crate::progress::Progress::new(fraction).label(label).width(width).widget("maskSamProgress").show(ui)
+}
+
 /// Enter in the Describe field is the Select button: it starts nothing while the segmenter works.
 fn enter_submits(working: bool, lost_focus: bool, enter_pressed: bool) -> bool {
     !working && lost_focus && enter_pressed
 }
 
+/// The Describe field: type what to select ("sky", "the red car") and press Return.
 fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
     let Some((op, mut text)) = app.ui.describe.clone() else { return };
     // a new mask's field sits under the tiles; one that combines, under the selected mask
