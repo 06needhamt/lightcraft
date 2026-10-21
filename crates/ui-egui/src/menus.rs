@@ -84,6 +84,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.autoAdvance", "Auto Advance", None, "Photo"),
     ("view.filmstrip", "Filmstrip", Some("/"), "View"),
     ("view.leftPanel", "My Photos Panel", Some("Cmd+Shift+L"), "View"),
+    ("view.rightPanel", "Right Panel", None, "View"),
     ("view.beforeAfter", "Compare Before and After", Some("Y"), "View"),
     ("view.beforeAfterSplit", "Before/After Split", Some("Shift+Y"), "View"),
     ("view.beforeAfterTopBottom", "Before/After Top/Bottom", Some("Alt+Y"), "View"),
@@ -788,6 +789,31 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.leftPanel" => {
             app.ui.left_panel = !app.ui.left_panel;
             Ok(Value::Null)
+        }
+        "view.rightPanel" => {
+            // Classic's F8: hide the right panel, and bring back the same one next time (Edit when
+            // none was hidden). Hiding a tool ends it, as closing its panel does.
+            if app.ui.right != RightPanel::None && crate::docking::exposed(app, crate::docking::Panel::Tools) {
+                app.ui.right_hidden = app.ui.right;
+                app.ui.right = RightPanel::None;
+                if app.ui.tool != "wbPicker" {
+                    app.ui.tool.clear();
+                }
+                let _ = app.session.end_interaction();
+            } else {
+                let p = match std::mem::take(&mut app.ui.right_hidden) {
+                    RightPanel::None => RightPanel::Edit,
+                    p => p,
+                };
+                app.ui.right = p;
+                if p.is_edit_tool() && !matches!(app.ui.view, ViewMode::Detail) {
+                    app.ui.view = ViewMode::Detail;
+                }
+                if p == RightPanel::Remove && app.ui.tool.is_empty() {
+                    app.ui.tool = "remove".into();
+                }
+            }
+            Ok(json!({"open": app.ui.right != RightPanel::None}))
         }
         "view.beforeAfter" => {
             app.ui.before_after = if app.ui.before_after == BeforeAfter::SideBySide { BeforeAfter::Off } else { BeforeAfter::SideBySide };
