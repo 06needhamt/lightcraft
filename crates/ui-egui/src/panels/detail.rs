@@ -1883,9 +1883,21 @@ fn guided_overlay(
     // a menu can receive the press and the pointer can leave it within the same frame, so the
     // press itself must belong to the loupe's layer. Anything floating above the photo — a
     // context menu, a dropdown, a dialog — owns its own press; the guide under it stays put.
+    // A slow frame can also swallow the whole press-move-release into one batch, and egui
+    // clears `press_origin` on the release: then the press position is read back from the
+    // frame's own events, so the gesture still starts where the pointer went down.
     let nav = app.widgets.iter().rev().find(|(w, _)| w == "canvas:navigator").map(|(_, r)| *r);
     if ui.input(|i| i.pointer.primary_pressed())
-        && let Some(q) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos())
+        && let Some(q) = ui
+            .input(|i| {
+                i.pointer.press_origin().or_else(|| {
+                    i.events.iter().rev().find_map(|e| match e {
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => Some(*pos),
+                        _ => None,
+                    })
+                })
+            })
+            .or(resp.interact_pointer_pos())
         && resp.contains_pointer()
         && ui.ctx().layer_id_at(q) == Some(resp.layer_id)
         && resp.rect.contains(q)

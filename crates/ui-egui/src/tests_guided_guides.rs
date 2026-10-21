@@ -207,6 +207,31 @@ fn a_new_guide_starts_at_the_press_point() {
     assert!(rect.right_top().distance(p2) < 2.0, "and ends at the release point: {rect:?} vs {p2:?}");
 }
 
+/// A slow frame can swallow press, move and release into a single batch: egui then reports
+/// `primary_pressed` with `press_origin` already cleared by the release, and the gesture must
+/// still start at the press point — the guide spans the drag, not a zero-length stub at the
+/// release. The control channel spreads pointer events one per frame, so the batch is pushed
+/// raw into one frame here.
+#[test]
+fn a_drag_whose_press_and_release_share_one_frame_still_draws() {
+    let mut h = guided();
+    assert_eq!(guides_len(&h), 2);
+    let undo = h.app.session.undo.len();
+    let img = h.app.image_rect.expect("the photo on screen");
+    let p1 = egui::pos2(img.left() + 0.35 * img.width(), img.top() + 0.55 * img.height());
+    let p2 = egui::pos2(img.left() + 0.6 * img.width(), img.top() + 0.55 * img.height());
+    h.events.push(egui::Event::PointerMoved(p1));
+    h.events.push(egui::Event::PointerButton { pos: p1, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+    h.events.push(egui::Event::PointerMoved(p2));
+    h.events.push(egui::Event::PointerButton { pos: p2, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+    h.settle(SETTLE);
+    assert_eq!(guides_len(&h), 3, "the drag that shared one frame still draws its guide");
+    assert_eq!(h.app.session.undo.len(), undo + 1, "one edit was written");
+    let rect = guide_rect(&h, 2);
+    assert!(rect.left_top().distance(p1) < 2.0, "the guide starts at the press point: {rect:?} vs {p1:?}");
+    assert!(rect.right_top().distance(p2) < 2.0, "and ends at the release point: {rect:?} vs {p2:?}");
+}
+
 /// The right button is the pan / context menu's, never the guides': on a guide it selects
 /// nothing and draws nothing.
 #[test]
