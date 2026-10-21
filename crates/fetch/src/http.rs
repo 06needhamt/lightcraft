@@ -135,6 +135,10 @@ impl Url {
         if l.starts_with('/') {
             return Url::parse(&format!("{base}{l}"));
         }
+        // empty or fragment-only: the same document
+        if l.is_empty() || l.starts_with('#') {
+            return Ok(self.clone());
+        }
         // relative to the current directory
         let dir = self.path.split('?').next().unwrap_or("/");
         let dir = dir.rsplit_once('/').map_or("", |(d, _)| d);
@@ -611,6 +615,15 @@ mod tests_connect {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fragment_only_or_empty_location_keeps_file_name_and_query() {
+        let base = Url::parse("https://a.example/x/y/file?q").unwrap();
+        for l in ["#top", "", "  "] {
+            let u = base.join(l).unwrap();
+            assert_eq!((u.tls, u.host.as_str(), u.port, u.path.as_str()), (true, "a.example", 443, "/x/y/file?q"), "{l:?}");
+        }
+    }
 
     #[test]
     fn rejects_oversized_and_control_character_urls() {
