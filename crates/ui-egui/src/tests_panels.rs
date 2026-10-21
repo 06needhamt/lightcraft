@@ -1721,6 +1721,34 @@ fn show_in_folders_needs_a_photo_in_a_library_folder() {
     assert!(!crate::menus::ui_enabled(&demo, "app.showInFolders"), "a demo scene has no folder");
 }
 
+/// The grid's menu reveals the photo right-clicked, not the active one a multi-selection keeps.
+#[test]
+fn show_in_folders_reveals_the_photo_asked_for_and_follows_to_its_folder() {
+    let mut h = folders_app(&["/pics/trip/a.jpg", "/pics/home/c.jpg"]);
+    let id_of = |h: &Headless, path: &str| {
+        h.app.session.catalog.photos().find(|p| matches!(&p.source, lightcraft_catalog::Source::File { path: f } if f == path)).unwrap().id
+    };
+    let (a, c) = (id_of(&h, "/pics/trip/a.jpg"), id_of(&h, "/pics/home/c.jpg"));
+    h.app.run("library.select", json!({"ids": [a.0, c.0], "active": a.0})).unwrap();
+    h.step();
+    let r = h.app.run("app.showInFolders", json!({"id": c.0})).unwrap();
+    assert_eq!(r["path"], "/pics/home");
+    assert_eq!(h.app.session.library_folder.as_deref(), Some("/pics/home"));
+    assert_eq!(h.app.session.active(), Some(c), "the view of that folder shows the photo asked for");
+    assert!(crate::menus::show_in_folders_enabled(&h.app, Some(c)));
+}
+
+/// A folder deeper than the tree goes has no row: the entry is disabled rather than failing.
+#[test]
+fn show_in_folders_is_disabled_for_a_folder_below_the_trees_depth() {
+    let deep = format!("/pics{}/a.jpg", "/d".repeat(lightcraft_catalog::folders::MAX_DEPTH + 4));
+    let mut h = folders_app(&[deep.as_str()]);
+    activate(&mut h, &deep);
+    assert!(!h.app.caches.folder_tree(&h.app.session.catalog).is_empty());
+    assert!(!crate::menus::ui_enabled(&h.app, "app.showInFolders"));
+    assert!(h.app.run("app.showInFolders", json!({})).is_err());
+}
+
 #[test]
 fn a_renamed_folder_keeps_its_place_in_the_tree() {
     /// Removes the folder however the test ends.
