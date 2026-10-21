@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### A pinch no longer re-renders the photo at every zoom step
+- Pinching the loupe now keeps the size the fit view is rendered at until the gesture is quiet, as it already did for
+  the render sizes and windows. Before, each frame of a pinch asked for a new full-frame render at a new size.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
