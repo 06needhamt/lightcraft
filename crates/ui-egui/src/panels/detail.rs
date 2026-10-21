@@ -715,14 +715,18 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         p.text(label_at(img_rect, main_area), Align2::LEFT_CENTER, crate::i18n::tr("After"), t.font(12.0), t.text_dim);
     } else if show_before {
         shown = draw(Slot::Before, img_rect, canvas);
-        p.text(pos2(img_rect.left() + 8.0, img_rect.top() + 14.0), Align2::LEFT_CENTER, crate::i18n::tr("Before"), t.font(12.0), t.text);
+        // on the photo itself, so it gets the hover label's dark pill to stay readable over light pictures
+        let g = p.layout_no_wrap(crate::i18n::tr("Before").to_string(), t.font(12.0), Color32::WHITE);
+        let bg = label_badge_rect(img_rect, g.size());
+        p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
+        p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
     } else if let Some((_key, label)) = &hover_key
         && let Some(tex) = app.renderer.textures.get(&Slot::Hover).filter(|t| t.photo == id)
     {
         let hover_rect = fit_texture_rect(img_rect, tex.size);
         p.image(tex.tex.id(), hover_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         let g = p.layout_no_wrap(label.clone(), t.font(12.0), Color32::WHITE);
-        let bg = Rect::from_min_size(hover_rect.left_top() + vec2(8.0, 8.0), g.size() + vec2(16.0, 8.0));
+        let bg = label_badge_rect(hover_rect, g.size());
         p.rect_filled(bg, 4.0, Color32::from_black_alpha(160));
         p.galley(bg.min + vec2(8.0, 4.0), g, Color32::WHITE);
         shown = "hover";
@@ -908,6 +912,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ui.separator();
         super::grid::context_menu(app, ui, id);
     });
+}
+
+/// The dark pill behind a label drawn over the photo (`Before`, a hovered preset's name): at the
+/// photo's top left, inset 8 points, with the `text` size plus padding.
+fn label_badge_rect(photo: Rect, text: egui::Vec2) -> Rect {
+    Rect::from_min_size(photo.left_top() + vec2(8.0, 8.0), text + vec2(16.0, 8.0))
 }
 
 /// The info overlay at the canvas' top left (`view.infoOverlay`): file name with the capture date
@@ -2709,9 +2719,20 @@ fn film_badges(p: &egui::Painter, t: &Tokens, fr: Rect, ph: &lightcraft_catalog:
 
 #[cfg(test)]
 mod preview_geometry_tests {
-    use super::{fit_rect, fit_texture_rect};
+    use super::{fit_rect, fit_texture_rect, label_badge_rect};
     use crate::state::Zoom;
     use egui::{Rect, pos2, vec2};
+
+    /// The "Before" label sits on a dark pill that wraps the text with padding on every side.
+    #[test]
+    fn before_label_badge_wraps_the_text() {
+        let text = vec2(40.0, 14.0);
+        let photo = Rect::from_min_size(pos2(20.0, 30.0), vec2(400.0, 300.0));
+        let bg = label_badge_rect(photo, text);
+        assert_eq!(bg.min, pos2(28.0, 38.0));
+        assert_eq!(bg.size(), vec2(56.0, 22.0));
+        assert!(photo.contains_rect(bg));
+    }
 
     #[test]
     fn portrait_preview_keeps_its_ratio_inside_a_landscape_frame() {
