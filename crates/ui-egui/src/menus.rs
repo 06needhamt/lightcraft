@@ -257,6 +257,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("app.resetShortcuts", "Reset All Keyboard Shortcuts", None, ""),
     ("app.export", "Export Now", None, ""),
     ("app.showInFinder", "Show in Finder", Some("Cmd+R"), "Photo"),
+    ("app.showInFolders", "Show in Folders", None, "Photo"),
     ("app.openSamModelFolder", "Show in File Manager", None, ""),
     ("dialog.rename", "Rename Photos…", Some("F2"), "Photo"),
     ("dialog.labelNames", "Edit Color Label Names…", None, ""),
@@ -2106,6 +2107,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         }
         "app.export" => crate::control::export_active(app, p),
         "app.showInFinder" => show_in_finder(app),
+        "app.showInFolders" => show_in_folders(app),
         "app.openLogFolder" => open_log_folder(app),
         "app.discord" | "app.website" | "app.github" | "app.artcraft" | "app.help" | "app.feedback" => {
             let url = crate::links::url_of(id).unwrap_or(crate::links::WEBSITE);
@@ -2160,6 +2162,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
                     .and_then(|id| app.session.catalog.photo(id))
                     .is_some_and(|p| matches!(p.source, lightcraft_engine::catalog::Source::File { .. }))
         }
+        "app.showInFolders" => active_folder(app).is_some(),
         "app.openSamModelFolder" => app.session.segmenter.dir.is_some() && app.services.open_with.is_some(),
         "file.exportPresets" => app.session.presets.iter().any(|p| !p.builtin),
         "file.exportMaskEffects" => !app.session.mask_effects.is_empty(),
@@ -2286,6 +2289,30 @@ fn show_in_finder(app: &mut LightcraftApp) -> Result<Value, String> {
     };
     let reveal = app.services.reveal.as_mut().ok_or("not available here")?;
     reveal(&path)?;
+    Ok(json!({"path": path}))
+}
+
+/// The folder the active photo was imported from, as the sidebar's Folders section counts it (a
+/// photo straight in a disk's root is in the root). `None` for a demo scene, a photo only browsed
+/// in Local or in Recently Deleted, and one on the startup disk's root, which has no row to show.
+fn active_folder(app: &LightcraftApp) -> Option<String> {
+    let photo = app.session.active().and_then(|id| app.session.catalog.photo(id)).filter(|p| p.in_library())?;
+    let lightcraft_engine::catalog::Source::File { path } = &photo.source else { return None };
+    let dir = path.rfind(['/', '\\']).and_then(|i| path.get(..i.max(1)))?;
+    (!lightcraft_catalog::folders::is_startup_disk(dir)).then(|| dir.to_string())
+}
+
+/// Photo ▸ Show in Folders (Lightroom's Go to Folder in Library): show the active photo's folder
+/// as a click on its row in the sidebar's Folders section does, and bring the row into view: the
+/// sidebar, the section and the folders above it open, and it scrolls there (`reveal_folder`).
+fn show_in_folders(app: &mut LightcraftApp) -> Result<Value, String> {
+    let dir = active_folder(app).ok_or("this photo is not in a folder of the library")?;
+    let tree = app.caches.folder_tree(&app.session.catalog);
+    // the row's own spelling (forward slashes): what its click hands `library.source`, and its id
+    let path = crate::panels::left::folder_row_of(&tree, &dir).map(|n| n.path.clone()).ok_or("this photo's folder is not in Folders")?;
+    app.run("library.source", json!({"kind": "libraryFolder", "path": path}))?;
+    app.ui.left_panel = true;
+    app.ui.reveal_folder = Some(path.clone());
     Ok(json!({"path": path}))
 }
 

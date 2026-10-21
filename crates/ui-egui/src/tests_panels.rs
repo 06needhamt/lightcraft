@@ -1652,6 +1652,75 @@ fn the_chosen_folder_is_always_in_view() {
     assert!(!has(&h, "source:libfolder:/pics/trip/day1"));
 }
 
+/// Make the photo imported from `path` the active one.
+fn activate(h: &mut Headless, path: &str) {
+    let id = h.app.session.catalog.photos().find(|p| matches!(&p.source, lightcraft_catalog::Source::File { path: f } if f == path)).unwrap().id;
+    h.app.run("library.select", json!({"ids": [id.0], "active": id.0})).unwrap();
+    h.step();
+}
+
+/// Photo ▸ Show in Folders (Lightroom's Go to Folder in Library) shows the active photo's folder
+/// as a click on its Folders row does: the sidebar, the section and the folders above the row open,
+/// also when the folder was already shown and a row above it was folded by hand.
+#[test]
+fn show_in_folders_chooses_the_photos_folder_and_opens_the_rows_above_it() {
+    use crate::sidebar::SidebarSection;
+    let mut h = folders_app(&["/pics/trip/day1/a.jpg", "/pics/trip/b.jpg", "/pics/home/c.jpg"]);
+    activate(&mut h, "/pics/trip/day1/a.jpg");
+    assert!(crate::menus::ui_enabled(&h.app, "app.showInFolders"));
+    click(&mut h, "sidebarSection:folders");
+    h.app.run("view.leftPanel", json!({})).unwrap();
+    h.step();
+    assert!(!h.app.ui.left_panel && !has(&h, "sidebarTitle"), "the sidebar is hidden");
+    let r = h.request("ui.menu.invoke", json!({"id": "app.showInFolders"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    h.step();
+    assert_eq!(h.app.session.source, lightcraft_engine::LibrarySource::LibraryFolder);
+    assert_eq!(h.app.session.library_folder.as_deref(), Some("/pics/trip/day1"));
+    assert_eq!(h.app.session.visible().len(), 1, "the folder's photos fill the grid");
+    assert_eq!(h.app.session.active(), h.app.session.visible().first().copied(), "the photo stays the active one");
+    assert!(h.app.ui.left_panel && !h.app.ui.sidebar.is_collapsed(SidebarSection::Folders), "the sidebar and Folders opened");
+    assert!(has(&h, "source:libfolder:/pics/trip/day1") && has(&h, "highlight:libfolder:/pics/trip/day1"), "its row is shown chosen");
+    // folded by hand, then asked again: the rows above open again
+    click(&mut h, "libraryFolderToggle:/pics/trip");
+    assert!(!has(&h, "source:libfolder:/pics/trip/day1"));
+    h.app.run("app.showInFolders", json!({})).unwrap();
+    h.step();
+    h.step();
+    assert!(has(&h, "source:libfolder:/pics/trip/day1"), "opened again");
+}
+
+/// A folder far down the list is scrolled into view.
+#[test]
+fn show_in_folders_scrolls_the_folder_into_view() {
+    let paths: Vec<String> = (0..60).map(|i| format!("/pics/f{i:02}/a.jpg")).collect();
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let mut h = folders_app_sized(&refs, [1400.0, 500.0]);
+    activate(&mut h, "/pics/f59/a.jpg");
+    h.app.run("app.showInFolders", json!({})).unwrap();
+    h.settle(SETTLE);
+    let row = widget(&h, "source:libfolder:/pics/f59");
+    assert!(row.top() >= widget(&h, "sidebarTitle").bottom() && row.bottom() <= 500.0, "in view: {row:?}");
+}
+
+/// Without an active photo in a library folder there is nothing to show: no photo, a demo scene.
+#[test]
+fn show_in_folders_needs_a_photo_in_a_library_folder() {
+    let mut h = folders_app(&["/pics/trip/a.jpg"]);
+    h.app.run("library.select", json!({"ids": []})).unwrap();
+    assert_eq!(h.app.session.active(), None);
+    assert!(!crate::menus::ui_enabled(&h.app, "app.showInFolders"));
+    let entry = crate::menus::menu_entries(&h.app).into_iter().find(|e| e.id == "app.showInFolders").unwrap();
+    assert!(!entry.enabled && entry.menu == ["Photo"], "listed in Photo, disabled");
+    assert!(h.app.run("app.showInFolders", json!({})).is_err());
+    assert_eq!(h.app.session.source, lightcraft_engine::LibrarySource::All, "nothing changed");
+    let mut demo = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
+    let scene = demo.session.visible().first().copied().unwrap();
+    demo.run("library.select", json!({"ids": [scene.0]})).unwrap();
+    assert!(!crate::menus::ui_enabled(&demo, "app.showInFolders"), "a demo scene has no folder");
+}
+
 #[test]
 fn a_renamed_folder_keeps_its_place_in_the_tree() {
     /// Removes the folder however the test ends.
