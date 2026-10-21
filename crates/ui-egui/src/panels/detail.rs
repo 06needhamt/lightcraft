@@ -568,8 +568,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         plan = crate::region::plan(&app.ui.settings, crate::region::ViewSizes { windows: false, ..sizes });
     }
     // time the full-size drafts where they are what shows: under a window the whole-frame draft
-    // is small anyway, and the frame's time is the window's upload
-    if let Some((key, ms)) = shown.filter(|_| plan.window_edge.is_none()) {
+    // is small anyway, and the frame's time is the window's upload. A view the GPU doesn't draw
+    // (⌥ pressed mid-drag) renders on the CPU and says nothing about the GPU drafts.
+    if let Some((key, ms)) = shown.filter(|_| plan.window_edge.is_none() && gpu) {
         app.drag_scale.observe(key, ms, app.perf.host_frame_ms);
     }
     // a pinch changes the zoom every frame: keep the sizes of before it until it is quiet
