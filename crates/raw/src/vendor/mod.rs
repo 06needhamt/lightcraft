@@ -13,6 +13,7 @@ pub mod crx;
 pub(crate) mod crx_wavelet;
 pub mod erf;
 pub mod kodak;
+pub mod lri;
 pub mod mef;
 pub mod nef;
 mod nef_lens;
