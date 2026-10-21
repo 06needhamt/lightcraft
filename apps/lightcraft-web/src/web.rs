@@ -270,6 +270,8 @@ async fn flush(files: Files, backend: Backend, dir: String, flushing: Rc<Cell<bo
         }
     }
     flushing.set(false);
+    // the page title drops its unsaved • now, even when nothing else wakes the page
+    request_repaint();
 }
 
 /// Everything loaded before the UI starts.
