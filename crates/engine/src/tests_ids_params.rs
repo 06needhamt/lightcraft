@@ -143,3 +143,23 @@ fn mask_and_spot_commands_refuse_ids_that_are_not_ids() {
     s.execute("spot.select", &json!({"index": null})).unwrap();
     assert_eq!(state(&s).0.len(), 1);
 }
+
+/// `photo.label` without a label, or with one that isn't text, cleared the colour label of every
+/// selected photo (a missing `label` read as `none`); now it is an error and only `none` or null clear.
+#[test]
+fn photo_label_refuses_a_missing_or_non_text_label() {
+    let (mut s, vis, _) = session();
+    s.execute("photo.label", &json!({"label": "red"})).unwrap();
+    let labels = |s: &Session| vis.iter().take(2).map(|id| s.catalog.photo(*id).unwrap().label).collect::<Vec<_>>();
+    let before = labels(&s);
+    assert!(before.iter().all(Option::is_some));
+    for params in [json!({}), json!({"label": 3}), json!({"label": true}), json!({"label": ["red"]}), json!({"label": "crimson"})] {
+        assert!(s.execute("photo.label", &params).is_err(), "{params}");
+        assert_eq!(labels(&s), before, "{params} changed the labels");
+    }
+    s.execute("photo.label", &json!({"label": null})).unwrap();
+    assert!(labels(&s).iter().all(Option::is_none));
+    s.execute("photo.label", &json!({"label": "green"})).unwrap();
+    s.execute("photo.label", &json!({"label": "none"})).unwrap();
+    assert!(labels(&s).iter().all(Option::is_none));
+}

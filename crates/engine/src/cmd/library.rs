@@ -804,9 +804,13 @@ pub fn specs() -> Vec<CommandSpec> {
             "{label: red|yellow|green|blue|purple|none, ids?}",
             has_selection,
             |s, p| {
-                let l = match str_param(p, "label") {
-                    None | Some("none") => None,
-                    Some(x) => Some(ColorLabel::parse(x).ok_or_else(|| bad("photo.label", "unknown label"))?),
+                // `none` (or null) clears; a missing label or one that isn't text is an error, not a clear
+                let l = match p.get("label") {
+                    Some(Value::Null) => None,
+                    Some(Value::String(x)) if x == "none" => None,
+                    Some(Value::String(x)) => Some(ColorLabel::parse(x).ok_or_else(|| bad("photo.label", "unknown label"))?),
+                    None => return Err(bad("photo.label", "missing `label` (red|yellow|green|blue|purple|none)")),
+                    Some(_) => return Err(bad("photo.label", "label must be red|yellow|green|blue|purple|none")),
                 };
                 for_targets(s, p, "Set Color Label", |id| Some(Op::SetLabel { id, label: l }))
             }
