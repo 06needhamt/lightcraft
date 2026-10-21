@@ -4387,6 +4387,43 @@ mod tests {
         h.settle(SETTLE);
     }
 
+    /// A hover preview gets the loupe's display fit: it is the size the photo is drawn at, as the
+    /// loupe render is, not a preview-level render the GPU shrinks.
+    #[test]
+    fn a_hover_preview_is_fitted_to_the_drawn_size() {
+        use crate::render::Slot;
+        let mut h = demo([1400.0, 900.0]);
+        let t = Duration::from_secs(10);
+        h.request("ui.set", json!({"view": "detail"}), t);
+        h.request("engine.execute", json!({"command": "panel.profiles"}), t);
+        h.settle(SETTLE);
+        h.step_until(SETTLE, |h| !h.app.renderer.is_pending(Slot::Main));
+        let r = h.request("ui.hoverWidget", json!({"id": "profileCell:lc.vivid"}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step_until(SETTLE, |h| h.app.loupe_shown.map(|l| l.1) == Some("hover"));
+        let size = |s: Slot| h.app.renderer.textures.get(&s).map(|t| t.size);
+        let (main, hover) = (size(Slot::Main).expect("loupe render"), size(Slot::Hover).expect("hover render"));
+        assert!(main[0].max(main[1]) < lightcraft_engine::SourceLevel::Preview.max_edge(), "the loupe render is fitted: {main:?}");
+        assert!(hover[0].abs_diff(main[0]) <= 1 && hover[1].abs_diff(main[1]) <= 1, "hover {hover:?} vs loupe {main:?}");
+    }
+
+    /// Zoomed in under a window render, the hidden whole-frame render stays canvas-sized instead of
+    /// rising to the preview level.
+    #[test]
+    fn a_zoomed_view_keeps_its_whole_frame_render_canvas_sized() {
+        use crate::render::Slot;
+        let mut h = demo([1000.0, 700.0]);
+        let t = Duration::from_secs(10);
+        h.request("ui.set", json!({"view": "detail", "right": "none"}), t);
+        h.settle(SETTLE);
+        h.request("ui.clickWidget", json!({"id": "canvas:image", "fx": 0.5, "fy": 0.5}), t);
+        h.settle(SETTLE);
+        assert_eq!(h.app.ui.zoom, crate::state::Zoom::Percent(100.0));
+        h.step_until(SETTLE, |h| !h.app.renderer.is_pending(Slot::Main));
+        let main = h.app.renderer.textures.get(&Slot::Main).expect("whole-frame render").size;
+        assert!(main[0].max(main[1]) < lightcraft_engine::SourceLevel::Preview.max_edge(), "{main:?}");
+    }
+
     #[test]
     fn trackpad_navigation_keeps_the_image_cursor_between_events() {
         let mut h = demo([1000.0, 700.0]);

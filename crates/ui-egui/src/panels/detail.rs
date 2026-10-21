@@ -581,7 +581,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // At rest the whole frame renders at no less than the preview source level: the source is then
     // copied 1:1 (no resample in the pipeline, whose prefilter and bilinear pass soften detail near
     // the output's limit) and shrunk once, by the Lanczos display fit below.
-    let want = if interacting {
+    // (zoomed in under a window render, the whole frame is hidden: it stays canvas-sized)
+    let want = if interacting || plan.window_edge.is_some() {
         plan.main_edge
     } else {
         // (a user's explicit Preview size below the preview level still caps it)
@@ -624,6 +625,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // once it is ready (nothing is committed)
     let hover_key = match app.hover_preview.clone() {
         Some(h) if !interacting => app.session.preview_job(id, sw.max(8), sh.max(8), !crop_tool, &h.settings).map(|job| {
+            // (the same display fit as the After view, drawn texel for texel like it)
+            let job = job.with_display_fit((target_rect.width() * ppp).round() as usize, (target_rect.height() * ppp).round() as usize);
             let key = job.key;
             app.renderer.request(Slot::Hover, job, 105);
             (key, h.label)
