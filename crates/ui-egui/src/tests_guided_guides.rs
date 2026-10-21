@@ -241,3 +241,68 @@ fn a_press_on_the_navigator_draws_no_guide() {
     assert_eq!(guides_len(&h), 2, "the press on the navigator drew no guide");
     assert_eq!(h.app.ui.selected_guide, None, "and selected nothing");
 }
+
+/// The context menu (anything floating above the photo) owns its own press: a left press on the
+/// menu that sits over a guide line selects nothing under it and starts no guide gesture — the
+/// canvas has to actually receive the press, not merely lie under the pointer.
+#[test]
+fn a_press_on_a_menu_over_a_guide_selects_nothing() {
+    let mut h = guided();
+    let id = h.app.session.active().expect("a photo");
+    let undo = h.app.session.undo.len();
+    let line = guide_at(&h, 0);
+    // right-click 30px up-left of that point: the context menu opens with its top-left corner
+    // at the pointer (gap 0), so its frame covers the guide from 30px inside every edge
+    let r = h.request("ui.click", json!({"x": line.x - 30.0, "y": line.y - 30.0, "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(h.view.ctx.any_popup_open(), "the context menu is open over the photo");
+    let img = h.app.image_rect.expect("the photo on screen");
+    let (lx, ly) = ((line.x - img.left()) / img.width(), (line.y - img.top()) / img.height());
+    let r = h.request("ui.pointer", json!({"events": [{"kind": "down", "x": lx, "y": ly}, {"kind": "up", "x": lx, "y": ly}]}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.selected_guide, None, "the press under the menu selects nothing");
+    assert!(h.app.gesture.is_none(), "and starts no gesture");
+    assert_eq!(guides_len(&h), 2, "and draws nothing");
+    assert_eq!(h.app.session.undo.len(), undo, "no edit was written");
+    let d = h.app.session.catalog.photo(id).expect("the photo");
+    let (a, b) = d.develop.geometry.guides[0];
+    assert!(
+        (a.x - 0.2).abs() < 1e-6 && (a.y - 0.3).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.3).abs() < 1e-6,
+        "the guide is untouched: {a:?}–{b:?}"
+    );
+}
+
+/// Same for an endpoint under the menu: a press-drag on it moves nothing and selects nothing —
+/// the endpoint-drag gesture never starts because the menu, not the canvas, took the press.
+#[test]
+fn a_press_on_a_menu_over_an_endpoint_moves_nothing() {
+    let mut h = guided();
+    let id = h.app.session.active().expect("a photo");
+    let undo = h.app.session.undo.len();
+    let end = guide_rect(&h, 0).left_top();
+    let r = h.request("ui.click", json!({"x": end.x - 30.0, "y": end.y - 30.0, "button": "right"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert!(h.view.ctx.any_popup_open(), "the context menu is open over the photo");
+    let img = h.app.image_rect.expect("the photo on screen");
+    let (ex, ey) = ((end.x - img.left()) / img.width(), (end.y - img.top()) / img.height());
+    let r = h.request(
+        "ui.pointer",
+        json!({"events": [{"kind": "down", "x": ex, "y": ey}, {"kind": "drag", "x": ex + 0.05, "y": ey + 0.08}, {"kind": "up", "x": ex + 0.05, "y": ey + 0.08}]}),
+        T,
+    );
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.selected_guide, None, "the endpoint's press under the menu selects nothing");
+    assert!(h.app.gesture.is_none(), "and starts no gesture");
+    assert_eq!(guides_len(&h), 2, "and draws nothing");
+    assert_eq!(h.app.session.undo.len(), undo, "no edit was written");
+    let d = h.app.session.catalog.photo(id).expect("the photo");
+    let (a, b) = d.develop.geometry.guides[0];
+    assert!(
+        (a.x - 0.2).abs() < 1e-6 && (a.y - 0.3).abs() < 1e-6 && (b.x - 0.8).abs() < 1e-6 && (b.y - 0.3).abs() < 1e-6,
+        "the endpoint under the menu did not move: {a:?}–{b:?}"
+    );
+}

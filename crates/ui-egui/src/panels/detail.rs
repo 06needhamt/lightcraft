@@ -1877,10 +1877,14 @@ fn guided_overlay(
     // threshold would have been crossed): on an endpoint it drags that endpoint (the guide is
     // selected when it lands), on a line it selects the guide (a press on the selected one
     // deselects), anywhere else it starts a new guide from the press point. The primary button
-    // only, and never on the navigator — it pans the photo, it draws no guide.
+    // only, never on the navigator — it pans the photo, it draws no guide — and only where the
+    // loupe itself takes the press: `contains_pointer` is layer-aware (the raw pointer is not),
+    // so anything floating above the photo — a context menu, a dropdown, a dialog — owns the
+    // press and the guide under it stays untouched.
     let nav = app.widgets.iter().rev().find(|(w, _)| w == "canvas:navigator").map(|(_, r)| *r);
     if ui.input(|i| i.pointer.primary_pressed())
         && let Some(q) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos())
+        && resp.contains_pointer()
         && resp.rect.contains(q)
         && !nav.is_some_and(|n| n.expand(5.0).contains(q))
     {
