@@ -137,6 +137,29 @@ fn zoomed_in_the_before_label_stays_in_view() {
     assert_eq!(zoomed.min, canvas.min + egui::vec2(8.0, 8.0));
 }
 
+/// With the info overlay on, zoomed in, the Before label sits below the overlay's lines instead
+/// of under them (both live in the canvas' top-left corner).
+#[test]
+fn zoomed_in_the_before_label_keeps_clear_of_the_info_overlay() {
+    use crate::state::{BeforeAfter, InfoOverlay, Zoom};
+    let mut h = detail();
+    h.app.ui.before_after = BeforeAfter::Original;
+    h.app.ui.info_overlay = InfoOverlay::Exposure;
+    h.app.ui.zoom = Zoom::Percent(100.0);
+    h.app.ui.pan = (0.3, 0.4);
+    h.settle(SETTLE);
+    let rect = |h: &mut Headless, id: &str| -> egui::Rect {
+        let w = h.request("ui.widgets", json!({"filter": id}), T);
+        let r = w["result"][0]["rect"].as_array().unwrap_or_else(|| panic!("{id} is registered: {w}"));
+        let v: Vec<f32> = r.iter().filter_map(|x| x.as_f64()).map(|x| x as f32).collect();
+        egui::Rect::from_min_size(egui::pos2(v[0], v[1]), egui::vec2(v[2], v[3]))
+    };
+    let (badge, overlay) = (rect(&mut h, "canvas:beforeLabel"), rect(&mut h, "canvas:infoOverlay"));
+    let canvas = h.app.canvas_rect.expect("canvas");
+    assert!(badge.top() >= overlay.bottom(), "the label {badge:?} is below the overlay {overlay:?}");
+    assert!(canvas.contains_rect(badge), "and still in view: {badge:?} in {canvas:?}");
+}
+
 /// A crop of no size (or a hair wide), from an agent or a sidecar, gave the loupe a NaN aspect:
 /// the photo was laid out at a NaN size, which egui's debug checks stop on (a panic in a debug
 /// build) and nothing could be drawn or clicked. It now lays out at a finite size, fitted and at

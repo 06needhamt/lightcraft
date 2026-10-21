@@ -751,8 +751,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let shown;
     // the Before label's pill, painted once the window renders are down (they would cover it)
     let mut before_badge: Option<(Rect, std::sync::Arc<egui::Galley>)> = None;
-    // below the filter pill when it is there (the canvas' top-left corner is its place)
-    let badge_top_inset = if !fullscreen && filter_pill_shown(app) { FILTER_PILL_INSET + FILTER_PILL_HEIGHT } else { 0.0 };
+    // below what else lives in the canvas' top-left corner: the filter pill, the info overlay
+    let pill_inset = if !fullscreen && filter_pill_shown(app) { FILTER_PILL_INSET + FILTER_PILL_HEIGHT } else { 0.0 };
+    let badge_top_inset = pill_inset.max(info_overlay_extent(app, &p, &photo));
     if split {
         // each view stays in its pane: zoomed in, a photo reaches past it (and would cover the
         // other view's margins with its whole-frame render, magnified and blurred)
@@ -983,9 +984,46 @@ fn label_badge_rect(photo: Rect, pane: Rect, text: egui::Vec2, top_inset: f32) -
 /// The info overlay at the canvas' top left (`view.infoOverlay`): file name with the capture date
 /// and size, or with the camera and exposure.
 fn info_overlay(app: &LightcraftApp, p: &egui::Painter, canvas: Rect, photo: &lightcraft_catalog::Photo) {
+    let Some(lines) = info_overlay_lines(app, photo) else { return };
+    let t = Tokens::get(p.ctx());
+    let mut y = canvas.top() + INFO_OVERLAY_TOP;
+    for (i, l) in lines.iter().enumerate() {
+        // laid out uncoloured: `galley` only fills placeholder text with its colour, so a white
+        // layout made the shadow a second white copy (#1690)
+        let g = p.layout_no_wrap(l.clone(), info_overlay_font(&t, i), Color32::PLACEHOLDER);
+        let at = pos2(canvas.left() + 14.0, y);
+        // a soft shadow keeps the text readable on bright photos
+        p.galley(at + vec2(1.0, 1.0), g.clone(), Color32::from_black_alpha(200));
+        p.galley(at, g.clone(), Color32::WHITE);
+        y += g.size().y + INFO_OVERLAY_GAP;
+    }
+    register(p.ctx(), "canvas:infoOverlay", Rect::from_min_max(canvas.min, pos2(canvas.left() + 320.0, y)));
+}
+
+/// Where the info overlay's text starts below the canvas' top, and the gap after each line.
+const INFO_OVERLAY_TOP: f32 = 12.0;
+const INFO_OVERLAY_GAP: f32 = 3.0;
+
+/// The info overlay's font for line `i` (the file name is the first, larger line).
+fn info_overlay_font(t: &Tokens, i: usize) -> egui::FontId {
+    if i == 0 { t.semibold(15.0) } else { t.font(12.5) }
+}
+
+/// How far below the canvas' top the info overlay's text reaches (0 when it is off), so a label
+/// drawn in that corner can sit below it.
+fn info_overlay_extent(app: &LightcraftApp, p: &egui::Painter, photo: &lightcraft_catalog::Photo) -> f32 {
+    let Some(lines) = info_overlay_lines(app, photo) else { return 0.0 };
+    let t = Tokens::get(p.ctx());
+    lines.iter().enumerate().fold(INFO_OVERLAY_TOP, |y, (i, l)| {
+        y + p.layout_no_wrap(l.clone(), info_overlay_font(&t, i), Color32::PLACEHOLDER).size().y + INFO_OVERLAY_GAP
+    })
+}
+
+/// The info overlay's lines for `photo`, or `None` when it is off.
+fn info_overlay_lines(app: &LightcraftApp, photo: &lightcraft_catalog::Photo) -> Option<Vec<String>> {
     use crate::state::InfoOverlay;
     let lines: Vec<String> = match app.ui.info_overlay {
-        InfoOverlay::Off => return,
+        InfoOverlay::Off => return None,
         InfoOverlay::Basic => {
             let date = photo.captured.as_deref().unwrap_or(&photo.imported);
             vec![photo.file_name.clone(), format!("{} · {} × {}", pretty_date(date), photo.width, photo.height)]
@@ -1014,20 +1052,7 @@ fn info_overlay(app: &LightcraftApp, p: &egui::Painter, canvas: Rect, photo: &li
             v
         }
     };
-    let t = Tokens::get(p.ctx());
-    let mut y = canvas.top() + 12.0;
-    for (i, l) in lines.iter().enumerate() {
-        let font = if i == 0 { t.semibold(15.0) } else { t.font(12.5) };
-        // laid out uncoloured: `galley` only fills placeholder text with its colour, so a white
-        // layout made the shadow a second white copy (#1690)
-        let g = p.layout_no_wrap(l.clone(), font, Color32::PLACEHOLDER);
-        let at = pos2(canvas.left() + 14.0, y);
-        // a soft shadow keeps the text readable on bright photos
-        p.galley(at + vec2(1.0, 1.0), g.clone(), Color32::from_black_alpha(200));
-        p.galley(at, g.clone(), Color32::WHITE);
-        y += g.size().y + 3.0;
-    }
-    register(p.ctx(), "canvas:infoOverlay", Rect::from_min_max(canvas.min, pos2(canvas.left() + 320.0, y)));
+    Some(lines)
 }
 
 /// What the user did to a face box this frame.
