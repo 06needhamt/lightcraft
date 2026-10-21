@@ -72,7 +72,7 @@ fn orientation_overrides_and_is_checked() {
 #[test]
 fn a_bad_orientation_is_refused_before_anything_is_locked() {
     let mut s = landscape_photo();
-    let before = s.develop_of(s.selection.active.unwrap()).unwrap().crop.clone();
+    let before = s.develop_of(s.selection.active.unwrap()).unwrap().crop;
     for aspect in [json!("current"), json!("toggle"), json!("2x3"), json!([2, 3]), json!("free")] {
         for orientation in [json!("sideways"), json!(1), json!(true), json!(null)] {
             let e = s.execute("crop.aspect", &json!({"aspect": aspect, "orientation": orientation})).unwrap_err();
