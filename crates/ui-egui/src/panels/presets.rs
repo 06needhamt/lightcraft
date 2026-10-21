@@ -59,11 +59,12 @@ struct AppliedByPhoto(std::collections::HashMap<lightcraft_catalog::PhotoId, (St
 impl AppliedByPhoto {
     const ID: &'static str = "preset-applied-by-photo";
 
-    /// Remember `preset` on the photos `preset.apply` just changed (the selection, else the active photo).
+    /// Remember `preset` on the photos `preset.apply` just changed (the selection, else the active
+    /// photo; an active photo outside the selection wasn't changed and isn't marked).
     fn remember(ctx: &egui::Context, session: &lightcraft_engine::Session, preset: &str) {
         let id = egui::Id::new(Self::ID);
         let mut map: Self = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
-        for photo in session.selection.ids.iter().copied().chain(session.active()) {
+        for photo in session.selected() {
             if let Some(d) = session.develop_of(photo) {
                 map.0.insert(photo, (preset.to_string(), d));
             }
