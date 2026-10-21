@@ -1128,6 +1128,8 @@ mod thumbnail_tests {
             image.data.fill([0.3, 0.2, 0.1]);
             Ok((image, Default::default()))
         }));
+        // (`with_fs` sets the file system's thumbnail loader, which wins over `file_loader`: thumbnails use the stub too)
+        s.media.reduced_loader = None;
         s.catalog.apply(Op::AddPhoto { photo: Box::new(photo) }).unwrap();
         let mut app = crate::LightcraftApp::new(s, crate::Services::default());
         app.renderer.keep_pixels = true;
