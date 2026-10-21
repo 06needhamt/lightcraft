@@ -6,6 +6,15 @@
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
 
+## 2026-10-15
+
+### Constrain Crop tightens the crop you see
+- Geometry ▸ Constrain Crop now changes the crop itself, as in Lightroom (issue #1927). Ticking it, or moving a
+  Geometry slider, Upright or a lens correction while it is ticked, shrinks the crop about its centre until the blank
+  corners left by the correction are gone, and the Crop tool shows the tighter crop. Before, it only applied when the
+  photo was shown outside the Crop tool, so in the Crop panel, where the checkbox is, nothing seemed to change. A crop
+  you draw by hand is kept as drawn, and unticking keeps the tighter crop.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
