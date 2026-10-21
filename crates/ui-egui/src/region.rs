@@ -331,6 +331,7 @@ pub const HOLD_SECS: f64 = 0.25;
 pub struct SizeHold {
     photo: Option<lightcraft_catalog::PhotoId>,
     plan: Option<LoupePlan>,
+    display_fit: Option<(usize, usize)>,
     until: f64,
 }
 
@@ -339,7 +340,7 @@ impl SizeHold {
     /// one is running (`gesturing`) and for [`HOLD_SECS`] after. `now` is in seconds.
     pub fn apply(&mut self, photo: lightcraft_catalog::PhotoId, now: f64, gesturing: bool, fresh: LoupePlan) -> LoupePlan {
         if self.photo != Some(photo) {
-            *self = SizeHold { photo: Some(photo), plan: Some(fresh), until: f64::NEG_INFINITY };
+            *self = SizeHold { photo: Some(photo), plan: Some(fresh), display_fit: None, until: f64::NEG_INFINITY };
             return fresh;
         }
         if gesturing {
@@ -352,6 +353,22 @@ impl SizeHold {
                 fresh
             }
         }
+    }
+
+    /// Hold the final display-fit box with the render plan. Changing that box also changes the
+    /// render key, even when the plan's source sizes stay fixed. A new photo clears both.
+    pub fn apply_with_display_fit(
+        &mut self,
+        photo: lightcraft_catalog::PhotoId,
+        now: f64,
+        gesturing: bool,
+        fresh: LoupePlan,
+        display_fit: (usize, usize),
+    ) -> (LoupePlan, (usize, usize)) {
+        let plan = self.apply(photo, now, gesturing, fresh);
+        let fit = if self.holding(now) { self.display_fit.unwrap_or(display_fit) } else { display_fit };
+        self.display_fit = Some(fit);
+        (plan, fit)
     }
 
     /// Whether sizes are being held at `now` (the caller asks for a repaint when it ends).
@@ -897,6 +914,20 @@ mod tests {
         let mut hold = SizeHold::default();
         hold.apply(PhotoId(1), 0.0, false, fit);
         assert_eq!(hold.apply(PhotoId(2), 0.1, true, zoomed), zoomed);
+    }
+
+    #[test]
+    fn the_display_fit_is_held_until_the_exact_deadline_and_reset_for_another_photo() {
+        use lightcraft_catalog::PhotoId;
+        let mut hold = SizeHold::default();
+        let (fit, zoomed) = (plan(&auto(), sizes(762.0, 1400.0, 6000)), plan(&auto(), sizes(823.0, 1400.0, 6000)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(1), 0.0, false, fit, (508, 762)), (fit, (508, 762)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(1), 1.0, true, zoomed, (549, 823)), (fit, (508, 762)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(1), 1.0 + HOLD_SECS / 2.0, false, zoomed, (549, 823)), (fit, (508, 762)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(1), 1.0 + HOLD_SECS, false, zoomed, (549, 823)), (zoomed, (549, 823)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(1), 2.0, true, fit, (508, 762)), (zoomed, (549, 823)));
+        assert_eq!(hold.apply_with_display_fit(PhotoId(2), 2.01, true, fit, (1000, 667)), (fit, (1000, 667)));
+        assert!(!hold.holding(2.01));
     }
 
     // Given side by side, a window is drawn in its pane only; given a wipe, on its side of the line
