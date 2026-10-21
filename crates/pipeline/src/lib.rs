@@ -663,11 +663,8 @@ pub fn color_range_sample(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, 
 }
 
 /// The alpha plane a mask overlay shows: the one the render evaluated, or (for a hidden mask) a
-/// fresh evaluation. For [`Overlay::SharpenMask`], the weight sharpening gets at each pixel.
+/// fresh evaluation.
 fn overlay_alpha(o: Overlay, plan: &Plan<'_>, prep: &Prepared) -> Option<Plane> {
-    if o == Overlay::SharpenMask {
-        return Some(finish::sharpen_weight_plane(prep, &plan.settings));
-    }
     let m = o.mask(&plan.settings)?;
     if let Some(e) = prep.masks.iter().find(|e| e.id == m.id) {
         return Some(e.alpha.clone());

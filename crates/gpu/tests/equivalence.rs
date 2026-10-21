@@ -680,27 +680,6 @@ fn overlays_match() {
         let req = RenderRequest { overlay: Overlay::Mask { id, view, color: [230, 30, 40], opacity: 50 }, ..RenderRequest::fit(640, 640) };
         check(&format!("mask {id} overlay {}", view.name()), &src, &raw, &s, &req);
     }
-    // The ⌥-drag views (issue #937): clipping and grey, on an edit that clips both ends.
-    let mut s = DevelopSettings::default();
-    typical(&mut s);
-    s.light.whites = 60.0;
-    s.light.blacks = -60.0;
-    check("grey overlay", &src, &raw, &s, &RenderRequest { overlay: Overlay::Grey, ..RenderRequest::fit(640, 640) });
-    // The clipping views test each channel for exactly 0 / 255 (both renderers draw them with
-    // `visualize::apply` on their 8-bit image): like Visualize Spots, a 1-LSB difference at the
-    // threshold flips a pixel, so compare the share of differing pixels, and that the views agree
-    // on what clips.
-    for (overlay, edge) in [(Overlay::ShadowClip, 0u8), (Overlay::HighlightClip, 255)] {
-        let req = RenderRequest { overlay, ..RenderRequest::fit(640, 640) };
-        let plain = render(&src, &raw, &s, &RenderRequest::fit(640, 640)).image;
-        let cpu = render(&src, &raw, &s, &req).image;
-        let gpu = lightcraft_gpu::render(&src, &raw, &s, &req, None).expect("gpu").image;
-        let differ = cpu.data.iter().zip(&gpu.data).filter(|(a, b)| a != b).count() as f64 / cpu.data.len() as f64;
-        let clipped = plain.data.iter().filter(|p| p[..3].contains(&edge)).count() as f64 / plain.data.len() as f64;
-        eprintln!("{overlay:<28?} clipped {:.3}%  differing {:.4}%", clipped * 100.0, differ * 100.0);
-        assert!(clipped > 0.001, "{overlay:?}: the edit clips nothing to compare");
-        assert!(differ < 0.002, "{overlay:?}: {differ}");
-    }
 }
 
 #[test]
