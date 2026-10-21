@@ -151,9 +151,10 @@ are the same in every version, so serve them with `Cache-Control: no-cache` (not
   `write` service hands each file to the browser as a download instead of writing it to disk.
 - **Automation.** `await lightcraft.command("library.info", "{}")` runs any engine or UI command
   by id on the next frame and resolves to the JSON result (`web.stats` reports storage, workers
-  and the render queue). The params are a JSON object (empty text means `{}`); text that isn't
-  one rejects the promise and runs nothing, as the control channel and MCP do, so a typo can't
-  run a command on the selection. This is how the headless-Chrome checks drive the page.
+  and the render queue). The params are a JSON object; empty text and JSON `null` mean `{}`
+  (no params: a command that takes photo ids then acts on the selection). Any other text that
+  isn't an object rejects the promise and runs nothing, as the control channel and MCP do, so a
+  typo can't run a command on the selection. This is how the headless-Chrome checks drive the page.
 
 ## Not yet
 
