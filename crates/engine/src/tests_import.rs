@@ -630,7 +630,7 @@ fn cube_import_without_a_library_leaves_no_temp_copy() {
     let id = r["imported"][0]["id"].as_str().unwrap().to_string();
     assert!(lightcraft_pipeline::lut::get(&id).is_some(), "usable in this session");
     let file = s.lut_profiles.iter().find(|p| p.id == id).unwrap().file.clone();
-    assert!(file.is_empty() || Path::new(&file).starts_with(&src), "no copy written: {file}");
+    assert!(file.is_empty(), "no file kept without a library: {file}");
     drop(s);
     assert!(!leak.exists(), "{} left behind", leak.display());
     lightcraft_pipeline::lut::unregister(&id);
