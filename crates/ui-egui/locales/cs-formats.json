@@ -266,6 +266,7 @@
   "Update “{name}” with Current Settings": "Update “{name}” with Current Settings",
   "{n} preset{}": "{n} preset{}",
   "{count} more warnings.": "{count} more warnings.",
+  "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "Neimportované obrázky katalogu: {skipped}. Jejich záznamy v katalogu jsou neúplné.",
   "{photos} catalog records processed; {collections} collections.": "{photos} catalog records processed; {collections} collections.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.",
   "Applied {name}": "Applied {name}",
