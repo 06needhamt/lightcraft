@@ -667,11 +667,40 @@ impl eframe::App for WebApp {
     }
 }
 
+/// "Auto" follows the browser's languages (issue #2085): the first of `navigator.languages` (else
+/// `navigator.language`) that LightCraft ships becomes the UI's default. Every step is fallible
+/// (as in [`crate::safety::acquire_tab_lock`]): without a usable navigator Auto stays English,
+/// as before.
+fn install_browser_language() {
+    let Ok(navigator) = js_sys::Reflect::get(&js_sys::global(), &"navigator".into()) else { return };
+    let mut tags: Vec<String> = Vec::new();
+    if let Ok(languages) = js_sys::Reflect::get(&navigator, &"languages".into())
+        && let Some(languages) = languages.dyn_ref::<js_sys::Array>()
+    {
+        for tag in languages.iter() {
+            if let Some(tag) = tag.as_string() {
+                tags.push(tag);
+            }
+        }
+    }
+    if tags.is_empty()
+        && let Ok(language) = js_sys::Reflect::get(&navigator, &"language".into())
+        && let Some(language) = language.as_string()
+    {
+        tags.push(language);
+    }
+    if let Some(language) = lightcraft_ui_egui::i18n::locale_from_tags(&tags) {
+        lightcraft_ui_egui::i18n::set_default_language(language);
+        log::info!("lightcraft: default language {language:?} from the browser's languages");
+    }
+}
+
 /// Start the app with the separately fetched Simplified Chinese font (empty in font-free builds).
 #[wasm_bindgen]
 pub fn start(chinese_font: Vec<u8>) {
     eframe::WebLogger::init(log::LevelFilter::Info).ok();
     safety::install_panic_hook();
+    install_browser_language();
     log::info!("lightcraft: wasm instantiated at {:.0} ms", perf_now());
     if chinese_font.is_empty() {
         log::warn!("lightcraft: no Simplified Chinese font supplied; Chinese-only glyphs will show as boxes");
