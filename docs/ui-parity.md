@@ -156,6 +156,6 @@ establish OS keyboard delivery or cross-platform acceptance.
 | 2026-10-13 | minor | Shortcuts: Home / End and Shift+Left / Right in the two library grids, Cmd+O (Open Library…) and Shift+H (Visualize HDR) get bindings and keyboard tests; percentages and the dated counts above are unchanged |
 | 2026-10-14 | minor | Zoom row: soft proofing gets zoom windows; LR-VIEW-ZOOM gap closed |
 | 2026-10-12 | minor | Accessibility: an AccessKit tree audit test over every view, Develop tool and 13 dialogs; unnamed fields, slider ranges and the Auto Stack slider fixed; 30% → 55%; UI remaining 40–70 h → 34–58 h |
-| 2026-10-11 | minor | Reference Escape exits to Detail; catalog-local pins and missing/deleted reference handling verified with regressions and native Windows smoke |
+| 2026-10-21 | minor | Reference Escape exits to Detail; catalog-local pins and missing/deleted reference handling verified with regressions and native Windows smoke |
 | 2026-10-11 | minor | Zoom row: Compare and Reference get zoom windows; what remains of LR-VIEW-ZOOM is overlays and soft proofing |
 | 2026-10-10 | major | Created: measured command and shortcut counts, assessment by area, estimates; moved the shortcut conflicts section here from the checklist |

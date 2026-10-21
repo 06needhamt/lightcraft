@@ -243,6 +243,17 @@ fn invalid_or_deleted_reference_is_refused_without_replacing_the_pin() {
         assert!(r.is_err(), "unavailable photo {id} must not be pinned");
         assert_eq!(h.app.ui.reference, Some(ids[0].0));
     }
+    let deleted = h.app.run("photo.setReference", json!({"id": ids[1].0})).unwrap_err();
+    assert!(deleted.contains("Recently Deleted"), "the caller learns to restore it: {deleted}");
+    // a malformed id is refused, not taken for "the active photo"
+    h.app.run("library.select", json!({"ids": [ids[2].0]})).unwrap();
+    for id in [json!(ids[2].0.to_string()), json!(-1), json!(1.5), json!([ids[2].0])] {
+        assert!(h.app.run("photo.setReference", json!({"id": id})).is_err(), "{id}");
+        assert_eq!(h.app.ui.reference, Some(ids[0].0));
+    }
+    h.app.run("photo.setReference", json!({"id": null})).unwrap();
+    assert_eq!(h.app.ui.reference, Some(ids[2].0), "a null id means the active photo");
+    h.app.run("photo.setReference", json!({"id": ids[0].0})).unwrap();
     h.app.run("library.select", json!({"ids": []})).unwrap();
     assert!(h.app.run("photo.setReference", json!({})).is_err());
     assert_eq!(h.app.ui.reference, Some(ids[0].0));
@@ -262,6 +273,8 @@ fn deleting_the_pinned_reference_stops_drawing_it_and_reentry_uses_a_live_photo(
     h.app.run("photo.delete", json!({"ids": [reference.0]})).unwrap();
     h.settle(SETTLE);
     assert!(!drawn(&h), "Recently Deleted photos must not remain on the reference canvas");
+    assert!(!h.app.renderer.textures.contains_key(&crate::render::Slot::Compare(0)), "the deleted reference's pane is released");
+    assert!(h.app.compare_windows[0].is_none());
     let r = h.app.run("view.reference", json!({})).unwrap();
     assert_eq!(r["reference"], active.0);
     assert_eq!(h.app.ui.reference, Some(active.0));

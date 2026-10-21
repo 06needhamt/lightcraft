@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (LR-VIEW-ZOOM: only a full-size drag within 20 ms clears a slow-drag verdict) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** minor (LRC-LIB-REFVIEW / CATALOG-SWITCH: Escape preserves edits; catalog-local pins; deleted and malformed references refused) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -880,7 +880,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-13 | minor | LR-META-INFO: Nikon DSLR raws show their lens from the maker note; status unchanged (✅) |
 | 2026-10-13 | patch | LR-IMP-LOCAL: browsing a Local folder again forgets the untouched records of files deleted or moved by another app (issue #1392); status unchanged |
 | 2026-10-13 | minor | LR-MERGE-PANO: a panorama keeps its photos' resolution (up to 512 MP / 65,000 px) instead of a fixed 40 MP, held to what fits in memory (issue #1455); status unchanged |
-| 2026-10-11 | minor | LRC-LIB-REFVIEW / CATALOG-SWITCH: Escape preserves edits; reference pins stay within their catalog, unavailable photos refused, deleted reference not drawn; statuses unchanged |
+| 2026-10-21 | minor | LRC-LIB-REFVIEW / CATALOG-SWITCH: Escape preserves edits; reference pins stay within their catalog, unavailable or malformed photo ids refused, deleted reference not drawn and its pane released, a switch leaves Reference view; statuses unchanged |
 | 2026-10-11 | minor | KEY-SLIDER-TYPE: honor immediate Return/Escape and keep typed keys in the value editor; add regression references |
 | 2026-10-11 | minor | LR-PROF-CAMERACOLOR: raws with a black-and-white camera JPEG take its tone curve (issue #577) |
 | 2026-10-11 | minor | LR-VIEW-ZOOM and LR-VIEW-COMPARE: Compare and Reference are sharp at 1:1 (zoom windows per pane, two originals kept decoded while they are open); statuses unchanged |

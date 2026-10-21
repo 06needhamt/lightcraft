@@ -200,10 +200,12 @@ fn reference_photo_ids_do_not_cross_library_boundaries() {
     let held = lightcraft_catalog::LibraryLock::acquire(&second, "another program").unwrap();
     assert!(app.run("app.openLibrary", json!({"path": second.to_string_lossy()})).is_err());
     assert_eq!(app.ui.reference, Some(old_reference.0), "a refused switch keeps the live pin");
+    assert_eq!(app.ui.view, crate::state::ViewMode::Reference);
     drop(held);
     app.run("app.openLibrary", json!({"path": second.to_string_lossy()})).unwrap();
     assert!(app.session.catalog.photo(old_reference).is_some(), "the second library reuses this numeric ID");
     assert_eq!(app.ui.reference, None, "the first library's pin must not acquire a different photo");
+    assert_eq!(app.ui.view, crate::state::ViewMode::PhotoGrid, "an empty Reference view is not left on screen");
     app.run("library.select", json!({"ids": [new_photo.0]})).unwrap();
     let r = app.run("view.reference", json!({})).unwrap();
     assert_eq!(r["reference"], new_photo.0);

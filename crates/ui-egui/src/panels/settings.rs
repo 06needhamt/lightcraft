@@ -1129,7 +1129,6 @@ fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> 
         app.ui.dialog = None;
     }
     app.renderer.forget_all();
-    app.ui.compare = None;
     if let Err(err) = opened {
         let Some(prev) = previous_dir else { return Err(err) };
         return match app.session.open_library(&prev, false) {
@@ -1137,8 +1136,13 @@ fn switch_library(app: &mut LightcraftApp, path: &str) -> Result<Value, String> 
             Err(e) => Err(format!("{err}; reopening the previous library {} failed too: {e}", prev.display())),
         };
     }
-    // Photo IDs are local to a catalog: a pin cannot follow them into another library.
+    // Photo IDs are local to a catalog: pins cannot follow them into another library (a refused
+    // or failed switch reopens the same catalog, so its pins stay).
     app.ui.reference = None;
+    app.ui.compare = None;
+    if app.ui.view == crate::state::ViewMode::Reference {
+        app.ui.view = crate::state::ViewMode::PhotoGrid;
+    }
     app.ui.settings.library_path = path.clone();
     if let Some(prev) = previous.filter(|p| p != &path && !app.ui.settings.recent_libraries.contains(p)) {
         remember_library(&mut app.ui.settings.recent_libraries, &prev);
