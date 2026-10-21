@@ -152,6 +152,10 @@ are the same in every version, so serve them with `Cache-Control: no-cache` (not
 - **Automation.** `await lightcraft.command("library.info", "{}")` runs any engine or UI command
   by id on the next frame and resolves to the JSON result (`web.stats` reports storage, workers
   and the render queue). This is how the headless-Chrome checks drive the page.
+- **The page title names the open photo**: `<file name> — LightCraft`, with ` •` after the name while
+  changes are not yet written to browser storage (`LightcraftApp::page_title`). eframe's web runner
+  ignores the window title the desktop app sets, and a host that embeds the page reads this title to
+  tell which photo a drop opened and whether it is saved (issue #2397).
 
 ## Not yet
 

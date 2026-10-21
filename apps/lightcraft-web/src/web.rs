@@ -383,6 +383,8 @@ struct WebApp {
     lib_dir: String,
     bench: Option<Bench>,
     first_frame_logged: bool,
+    /// The page title last set (`document.title`), so it is written only when it changes.
+    title: String,
     last_save: f64,
     ui_written: Vec<u8>,
 }
@@ -475,6 +477,7 @@ impl WebApp {
             lib_dir,
             bench: opts.bench.then(|| Bench::new(origin)),
             first_frame_logged: false,
+            title: String::new(),
             last_save: 0.0,
             ui_written,
         }
@@ -660,6 +663,14 @@ impl eframe::App for WebApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        // eframe's web runner ignores `ViewportCommand::Title`: name the open photo in the page title
+        let title = self.app.page_title(self.files.is_dirty() || self.flushing.get());
+        if title != self.title
+            && let Some(doc) = window().and_then(|w| w.document())
+        {
+            doc.set_title(&title);
+            self.title = title;
+        }
         if !self.first_frame_logged && !self.app.widgets.is_empty() {
             self.first_frame_logged = true;
             log::info!("lightcraft first UI frame at {:.0} ms after navigation start", perf_now());
