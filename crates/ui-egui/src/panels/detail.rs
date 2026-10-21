@@ -1878,13 +1878,16 @@ fn guided_overlay(
     // selected when it lands), on a line it selects the guide (a press on the selected one
     // deselects), anywhere else it starts a new guide from the press point. The primary button
     // only, never on the navigator — it pans the photo, it draws no guide — and only where the
-    // loupe itself takes the press: `contains_pointer` is layer-aware (the raw pointer is not),
-    // so anything floating above the photo — a context menu, a dropdown, a dialog — owns the
-    // press and the guide under it stays untouched.
+    // loupe itself takes the press: `contains_pointer` is layer-aware over the current pointer
+    // (the raw pointer is not), and `layer_id_at` asks the same question at the press point —
+    // a menu can receive the press and the pointer can leave it within the same frame, so the
+    // press itself must belong to the loupe's layer. Anything floating above the photo — a
+    // context menu, a dropdown, a dialog — owns its own press; the guide under it stays put.
     let nav = app.widgets.iter().rev().find(|(w, _)| w == "canvas:navigator").map(|(_, r)| *r);
     if ui.input(|i| i.pointer.primary_pressed())
         && let Some(q) = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos())
         && resp.contains_pointer()
+        && ui.ctx().layer_id_at(q) == Some(resp.layer_id)
         && resp.rect.contains(q)
         && !nav.is_some_and(|n| n.expand(5.0).contains(q))
     {
