@@ -373,6 +373,26 @@ pub fn is_supported(path: &Path) -> bool {
     path.extension().is_some_and(|e| EXTENSIONS.contains(&e.to_string_lossy().to_lowercase().as_str()))
 }
 
+/// The web file picker's accept list, derived from [`EXTENSIONS`]. Each extension
+/// is listed in both cases: browsers' `accept` matching is case-insensitive per
+/// spec, but some implementations (e.g. Windows/Edge) match case-sensitively and
+/// rejected uppercase `.NEF` files, so a lowercase-only list silently hid raws
+/// such as CR3, NRW, RAF, ORF, RW2, RWL, RAW, PEF and SRW from the picker.
+pub fn accept_list() -> String {
+    let mut out = String::new();
+    for &ext in EXTENSIONS {
+        if !out.is_empty() {
+            out.push(',');
+        }
+        out.push('.');
+        out.push_str(ext);
+        out.push(',');
+        out.push('.');
+        out.push_str(&ext.to_uppercase());
+    }
+    out
+}
+
 /// Expand files and folders (recursively) into supported files. `skip` (e.g. the library folder)
 /// is never descended into. Each folder's walk is bounded ([`crate::walk::Limits::default`]); a
 /// walk that stops at a bound is logged.
@@ -1588,6 +1608,15 @@ mod tests_known;
 #[cfg(test)]
 mod prepared_tests {
     use super::*;
+
+    #[test]
+    fn accept_list_covers_every_extension_in_both_cases() {
+        let list = accept_list();
+        for &ext in EXTENSIONS {
+            assert!(list.contains(&format!(".{ext}")), "lowercase .{ext} missing from accept list");
+            assert!(list.contains(&format!(".{}", ext.to_uppercase())), "uppercase .{} missing from accept list", ext.to_uppercase());
+        }
+    }
 
     #[test]
     fn revalidate_add_only_converts_matching_ready_item() {
