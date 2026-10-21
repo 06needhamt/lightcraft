@@ -1,6 +1,6 @@
 # Gaps: where LightCraft falls short of Lightroom
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-15 · **Change:** minor (gap 15: Print Page Options — page numbers, page info, crop marks)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-22 · **Change:** minor (Gap 15: Japanese photo and postcard paper sizes in the Print page setup and PDF)
 
 Every known shortfall, one entry each, ranked by user impact (how many Lightroom users hit it, and
 how hard it blocks them), then by effort. **Agents pick work from the top** (the first entry nobody is
@@ -77,6 +77,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-22 | minor | Gap 15: the Print page setup and PDF gain the Japanese photo and postcard paper sizes (L判 89×127, 2L判 127×178, KG判 102×152, はがき 100×148, 往復はがき 148×200, 六切 203×254, 四切 254×305, 名刺 55×91 mm), by their customary names; gap not closed |
 | 2026-10-18 | patch | Gap 1: six X-Trans CMOS 4 Fujifilm bodies (X-T30 …) take the X-T3's spectral matrices instead of the neutral matrix |
 | 2026-10-15 | minor | Gap 15 shrinks: the Page panel's Page Options (Page Numbers, Page Info, Crop Marks) print on Single Image and Contact Sheet pages; identity plate, watermark, photo info, Cut Guides, direct printing and JPEG output remain |
 | 2026-10-14 | minor | Gap 26: at 100k photos stack and album lookups are indexed, so an "In a Stack" or "Album" smart album counts in ~14 ms (was 0.6–2.7 s); open time unchanged |

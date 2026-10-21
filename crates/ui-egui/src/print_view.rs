@@ -141,6 +141,15 @@ fn paper_label(name: &str) -> String {
         "legal" => "Legal".into(),
         "tabloid" => "Tabloid".into(),
         "custom" => "Custom".into(),
+        // Japanese photo and postcard papers: the customary name and its metric size.
+        "l" => "L判 (89 × 127 mm)".into(),
+        "2l" => "2L判 (127 × 178 mm)".into(),
+        "kg" => "KG判 (102 × 152 mm)".into(),
+        "postcard" => "はがき (100 × 148 mm)".into(),
+        "double-postcard" => "往復はがき (148 × 200 mm)".into(),
+        "6cut" => "六切 (203 × 254 mm)".into(),
+        "4cut" => "四切 (254 × 305 mm)".into(),
+        "business-card" => "名刺 (55 × 91 mm)".into(),
         other => other.replace('x', " × ") + " in",
     }
 }
@@ -959,5 +968,11 @@ mod tests {
         assert_eq!(trim(2.5), "2.5");
         assert_eq!(paper_label("a4"), "A4");
         assert_eq!(paper_label("4x6"), "4 × 6 in");
+        // The Japanese photo and postcard papers show their customary name and metric size.
+        assert_eq!(paper_label("l"), "L判 (89 × 127 mm)");
+        assert_eq!(paper_label("postcard"), "はがき (100 × 148 mm)");
+        assert_eq!(paper_label("double-postcard"), "往復はがき (148 × 200 mm)");
+        assert_eq!(paper_label("6cut"), "六切 (203 × 254 mm)");
+        assert_eq!(paper_label("4cut"), "四切 (254 × 305 mm)");
     }
 }
