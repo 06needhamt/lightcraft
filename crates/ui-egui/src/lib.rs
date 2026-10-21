@@ -54,6 +54,8 @@ mod tests_album_picker;
 #[cfg(test)]
 mod tests_album_remove;
 #[cfg(test)]
+mod tests_alt_preview;
+#[cfg(test)]
 mod tests_appearance;
 #[cfg(test)]
 mod tests_before_after;
@@ -139,6 +141,8 @@ mod tests_preset_import;
 mod tests_preview_limit;
 #[cfg(test)]
 mod tests_print;
+#[cfg(test)]
+mod tests_profile_menu;
 #[cfg(test)]
 mod tests_profiles_layout;
 #[cfg(test)]
@@ -696,7 +700,10 @@ impl LightcraftApp {
         if d.crop != lightcraft_develop::Crop::default() {
             return d.crop.aspect;
         }
-        match self.ui.crop_default_aspect.as_ref()? {
+        // nothing chosen yet: locked to the photo's own shape, as Lightroom starts (#991); one
+        // Lock toggle (remembered as "free") unlocks it for good
+        let remembered = self.ui.crop_default_aspect.clone().unwrap_or_else(|| Value::String("original".into()));
+        match &remembered {
             Value::String(s) if s == "original" => {
                 let p = self.session.catalog.photo(photo)?;
                 let (w, h) = (p.width.max(1).saturating_mul(100), p.height.max(1).saturating_mul(100));
@@ -715,11 +722,13 @@ impl LightcraftApp {
 
     /// Called only after a crop gesture begins, inside its undo transaction.
     pub(crate) fn begin_crop(&mut self) -> Result<(), String> {
+        // nothing chosen yet: the photo's own shape, as `crop_tool_aspect` shows it
+        let aspect = self.ui.crop_default_aspect.clone().unwrap_or_else(|| serde_json::json!("original"));
         if self.session.interaction.is_some()
             && self.session.active().and_then(|id| self.session.develop_of(id)).is_some_and(|d| d.crop == lightcraft_develop::Crop::default())
-            && let Some(aspect) = self.ui.crop_default_aspect.clone()
             && aspect != serde_json::json!("free")
-            && let Err(e) = self.session.execute("crop.aspect", &serde_json::json!({"aspect": aspect}))
+            // the remembered ratio, turned like the new photo's crop (as a named ratio is)
+            && let Err(e) = self.session.execute("crop.aspect", &serde_json::json!({"aspect": aspect, "orientation": "crop"}))
         {
             // A remembered value the command refuses (a hand-edited settings file) would refuse
             // every crop drag on an untouched photo: forget it and let this drag go ahead.

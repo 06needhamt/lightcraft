@@ -159,23 +159,23 @@ fn mask_adjustments_hide_overlay_without_disabling_the_mask() {
     let d = develop(&h);
     assert!(d.masks[0].adjust.exposure > 0.0);
     assert!(d.masks[0].visible, "hiding the overlay must not disable the mask");
-    assert_eq!(crate::panels::detail::view_overlay(&h.app, &d), Overlay::None);
+    assert_eq!(crate::panels::detail::view_overlay(&h.app, &d, false), Overlay::None);
     let mask = d.masks[0].clone();
 
     let r = h.request("ui.key", json!({"key": "o"}), T);
     assert_eq!(r["ok"], true, "{r}");
     assert!(h.app.ui.mask_overlay, "O can restore the overlay");
     assert_eq!(develop(&h).masks[0], mask, "toggling the overlay leaves the mask and its effect unchanged");
-    assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::Mask { .. }));
+    assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h), false), Overlay::Mask { .. }));
 
     // Ctrl+Shift+O / Cmd+Shift+O shows every visible mask's region at once (the new command), ahead of the selected
     // mask overlay so it is not shadowed by the always-on single-mask overlay.
     exec(&mut h, "view.maskOverlayAll", json!({}));
     assert!(h.app.ui.mask_overlay_all, "the all-masks overlay command turns it on");
-    assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::AllMasks { .. }));
+    assert!(matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h), false), Overlay::AllMasks { .. }));
     exec(&mut h, "view.maskOverlayAll", json!({}));
     assert!(!h.app.ui.mask_overlay_all, "the all-masks overlay command toggles it off");
-    assert!(!matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h)), Overlay::AllMasks { .. }));
+    assert!(!matches!(crate::panels::detail::view_overlay(&h.app, &develop(&h), false), Overlay::AllMasks { .. }));
 
     // Failed edits and global adjustments must not hide the mask overlay.
     assert!(h.app.run("mask.adjust", json!({"id": 999, "values": {"exposure": 1.0}})).is_err());
@@ -274,12 +274,12 @@ fn mask_overlay_keys_and_pins() {
     assert_eq!(h.app.session.active_mask, Some(2));
     // the loupe asks the renderer for the selected mask's overlay
     let d = develop(&h);
-    let o = crate::panels::detail::view_overlay(&h.app, &d);
+    let o = crate::panels::detail::view_overlay(&h.app, &d, false);
     assert_eq!(o, Overlay::Mask { id: 2, view: MaskView::Color, color: [230, 30, 40], opacity: 50 });
     // O toggles it, Shift+O cycles the colour (and leaves the crop overlay alone)
     h.request("ui.key", json!({"key": "o"}), T);
     assert!(!h.app.ui.mask_overlay);
-    assert_eq!(crate::panels::detail::view_overlay(&h.app, &d), Overlay::None);
+    assert_eq!(crate::panels::detail::view_overlay(&h.app, &d, false), Overlay::None);
     h.request("ui.key", json!({"key": "o"}), T);
     let crop = h.app.ui.crop_overlay;
     let colour = h.app.ui.mask_overlay_color;
@@ -537,6 +537,55 @@ fn crop_drag_activates_the_remembered_ratio_and_undo_restores_the_photo() {
     assert_eq!(h.app.session.undo.len(), undo + 1);
     exec(&mut h, "edit.undo", json!({}));
     assert_eq!(develop(&h), before);
+}
+
+/// Issue #991: with no aspect ever chosen, a crop starts locked to the photo's own shape (Lightroom's
+/// default), so a handle drag keeps the proportions; after the Lock is switched off once, the next
+/// photo's crop starts free again.
+#[test]
+fn a_fresh_crop_starts_locked_to_original_until_the_lock_is_switched_off() {
+    let mut h = detail("panel.crop");
+    h.app.ui.crop_default_aspect = None;
+    h.settle(SETTLE);
+    let before = develop(&h);
+    assert!(before.crop.aspect.is_none());
+    let p = h.app.session.catalog.photo(h.app.session.active().unwrap()).unwrap().clone();
+    let own = (p.width * 100, p.height * 100);
+    assert_eq!(h.app.crop_tool_aspect(), Some(own), "the Lock shows engaged on an untouched photo");
+    let drag = json!({"events": [
+        {"kind": "down", "x": 0.995, "y": 0.995},
+        {"kind": "drag", "x": 0.85, "y": 0.85},
+        {"kind": "drag", "x": 0.75, "y": 0.75},
+        {"kind": "up", "x": 0.75, "y": 0.75}
+    ]});
+    let r = h.request("ui.pointer", drag.clone(), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(develop(&h).crop.aspect, Some(own), "the drag kept the photo's proportions");
+    assert_eq!(h.app.ui.crop_default_aspect, None, "nothing was chosen explicitly");
+    exec(&mut h, "edit.undo", json!({}));
+    assert_eq!(develop(&h), before);
+    // Lock off once: remembered as free, and from then on the same drag crops without a ratio
+    let mut h = detail("panel.crop");
+    h.app.ui.crop_default_aspect = None;
+    h.settle(SETTLE);
+    h.app.run("crop.aspect", json!({"aspect": "toggle"})).unwrap();
+    h.settle(SETTLE);
+    assert_eq!(h.app.ui.crop_default_aspect, Some(json!("free")));
+    assert_eq!(h.app.crop_tool_aspect(), None);
+    let before = develop(&h);
+    // a rotating drag outside the box (any crop drag starts cropping); the release on its own
+    for events in [
+        json!([{"kind": "down", "x": -0.05, "y": 0.2}, {"kind": "drag", "x": -0.05, "y": 0.25}, {"kind": "drag", "x": -0.05, "y": 0.3}]),
+        json!([{"kind": "up", "x": -0.05, "y": 0.3}]),
+    ] {
+        let r = h.request("ui.pointer", json!({ "events": events }), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+    }
+    assert_ne!(develop(&h).crop, before.crop, "the drag cropped");
+    assert_eq!(develop(&h).crop.aspect, None, "and left the ratio free");
+    let _ = drag;
 }
 
 /// A remembered ratio the crop command refuses (a hand-edited settings file) is forgotten, and the

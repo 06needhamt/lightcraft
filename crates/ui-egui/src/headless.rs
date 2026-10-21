@@ -2694,12 +2694,14 @@ mod tests {
         h.request("ui.key", json!({"key": "O", "shift": true}), t);
         assert_eq!(h.app.ui.crop_overlay_orient, 1);
         assert_eq!(h.app.ui.mask_overlay, mask_overlay, "O doesn't toggle the mask overlay while cropping");
-        let locked = |h: &Headless| h.app.session.develop_of(h.app.session.active().unwrap()).unwrap().crop.aspect.is_some();
-        assert!(!locked(&h));
-        h.request("ui.key", json!({"key": "A"}), t);
+        // an untouched photo starts locked to its own shape (#991): A unlocks, A again locks
+        let locked = |h: &Headless| h.app.crop_tool_aspect().is_some();
         assert!(locked(&h));
         h.request("ui.key", json!({"key": "A"}), t);
         assert!(!locked(&h));
+        assert_eq!(h.app.ui.crop_default_aspect, Some(json!("free")));
+        h.request("ui.key", json!({"key": "A"}), t);
+        assert!(locked(&h));
         assert!(!h.app.ui.visualize_spots);
     }
 
@@ -2881,15 +2883,56 @@ mod tests {
         assert!(restore[1] >= 0.0 && restore[1] + restore[3] <= f64::from(size[1]), "the restore row is in view: {restore:?} {after_ids:?}");
         assert!(h.app.session.browse.is_some(), "hiding does not stop browsing");
         assert!(dir.is_dir(), "the folder itself is untouched");
+        // a second hidden place: the row lists them, and each comes back on its own (issue #2114:
+        // the row used to bring every hidden place back at once)
+        let dir2 = std::env::temp_dir().join(format!("lc-ui-hide-{}-b", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir2);
+        std::fs::create_dir_all(&dir2).unwrap();
+        let path2 = dir2.to_string_lossy().to_string();
+        for (command, params) in [("local.addRoot", json!({"path": path2})), ("local.hide", json!({"path": path2}))] {
+            let r = h.request("engine.execute", json!({"command": command, "params": params}), t);
+            assert_eq!(r["ok"], true, "{r}");
+        }
+        h.settle(SETTLE);
+        let menu = |h: &mut Headless| -> Vec<String> {
+            let w = h.request("ui.widgets", json!({"filter": "local:restoreHidden:"}), t);
+            w["result"].as_array().unwrap().iter().map(|x| x["id"].as_str().unwrap().to_string()).collect()
+        };
+        assert!(menu(&mut h).is_empty(), "the list opens from the row");
         assert_eq!(h.request("ui.clickWidget", json!({"id": "source:local:restoreHidden"}), t)["ok"], true);
         h.settle(SETTLE);
-        assert!(h.app.ui.hidden_locations.is_empty());
+        let items = menu(&mut h);
+        assert!(items.contains(&format!("local:restoreHidden:{path}")) && items.contains(&"local:restoreHidden:all".to_string()), "{items:?}");
+        assert_eq!(h.request("ui.clickWidget", json!({"id": format!("local:restoreHidden:{path}")}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert!(!h.app.ui.hidden_locations.iter().any(|x| x == &path), "{:?}", h.app.ui.hidden_locations);
+        assert!(h.app.ui.hidden_locations.iter().any(|x| x == &path2), "the other place stays hidden");
+        assert!(ids(&mut h).iter().any(|i| i == "source:local:restoreHidden"), "still something to restore");
+        // two hidden again: Restore All brings every one back
+        let r = h.request("engine.execute", json!({"command": "local.hide", "params": {"path": path}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert!(h.app.ui.hidden_locations.len() >= 2, "{:?}", h.app.ui.hidden_locations);
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "source:local:restoreHidden"}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "local:restoreHidden:all"}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert!(h.app.ui.hidden_locations.is_empty(), "{:?}", h.app.ui.hidden_locations);
         assert!(!ids(&mut h).iter().any(|i| i == "source:local:restoreHidden"), "nothing left to restore");
+        // one hidden: the row brings it back itself, no list
+        let r = h.request("engine.execute", json!({"command": "local.hide", "params": {"path": path2}}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "source:local:restoreHidden"}), t)["ok"], true);
+        h.settle(SETTLE);
+        assert!(menu(&mut h).is_empty(), "no list for a single hidden place");
+        assert!(h.app.ui.hidden_locations.is_empty(), "{:?}", h.app.ui.hidden_locations);
         if !hidden_before {
             // (with Home hidden for this test, the folder is back inside Home's tree instead)
             assert!(ids(&mut h).contains(&format!("source:local:{path}")));
         }
         let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&dir2);
     }
 
     /// Local: a kept folder stays a root while its subfolders (and other locations) are
@@ -4431,6 +4474,43 @@ mod tests {
         h.request("ui.key", json!({"key": "z"}), t);
         assert_eq!(h.app.ui.zoom, Zoom::Fit);
         h.settle(SETTLE);
+    }
+
+    /// A hover preview gets the loupe's display fit: it is the size the photo is drawn at, as the
+    /// loupe render is, not a preview-level render the GPU shrinks.
+    #[test]
+    fn a_hover_preview_is_fitted_to_the_drawn_size() {
+        use crate::render::Slot;
+        let mut h = demo([1400.0, 900.0]);
+        let t = Duration::from_secs(10);
+        h.request("ui.set", json!({"view": "detail"}), t);
+        h.request("engine.execute", json!({"command": "panel.profiles"}), t);
+        h.settle(SETTLE);
+        h.step_until(SETTLE, |h| !h.app.renderer.is_pending(Slot::Main));
+        let r = h.request("ui.hoverWidget", json!({"id": "profileCell:lc.vivid"}), t);
+        assert_eq!(r["ok"], true, "{r}");
+        h.step_until(SETTLE, |h| h.app.loupe_shown.map(|l| l.1) == Some("hover"));
+        let size = |s: Slot| h.app.renderer.textures.get(&s).map(|t| t.size);
+        let (main, hover) = (size(Slot::Main).expect("loupe render"), size(Slot::Hover).expect("hover render"));
+        assert!(main[0].max(main[1]) < lightcraft_engine::SourceLevel::Preview.max_edge(), "the loupe render is fitted: {main:?}");
+        assert!(hover[0].abs_diff(main[0]) <= 1 && hover[1].abs_diff(main[1]) <= 1, "hover {hover:?} vs loupe {main:?}");
+    }
+
+    /// Zoomed in under a window render, the hidden whole-frame render stays canvas-sized instead of
+    /// rising to the preview level.
+    #[test]
+    fn a_zoomed_view_keeps_its_whole_frame_render_canvas_sized() {
+        use crate::render::Slot;
+        let mut h = demo([1000.0, 700.0]);
+        let t = Duration::from_secs(10);
+        h.request("ui.set", json!({"view": "detail", "right": "none"}), t);
+        h.settle(SETTLE);
+        h.request("ui.clickWidget", json!({"id": "canvas:image", "fx": 0.5, "fy": 0.5}), t);
+        h.settle(SETTLE);
+        assert_eq!(h.app.ui.zoom, crate::state::Zoom::Percent(100.0));
+        h.step_until(SETTLE, |h| !h.app.renderer.is_pending(Slot::Main));
+        let main = h.app.renderer.textures.get(&Slot::Main).expect("whole-frame render").size;
+        assert!(main[0].max(main[1]) < lightcraft_engine::SourceLevel::Preview.max_edge(), "{main:?}");
     }
 
     #[test]

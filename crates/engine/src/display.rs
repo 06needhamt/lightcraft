@@ -152,6 +152,37 @@ mod tests {
         }
     }
 
+    /// ⌥-drag views on a profiled display (issue #937): the histogram stays the photo's sRGB one
+    /// (not the view's, nor the display-primary pixels'), and the clipping view is tested and
+    /// drawn in sRGB, so it stays black and white.
+    #[test]
+    fn diagnostic_views_keep_the_photos_histogram() {
+        use lightcraft_pipeline::Overlay;
+        let mut session = crate::Session::with_demo();
+        let id = session.visible_cloned()[0];
+        let d = std::sync::Arc::new(p3());
+        let mut run = |o, d: Option<std::sync::Arc<Display>>| {
+            session.loupe_job(id, 320, 240, true).unwrap().with_display(d).with_overlay(o).run().rendered.unwrap()
+        };
+        let plain = run(Overlay::None, Some(d.clone()));
+        let clip = run(Overlay::ShadowClip, Some(d.clone()));
+        let (a, b) = (plain.histogram.mean_luma(), clip.histogram.mean_luma());
+        assert!((a - b).abs() < 0.02, "the photo's histogram: {a} vs {b}");
+        // each channel's mean level: the photo's, as a render without a display profile counts it
+        let means = |h: &Histogram| {
+            [&h.r, &h.g, &h.b].map(|c| c.iter().enumerate().map(|(i, n)| i as f64 * f64::from(*n)).sum::<f64>() / f64::from(h.total.max(1)))
+        };
+        let srgb = means(&run(Overlay::None, None).histogram);
+        for o in [Overlay::ShadowClip, Overlay::HighlightClip, Overlay::Grey, Overlay::SharpenMask] {
+            let v = means(&run(o, Some(d.clone())).histogram);
+            assert!(srgb.iter().zip(v).all(|(p, v)| (p - v).abs() < 0.05), "{o:?}: the photo's sRGB histogram {srgb:?}, got {v:?}");
+        }
+        let px = &clip.image.data;
+        // (the profile may round white to 254)
+        let binary = px.iter().filter(|p| p[..3].iter().all(|v| *v <= 2 || *v >= 253)).count();
+        assert!(binary as f64 > 0.99 * px.len() as f64, "{binary} of {}", px.len());
+    }
+
     #[test]
     fn load_reports_and_rejects() {
         let dir = std::env::temp_dir().join(format!("lightcraft-display-{}", std::process::id()));
