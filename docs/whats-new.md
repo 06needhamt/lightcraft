@@ -33,6 +33,18 @@
   photo was shown outside the Crop tool, so in the Crop panel, where the checkbox is, nothing seemed to change. A crop
   you draw by hand is kept as drawn, and unticking keeps the tighter crop.
 
+### Web: no backup that misses unsaved changes
+- In the browser version, File ▸ Back Up Library… no longer reports success while a save is failing (storage full or
+  cleared): the backup copies the stored library, so it left out the changes that couldn't be saved (issue #1508). It
+  now refuses to start and says how many changes are unsaved and why. LightCraft retries the save with every change;
+  back up once nothing is left unsaved.
+
+### Web: an unreadable library is not opened
+- In the browser version, a library file that exists but can't be read at start-up is no longer taken for a missing
+  one (issue #1507). LightCraft used to open the library without it, showing an incomplete catalog that the next save
+  would write over the stored copy. It now leaves the library unopened, saves nothing and says which file couldn't be
+  read; reload the page to try again.
+
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
