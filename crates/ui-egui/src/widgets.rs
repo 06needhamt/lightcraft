@@ -240,9 +240,21 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     let track_rect = Rect::from_min_max(pos2(row.left() + pad_l, row.top() + 22.0), pos2(row.right() - pad_r, row.top() + 40.0));
     let id = ui.id().with(spec.id);
     let resp = ui.interact(track_rect.expand2(vec2(8.0, 2.0)), id, if enabled { Sense::click_and_drag() } else { Sense::hover() });
-    // Keyboard focus survives leaving the row; wheel edits require a fresh click or drag.
-    let wheel_selected_id = id.with("wheel-selected");
+    // Keyboard focus survives leaving the row; vertical wheel edits need a fresh click or drag
+    // in it (at most one slider is armed: `wheel_slider_key`).
+    let wheel_id = id.with("wheel-rem");
+    let mut wheel_armed = ui.data(|d| d.get_temp::<egui::Id>(wheel_slider_key())) == Some(id);
     let pointer_in_row = ui.rect_contains_pointer(row);
+    // Every move this frame counts, not only where the pointer ended up: a slow frame (a slider
+    // drag, soft proofing) can merge leaving the row and coming back into one.
+    let left_row = wheel_armed
+        && ui.input(|i| {
+            i.events.iter().any(|e| match e {
+                egui::Event::PointerMoved(p) => !row.contains(*p),
+                egui::Event::PointerGone => true,
+                _ => false,
+            })
+        });
     // Tab reaching the slider selects it for arrow keys, not vertical wheel edits.
     if enabled && resp.gained_focus() {
         ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
@@ -251,10 +263,16 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         resp.request_focus();
         ui.data_mut(|d| {
             d.insert_temp(focused_slider_key(), id);
-            d.insert_temp(wheel_selected_id, true);
+            d.insert_temp(wheel_slider_key(), id);
+            d.remove::<f32>(wheel_id);
         });
-    } else if !enabled || !resp.has_focus() || (!pointer_in_row && !resp.is_pointer_button_down_on()) {
-        ui.data_mut(|d| d.remove::<bool>(wheel_selected_id));
+        wheel_armed = true;
+    } else if wheel_armed && (!enabled || !resp.has_focus() || ((!pointer_in_row || left_row) && !resp.is_pointer_button_down_on())) {
+        ui.data_mut(|d| {
+            d.remove::<egui::Id>(wheel_slider_key());
+            d.remove::<f32>(wheel_id);
+        });
+        wheel_armed = false;
     }
     // screen readers: a slider named after its control, with its value
     let label_text = crate::i18n::tr(label_override.unwrap_or(spec.label)).to_string();
@@ -475,7 +493,7 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         // leaves the sliders it passes alone. Right raises the value, as dragging the thumb right does.
         let side_id = id.with("side-rem");
         let (dx, dy) = ui.input(|i| (i.smooth_scroll_delta.x, i.smooth_scroll_delta.y));
-        if !enabled || typing.is_some() || out.value.is_some() || !ui.rect_contains_pointer(row) || dx.abs() <= dy.abs() {
+        if !enabled || typing.is_some() || out.value.is_some() || !pointer_in_row || dx.abs() <= dy.abs() {
             ui.data_mut(|m| m.remove::<f32>(side_id));
         } else {
             // the vertical part would scroll the panel and move the slider out from under the pointer
@@ -493,10 +511,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         }
         // Wheel nudges require an explicitly selected slider, unlike regular panel scrolling.
         // Consume only the vertical component so a trackpad's horizontal scroll still works.
-        let wheel_id = id.with("wheel-rem");
-        if !resp.has_focus() || !ui.data(|m| m.get_temp::<bool>(wheel_selected_id)).unwrap_or(false) {
-            ui.data_mut(|m| m.remove::<f32>(wheel_id));
-        } else if enabled && typing.is_none() && out.value.is_none() && pointer_in_row {
+        // (`wheel_armed` is cleared above with its remainder whenever focus or the pointer leaves.)
+        if wheel_armed && enabled && typing.is_none() && out.value.is_none() && pointer_in_row {
             let delta = ui.input_mut(|i| {
                 let dy = i.smooth_scroll_delta.y;
                 if dy != 0.0 {
@@ -1017,6 +1033,11 @@ mod slider_reset_tests;
 
 fn focused_slider_key() -> egui::Id {
     egui::Id::new("lightcraft-focused-slider")
+}
+
+/// The slider a click or drag armed for vertical wheel edits, if any.
+fn wheel_slider_key() -> egui::Id {
+    egui::Id::new("lightcraft-wheel-slider")
 }
 
 /// Whether the widget with keyboard focus is a develop slider selected by a click, drag or Tab.

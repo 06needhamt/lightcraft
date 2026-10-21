@@ -1638,7 +1638,7 @@ fn a_selected_develop_slider_accepts_wheel_nudges() {
     // Leaving the row disarms wheel edits, but must not take keyboard arrows away.
     h.request("ui.move", json!({"x": panel.left() - 10.0, "y": track.center().y}), T);
     h.request("ui.hoverWidget", json!({"id": name}), T);
-    // Exceed a full notch after cancelling the previous positive fractional remainder.
+    // More than a full notch: disarming dropped the wheel remainder, so this alone would edit it.
     h.request("ui.scroll", json!({"dy": -240.0}), T);
     for _ in 0..40 {
         h.step();
