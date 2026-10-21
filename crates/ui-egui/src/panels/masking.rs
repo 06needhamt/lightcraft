@@ -772,6 +772,11 @@ pub(crate) fn sam_download_bar(ui: &mut egui::Ui, done: u64, total: u64, width: 
     crate::progress::Progress::new(fraction).label(label).width(width).widget("maskSamProgress").show(ui)
 }
 
+/// Whether the segmenter has work (loading, analyzing, a request, a detail pass): nothing new starts then.
+fn segmenter_working(analyzing: bool, busy: bool, detail_busy: bool) -> bool {
+    analyzing || busy || detail_busy
+}
+
 /// Enter in the Describe field is the Select button: it starts nothing while the segmenter works.
 fn enter_submits(working: bool, lost_focus: bool, enter_pressed: bool) -> bool {
     !working && lost_focus && enter_pressed
@@ -794,7 +799,8 @@ fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
     let mut submit = false;
     // the (translated) Select button is placed first, at the right; the field takes what is left
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 24.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        let working = app.session.segmenter.analyzing() || app.session.segmenter.busy();
+        let seg = &app.session.segmenter;
+        let working = segmenter_working(seg.analyzing(), seg.busy(), seg.detail_busy());
         if crate::button::Button::new("Select").small().busy(working).widget("button:maskDescribeGo").show(ui).clicked() {
             submit = true;
         }
@@ -915,6 +921,14 @@ fn brush_settings(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_detail_pass_counts_as_the_segmenter_working() {
+        assert!(segmenter_working(false, false, true));
+        assert!(segmenter_working(true, false, false));
+        assert!(segmenter_working(false, true, false));
+        assert!(!segmenter_working(false, false, false));
+    }
 
     #[test]
     fn enter_in_the_describe_field_starts_nothing_while_the_segmenter_works() {
