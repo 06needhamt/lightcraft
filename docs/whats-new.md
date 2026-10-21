@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Month names in folder and file name templates
+- Date templates take the month by name: `%B` gives January, `%b` gives Jan. Import ▸ Folders ▸ Custom template…
+  `{date:%Y}/{date:%B}` files photos into 2026/January, 2026/February…, the layout many existing libraries already
+  use. The names are English in every interface language, so folders don't change when the language does. Rename
+  Photos and export file names take them too.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
