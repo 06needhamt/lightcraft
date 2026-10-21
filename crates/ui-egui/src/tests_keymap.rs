@@ -473,16 +473,15 @@ fn lock_aspect_ratio_is_a_listed_row_on_a() {
     assert!(h.app.ui.dialog.is_none());
 }
 
-/// A locks the aspect while the Crop panel is open — Visualize Spots, the other A, must not take
-/// the panel or turn its view on — and outside the panel A opens Visualize Spots as usual.
+/// A is the aspect lock while the Crop panel is open — Visualize Spots, the other A, must not take
+/// the panel or turn its view on — and outside the panel A opens Visualize Spots as usual. The lock
+/// is the tool's own (a fresh photo starts locked to its shape and the toggle may only record
+/// "free", leaving the raw develop aspect untouched), so the test reads `crop_tool_aspect`.
 #[test]
 fn a_is_the_aspect_lock_under_crop_and_visualize_spots_elsewhere() {
     use crate::state::RightPanel;
     let mut h = demo();
-    let aspect = |h: &Headless| {
-        let id = h.app.session.active().expect("an active photo");
-        h.app.session.develop_of(id).expect("develop settings").crop.aspect
-    };
+    let aspect = |h: &Headless| h.app.crop_tool_aspect();
     let spots_before = h.app.ui.visualize_spots;
     h.app.run("panel.crop", json!({})).unwrap();
     h.step();
@@ -492,9 +491,9 @@ fn a_is_the_aspect_lock_under_crop_and_visualize_spots_elsewhere() {
     key(&mut h, "A", false);
     assert_eq!(h.app.ui.right, RightPanel::Crop, "Visualize Spots must not take the panel");
     assert_eq!(h.app.ui.visualize_spots, spots_before, "nor turn its view on");
-    assert_ne!(aspect(&h), before, "A locked the aspect");
+    assert_ne!(aspect(&h), before, "A toggles the aspect lock");
     key(&mut h, "A", false);
-    assert_eq!(aspect(&h), before, "A again unlocks it");
+    assert_eq!(aspect(&h), before, "A toggles it back");
     // outside the panel the same key is Visualize Spots again
     h.app.ui.right = RightPanel::None;
     key(&mut h, "A", false);
