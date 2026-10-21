@@ -260,6 +260,30 @@ fn leaving_the_row_during_a_drag_keeps_dragging_but_release_disarms_the_wheel() 
 }
 
 #[test]
+fn a_drag_that_leaves_and_ends_back_in_the_row_disarms_the_wheel() {
+    let mut h = Harness::new();
+    let inside = h.track.center();
+    let outside = egui::pos2(h.track.right() - 20.0, 80.0);
+    let button = |pos, pressed| Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.frame(vec![Event::PointerMoved(inside)]);
+    h.frame(vec![button(inside, true)]);
+    h.frame(vec![Event::PointerMoved(outside)]);
+    h.frame(vec![Event::PointerMoved(inside)]);
+    h.frame(vec![button(inside, false)]);
+    let released = h.value;
+    h.frame(vec![Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: vec2(0.0, 120.0),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+    }]);
+    for _ in 0..40 {
+        h.frame(vec![]);
+    }
+    assert_eq!(h.value, released, "the drag left the row, so the wheel needs a fresh selection");
+}
+
+#[test]
 fn leaving_and_returning_within_one_frame_still_disarms_the_wheel() {
     let wheel = || Event::MouseWheel {
         unit: egui::MouseWheelUnit::Point,

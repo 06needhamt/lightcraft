@@ -259,15 +259,20 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     if enabled && resp.gained_focus() {
         ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
     }
-    if enabled && (resp.clicked() || resp.drag_started()) {
+    let selected = enabled && (resp.clicked() || resp.drag_started());
+    if selected {
         resp.request_focus();
+        ui.data_mut(|d| d.insert_temp(focused_slider_key(), id));
+    }
+    // A drag that leaves the row disarms too (it keeps dragging: that needs no wheel selection),
+    // and one that only starts once the pointer is outside doesn't arm it again.
+    if selected && pointer_in_row && !left_row {
         ui.data_mut(|d| {
-            d.insert_temp(focused_slider_key(), id);
             d.insert_temp(wheel_slider_key(), id);
             d.remove::<f32>(wheel_id);
         });
         wheel_armed = true;
-    } else if wheel_armed && (!enabled || !resp.has_focus() || ((!pointer_in_row || left_row) && !resp.is_pointer_button_down_on())) {
+    } else if wheel_armed && (!enabled || !resp.has_focus() || !pointer_in_row || left_row) {
         ui.data_mut(|d| {
             d.remove::<egui::Id>(wheel_slider_key());
             d.remove::<f32>(wheel_id);
