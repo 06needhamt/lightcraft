@@ -609,8 +609,6 @@ fn cube_luts_become_profiles() {
     let _ = std::fs::remove_dir_all(&lib);
 }
 
-/// Folder rename / move on disk: files and sidecars go along, the photos are relinked and
-/// still render; clashes and moving into itself are refused.
 /// Without a library on disk an imported LUT lives only in this session: no copy of it is
 /// left in the temp folder (#1952).
 #[test]
@@ -639,6 +637,8 @@ fn cube_import_without_a_library_leaves_no_temp_copy() {
     let _ = std::fs::remove_dir_all(&src);
 }
 
+/// Folder rename / move on disk: files and sidecars go along, the photos are relinked and
+/// still render; clashes and moving into itself are refused.
 #[test]
 fn folders_rename_and_move_with_their_photos() {
     let root = temp_dir("folders");
