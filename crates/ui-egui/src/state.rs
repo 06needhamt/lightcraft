@@ -1263,6 +1263,7 @@ pub struct SyncCounts {
 }
 
 impl Default for UiState {
+    /// Initialize the library and import review sizes as independent app preferences.
     fn default() -> Self {
         UiState {
             window: None,

@@ -52,6 +52,26 @@ fn thumb_edge(size: f32, pixels_per_point: f32) -> usize {
     [192, 384, 512, 768, 1024].into_iter().find(|edge| *edge as f32 >= pixels).unwrap_or(1024)
 }
 
+/// Use the shared control contract for pointer, keyboard, exact-value entry and reset interactions.
+fn thumb_size_slider(app: &mut LightcraftApp, ui: &mut egui::Ui) {
+    use lightcraft_develop::controls::{ControlSpec, Section, Track};
+    const SIZE: ControlSpec = ControlSpec {
+        id: "importThumbSize",
+        label: "Thumbnail size",
+        section: Section::Light,
+        min: THUMB_SIZE_MIN as f64,
+        max: THUMB_SIZE_MAX as f64,
+        default: THUMB_SIZE_DEFAULT as f64,
+        step: 1.0,
+        decimals: 0,
+        track: Track::Plain,
+    };
+    let out = crate::widgets::slider(ui, &SIZE, f64::from(thumb_size(app.ui.import_thumb_size)), true, None);
+    if let Some(size) = out.value {
+        let _ = app.run("view.importThumbSize", json!({"size": SIZE.clamp(size)}));
+    }
+}
+
 /// Height of the photo grid: what is `available` once `below` (options and buttons) is left free,
 /// in whole points so the window never grows by a fraction each frame, and at least one `row`.
 pub(crate) fn grid_height(available: f32, below: f32, row: f32) -> f32 {
@@ -1043,16 +1063,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             }
         });
     }
-    ui.horizontal(|ui| {
-        let mut size = thumb_size(app.ui.import_thumb_size);
-        let response =
-            ui.add(egui::Slider::new(&mut size, THUMB_SIZE_MIN..=THUMB_SIZE_MAX).text(crate::i18n::tr("Thumbnail size")).show_value(false));
-        // Slider's response includes its label; automation addresses the track itself.
-        register(ui.ctx(), "slider:importThumbSize", Rect::from_min_size(response.rect.min, vec2(ui.spacing().slider_width, response.rect.height())));
-        if response.changed() {
-            let _ = app.run("view.importThumbSize", json!({"size": size}));
-        }
-    });
+    thumb_size_slider(app, ui);
     // candidate grid
     let cell = thumb_size(app.ui.import_thumb_size).min(ui.available_width().max(1.0));
     let avail = ui.available_width();

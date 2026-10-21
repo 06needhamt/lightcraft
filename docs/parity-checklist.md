@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-18 · **Change:** minor (import grid thumbnail-size slider, #2056; upstream Print Page Options and raw/export updates retained; status and summary counts unchanged) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** patch (import thumbnail localization and shared slider interactions; gap/status counts unchanged) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -797,6 +797,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-21 | patch | LR-IMP-ADD-DIALOG: translate the import thumbnail labels in all 13 catalogs; use the shared ControlSpec slider for keyboard, exact entry and reset; retain the remaining pre-import loupe gap and unchanged counts |
 | 2026-10-17 | minor | LR-IMP-ADD-DIALOG: import grid thumbnail-size slider, density-aware previews, bounded visible textures and preserved culling; remaining loupe tracked in gap 30 (#2056); status and summary counts unchanged |
 | 2026-10-14 | patch | LR-EXP-TYPE: opaque 8-bit PNG/TIFF/WebP use RGB; transparent exports retain alpha (#1670). Statuses and feature counts unchanged. |
 | 2026-10-15 | minor | LRC-PRINT-PAGE: Page Options (Page Numbers, Page Info, Crop Marks) on Single Image and Contact Sheet pages, in the Print dialog, `print.set` and templates; still 🟡 (no identity plate, watermark, photo info or Cut Guides) |

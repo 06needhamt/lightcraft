@@ -157,3 +157,52 @@ fn import_thumbnail_size_rejects_bad_commands_and_restores_old_preferences() {
         assert_eq!(state.import_thumb_size, 116.0);
     }
 }
+
+/// A selected import slider keeps keyboard nudges after idle frames without changing candidate checks.
+#[test]
+fn import_thumbnail_slider_keeps_the_shared_keyboard_contract() {
+    let mut review = Review::new(1.0);
+    let checked = review.checks();
+    review.request("ui.clickWidget", json!({"id": "slider:importThumbSize", "fx": 0.4}));
+    assert!(review.h.settle(T));
+    for _ in 0..6 {
+        review.h.step();
+    }
+    let before = review.h.app.ui.import_thumb_size;
+    review.request("ui.key", json!({"key": "ArrowUp"}));
+    assert!(review.h.settle(T));
+    assert_eq!(review.h.app.ui.import_thumb_size, before + 1.0);
+    assert_eq!(review.checks(), checked);
+}
+
+/// Every shipped language translates the slider and command labels, with the real control visible at high density.
+#[test]
+fn import_thumbnail_labels_are_localized_in_every_shipped_language() {
+    use crate::i18n::Locale;
+    let command =
+        crate::menus::UI_COMMANDS.iter().find(|command| command.0 == "view.importThumbSize").expect("the import-size command is registered");
+    assert_eq!(command.1, "Import Thumbnail Size", "the catalog key matches the command's actual label");
+    for theme in ["charcoal", "paper"] {
+        for scale in [1.0, 2.25] {
+            let mut app = LightcraftApp::new(lightcraft_engine::Session::new(), Services { png: None, ..Default::default() });
+            app.ui.dialog = Some(Dialog::Import { opts: Box::new(ImportDialog::new(Vec::new())) });
+            let mut h = Headless::new(app, [960.0, 720.0], scale);
+            assert!(h.app.run("view.theme", json!({"theme": theme})).is_ok());
+            for locale in Locale::ALL {
+                for source in ["Thumbnail size", "Import Thumbnail Size", "Click to type a value, drag to change it"] {
+                    assert!(!locale.tr(source).is_empty());
+                    if *locale != Locale::En {
+                        assert_ne!(locale.tr(source), source, "{locale:?}: {source}");
+                    }
+                }
+                let result = h.request("ui.set", json!({"language": locale.code()}), T);
+                assert_eq!(result["ok"], true, "{result}");
+                assert!(h.settle(T));
+                assert!(h.painted_text().iter().any(|text| text == locale.tr("Thumbnail size")), "{locale:?}: translated slider label");
+                let track = h.app.widgets.iter().find(|(id, _)| id == "slider:importThumbSize").expect("the import slider is visible").1;
+                let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, h.size);
+                assert!(viewport.contains_rect(track), "{locale:?} {theme} {scale}: slider stays inside the viewport");
+            }
+        }
+    }
+}

@@ -244,6 +244,10 @@ The import review's **Thumbnail size** slider is `slider:importThumbSize` in `ui
 (80–320, clamped); omitting `size` reads it. Both return `{size}`. Non-numeric or non-finite
 values are refused. The preference is `importThumbSize` in the UI state, independent of the
 library grid's `thumbSize`; resizing keeps the import checkboxes and duplicate markers.
+The shared slider also exposes `sliderValue:importThumbSize` for exact entry and
+`sliderLabel:importThumbSize` for double-click reset to 116 pt. Up/Down nudges the selected
+slider by 1 pt; Return commits typed values and Escape cancels them. Slider and command
+labels, including edit/reset feedback, are localized in every shipped catalog.
 
 ## Headless rendering (no window, no GPU)
 
