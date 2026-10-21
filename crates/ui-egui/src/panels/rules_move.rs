@@ -171,6 +171,8 @@ pub fn move_node(rs: &mut RuleSet, from: &[usize], dest: &[usize]) -> Option<Vec
 pub fn key_dest(rs: &RuleSet, from: &[usize], dir: Dir) -> Option<Vec<usize>> {
     let (&i, parent) = from.split_last()?;
     let list = list_at(rs, parent)?;
+    // a row that isn't there has no place to go (and `i` is then below `len`, so `i + 1` can't overflow)
+    list.rules.get(i)?;
     let at = |n: usize| parent.iter().copied().chain([n]).collect::<Vec<usize>>();
     match dir {
         Dir::Up if i > 0 => Some(at(i - 1)),
@@ -335,6 +337,18 @@ mod tests {
             let mut x = r();
             assert_eq!(move_node(&mut x, &from, &dest), None, "{from:?} -> {dest:?}");
             assert_eq!(x, r());
+        }
+    }
+
+    /// Given a path whose last step is past the end of its list (`usize::MAX` too), when an arrow
+    /// key asks where the row goes, then there is no place, and no index arithmetic overflows.
+    #[test]
+    fn arrow_keys_on_a_path_that_leads_nowhere_find_no_place() {
+        let r = set(vec![rule(1), group(vec![rule(2)])]);
+        for from in [vec![2], vec![5], vec![usize::MAX], vec![1, 1], vec![1, usize::MAX]] {
+            for dir in [Dir::Up, Dir::Down, Dir::Out, Dir::In] {
+                assert_eq!(key_dest(&r, &from, dir), None, "{from:?} {dir:?}");
+            }
         }
     }
 
