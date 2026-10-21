@@ -8,6 +8,11 @@
 
 ## 2026-10-18
 
+### A preset that couldn't be saved is no longer lost silently
+- When presets.json can't be written (a full disk, or the browser's storage quota), the new or changed preset now
+  counts as unsaved, like other changes: the top bar warns, saving is retried, and quitting asks first (issue #2266).
+  Before, the failure was only logged, and the preset could be lost without any warning.
+
 ### Portrait crop ratios stay portrait
 - A crop ratio no longer flips to the photo's orientation (issue #2253): after X turns the crop portrait, picking
   another ratio (4 × 5, 2 × 3…) keeps it portrait, as in Lightroom, and a Custom ratio taller than wide gives a
