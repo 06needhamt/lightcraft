@@ -145,10 +145,6 @@ fn strs(p: &Value, key: &str) -> Vec<String> {
     p.get(key).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default()
 }
 
-fn ids_param(p: &Value) -> Option<Vec<PhotoId>> {
-    p.get("ids").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_u64).map(PhotoId).collect())
-}
-
 /// The targets an album can hold and how many were browsed (Local) photos, which album views
 /// never show (issue #684): those are skipped, and reported, instead of becoming invisible members.
 fn album_targets(s: &Session, targets: Vec<PhotoId>) -> (Vec<PhotoId>, usize) {
@@ -623,7 +619,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{ids: [id], active?: id, mode?: replace|add|toggle|range} — every id must be a photo of the library",
             always,
             |s, p| {
-                let ids = ids_param(p).unwrap_or_default();
+                let ids = super::photo_ids(p, "library.select")?.unwrap_or_default();
                 let active = p.get("active").and_then(Value::as_u64).map(PhotoId);
                 let mode = str_param(p, "mode").unwrap_or("replace");
                 // An id that is not in the library is an error, and the selection stays as it was:
@@ -829,8 +825,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{id?, index} — remove one face / pet region (by its position in the photo's regions) from the photo in the catalog; undoable. The XMP sidecar is never rewritten for this, even with auto-write on, so reading the metadata from the file brings the region back",
             always,
             |s, p| {
-                let id =
-                    p.get("id").and_then(Value::as_u64).map(PhotoId).or_else(|| s.active()).ok_or_else(|| bad("photo.removeRegion", "no photo"))?;
+                let id = super::photo_id(p, "photo.removeRegion")?.or_else(|| s.active()).ok_or_else(|| bad("photo.removeRegion", "no photo"))?;
                 let index = p
                     .get("index")
                     .and_then(Value::as_u64)
@@ -856,7 +851,7 @@ pub fn specs() -> Vec<CommandSpec> {
             |s, p| {
                 const C: &str = "photo.setRegion";
                 // a drag is one undo step however many frames it took: the caller commits once, on release
-                let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or_else(|| s.active()).ok_or_else(|| bad(C, "no photo"))?;
+                let id = super::photo_id(p, C)?.or_else(|| s.active()).ok_or_else(|| bad(C, "no photo"))?;
                 let index = p
                     .get("index")
                     .and_then(Value::as_u64)
@@ -1267,7 +1262,7 @@ pub fn specs() -> Vec<CommandSpec> {
             has_library_selection,
             |s, p| {
                 let id = album_param(p, "id", "album.addPhotos")?;
-                let targets = ids_param(p).unwrap_or_else(|| s.selected());
+                let targets = super::photo_ids(p, "album.addPhotos")?.unwrap_or_else(|| s.selected());
                 let al = s.catalog.album(id).ok_or_else(|| bad("album.addPhotos", "no such album"))?;
                 if al.is_smart() || al.folder {
                     return Err(bad("album.addPhotos", "smart albums and folders can't hold photos"));
@@ -1296,7 +1291,8 @@ pub fn specs() -> Vec<CommandSpec> {
             "{ids?} — B: adds the photos to the target album (the Quick Collection unless one is set), or removes them when they're all in it → {album, added, skipped}; Local photos are skipped",
             has_library_selection,
             |s, p| {
-                let targets = album_targets_or_err(s, "album.toggleTarget", ids_param(p).unwrap_or_else(|| s.selected()))?;
+                let targets =
+                    album_targets_or_err(s, "album.toggleTarget", super::photo_ids(p, "album.toggleTarget")?.unwrap_or_else(|| s.selected()))?;
                 let (targets, skipped) = targets;
                 let target = s.target_album.filter(|a| s.catalog.album(*a).is_some_and(|al| !al.is_smart() && !al.folder));
                 let id = match target.or_else(|| s.catalog.quick_collection()) {
@@ -1458,7 +1454,7 @@ pub fn specs() -> Vec<CommandSpec> {
                         _ => return Err(bad("album.removePhotos", "no album: pass `id` or show an album")),
                     },
                 };
-                let targets = ids_param(p).unwrap_or_else(|| s.selected());
+                let targets = super::photo_ids(p, "album.removePhotos")?.unwrap_or_else(|| s.selected());
                 let al = s.catalog.album(id).ok_or_else(|| bad("album.removePhotos", "no such album"))?;
                 if al.is_smart() {
                     return Err(bad("album.removePhotos", "smart albums update automatically: change their rules"));

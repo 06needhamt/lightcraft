@@ -87,7 +87,7 @@ fn analyze(s: &mut Session, p: &Value) -> Result<Value> {
 /// content), most similar first; the view is filtered to them.
 fn find_similar(s: &mut Session, p: &Value) -> Result<Value> {
     const C: &str = "library.findSimilar";
-    let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or(s.active()).ok_or_else(|| super::bad(C, "no photo"))?;
+    let id = super::photo_id(p, C)?.or(s.active()).ok_or_else(|| super::bad(C, "no photo"))?;
     let min = p.get("similarity").and_then(Value::as_f64).unwrap_or(0.8) as f32;
     let all: Vec<PhotoId> = s.catalog.photos().filter(|q| q.in_library()).map(|q| q.id).collect();
     let sig = |s: &mut Session, id: PhotoId| -> Option<[f32; 64]> {

@@ -62,7 +62,7 @@ fn album_json(a: &Album, all: &[Album], cat: &lightcraft_catalog::Catalog, depth
 
 /// The photo a query is about: `id` when given (which must be in the library), else the active one.
 fn photo_arg(s: &Session, p: &Value, c: &str) -> crate::Result<PhotoId> {
-    match p.get("id").and_then(Value::as_u64).map(PhotoId) {
+    match super::photo_id(p, c)? {
         Some(id) if s.catalog.photo(id).is_some() => Ok(id),
         Some(id) => Err(bad(c, format!("no such photo {}", id.0))),
         None => s.active().ok_or_else(|| bad(c, "no photo")),
