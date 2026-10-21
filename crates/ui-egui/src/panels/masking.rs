@@ -183,8 +183,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 let pct = if download.total > 0 { download.done as f64 / download.total as f64 } else { 0.0 };
                 // the bar takes what the Details button leaves
                 let details = ui.spacing().interact_size.x + 30.0;
-                crate::progress::Progress::new(Some(pct as f32))
-                    .label(format!("SAM 3: {} %", (pct * 100.0).floor()))
+                crate::progress::Progress::new(crate::progress::fraction_of(download.done, download.total))
+                    // no percentage to say while the size is unknown
+                    .label(if download.total > 0 { format!("SAM 3: {} %", (pct * 100.0).floor()) } else { String::new() })
                     .width((ui.available_width() - details).max(96.0))
                     .widget("maskSamProgress")
                     .show(ui);
@@ -767,6 +768,11 @@ pub(crate) fn start_describe(app: &mut LightcraftApp, op: &str) {
 }
 
 /// The Describe field: type what to select ("sky", "the red car") and press Return.
+/// Enter in the Describe field is the Select button: it starts nothing while the segmenter works.
+fn enter_submits(working: bool, lost_focus: bool, enter_pressed: bool) -> bool {
+    !working && lost_focus && enter_pressed
+}
+
 fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
     let Some((op, mut text)) = app.ui.describe.clone() else { return };
     // a new mask's field sits under the tiles; one that combines, under the selected mask
@@ -796,7 +802,8 @@ fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
         if !r.has_focus() && !r.lost_focus() && text.is_empty() {
             r.request_focus();
         }
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        // Enter is the Select button: nothing starts while the segmenter is working
+        if enter_submits(working, r.lost_focus(), ui.input(|i| i.key_pressed(egui::Key::Enter))) {
             submit = true;
         }
     });
@@ -903,6 +910,14 @@ fn brush_settings(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn enter_in_the_describe_field_starts_nothing_while_the_segmenter_works() {
+        assert!(enter_submits(false, true, true));
+        assert!(!enter_submits(true, true, true));
+        assert!(!enter_submits(false, false, true));
+        assert!(!enter_submits(false, true, false));
+    }
 
     #[test]
     fn masking_context_actions_use_catalog_translations() {

@@ -39,6 +39,12 @@ pub fn clamp_fraction(fraction: f32) -> f32 {
     if fraction.is_nan() { 0.0 } else { fraction.clamp(0.0, 1.0) }
 }
 
+/// `done` of `total` as a fraction, or `None` while the total is not known (0): an unknown total
+/// is a bar that sweeps, not one stuck at 0 %.
+pub fn fraction_of(done: u64, total: u64) -> Option<f32> {
+    (total > 0).then(|| clamp_fraction(done as f32 / total as f32))
+}
+
 /// A progress bar, built and then shown with [`Progress::show`].
 #[derive(Clone, Debug)]
 pub struct Progress {

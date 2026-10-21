@@ -361,13 +361,12 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                 match (dl_state, dl) {
                     (Some("running"), Some(d)) => {
                         let (got, total) = (d["bytes"].as_u64().unwrap_or(0), d["total"].as_u64().unwrap_or(0));
-                        let frac = if total > 0 { (got as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 };
                         let text = if total > 0 && got >= total {
                             "Checking…".to_string()
                         } else {
                             format!("{} of {} from {host}", mb(Some(got)), mb(Some(total)))
                         };
-                        crate::progress::Progress::new(Some(frac))
+                        crate::progress::Progress::new(crate::progress::fraction_of(got, total))
                             .label(text)
                             .width(crate::progress::ROW_WIDTH.min(ui.available_width()))
                             .widget(format!("faces:progress:{id}"))

@@ -141,6 +141,22 @@ pub fn detail_toggle(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, on
     });
 }
 
+/// The bar under the Denoise slider while a photo's picture is made: at most 240 px wide, and
+/// sweeping while the number of tiles is not known yet.
+pub(crate) fn detail_bar(ui: &mut egui::Ui, done: u64, total: u64) -> egui::Response {
+    let fraction = crate::progress::fraction_of(done, total);
+    let text = match fraction {
+        Some(f) => tr_format!("Making the denoised picture… {}%", (f * 100.0).round() as u32),
+        None => tr("Starting…").to_string(),
+    };
+    crate::progress::Progress::new(fraction).label(text).width(ui.available_width().min(240.0)).widget("denoise:progress").show(ui)
+}
+
+/// The bar in Settings, AI Denoise: 380 px wide however wide the tab is.
+pub(crate) fn settings_bar(ui: &mut egui::Ui, done: u64, total: u64, text: String) -> egui::Response {
+    crate::progress::Progress::new(crate::progress::fraction_of(done, total)).label(text).width(380.0).widget("denoise:settingsProgress").show(ui)
+}
+
 /// The line under the Denoise slider for the photo `id`, whose Amount is `amount`.
 pub fn detail_status(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, amount: f64) {
     let t = Tokens::get(ui.ctx());
@@ -198,13 +214,7 @@ pub fn detail_status(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, am
         }
         PhotoState::Running { done, total } => {
             egui::Frame::NONE.inner_margin(pad).show(ui, |ui| {
-                let frac = if total > 0 { (done as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 };
-                let text = if total > 0 {
-                    tr_format!("Making the denoised picture… {}%", (frac * 100.0).round() as u32)
-                } else {
-                    tr("Starting…").to_string()
-                };
-                crate::progress::Progress::new(if total > 0 { Some(frac) } else { None }).label(text).widget("denoise:progress").show(ui);
+                detail_bar(ui, done as u64, total as u64);
             });
         }
         PhotoState::Failed { why, unsupported } => {
@@ -329,7 +339,6 @@ fn work_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, list: &V
     let (running, queued) = (app.caches.denoise.running, app.caches.denoise.queued);
     match running {
         Some((done, total)) => {
-            let frac = if total > 0 { (done as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 };
             let name = status["running"]["photo"]
                 .as_u64()
                 .and_then(|p| app.session.catalog.photo(PhotoId(p)).map(|p| p.file_name.clone()))
@@ -341,7 +350,7 @@ fn work_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, list: &V
                 done = done,
                 total = total
             );
-            crate::progress::Progress::new(Some(frac)).label(text).widget("denoise:settingsProgress").show(ui);
+            settings_bar(ui, done, total, text);
         }
         None if queued > 0 => hint(ui, t, &count(queued, "photo waiting", "photos waiting")),
         None => {
@@ -445,13 +454,12 @@ fn model_row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, m: &Value, 
                 match (dl_state, dl) {
                     (Some("running"), Some(d)) => {
                         let (got, total) = (d["bytes"].as_u64().unwrap_or(0), d["total"].as_u64().unwrap_or(0));
-                        let frac = if total > 0 { (got as f32 / total as f32).clamp(0.0, 1.0) } else { 0.0 };
                         let text = if total > 0 && got >= total {
                             tr("Checking…").to_string()
                         } else {
                             tr_format!("{} of {} from {host}", mb(Some(got)), mb(Some(total)), host = host)
                         };
-                        crate::progress::Progress::new(Some(frac))
+                        crate::progress::Progress::new(crate::progress::fraction_of(got, total))
                             .label(text)
                             .width(crate::progress::ROW_WIDTH.min(ui.available_width()))
                             .widget(format!("denoise:progress:{id}"))

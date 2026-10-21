@@ -7,7 +7,7 @@ use egui::{Pos2, Rect, pos2, vec2};
 
 use crate::button::{Button, contrast};
 use crate::icons::Icon;
-use crate::progress::{Progress, clamp_fraction, spinner};
+use crate::progress::{Progress, clamp_fraction, fraction_of, spinner};
 use crate::theme::{ThemeKind, Tokens};
 
 /// What a screen reader gets for one node.
@@ -63,6 +63,15 @@ fn the_fraction_is_always_between_nothing_and_all() {
     assert_eq!(Progress::new(Some(f32::NAN)).fraction(), Some(0.0));
     assert_eq!(Progress::new(Some(2.0)).fraction(), Some(1.0));
     assert_eq!(Progress::new(None).fraction(), None);
+}
+
+#[test]
+fn an_unknown_total_is_an_indeterminate_bar_not_an_empty_one() {
+    assert_eq!(fraction_of(0, 0), None);
+    assert_eq!(fraction_of(5, 0), None);
+    assert_eq!(fraction_of(0, 10), Some(0.0));
+    assert_eq!(fraction_of(5, 10), Some(0.5));
+    assert_eq!(fraction_of(20, 10), Some(1.0));
 }
 
 #[test]
@@ -196,4 +205,16 @@ fn a_failed_filmstrip_thumbnail_is_announced_with_its_reason() {
     };
     assert_eq!(spoken(false).as_deref(), Some("IMG_0001.jpg"));
     assert_eq!(spoken(true).as_deref(), Some("IMG_0001.jpg, This photo can't be opened"));
+}
+
+#[test]
+fn the_denoise_bars_keep_their_widths_in_a_wide_container() {
+    let (_, ids, (detail, settings, unknown)) = frames(Vec::new(), |ui| {
+        let detail = crate::panels::denoise::detail_bar(ui, 3, 10).rect.width();
+        let settings = crate::panels::denoise::settings_bar(ui, 3, 10, "Denoising a.jpg: 3 of 10 tiles".into()).rect.width();
+        let unknown = crate::panels::denoise::detail_bar(ui, 0, 0).rect.width();
+        (detail, settings, unknown)
+    });
+    assert_eq!((detail, settings, unknown), (240.0, 380.0, 240.0));
+    assert!(ids.iter().any(|(id, _)| id == "denoise:settingsProgress"));
 }

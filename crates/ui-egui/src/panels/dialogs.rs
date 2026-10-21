@@ -1674,9 +1674,8 @@ fn sam_model_body(app: &mut LightcraftApp, ui: &mut egui::Ui, error: Option<&str
     let seg = &app.session.segmenter;
     if d.running {
         ui.add_space(4.0);
-        let frac = if d.total > 0 { d.done as f64 / d.total as f64 } else { 0.0 };
         let text = format!("{:.2} / {:.2} GB · {}", gb(d.done), gb(d.total), d.file);
-        crate::progress::Progress::new(Some(frac as f32)).label(text).widget("progress:samDownload").show(ui);
+        crate::progress::Progress::new(crate::progress::fraction_of(d.done, d.total)).label(text).widget("progress:samDownload").show(ui);
         let r = ui.button(crate::i18n::tr("Cancel Download"));
         crate::widgets::register(ui.ctx(), "button:samCancel", r.rect);
         if r.clicked() {
