@@ -202,7 +202,7 @@ fn connected_strokes(from: Point, last: &BrushStroke, to: BrushStroke) -> Vec<Br
 /// The mask `id` names: `None` when it is missing or null. An `id` that isn't a mask id (text, a
 /// negative or fractional number, or one past `u32`, which `as u32` would have wrapped onto another
 /// mask) is an error, never the selected mask.
-fn opt_mask_id(p: &Value, c: &str) -> Result<Option<u32>> {
+pub(crate) fn opt_mask_id(p: &Value, c: &str) -> Result<Option<u32>> {
     match p.get("id") {
         None | Some(Value::Null) => Ok(None),
         Some(v) => v.as_u64().and_then(|n| u32::try_from(n).ok()).map(Some).ok_or_else(|| bad(c, "`id` must be a mask id")),
@@ -382,7 +382,7 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("mask.update", "Update Mask Shape", [], None, "{id?, component?: index (0), shape: MaskShape JSON}", has_active, |s, p| {
             let shape: MaskShape =
                 serde_json::from_value(p.get("shape").cloned().unwrap_or_default()).map_err(|e| bad("mask.update", e.to_string()))?;
-            let comp = p.get("component").and_then(Value::as_u64).unwrap_or(0) as usize;
+            let comp = opt_index(p, "component", "mask.update")?.unwrap_or(0);
             let mid = mask_id(p, s.active_mask, "mask.update")?;
             masks_edit(s, "mask.update", "Edit Mask", |masks, _| {
                 let i = find(masks, mid, "mask.update")?;
@@ -501,8 +501,8 @@ pub fn specs() -> Vec<CommandSpec> {
                 let mid = mask_id(p, s.active_mask, c)?;
                 let d = s.develop_of(id).unwrap_or_default();
                 let m = d.masks.iter().find(|m| m.id == mid).ok_or_else(|| bad(c, format!("no mask {mid}")))?;
-                let k = match p.get("component").and_then(Value::as_u64) {
-                    Some(k) => k as usize,
+                let k = match opt_index(p, "component", c)? {
+                    Some(k) => k,
                     None => m
                         .components
                         .iter()
@@ -703,7 +703,7 @@ pub fn specs() -> Vec<CommandSpec> {
             |s, p| {
                 let c = "mask.component";
                 let mid = mask_id(p, s.active_mask, c)?;
-                let k = p.get("component").and_then(Value::as_u64).ok_or_else(|| bad(c, "missing component"))? as usize;
+                let k = opt_index(p, "component", c)?.ok_or_else(|| bad(c, "missing component"))?;
                 let action = str_param(p, "action").ok_or_else(|| bad(c, "missing action"))?.to_string();
                 let op: Option<MaskOp> = match p.get("op") {
                     Some(v) => Some(serde_json::from_value(v.clone()).map_err(|e| bad(c, e.to_string()))?),

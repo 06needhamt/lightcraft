@@ -163,3 +163,43 @@ fn photo_label_refuses_a_missing_or_non_text_label() {
     s.execute("photo.label", &json!({"label": "none"})).unwrap();
     assert!(labels(&s).iter().all(Option::is_none));
 }
+
+/// The mask-effect commands and a mask's `component` the same way: `mask.saveEffect {"id": "2"}`
+/// saved the selected mask's sliders, and `mask.update {"component": "1"}` reshaped component 0.
+#[test]
+fn mask_effects_and_components_refuse_values_that_are_not_ids() {
+    let (mut s, _, _) = session();
+    s.execute("mask.add", &json!({"kind": "linear"})).unwrap();
+    s.execute("mask.add", &json!({"kind": "radial"})).unwrap();
+    s.execute("mask.saveEffect", &json!({"name": "Kept"})).unwrap();
+    let state = |s: &Session| (format!("{:?}", s.develop_of(s.active().unwrap()).unwrap().masks), s.mask_effects.len());
+    let before = state(&s);
+    let commits = s.commits();
+    let d = s.develop_of(s.active().unwrap()).unwrap();
+    let shape = serde_json::to_value(&d.masks.last().unwrap().components[0].shape).unwrap();
+    for bad in [json!("1"), json!(-1), json!(1.5), json!([1]), json!(u64::from(u32::MAX) + 2)] {
+        for (cmd, params) in [
+            ("mask.applyEffect", json!({"name": "Kept"})),
+            ("mask.saveEffect", json!({"name": "New"})),
+            ("mask.updateEffect", json!({"name": "Kept"})),
+        ] {
+            let mut params = params;
+            params["id"] = bad.clone();
+            let e = s.execute(cmd, &params).unwrap_err();
+            assert!(e.to_string().contains("`id`"), "{cmd} {bad}: {e}");
+        }
+        if bad.is_u64() {
+            continue; // a well-formed index past the end is "no such component", not a type error
+        }
+        for (cmd, params) in
+            [("mask.update", json!({"shape": shape})), ("mask.component", json!({"action": "invert"})), ("mask.refineDetail", json!({}))]
+        {
+            let mut params = params;
+            params["component"] = bad.clone();
+            let e = s.execute(cmd, &params).unwrap_err();
+            assert!(e.to_string().contains("`component`"), "{cmd} {bad}: {e}");
+        }
+    }
+    assert_eq!(s.commits(), commits, "nothing was changed");
+    assert_eq!(state(&s), before);
+}
