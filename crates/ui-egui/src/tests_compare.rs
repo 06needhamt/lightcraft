@@ -274,6 +274,7 @@ fn deleting_the_pinned_reference_stops_drawing_it_and_reentry_uses_a_live_photo(
     h.settle(SETTLE);
     assert!(!drawn(&h), "Recently Deleted photos must not remain on the reference canvas");
     assert!(!h.app.renderer.textures.contains_key(&crate::render::Slot::Compare(0)), "the deleted reference's pane is released");
+    assert!(!h.app.renderer.textures.contains_key(&crate::render::Slot::Compare(1)), "and the active photo's pane beside it");
     assert!(h.app.compare_windows[0].is_none());
     let r = h.app.run("view.reference", json!({})).unwrap();
     assert_eq!(r["reference"], active.0);

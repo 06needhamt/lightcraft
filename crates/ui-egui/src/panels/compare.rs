@@ -461,7 +461,9 @@ pub fn prepare(app: &mut LightcraftApp) {
         return;
     }
     if app.ui.view == ViewMode::Reference {
+        // the reference (pane 0) and the active photo beside it (pane 1)
         app.renderer.release(Slot::Compare(0));
+        app.renderer.release(Slot::Compare(1));
     }
     app.session.media.set_full_capacity(1);
     for i in 0..WINDOW_PANES {
