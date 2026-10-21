@@ -727,7 +727,8 @@ impl LightcraftApp {
         if self.session.interaction.is_some()
             && self.session.active().and_then(|id| self.session.develop_of(id)).is_some_and(|d| d.crop == lightcraft_develop::Crop::default())
             && aspect != serde_json::json!("free")
-            && let Err(e) = self.session.execute("crop.aspect", &serde_json::json!({"aspect": aspect}))
+            // the remembered ratio, turned like the new photo's crop (as a named ratio is)
+            && let Err(e) = self.session.execute("crop.aspect", &serde_json::json!({"aspect": aspect, "orientation": "crop"}))
         {
             // A remembered value the command refuses (a hand-edited settings file) would refuse
             // every crop drag on an untouched photo: forget it and let this drag go ahead.

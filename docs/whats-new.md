@@ -6,6 +6,13 @@
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
 
+## 2026-10-18
+
+### Portrait crop ratios stay portrait
+- A crop ratio no longer flips to the photo's orientation (issue #2253): after X turns the crop portrait, picking
+  another ratio (4 × 5, 2 × 3…) keeps it portrait, as in Lightroom, and a Custom ratio taller than wide gives a
+  portrait crop.
+
 ## 2026-10-15
 
 ### Constrain Crop tightens the crop you see
