@@ -104,3 +104,42 @@ fn single_photo_commands_refuse_an_id_that_is_not_a_photo_id() {
     assert_eq!(source(&s), before);
     assert_eq!(s.catalog.photo(active).unwrap().meta.regions.len(), 1);
 }
+
+/// Mask ids and spot indexes the same way: `mask.delete {"id": "1"}` deleted the selected mask, and an
+/// id past `u32` wrapped (`4294967297 as u32` is 1) onto another mask.
+#[test]
+fn mask_and_spot_commands_refuse_ids_that_are_not_ids() {
+    let (mut s, _, _) = session();
+    s.execute("mask.add", &json!({"kind": "linear"})).unwrap();
+    s.execute("mask.add", &json!({"kind": "radial"})).unwrap();
+    s.execute("spot.add", &json!({"mode": "heal", "points": [[0.4, 0.5]], "size": 0.02, "source": [0.1, 0.0]})).unwrap();
+    let state = |s: &Session| {
+        let d = s.develop_of(s.active().unwrap()).unwrap();
+        (d.masks.iter().map(|m| (m.id, m.name.clone(), m.visible)).collect::<Vec<_>>(), d.spots.len())
+    };
+    let before = state(&s);
+    assert_eq!((before.0.len(), before.1), (2, 1));
+    let first = before.0[0].0;
+    let commits = s.commits();
+    for bad in [json!(u64::from(u32::MAX) + 1 + u64::from(first)), json!("1"), json!(-1), json!(1.5), json!([first])] {
+        for (cmd, params) in [
+            ("mask.delete", json!({})),
+            ("mask.rename", json!({"name": "renamed"})),
+            ("mask.visible", json!({"visible": false})),
+            ("mask.select", json!({})),
+        ] {
+            let mut params = params;
+            params["id"] = bad.clone();
+            assert!(s.execute(cmd, &params).is_err(), "{cmd} {bad}");
+        }
+        for cmd in ["spot.delete", "spot.select"] {
+            assert!(s.execute(cmd, &json!({"index": bad})).is_err(), "{cmd} {bad}");
+        }
+    }
+    assert_eq!(s.commits(), commits, "nothing was changed");
+    assert_eq!(state(&s), before);
+    // well-formed ids and a null still work
+    s.execute("mask.delete", &json!({"id": first})).unwrap();
+    s.execute("spot.select", &json!({"index": null})).unwrap();
+    assert_eq!(state(&s).0.len(), 1);
+}
