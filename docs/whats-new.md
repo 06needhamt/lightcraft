@@ -8,8 +8,6 @@
   and a Synchronize button that started a job with nothing to do. Files it skipped (already in the library elsewhere,
   or unreadable) are still listed.
 
-## 2026-10-19
-
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
