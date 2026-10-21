@@ -414,6 +414,7 @@ mod tests {
         assert_eq!(ids(&[1, 5]), vec![1, 2, 3, 4, 5, 6]);
     }
 
+    /// Cycles, dangling parents and excessively deep chains finish with bounded paths and depths.
     #[test]
     fn damaged_parent_chains_are_bounded() {
         let mut entries = vec![e(1, "Loop A", Some(2), true, false), e(2, "Loop B", Some(1), true, false), e(3, "Photo", Some(1), false, false)];

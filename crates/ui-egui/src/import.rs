@@ -1240,6 +1240,8 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     }
     let mut albums = crate::album_picker::entries_from(&app.session.catalog, |_| None);
     albums.retain(|a| a.folder || !a.smart);
+    // Catalog changes while the review is open must not leave a hidden, unselectable destination.
+    d.album = d.album.filter(|id| albums.iter().any(|a| a.id == *id && !a.folder));
     field(ui, "Album", |ui| {
         ui.vertical(|ui| {
             let mut chosen = d.album;

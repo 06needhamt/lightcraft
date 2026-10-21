@@ -12,26 +12,31 @@ use crate::{LightcraftApp, Services};
 const T: Duration = Duration::from_secs(20);
 const SETTLE: Duration = Duration::from_secs(120);
 
+/// Dispatch a public command and return its successful engine result.
 fn exec(h: &mut Headless, command: &str, params: serde_json::Value) -> serde_json::Value {
     let r = h.request("engine.execute", json!({"command": command, "params": params}), T);
     assert_eq!(r["ok"], true, "{command}: {r}");
     r["result"].clone()
 }
 
+/// Read the album ID returned by a successful creation command.
 fn id(v: serde_json::Value) -> u64 {
     v["id"].as_u64().expect("an id")
 }
 
+/// Click a registered widget through the public control channel and let frames settle.
 fn click(h: &mut Headless, id: &str) {
     let r = h.request("ui.clickWidget", json!({"id": id}), T);
     assert_eq!(r["ok"], true, "{id}: {r}");
     h.settle(SETTLE);
 }
 
+/// Check the current frame registry for an exact widget ID.
 fn has(h: &Headless, id: &str) -> bool {
     h.app.widgets.iter().any(|(w, _)| w == id)
 }
 
+/// Read the Album rule value from the active smart-rule editor.
 fn value(h: &Headless) -> serde_json::Value {
     let Some(crate::state::Dialog::SmartRules { rules, .. }) = &h.app.ui.dialog else { panic!("no rule editor") };
     let Some(Rule::Field { value, .. }) = rules.rules.first() else { panic!("no rule") };
@@ -140,10 +145,12 @@ mod import_review {
         smart: u64,
     }
 
+    /// Open the standard import review fixture with nested and same-named albums.
     fn review() -> Review {
         review_at([1300.0, 950.0], 1.0)
     }
 
+    /// Build the import review fixture at the requested logical size and display density.
     fn review_at(size: [f32; 2], density: f32) -> Review {
         let app = LightcraftApp::new(lightcraft_engine::Session::with_demo().with_fs(), Services { png: None, ..Default::default() });
         let mut h = Headless::new(app, size, density);
@@ -157,6 +164,7 @@ mod import_review {
         Review { h, folder, nested, album, other, smart }
     }
 
+    /// Read the active import review without accepting a silently closed dialog.
     fn destination(h: &Headless) -> &crate::import::ImportDialog {
         let Some(crate::state::Dialog::Import { opts }) = &h.app.ui.dialog else { panic!("import review remains open") };
         opts
@@ -182,18 +190,21 @@ mod import_review {
         assert!(has(&h, &format!("albumPickerItem:{album}:import-album")), "selected album's ancestors reopen");
     }
 
+    /// Type through the public control channel and wait for the search or field to update.
     fn text(h: &mut Headless, value: &str) {
         let r = h.request("ui.text", json!({"text": value}), T);
         assert_eq!(r["ok"], true, "{r}");
         assert!(h.settle(SETTLE));
     }
 
+    /// Send a public keyboard event and wait for its resulting UI state.
     fn key(h: &mut Headless, key: &str) {
         let r = h.request("ui.key", json!({"key": key}), T);
         assert_eq!(r["ok"], true, "{r}");
         assert!(h.settle(SETTLE));
     }
 
+    /// Replace the pending new album name using normal field selection and typing.
     fn replace_name(h: &mut Headless, name: &str) {
         click(h, "field:importAlbumName");
         let r = h.request("ui.key", json!({"key": "a", "cmd": true}), T);
@@ -201,6 +212,7 @@ mod import_review {
         text(h, name);
     }
 
+    /// None, New and an existing album replace each other without retaining a stale pending name.
     #[test]
     fn import_album_picker_retains_none_new_and_existing_transitions() {
         let Review { mut h, album, .. } = review();
@@ -255,6 +267,7 @@ mod import_review {
         );
     }
 
+    /// Path search is case-insensitive and Escape preserves review edits and user-provided names.
     #[test]
     fn import_album_picker_search_escape_and_unicode_names() {
         let Review { mut h, folder, album, .. } = review();
@@ -279,6 +292,7 @@ mod import_review {
         assert!(h.painted_text().iter().any(|t| t == "Travel / La fête 東京"), "user names are kept verbatim");
     }
 
+    /// The catalog custom order wins over alphabetical order in the import picker.
     #[test]
     fn import_album_picker_follows_custom_sidebar_order() {
         let Review { mut h, other, .. } = review();
@@ -289,11 +303,13 @@ mod import_review {
         assert!(top(last_by_name) < top(other), "sidebar order takes priority over alphabetical order");
     }
 
+    /// Match painted text inside the specified control instead of anywhere in the frame.
     fn button_text(h: &Headless, id: &str, expected: &str) -> bool {
         let rect = h.app.widgets.iter().find(|(w, _)| w == id).unwrap().1;
         h.view.painted_shapes().iter().any(|shape| matches!(shape, egui::Shape::Text(t) if t.galley.job.text == expected && rect.contains(t.pos)))
     }
 
+    /// Long paths and editable names remain usable across themes, viewport sizes and display densities.
     #[test]
     fn import_album_picker_fits_long_names_across_themes_sizes_and_densities() {
         for (size, density) in [([960.0, 760.0], 1.0), ([1366.0, 900.0], 2.0), ([960.0, 760.0], 2.25)] {
@@ -327,6 +343,7 @@ mod import_review {
         }
     }
 
+    /// Every shipped locale paints translated destination choices and initializes a translated new name.
     #[test]
     fn import_album_picker_localizes_choices_in_every_shipped_language() {
         use crate::i18n::Locale;
@@ -354,6 +371,7 @@ mod import_review {
         }
     }
 
+    /// An empty catalog still offers None and New without inventing an existing destination.
     #[test]
     fn import_album_picker_handles_an_empty_catalog() {
         let app = LightcraftApp::new(lightcraft_engine::Session::new(), Services { png: None, ..Default::default() });
@@ -372,11 +390,13 @@ mod import_review {
     struct Fixture(std::path::PathBuf);
 
     impl Drop for Fixture {
+        /// Remove only the uniquely owned fixture directory after the test session releases it.
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
     }
 
+    /// Write an original procedural PNG in a unique temporary directory for a real import.
     fn fixture() -> Fixture {
         let unique = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let path = std::env::temp_dir().join(format!("lc-import-tree-{}-{unique}", std::process::id()));
@@ -390,10 +410,11 @@ mod import_review {
 
     /// A real file scan, the real picker, and the real import worker: the intended album receives
     /// the photo, duplicate names never redirect it, and the import is still one undo step.
+    /// A destination deleted while the review is open falls back to no album before confirmation.
     #[test]
     fn import_album_picker_delivers_to_the_chosen_destination_and_undoes() {
         use lightcraft_catalog::PhotoId;
-        for choice in ["existing", "new", "none"] {
+        for choice in ["existing", "new", "none", "deleted"] {
             let fixture = fixture();
             let Review { mut h, album, other, .. } = review();
             let before: std::collections::HashSet<PhotoId> = h.app.session.catalog.photos().map(|p| p.id).collect();
@@ -412,6 +433,13 @@ mod import_review {
                 "new" => {
                     click(&mut h, "importAlbum:new");
                     replace_name(&mut h, "From card");
+                }
+                "deleted" => {
+                    key(&mut h, "Escape");
+                    exec(&mut h, "album.delete", json!({"id": album}));
+                    assert!(h.settle(SETTLE));
+                    assert_eq!(destination(&h).album, None, "a deleted destination matches the displayed None choice");
+                    assert!(button_text(&h, "albumPicker:import-album", "None"));
                 }
                 _ => click(&mut h, "importAlbum:none"),
             }

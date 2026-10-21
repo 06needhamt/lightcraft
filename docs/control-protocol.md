@@ -289,6 +289,8 @@ In the Import Photos review, `albumPicker:import-album` opens the destination pi
 opens the current choice's ancestors and shows its full path on the closed button. Smart albums
 are not import destinations. Type into `albumPickerSearch:import-album` to search folder/album paths;
 ↑ / ↓ and Enter pick a search result, and Escape closes the picker while keeping the review open.
+If the chosen album is deleted while the review is open, the destination returns to None before
+confirmation instead of submitting the deleted ID.
 
 `importAlbum:none` clears the destination and any pending new album name. `importAlbum:new` keeps
 or initializes that name, edited through `field:importAlbumName`. Choosing an existing album clears
