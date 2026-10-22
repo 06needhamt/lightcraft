@@ -720,19 +720,22 @@ mod tests {
     }
 
     #[test]
-    fn nr_contrast_keeps_fine_texture() {
-        let src = Rgb32f::from_fn(48, 16, |x, y| {
-            let n = if (x + y) % 2 == 0 { 0.12 } else { -0.12 };
-            [0.3 + n; 3]
-        });
-        let mut flat = DevelopSettings::default();
-        flat.detail.nr_luminance = 100.0;
-        let mut held = flat.clone();
-        held.detail.nr_contrast = 100.0;
-        let mut a = src.clone();
-        let mut b = src.clone();
-        denoise(&mut a, &flat, 48, 48);
-        denoise(&mut b, &held, 48, + if x > 80 { 1.5 } else { 0.0 });
+    fn exposure_doubles() {
+        let mut s = DevelopSettings::default();
+        s.light.exposure = 1.0;
+        let mut img = Rgb32f::filled(2, 2, [0.1, 0.2, 0.3]);
+        scene_linear_pre(&mut img, &SourceInfo::default(), &s);
+        assert!((img.get(1, 1)[2] - 0.6).abs() < 1e-5);
+    }
+}
+
+#[cfg(test)]
+mod fast_tests {
+    use super::*;
+
+    #[test]
+    fn fast_guided_close_to_reference() {
+        let p = Plane::from_fn(160, 120, |x, y| ((x as f32 * 0.13).sin() + (y as f32 * 0.07).cos()) * 2.0 + if x > 80 { 1.5 } else { 0.0 });
         let a = guided(&p, 12.0, 0.3);
         let b = guided_fast(&p, 12.0, 0.3);
         let err: f32 = a.data.iter().zip(&b.data).map(|(u, v)| (u - v).abs()).sum::<f32>() / a.len() as f32;
