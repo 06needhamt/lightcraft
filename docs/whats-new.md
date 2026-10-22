@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Sharper resampling in HDR and panorama merges
+- Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
+  photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
+  hard edges such as clipped highlights.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
