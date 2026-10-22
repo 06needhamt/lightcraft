@@ -75,7 +75,7 @@ fn x_in_the_crop_tool_swaps_the_aspect_once() {
     h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [id.0], "active": id.0}}), T);
     h.app.ui.view = ViewMode::Detail;
     h.request("engine.execute", json!({"command": "panel.crop"}), T);
-    let r = h.request("engine.execute", json!({"command": "crop.aspect", "params": {"aspect": [3, 4]}}), T);
+    let r = h.request("engine.execute", json!({"command": "crop.aspect", "params": {"aspect": "3x4"}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
     assert_eq!(h.app.ui.right, RightPanel::Crop);
@@ -84,14 +84,14 @@ fn x_in_the_crop_tool_swaps_the_aspect_once() {
         let r = p.develop.crop.geometry.rect_px(p.width as f64, p.height as f64);
         (r.width() > r.height(), p.develop.crop.aspect)
     };
-    assert_eq!(crop(&h), (true, Some((300, 400))), "a 3:4 crop follows the landscape photo");
+    assert_eq!(crop(&h), (true, Some((400, 300))), "a 3:4 crop follows the landscape photo");
     let undo = h.app.session.undo.len();
     h.request("ui.key", json!({"key": "x"}), T);
     h.settle(SETTLE);
-    assert_eq!(crop(&h), (false, Some((400, 300))), "X turns the crop portrait");
+    assert_eq!(crop(&h), (false, Some((300, 400))), "X turns the crop portrait");
     assert_eq!(h.app.session.undo.len(), undo + 1, "one swap, one undo step");
     assert_eq!(h.app.session.catalog.photo(id).unwrap().flag, lightcraft_catalog::Flag::None, "X doesn't reject while cropping");
     h.request("ui.key", json!({"key": "x"}), T);
     h.settle(SETTLE);
-    assert_eq!(crop(&h), (true, Some((300, 400))), "X again turns it back");
+    assert_eq!(crop(&h), (true, Some((400, 300))), "X again turns it back");
 }
