@@ -11,6 +11,11 @@
 
 ## 2026-10-19
 
+### AI Denoise on DirectX 12 with NVIDIA GTX 10-series cards
+- AI Denoise on the GPU under DirectX 12 (the Windows default) gives the same result as on the CPU again on an NVIDIA
+  GeForce GTX 1070. The driver ran the denoise network's output stores wrong, so every second pixel's colour
+  channels came out shifted and the denoised photo was wrong without any error. Vulkan was not affected.
+
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
