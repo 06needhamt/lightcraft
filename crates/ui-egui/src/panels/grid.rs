@@ -1026,6 +1026,7 @@ pub fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, sid:
     } else {
         "Stack — click to collapse (S)"
     });
+    crate::widgets::announce(&resp, crate::i18n::tr(if collapsed { "Expand Stack" } else { "Collapse Stack" }));
     register(ui.ctx(), format!("stack:{}", id.0), br);
     let fill = if resp.hovered() { Color32::from_black_alpha(220) } else { Color32::from_black_alpha(165) };
     p.rect_filled(br, 10.0, fill);
@@ -1036,7 +1037,15 @@ pub fn stack_badge(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, sid:
     p.galley(pos2(br.min.x + 24.0, br.center().y - g.size().y / 2.0), g, Color32::WHITE);
     // a double-click (Lightroom's way) toggles once: its second click would undo the first
     if resp.clicked() && !resp.double_clicked() {
-        let _ = app.run("stack.toggle", json!({"ids": [id.0]}));
+        toggle_stack(app, ui.ctx(), id);
+    }
+}
+
+/// A click on a stack badge (grid or filmstrip): expand / collapse that photo's stack, selected or
+/// not. The selection stays as it is (Compare keeps its pair).
+pub fn toggle_stack(app: &mut LightcraftApp, ctx: &egui::Context, id: PhotoId) {
+    if let Err(e) = app.run("stack.toggle", json!({"ids": [id.0]})) {
+        app.toast(ctx, e);
     }
 }
 
