@@ -161,17 +161,17 @@ pub fn specs() -> Vec<CommandSpec> {
             Ok(json!({"changed": commit_ops(s, "Remove from Stack", ops)?}))
         }),
         cmd!("stack.setTop", "Set as Top of Stack", ["Photo", "Stack"], Some("Shift+S"), "{id?} (default: the active photo)", in_stack, |s, p| {
-            let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or(s.active()).ok_or_else(|| bad("stack.setTop", "no photo"))?;
+            let id = super::photo_id(p, "stack.setTop")?.or(s.active()).ok_or_else(|| bad("stack.setTop", "no photo"))?;
             let op = s.catalog.set_top_ops(id);
             Ok(json!({"changed": commit_ops(s, "Set Top of Stack", op.into_iter().collect())?}))
         }),
         cmd!("stack.moveUp", "Move Up in Stack", ["Photo", "Stack"], None, "{id?} — one place towards the top", in_stack, |s, p| {
-            let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or(s.active()).ok_or_else(|| bad("stack.moveUp", "no photo"))?;
+            let id = super::photo_id(p, "stack.moveUp")?.or(s.active()).ok_or_else(|| bad("stack.moveUp", "no photo"))?;
             let op = s.catalog.move_in_stack_ops(id, -1);
             Ok(json!({"changed": commit_ops(s, "Move in Stack", op.into_iter().collect())?}))
         }),
         cmd!("stack.moveDown", "Move Down in Stack", ["Photo", "Stack"], None, "{id?} — one place away from the top", in_stack, |s, p| {
-            let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or(s.active()).ok_or_else(|| bad("stack.moveDown", "no photo"))?;
+            let id = super::photo_id(p, "stack.moveDown")?.or(s.active()).ok_or_else(|| bad("stack.moveDown", "no photo"))?;
             let op = s.catalog.move_in_stack_ops(id, 1);
             Ok(json!({"changed": commit_ops(s, "Move in Stack", op.into_iter().collect())?}))
         }),
@@ -183,7 +183,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{id?} — this photo and the ones after it become their own stack",
             in_stack,
             |s, p| {
-                let id = p.get("id").and_then(Value::as_u64).map(PhotoId).or(s.active()).ok_or_else(|| bad("stack.split", "no photo"))?;
+                let id = super::photo_id(p, "stack.split")?.or(s.active()).ok_or_else(|| bad("stack.split", "no photo"))?;
                 let op = s.catalog.split_stack_ops(id).ok_or_else(|| bad("stack.split", "pick a photo below the top of a stack"))?;
                 Ok(json!({"changed": commit_ops(s, "Split Stack", vec![op])?}))
             }
