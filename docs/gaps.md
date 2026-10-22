@@ -84,6 +84,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-19 | minor | Gap 21: Indonesian (`id`) shipped with every catalog message but What's New; four new languages left (Hindi, Arabic, Korean, Vietnamese), 135–239 h |
 | 2026-10-19 | minor | Gap 27: the released 0.9.1 x64 MSI is tested on Windows 11 Pro 24H2 (a fresh install and an upgrade from 0.8.0 end on the completion page, so #790 is fixed; the upgrade keeps a custom folder; Launch starts the app; removal leaves nothing behind); uninstalling from Settings → Apps still ends with no confirmation (#892, #931); hours unchanged |
 | 2026-10-18 | patch | Gap 1: six X-Trans CMOS 4 Fujifilm bodies (X-T30 …) take the X-T3's spectral matrices instead of the neutral matrix |
+| 2026-10-14 | minor | Gap 4 follow-up: the diagnostic overlays (Visualize Spots, Point Color range, HDR range) render zoom windows too; soft proofing runs on the GPU |
 | 2026-10-15 | minor | Gap 15 shrinks: the Page panel's Page Options (Page Numbers, Page Info, Crop Marks) print on Single Image and Contact Sheet pages; identity plate, watermark, photo info, Cut Guides, direct printing and JPEG output remain |
 | 2026-10-12 | minor | Gap 10: SR2/SRF folder discovery fixed; F828 imports as preview-only. Sensor decoding remains a gap; readiness scores unchanged |
 | 2026-10-15 | minor | Gap 28: `\` shows / hides the Filter Bar in the grids; the entry drops `[` `]` (#509), flag cycling (#1490) and F1 (Help), already on main; ⌘L is the filter-bar key left; hours unchanged |
