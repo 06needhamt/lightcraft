@@ -293,6 +293,22 @@ one pixel.
   (clicks, keys, drags) has played out. Widget ids for `ui.clickWidget` come from `ui.widgets`
   (e.g. `button:upright-auto`). A 1600×1000 demo snapshot takes ~1–2 s (debug build).
 
+## Import album picker
+
+In the Import Photos review, `albumPicker:import-album` opens the destination picker.
+`albumPickerFolder:<folder-id>:import-album` expands or folds a folder; it never chooses a destination.
+`albumPickerItem:<album-id>:import-album` selects a regular album. The picker follows sidebar order,
+opens the current choice's ancestors and shows its full path on the closed button. Smart albums
+are not import destinations. Type into `albumPickerSearch:import-album` to search folder/album paths;
+↑ / ↓ and Enter pick a search result, and Escape closes the picker while keeping the review open.
+If the chosen album is deleted while the review is open, the destination returns to None before
+confirmation instead of submitting the deleted ID.
+
+`importAlbum:none` clears the destination and any pending new album name. `importAlbum:new` keeps
+or initializes that name, edited through `field:importAlbumName`. Choosing an existing album clears
+the pending name. `ui.dialog.confirm` starts the same import into the selected album ID; engine
+`library.import` parameters `album` and `albumName` are unchanged.
+
 ## Panel docking
 
 Library, Tools, and Presets panels can be regrouped, split, floated within the app window, closed, and reopened. Tools keeps the current Edit/Crop/Masking mode; the photo view and filmstrip stay together. The document/session view is protected. Layouts, active tabs, panel visibility, and floating rectangles are saved with the app's existing UI preferences. These operations do not edit document contents.

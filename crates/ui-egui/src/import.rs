@@ -1244,40 +1244,49 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
             );
         });
     }
-    let albums: Vec<(u64, String)> = {
-        let mut v: Vec<(u64, String)> =
-            app.session.catalog.albums().filter(|a| !a.folder && !a.is_smart()).map(|a| (a.id.0, a.name.clone())).collect();
-        v.sort_by_key(|(_, n)| n.to_lowercase());
-        v
-    };
+    let mut albums = crate::album_picker::entries_from(&app.session.catalog, |_| None);
+    albums.retain(|a| a.folder || !a.smart);
+    // Catalog changes while the review is open must not leave a hidden, unselectable destination.
+    d.album = d.album.filter(|id| albums.iter().any(|a| a.id == *id && !a.folder));
     field(ui, "Album", |ui| {
-        let cur = match d.album {
-            Some(a) => albums.iter().find(|x| x.0 == a).map(|x| x.1.clone()).unwrap_or_default(),
-            None if !d.new_album.is_empty() => crate::i18n::tr("New album").into(),
-            None => crate::i18n::tr("None").into(),
-        };
-        crate::widgets::combo_box("import-album").selected_text(cur).show_ui(ui, |ui| {
-            if ui.selectable_label(d.album.is_none() && d.new_album.is_empty(), crate::i18n::tr("None")).clicked() {
-                d.album = None;
+        ui.vertical(|ui| {
+            let mut chosen = d.album;
+            let mut extra = None;
+            let empty = crate::i18n::tr(if d.new_album.is_empty() { "None" } else { "New album" });
+            let response = crate::album_picker::AlbumPicker::new("import-album", &mut chosen, &albums)
+                .width(ui.available_width())
+                .empty_text(empty)
+                .show_with_choices(ui, |ui| {
+                    let none = ui.selectable_label(d.album.is_none() && d.new_album.is_empty(), crate::i18n::tr("None"));
+                    register(ui.ctx(), "importAlbum:none", none.rect);
+                    if none.clicked() {
+                        extra = Some(false);
+                    }
+                    let new = ui.selectable_label(d.album.is_none() && !d.new_album.is_empty(), crate::i18n::tr("New album…"));
+                    register(ui.ctx(), "importAlbum:new", new.rect);
+                    if new.clicked() {
+                        extra = Some(true);
+                    }
+                    ui.separator();
+                    extra.is_some()
+                });
+            if response.changed() {
+                d.album = chosen;
                 d.new_album.clear();
             }
-            if ui.selectable_label(d.album.is_none() && !d.new_album.is_empty(), crate::i18n::tr("New album…")).clicked() {
+            if let Some(new) = extra {
                 d.album = None;
-                if d.new_album.is_empty() {
+                if !new {
+                    d.new_album.clear();
+                } else if d.new_album.is_empty() {
                     d.new_album = crate::i18n::tr("Imported Photos").into();
                 }
             }
-            for (id, name) in &albums {
-                if ui.selectable_label(d.album == Some(*id), name).clicked() {
-                    d.album = Some(*id);
-                    d.new_album.clear();
-                }
+            if d.album.is_none() && !d.new_album.is_empty() {
+                let r = ui.add(egui::TextEdit::singleline(&mut d.new_album).desired_width(f32::INFINITY));
+                register(ui.ctx(), "field:importAlbumName", r.rect);
             }
         });
-        if d.album.is_none() && !d.new_album.is_empty() {
-            let r = ui.add(egui::TextEdit::singleline(&mut d.new_album).desired_width(f32::INFINITY));
-            register(ui.ctx(), "field:importAlbumName", r.rect);
-        }
     });
     field(ui, "Preset", |ui| {
         let cur = app
