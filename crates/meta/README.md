@@ -8,7 +8,7 @@ Photo metadata: EXIF, XMP (read + write), IPTC-IIM, and the containers that carr
 |---|---|
 | `read_exif(&[u8]) -> Metadata` | TIFF-structured Exif block (whole TIFF/DNG/raw file, or JPEG APP1 payload with/without `Exif\0\0`). `try_read_exif` reports header errors. |
 | `from_tiff(&Tiff) -> Metadata` | Same, from an already parsed stream (used by `lightcraft-raw`). |
-| `embedded(&[u8]) -> Embedded` | Sniffs JPEG / PNG / WebP / TIFF and returns the Exif, XMP (+ extended XMP), ICC and IPTC blocks. `jpeg_segments`, `png_chunks`, `webp_chunks` are the per-container walkers. |
+| `embedded(&[u8]) -> Embedded` | Sniffs JPEG / PNG / WebP / TIFF / PSD / PSB and returns the Exif, XMP (+ extended XMP), ICC and IPTC blocks. PSD/PSB EXIF resource 1058 and XMP resource 1060 are read from the bounded image-resource section without decoding pixels. `jpeg_segments`, `png_chunks`, `webp_chunks` are the per-container walkers. |
 | `parse_xmp(&str) -> Result<XmpData>` | Metadata + the opaque `lc:settings` JSON + every property (`prefix:name`, structs flattened as `a:b/c:d`). |
 | `write_xmp(&Metadata, Option<&str>) -> String` | Complete `<?xpacket?>` packet; the second argument is LightCraft's full develop settings JSON. |
 | `parse_iptc(&[u8]) -> Metadata` | IIM record 2: title (2:5), keywords (2:25), by-line (2:80), copyright (2:116), caption (2:120), date/time created (2:55/2:60). |
@@ -30,7 +30,8 @@ and node count are limited.
 ## Robustness
 
 No panics on malformed input: proptests feed random bytes to every container walker and random text to the
-XMP parser; truncation tests cut a sample JPEG at every byte.
+XMP parser; truncation tests cut a sample JPEG at every byte and exercise truncated PSD/PSB headers and
+image-resource records with hostile declared lengths.
 
 ## Sources
 

@@ -7,7 +7,7 @@
 //! - [`parse_xmp`] / [`write_xmp`] — XMP packets (interchange fields + the opaque `lc:settings` JSON).
 //! - [`parse_iptc`] — IPTC-IIM record 2 datasets.
 //! - [`parse_gpx`] — GPS track logs (GPX) for geotagging by capture time.
-//! - [`extract`] — all of the above for a whole file (JPEG, PNG, WebP, TIFF/DNG/raw, Canon CR3).
+//! - [`extract`] — all of the above for a whole file (JPEG, PNG, WebP, TIFF/DNG/raw, PSD/PSB, Canon CR3).
 //! - [`cr3`] — the Canon CR3 container (metadata blocks, XMP, the JPEG and raw tracks).
 #![forbid(unsafe_code)]
 
@@ -20,6 +20,7 @@ mod focus_read;
 mod gpx;
 mod iptc;
 pub mod mrw;
+mod psd;
 pub mod tags;
 mod xmp;
 mod xmp_merge;

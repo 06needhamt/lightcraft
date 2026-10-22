@@ -4,7 +4,7 @@ use serde_json::json;
 
 use crate::Session;
 use crate::export::{ExportFormat, ExportOptions, export_photo};
-use crate::tests_xmp::{synthetic_dng_with, temp_dir};
+use crate::tests_xmp::{synthetic_dng_with, synthetic_psd_with_metadata, temp_dir};
 
 #[test]
 fn full_size_export_of_a_cropped_photo_is_not_upscaled() {
@@ -654,6 +654,22 @@ fn remove_location_refuses_a_raw_that_embeds_gps() {
     let id = s.catalog.photos().next().unwrap().id;
     let err = export_photo(&mut s, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
     assert!(err.contains("can't remove the location"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_refuses_a_psd_that_embeds_gps() {
+    let dir = temp_dir("export-noloc-psd");
+    let gps = lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 45.0, longitude: 7.0, altitude: None }), ..Default::default() };
+    let path = dir.join("Geo.psd");
+    let bytes = synthetic_psd_with_metadata(&gps);
+    assert_eq!(lightcraft_meta::extract(&bytes).gps, gps.gps, "the fixture embeds EXIF GPS");
+    std::fs::write(&path, &bytes).unwrap();
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    let err = export_photo(&mut session, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
+    assert!(err.contains("can't remove the location") && err.contains("export as JPEG"), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

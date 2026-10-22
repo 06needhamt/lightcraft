@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### PSD and PSB metadata stays available
+- LightCraft now imports PSD and PSB files with EXIF and XMP image resources. Capture dates, GPS and descriptive fields
+  stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
+  are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
