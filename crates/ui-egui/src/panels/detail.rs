@@ -60,6 +60,13 @@ pub enum Gesture {
     Guide {
         a: Point,
     },
+    /// Guided Upright: dragging the endpoint `end` (0 = `guide.0`, 1 = `guide.1`) of guide `i`,
+    /// from where the pointer went down (`from` — egui forgets the press origin at the release).
+    GuideEndpoint {
+        i: usize,
+        end: usize,
+        from: Pos2,
+    },
     /// Red Eye: an ellipse being dragged from corner `a` (normalized).
     Eye {
         a: Point,
@@ -575,6 +582,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
     // a pinch changes the zoom every frame: keep the sizes of before it until it is quiet
     let plan = app.size_hold.apply(id, now, navigating, plan);
+    // the drawn size in pixels, clamped first: a NaN or negative float must not become a size
+    let drawn_px = |points: f32| (points * ppp).round().clamp(0.0, 65_536.0) as usize;
+    let fit_px = app.size_hold.display_fit(now, navigating, [drawn_px(target_rect.width()), drawn_px(target_rect.height())]);
     if app.size_hold.holding(now) {
         ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(crate::region::HOLD_SECS));
     }
@@ -603,11 +613,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         // at rest the render is shrunk to exactly the size it is drawn at with a Lanczos filter on
         // the worker, so the window draws it texel for texel instead of shrinking it with 2-tap
         // sampling (the render is up to a 64 px step larger, or the preview level)
-        let job = if interacting {
-            job
-        } else {
-            job.with_display_fit((target_rect.width() * ppp).round() as usize, (target_rect.height() * ppp).round() as usize)
-        };
+        let job = if interacting { job } else { job.with_display_fit(fit_px[0], fit_px[1]) };
         let job = job.with_overlay(overlay).with_proof(app.ui.soft_proof.then_some(app.ui.proof));
         let job = job.with_hidden_grading(app.ui.grading_hidden_for(id));
         app.renderer.request(Slot::Main, job, 100);
@@ -626,7 +632,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let hover_key = match app.hover_preview.clone() {
         Some(h) if !interacting => app.session.preview_job(id, sw.max(8), sh.max(8), !crop_tool, &h.settings).map(|job| {
             // (the same display fit as the After view, drawn texel for texel like it)
-            let job = job.with_display_fit((target_rect.width() * ppp).round() as usize, (target_rect.height() * ppp).round() as usize);
+            let job = job.with_display_fit(fit_px[0], fit_px[1]);
             let key = job.key;
             app.renderer.request(Slot::Hover, job, 105);
             (key, h.label)
@@ -666,11 +672,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         && let Some(job) = app.session.render_job(id, sw.max(8), sh.max(8), true, !crop_tool)
     {
         // (the same display fit as the After view, so both panes are the same texture size)
-        let job = if interacting {
-            job
-        } else {
-            job.with_display_fit((target_rect.width() * ppp).round() as usize, (target_rect.height() * ppp).round() as usize)
-        };
+        let job = if interacting { job } else { job.with_display_fit(fit_px[0], fit_px[1]) };
         app.renderer.request(Slot::Before, job, 90);
     }
     // zoomed past what the whole-frame render holds: also render the part on screen, at no more
@@ -947,7 +949,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if let Some(why) = photo.preview_only.as_deref().filter(|_| !fullscreen) {
         preview_only_pill(ui, canvas, why);
     }
-    resp.context_menu(|ui| {
+    crate::widgets::context_menu(&resp, |ui| {
         crate::widgets::menu_button(ui, crate::i18n::tr("Zoom"), |ui| {
             for (label, cmd) in [("Fit", "view.zoomFit"), ("100%", "view.zoom100"), ("Zoom In", "view.zoomIn"), ("Zoom Out", "view.zoomOut")] {
                 if ui.button(crate::i18n::tr(label)).clicked() {
@@ -1535,8 +1537,13 @@ fn general_interaction(
 // ------------------------------------------------------------------------ crop
 
 fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings, id: PhotoId) {
+    // the selected guide belongs to this photo and to the Guided Upright tool, and to a guide
+    // that still exists (a Delete after the last one leaves the selection behind)
+    if app.ui.tool != "guidedUpright" || app.ui.selected_guide.is_some_and(|(photo, i)| photo != id.0 || i >= d.geometry.guides.len()) {
+        app.ui.selected_guide = None;
+    }
     if app.ui.tool == "guidedUpright" {
-        guided_overlay(app, ui, resp, map, frame, d);
+        guided_overlay(app, ui, resp, map, frame, d, id);
         return;
     }
     if app.ui.tool == "straighten" {
@@ -1691,7 +1698,6 @@ fn crop_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
         // the canvas (the loupe's own rect), not the photo: rotating happens in the margin around it
         angle_readout(ui, at, shown_angle, resp.rect);
     }
-    let _ = id;
 }
 
 /// The crop handles' names for screen readers, in `crop.drag`'s numbering: 0..3 corners, 4..7
@@ -1830,39 +1836,142 @@ fn angle_readout(ui: &egui::Ui, at: Pos2, angle: f64, bounds: Rect) {
 
 /// Guided Upright: draw up to four guides along lines that should be vertical or horizontal. Guides are
 /// stored in lens-corrected (pre-perspective) coordinates, so they stay attached to the image as it warps.
-fn guided_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, frame: &Frame, d: &DevelopSettings) {
+fn guided_overlay(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    resp: &egui::Response,
+    map: &CanvasMap,
+    frame: &Frame,
+    d: &DevelopSettings,
+    id: PhotoId,
+) {
     let p = ui.painter_at(map.rect.expand(8.0));
     let col = Color32::from_rgb(255, 196, 40);
-    let draw = |a: Pos2, b: Pos2| {
-        p.line_segment([a, b], Stroke::new(3.0, Color32::from_black_alpha(120)));
-        p.line_segment([a, b], Stroke::new(1.5, col));
+    // the selected guide: brighter, so the Delete key has a visible target
+    let selected = app.ui.selected_guide.filter(|(photo, _)| *photo == id.0).map(|(_, i)| i);
+    let draw = |a: Pos2, b: Pos2, sel: bool| {
+        let (edge, core, at) = if sel { (3.5, 2.5, 5.0) } else { (3.0, 1.5, 4.0) };
+        p.line_segment([a, b], Stroke::new(edge, Color32::from_black_alpha(120)));
+        p.line_segment([a, b], Stroke::new(core, if sel { Color32::WHITE } else { col }));
         for q in [a, b] {
-            p.circle_filled(q, 4.0, col);
-            p.circle_stroke(q, 4.0, Stroke::new(1.0, Color32::BLACK));
+            p.circle_filled(q, at, if sel { Color32::WHITE } else { col });
+            p.circle_stroke(q, at, Stroke::new(1.0, Color32::BLACK));
         }
     };
-    for (i, (a, b)) in d.geometry.guides.iter().enumerate() {
-        let (sa, sb) = (map.screen(frame.corrected_to_transformed(*a)), map.screen(frame.corrected_to_transformed(*b)));
+    let on_screen = |guide: &(Point, Point)| {
+        let (sa, sb) = (map.screen(frame.corrected_to_transformed(guide.0)), map.screen(frame.corrected_to_transformed(guide.1)));
+        (sa, sb)
+    };
+    for (i, guide) in d.geometry.guides.iter().enumerate() {
+        let (sa, sb) = on_screen(guide);
         register(ui.ctx(), format!("uprightGuide:{i}"), Rect::from_two_pos(sa, sb));
-        draw(sa, sb);
+        draw(sa, sb, selected == Some(i));
     }
     ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-    if resp.drag_started()
-        && let Some(q) = resp.interact_pointer_pos()
+    // A press starts what it means, right away (the pointer's press point, not where a drag
+    // threshold would have been crossed): on an endpoint it drags that endpoint (the guide is
+    // selected when it lands), on a line it selects the guide (a press on the selected one
+    // deselects), anywhere else it starts a new guide from the press point. The primary button
+    // only, never on the navigator — it pans the photo, it draws no guide — and only where the
+    // loupe itself takes the press: `contains_pointer` is layer-aware over the current pointer
+    // (the raw pointer is not), and `layer_id_at` asks the same question at the press point —
+    // a menu can receive the press and the pointer can leave it within the same frame, so the
+    // press itself must belong to the loupe's layer. Anything floating above the photo — a
+    // context menu, a dropdown, a dialog — owns its own press; the guide under it stays put.
+    // A slow frame can also swallow the whole press-move-release into one batch, and egui
+    // clears `press_origin` on the release: then the press position is read back from the
+    // frame's own events, so the gesture still starts where the pointer went down.
+    let nav = app.widgets.iter().rev().find(|(w, _)| w == "canvas:navigator").map(|(_, r)| *r);
+    if ui.input(|i| i.pointer.primary_pressed())
+        && let Some(q) = ui
+            .input(|i| {
+                i.pointer.press_origin().or_else(|| {
+                    i.events.iter().rev().find_map(|e| match e {
+                        egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => Some(*pos),
+                        _ => None,
+                    })
+                })
+            })
+            .or(resp.interact_pointer_pos())
+        && resp.contains_pointer()
+        && ui.ctx().layer_id_at(q) == Some(resp.layer_id)
+        && resp.rect.contains(q)
+        && !nav.is_some_and(|n| n.expand(5.0).contains(q))
     {
-        app.gesture = Some(Gesture::Guide { a: map.norm(q) });
+        let endpoint = d.geometry.guides.iter().enumerate().find_map(|(i, guide)| {
+            let (a, b) = on_screen(guide);
+            if a.distance(q) <= 7.0 {
+                Some((i, 0))
+            } else if b.distance(q) <= 7.0 {
+                Some((i, 1))
+            } else {
+                None
+            }
+        });
+        let line = d.geometry.guides.iter().position(|guide| {
+            let (a, b) = on_screen(guide);
+            point_segment_dist(q, a, b) <= 6.0
+        });
+        match (endpoint, line) {
+            (Some((i, end)), _) => app.gesture = Some(Gesture::GuideEndpoint { i, end, from: q }),
+            (None, Some(i)) => app.ui.selected_guide = if selected == Some(i) { None } else { Some((id.0, i)) },
+            // drawing a new guide leaves nothing selected
+            (None, None) => {
+                app.ui.selected_guide = None;
+                app.gesture = Some(Gesture::Guide { a: map.norm(q) });
+            }
+        }
     }
-    if let (Some(Gesture::Guide { a }), Some(q)) = (&app.gesture, resp.interact_pointer_pos()) {
-        draw(map.screen(*a), q);
+    let q = resp.interact_pointer_pos().or_else(|| ui.input(|i| i.pointer.latest_pos()));
+    if let (Some(Gesture::Guide { a }), Some(q)) = (&app.gesture, q) {
+        draw(map.screen(*a), q, false);
     }
-    if resp.drag_stopped()
-        && let (Some(Gesture::Guide { a }), Some(q)) = (app.gesture.clone(), resp.interact_pointer_pos())
+    // the endpoint being dragged: the guide follows the pointer, bright
+    if let (Some(Gesture::GuideEndpoint { i, end, .. }), Some(q)) = (&app.gesture, q)
+        && let Some(guide) = d.geometry.guides.get(*i)
     {
-        app.gesture = None;
-        let b = map.norm(q);
-        if a.dist(b) > 0.02 {
-            let (ca, cb) = (frame.transformed_to_corrected(a), frame.transformed_to_corrected(b));
-            let _ = app.run("geometry.guides", json!({"guides": [[ca.x, ca.y, cb.x, cb.y]], "add": true}));
+        let fixed = if *end == 0 { guide.1 } else { guide.0 };
+        draw(map.screen(frame.corrected_to_transformed(fixed)), q, true);
+    }
+    if ui.input(|i| i.pointer.any_released()) {
+        match app.gesture.take() {
+            // the endpoint lands: the guide stays (one undo step) and is selected. A press
+            // without a real drag only selects — no no-op undo entry for a click.
+            Some(Gesture::GuideEndpoint { i, end, from }) => {
+                app.ui.selected_guide = Some((id.0, i));
+                if let (Some(q), Some(guide)) = (q, d.geometry.guides.get(i)) {
+                    let fixed_t = if end == 0 { guide.1 } else { guide.0 };
+                    let new_t = frame.transformed_to_corrected(map.norm(q));
+                    let (a, b) = if end == 0 { (new_t, fixed_t) } else { (fixed_t, new_t) };
+                    let (na, nb) = (frame.corrected_to_transformed(a), frame.corrected_to_transformed(b));
+                    // a press that only selected (it landed within the endpoint's grab radius
+                    // and never moved) writes no guide: compare against where it went down
+                    let moved = from.distance(q) > 2.0;
+                    if moved && na.dist(nb) > 0.02 {
+                        let all: Vec<[f64; 4]> = d
+                            .geometry
+                            .guides
+                            .iter()
+                            .enumerate()
+                            .map(|(j, g)| {
+                                let (x, y) = if j == i { (a, b) } else { *g };
+                                [x.x, x.y, y.x, y.y]
+                            })
+                            .collect();
+                        let _ = app.run("geometry.guides", json!({"guides": all}));
+                    }
+                }
+            }
+            Some(Gesture::Guide { a }) => {
+                if let Some(q) = q
+                    && map.norm(q).dist(a) > 0.02
+                {
+                    let b = map.norm(q);
+                    let (ca, cb) = (frame.transformed_to_corrected(a), frame.transformed_to_corrected(b));
+                    let _ = app.run("geometry.guides", json!({"guides": [[ca.x, ca.y, cb.x, cb.y]], "add": true}));
+                }
+            }
+            other => app.gesture = other,
         }
     }
 }
@@ -1873,6 +1982,13 @@ fn to_straight(n: Point, angle: f64, frame: &Frame) -> Point {
     let px = Point::new(n.x * w, n.y * h);
     let r = Affine::rotate_about(angle.to_radians(), Point::new(w / 2.0, h / 2.0)).apply(px);
     Point::new(r.x / w, r.y / h)
+}
+
+/// How far `q` is from the segment `a`–`b` (screen pixels): the click that selects a guide.
+fn point_segment_dist(q: Pos2, a: Pos2, b: Pos2) -> f32 {
+    let ab = b - a;
+    let t = if ab.length_sq() > 0.0 { ((q - a).dot(ab) / ab.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+    (a + ab * t).distance(q)
 }
 
 /// A crop box's corners (top-left, top-right, bottom-right, bottom-left of the unflipped photo)
@@ -2732,7 +2848,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 }
             }
             // the same photo actions as the grid and loupe (Restore / Delete Permanently in Recently Deleted)
-            resp.context_menu(|ui| super::grid::context_menu(app, ui, *id));
+            crate::widgets::context_menu(&resp, |ui| super::grid::context_menu(app, ui, *id));
         }
     });
 }

@@ -918,6 +918,119 @@ fn auto_sync_carries_only_the_changed_settings() {
 }
 
 #[test]
+fn auto_sync_camera_local_tone_off_preserves_other_settings() {
+    use lightcraft_catalog::PhotoId;
+    let mut s = demo();
+    let ids: Vec<u64> = s.catalog.photos().take(3).map(|p| p.id.0).collect();
+    for (id, (profile, amount, contrast)) in ids.iter().zip([("lc.color", 100, 0), ("lc.vivid", 37, 25), ("lc.mono", 63, -20)]) {
+        s.execute("library.select", &json!({"ids": [id]})).unwrap();
+        let settings = json!({"profile": {"id": profile, "amount": amount}, "light": {"contrast": contrast}});
+        s.execute("develop.merge", &json!({"settings": settings})).unwrap();
+    }
+    let initial: Vec<_> = ids.iter().map(|id| (*s.develop_of(PhotoId(*id)).unwrap()).clone()).collect();
+    assert!(initial.iter().all(|d| !d.profile.camera_local_tone));
+    s.execute("library.select", &json!({"ids": [ids[0], ids[1]], "active": ids[0]})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    let on = json!({"settings": {"profile": {"camera_local_tone": true}}, "label": "Camera Local Tone Mapping"});
+    let off = json!({"settings": {"profile": {"camera_local_tone": false}}, "label": "Camera Local Tone Mapping"});
+
+    // Positive control: On reaches both selected photos, changing only this setting.
+    s.execute("develop.merge", &on).unwrap();
+    let mut synced = initial.clone();
+    for d in synced.iter_mut().take(2) {
+        d.profile.camera_local_tone = true;
+    }
+    for (id, expected) in ids.iter().zip(&synced) {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), expected, "On: photo {id}");
+    }
+
+    let undo_before = s.undo.len();
+    let history_before: Vec<_> = ids.iter().map(|id| s.catalog.photo(PhotoId(*id)).unwrap().history.len()).collect();
+    s.execute("develop.merge", &off).unwrap();
+    assert!(!s.develop_of(PhotoId(ids[0])).unwrap().profile.camera_local_tone);
+    assert!(!s.develop_of(PhotoId(ids[1])).unwrap().profile.camera_local_tone, "Auto Sync must carry camera local tone Off");
+    assert_eq!(s.undo.len(), undo_before + 1, "Off is one undoable edit");
+    for (i, (id, expected)) in ids.iter().zip(&initial).enumerate() {
+        let photo = s.catalog.photo(PhotoId(*id)).unwrap();
+        assert_eq!(photo.develop.as_ref(), expected, "Off: photo {id}");
+        assert_eq!(photo.history.len(), history_before[i] + usize::from(i < 2), "Off history: photo {id}");
+        let stored = photo.develop.to_json();
+        assert!(stored["profile"].get("camera_local_tone").is_none(), "false stays omitted: photo {id}");
+        assert_eq!(&lightcraft_develop::DevelopSettings::from_json(&stored).unwrap(), expected);
+    }
+
+    // One Undo/Redo restores the complete settings of both selected photos, not the third.
+    s.execute("edit.undo", &json!({})).unwrap();
+    for (id, expected) in ids.iter().zip(&synced) {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), expected, "Undo: photo {id}");
+    }
+    s.execute("edit.redo", &json!({})).unwrap();
+    for (id, expected) in ids.iter().zip(&initial) {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), expected, "Redo: photo {id}");
+    }
+}
+
+#[test]
+fn auto_sync_camera_local_tone_changes_only_when_edited() {
+    use lightcraft_catalog::PhotoId;
+    let mut s = demo();
+    let ids: Vec<u64> = s.catalog.photos().take(3).map(|p| p.id.0).collect();
+    s.execute("library.select", &json!({"ids": [ids[1]]})).unwrap();
+    let settings = json!({"profile": {"id": "lc.vivid", "amount": 37, "camera_local_tone": true}, "light": {"contrast": 25}});
+    s.execute("develop.merge", &json!({"settings": settings})).unwrap();
+    let mut expected: Vec<_> = ids.iter().map(|id| (*s.develop_of(PhotoId(*id)).unwrap()).clone()).collect();
+    assert!(!expected[0].profile.camera_local_tone);
+    assert!(expected[1].profile.camera_local_tone);
+    s.execute("library.select", &json!({"ids": [ids[0], ids[1]], "active": ids[0]})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+
+    // An unrelated edit must not copy the active photo's unchanged false over the peer's true.
+    s.execute("develop.set", &json!({"control": "light.exposure", "value": 0.7})).unwrap();
+    for d in expected.iter_mut().take(2) {
+        d.light.exposure = 0.7;
+    }
+    for (id, settings) in ids.iter().zip(&expected) {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), settings, "Unrelated edit: photo {id}");
+    }
+
+    let peer_history = s.catalog.photo(PhotoId(ids[1])).unwrap().history.len();
+    s.execute("develop.merge", &json!({"settings": {"profile": {"camera_local_tone": false}}})).unwrap();
+    assert_eq!(s.catalog.photo(PhotoId(ids[1])).unwrap().history.len(), peer_history, "unchanged toggle adds no peer history");
+    for (id, settings) in ids.iter().zip(&expected) {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), settings, "Unchanged toggle: photo {id}");
+    }
+
+    // Direct unchanged edits may still add an active undo step. With Auto Sync off, real
+    // Boolean changes affect only the active photo; selected and unselected peers stay exact.
+    s.execute("develop.autoSync", &json!({"on": false})).unwrap();
+    for on in [true, false] {
+        s.execute("develop.merge", &json!({"settings": {"profile": {"camera_local_tone": on}}})).unwrap();
+        expected[0].profile.camera_local_tone = on;
+        for (id, settings) in ids.iter().zip(&expected) {
+            assert_eq!(s.develop_of(PhotoId(*id)).unwrap().as_ref(), settings, "Auto Sync disabled: photo {id}");
+        }
+    }
+}
+
+#[test]
+fn auto_sync_hdr_off_returns_selected_photos_to_sdr() {
+    use lightcraft_catalog::PhotoId;
+    let mut s = demo();
+    let ids: Vec<u64> = s.catalog.photos().take(2).map(|p| p.id.0).collect();
+    assert_eq!(ids.len(), 2);
+    for id in &ids {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().hdr, lightcraft_develop::Hdr::default(), "default-HDR fixture");
+    }
+    s.execute("library.select", &json!({"ids": ids, "active": ids[0]})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    let enabled = |s: &Session| ids.iter().map(|id| s.develop_of(PhotoId(*id)).unwrap().hdr.enabled).collect::<Vec<_>>();
+    s.execute("develop.hdr", &json!({"enabled": true})).unwrap();
+    assert_eq!(enabled(&s), vec![true, true], "HDR On must reach both selected photos");
+    s.execute("develop.hdr", &json!({"enabled": false})).unwrap();
+    assert_eq!(enabled(&s), vec![false, false], "HDR Off must reach both selected photos");
+}
+
+#[test]
 fn json_delta_keeps_only_changes() {
     let a = json!({"light": {"exposure": 0, "contrast": 5}, "masks": [1], "x": 1});
     let b = json!({"light": {"exposure": 1, "contrast": 5}, "masks": [1, 2], "x": 1});
@@ -1681,4 +1794,47 @@ fn malformed_photo_targets_are_refused_not_widened() {
     // a preset's id is not a photo target
     let preset = s.presets.first().unwrap().id.clone();
     s.execute("preset.apply", &json!({"id": preset})).unwrap();
+}
+
+#[test]
+fn auto_sync_hdr_enabled_preserves_per_photo_tuning() {
+    use lightcraft_develop::{DevelopSettings, Hdr, ProcessVersion};
+    let mut s = demo();
+    let ids: Vec<_> = s.catalog.photos().take(2).map(|p| p.id).collect();
+    assert_eq!(ids.len(), 2);
+    s.execute("develop.autoSync", &json!({"on": false})).unwrap();
+    // Keep distinct stored processes explicit: the default is now V2; no rendering claim is made.
+    let mut expected = [DevelopSettings::default(), DevelopSettings { process: ProcessVersion(2), ..DevelopSettings::default() }];
+    expected[0].process = ProcessVersion(1);
+    expected[0].light.exposure = 0.5;
+    expected[0].light.contrast = 12.0;
+    expected[1].light.exposure = -0.25;
+    expected[1].light.contrast = -22.0;
+    expected[1].hdr = Hdr {
+        enabled: false,
+        max_ev: 4.0,
+        sdr_brightness: 11.0,
+        sdr_contrast: -12.0,
+        sdr_highlights: 13.0,
+        sdr_shadows: -14.0,
+        sdr_whites: 15.0,
+        sdr_clarity: -16.0,
+    };
+    for (id, settings) in ids.iter().zip(&expected) {
+        s.set_develop(*id, settings.clone(), "HDR tuning fixture").unwrap();
+    }
+    s.execute("library.select", &json!({"ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "active": ids[0].0})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    let selection = s.selection.clone();
+    for enabled in [true, false] {
+        s.execute("develop.hdr", &json!({"enabled": enabled})).unwrap();
+        for (id, settings) in ids.iter().zip(&mut expected) {
+            settings.hdr.enabled = enabled;
+            let actual = s.develop_of(*id).unwrap();
+            assert_eq!(actual.hdr, settings.hdr, "HDR tuning must survive enabled={enabled} for photo {id:?}");
+            assert_eq!(actual.as_ref(), &*settings, "other per-photo edits and process must survive enabled={enabled}");
+        }
+        assert_eq!(s.selection, selection, "selection and active photo must survive enabled={enabled}");
+        assert!(s.auto_sync, "Auto Sync must remain enabled");
+    }
 }

@@ -203,6 +203,8 @@ pub const ALIASES: &[(&str, &str, &str)] = &[
     // Keep existing primary shortcuts and honour custom keymap assignments.
     ("F6", "view.filmstrip", "{}"),
     ("F7", "view.leftPanel", "{}"),
+    // and F8 the right panel
+    ("F8", "view.rightPanel", "{}"),
     ("Shift+M", "version.create", "{}"),
     // grid thumbnail size: Classic's key is `=`; `+` (keypad, or Shift+= reported as Plus) agrees
     ("Plus", "view.thumbSizeUp", "{}"),
@@ -466,6 +468,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             app.toast(ctx, e);
         }
     }
+    let rotate_fires = fire.iter().any(|f| f == "crop.rotateAspect");
     for f in fire {
         // a slideshow: ←/→ step (a cut)
         if app.ui.slideshow.is_some() && matches!(f.as_str(), "library.next" | "library.previous") {
@@ -558,6 +561,22 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                         }
                         continue;
                     }
+                    R::Crop if app.ui.tool == "guidedUpright" => {
+                        // Delete removes the selected guide alone; with none selected it removes
+                        // nothing (the photo itself is never deleted while the tool is open)
+                        if let (Some((photo, i)), Some(active)) = (app.ui.selected_guide, app.session.active()) {
+                            if photo == active.0
+                                && let Some(d) = app.session.develop_of(active)
+                                && i < d.geometry.guides.len()
+                            {
+                                let guides: Vec<[f64; 4]> =
+                                    d.geometry.guides.iter().enumerate().filter(|(k, _)| *k != i).map(|(_, (a, b))| [a.x, a.y, b.x, b.y]).collect();
+                                let _ = app.run("geometry.guides", json!({"guides": guides}));
+                            }
+                            app.ui.selected_guide = None;
+                        }
+                        continue;
+                    }
                     R::RedEye => continue,
                     _ => {}
                 }
@@ -587,9 +606,12 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 }
                 continue;
             }
-            // X is both reject (library) and swap crop aspect (crop tool)
+            // X is both reject (library) and swap crop aspect (crop tool). When both bindings fire,
+            // swap once: twice would put the crop straight back (issue #1866).
             if f == "photo.reject" && app.ui.right == crate::state::RightPanel::Crop {
-                let _ = app.run("crop.rotateAspect", json!({}));
+                if !rotate_fires {
+                    let _ = app.run("crop.rotateAspect", json!({}));
+                }
                 continue;
             }
             if f == "crop.rotateAspect" && app.ui.right != crate::state::RightPanel::Crop {
@@ -805,6 +827,27 @@ mod tests {
         key(&mut h, "F6", false);
         key(&mut h, "F7", false);
         assert_eq!((h.app.ui.filmstrip, h.app.ui.left_panel), (filmstrip, left));
+    }
+
+    /// Classic's F8 hides the right panel and shows the same one again; the other panels stay.
+    #[test]
+    fn classic_f8_hides_the_right_panel_and_brings_the_same_one_back() {
+        use crate::state::RightPanel;
+        let mut h = library();
+        h.app.ui.view = crate::state::ViewMode::Detail;
+        h.app.ui.right = RightPanel::Keywords;
+        h.settle(std::time::Duration::from_secs(10));
+        let (filmstrip, left) = (h.app.ui.filmstrip, h.app.ui.left_panel);
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::None);
+        assert_eq!((h.app.ui.filmstrip, h.app.ui.left_panel), (filmstrip, left));
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::Keywords, "the panel F8 hid comes back");
+        // a tool ends when F8 hides it; with nothing hidden before, F8 opens Edit
+        h.app.ui.right = RightPanel::None;
+        h.app.ui.right_hidden = RightPanel::None;
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::Edit);
     }
 
     #[test]

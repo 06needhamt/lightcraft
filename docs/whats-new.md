@@ -7,6 +7,27 @@
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
   hard edges such as clipped highlights.
 
+### Scrolling past editing sliders
+- Leaving a selected slider disarms its vertical mouse-wheel adjustment (issue #1355), even when the pointer leaves
+  and comes back between two screen updates. Scrolling back over it now scrolls the panel instead of unexpectedly
+  changing the photo. Click or drag the slider again to adjust it with the vertical wheel; keyboard arrow
+  adjustments and an ongoing drag still work. A slider reached with Tab takes the arrow keys but not the wheel:
+  click it to scroll-adjust it. Sideways scrolling still adjusts the slider under the pointer without selecting it
+  first.
+
+### A pinch no longer re-renders the photo at every zoom step
+- Pinching the loupe now keeps the size the fit view is rendered at until the gesture is quiet, as it already did for
+  the render sizes and windows. Before, each frame of a pinch asked for a new full-frame render at a new size.
+
+## 2026-10-20
+
+### Smart albums check File Path rules faster
+- A smart album rule on File Path (contains, doesn't contain, is, isn't, starts with, ends with, is empty, isn't
+  empty) no longer builds new text for every photo. On a synthetic library of 312,000 photos, a File Path "contains"
+  or "doesn't contain" rule took about 17 ms per pass instead of about 62 ms, around 3.5 times faster, with the same
+  photos matched; about 6 ms of that is only reading the paths. Paths and rule text with letters beyond A–Z are
+  compared as before.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
