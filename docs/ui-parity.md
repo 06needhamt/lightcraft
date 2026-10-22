@@ -1,6 +1,6 @@
 # UI parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-14 · **Change:** minor (zoom row: soft proofing sharp at 1:1; canvas tools by keyboard; focus-order test; ~50 unnamed hand-drawn widgets named) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-21 · **Change:** minor (Reference Escape, catalog-local pins and deleted-photo handling verified on Windows; earlier: zoom row soft proofing sharp at 1:1, canvas tools by keyboard, focus-order test, ~50 unnamed hand-drawn widgets named) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 How LightCraft's interaction compares with Lightroom's: views, panels, tools and handles, modifier
 keys, shortcuts, zoom, context menus and feel. Rows for individual menu items and shortcuts live in
@@ -126,6 +126,24 @@ unnamed was in the way.
 Not done: brush strokes and red-eye ellipses still need a pointer. Nobody has tried the app with
 a real screen reader on any platform yet.
 
+## Reference view lifecycle
+
+Escape leaves Reference for Detail, preserving the active photo and its edits; a second Escape
+returns to the grid. Existing dialogs, tools and Lights Out retain their higher-priority Escape
+handling. The reference stays pinned when leaving the view, but a successful Open/New Library
+clears it: numeric photo IDs are local to each catalog. A refused switch keeps the current pin,
+including Open/New refused while an import or its folder scan is running.
+
+`photo.setReference` refuses missing or Recently Deleted photos without replacing the current
+pin. Deleting a pinned reference stops drawing it; re-entering Reference falls back to a live
+active photo. Restoring the photo permits pinning it again. An empty catalog cannot supply one.
+
+Verification: four new behavioral regressions failed on upstream `76b5377` before the fix.
+The patched Windows x64 app on RTX 5080 / DX12 passed Escape, edit preservation, delete/restore,
+and New/Open Library checks using isolated catalogs. Saved exposure survived reopening. Native
+1400 × 900 captures did not fall back to headless rendering. Control-channel input does not
+establish OS keyboard delivery or cross-platform acceptance.
+
 ## Revision history
 
 | Date | Change | Summary |
@@ -138,5 +156,6 @@ a real screen reader on any platform yet.
 | 2026-10-13 | minor | Shortcuts: Home / End and Shift+Left / Right in the two library grids, Cmd+O (Open Library…) and Shift+H (Visualize HDR) get bindings and keyboard tests; percentages and the dated counts above are unchanged |
 | 2026-10-14 | minor | Zoom row: soft proofing gets zoom windows; LR-VIEW-ZOOM gap closed |
 | 2026-10-12 | minor | Accessibility: an AccessKit tree audit test over every view, Develop tool and 13 dialogs; unnamed fields, slider ranges and the Auto Stack slider fixed; 30% → 55%; UI remaining 40–70 h → 34–58 h |
+| 2026-10-21 | minor | Reference Escape exits to Detail; catalog-local pins and missing/deleted reference handling verified with regressions and native Windows smoke |
 | 2026-10-11 | minor | Zoom row: Compare and Reference get zoom windows; what remains of LR-VIEW-ZOOM is overlays and soft proofing |
 | 2026-10-10 | major | Created: measured command and shortcut counts, assessment by area, estimates; moved the shortcut conflicts section here from the checklist |

@@ -1091,8 +1091,14 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             Err(e) => app.toast(ui.ctx(), e),
         }
     }
-    if ui.button(crate::i18n::tr("Set as Reference Photo")).clicked() {
-        let _ = app.run("photo.setReference", json!({"id": id.0}));
+    let live = super::compare::live(app, id);
+    let set_reference = ui
+        .add_enabled(live, egui::Button::new(crate::i18n::tr("Set as Reference Photo")))
+        .on_disabled_hover_text(crate::i18n::tr("Restore the photo to use it as the reference"));
+    if set_reference.clicked()
+        && let Err(e) = app.run("photo.setReference", json!({"id": id.0}))
+    {
+        app.toast(ui.ctx(), e);
     }
     ui.separator();
     crate::widgets::menu_button(ui, crate::i18n::tr("Set Rating"), |ui| {

@@ -1,5 +1,20 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Reference view reliability
+- Escape now leaves Reference for Detail without changing the active photo or its edits; the next
+  Escape returns to the grid. A dialog, tool or Lights Out still handles Escape first.
+- Opening or creating a different library clears the pinned reference. Photo IDs belong to one
+  catalog; a pin no longer silently becomes another library's photo with the same numeric ID.
+- Missing or Recently Deleted photos cannot be pinned. Deleting the pinned reference stops drawing
+  it; re-entering Reference chooses a live photo, and restoring the deleted photo makes it pinnable again.
+  In Recently Deleted, Set as Reference Photo is greyed out, and a refusal says to restore the photo.
+- Switching library from Reference view goes to the grid instead of an empty Reference canvas. A refused
+  or failed switch keeps both the reference and the Compare pair.
+- `photo.setReference` refuses an `id` that is not a photo id (a string, a negative or fractional
+  number) instead of pinning the active photo; only an absent or null `id` means the active photo.
+
 ## 2026-10-19
 
 ### The Before label stays in view when zoomed in
