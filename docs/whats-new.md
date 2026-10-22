@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### A damaged GIF or BMP can no longer crash an import
+- A GIF or BMP whose header claims an enormous picture (a file of a few dozen bytes can claim a billion pixels) is
+  now refused with an error when importing or opening it (issue #2553). Before, LightCraft set aside memory for the
+  whole picture, several gigabytes, and could close without warning, losing unsaved work. Large GIF and BMP files
+  are also measured from their header at import instead of being decoded.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

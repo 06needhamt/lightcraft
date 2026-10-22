@@ -74,6 +74,67 @@ fn thumbnail_rejects_huge_gif_before_allocating_source_pixels() {
     assert!(matches!(result, Err(Error::TooLarge(42_127, 16_304))), "{result:?}");
 }
 
+/// A GIF of a few dozen bytes: a `w` × `h` logical screen and one empty frame of that size.
+fn tiny_gif(w: u16, h: u16) -> Vec<u8> {
+    let mut b = b"GIF89a".to_vec();
+    b.extend(w.to_le_bytes());
+    b.extend(h.to_le_bytes());
+    b.extend([0, 0, 0, b',', 0, 0, 0, 0]);
+    b.extend(w.to_le_bytes());
+    b.extend(h.to_le_bytes());
+    b.extend([0, 2, 0, b';']);
+    b
+}
+
+/// A 54-byte uncompressed 24-bit BMP header declaring `w` × `h` and no pixel data.
+fn tiny_bmp(w: i32, h: i32) -> Vec<u8> {
+    let mut b = b"BM".to_vec();
+    b.extend(54u32.to_le_bytes());
+    b.extend(0u32.to_le_bytes());
+    b.extend(54u32.to_le_bytes());
+    b.extend(40u32.to_le_bytes());
+    b.extend(w.to_le_bytes());
+    b.extend(h.to_le_bytes());
+    b.extend(1u16.to_le_bytes());
+    b.extend(24u16.to_le_bytes());
+    b.extend([0u8; 24]);
+    b
+}
+
+/// Issue #2553: the import probe had no header reader for GIF or BMP and decoded them in full, so
+/// a tiny file declaring a canvas just under the 1-gigapixel limit allocated ~4.3 GB (an abort, not
+/// an error, when it failed). Both the probe and a decode now refuse a canvas the file's bytes
+/// can't fill, before the decoder allocates it.
+#[test]
+fn tiny_gif_and_bmp_declaring_a_gigapixel_canvas_are_refused_before_allocating() {
+    for (name, bytes) in [("gif", tiny_gif(32_767, 32_767)), ("bmp", tiny_bmp(32_000, 32_000))] {
+        assert!(bytes.len() < 64, "{name}: {} bytes", bytes.len());
+        let header = read_header(&bytes);
+        assert!(matches!(&header, Err(Error::Malformed(_, m)) if m.contains("can hold")), "{name}: {header:?}");
+        let decoded = decode(&bytes, DecodeOptions::default());
+        assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains("can hold")), "{name}: {:?}", decoded.err());
+    }
+}
+
+/// Above 4 MP the probe reads GIF and BMP sizes from the header without decoding; the size agrees
+/// with a full decode.
+#[test]
+fn large_gif_and_bmp_sizes_come_from_the_header() {
+    let (w, h) = (2_100u32, 2_000u32);
+    let rgb = vec![90u8; (w * h * 3) as usize];
+    let mut bmp = Vec::new();
+    image::codecs::bmp::BmpEncoder::new(&mut bmp).encode(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    let mut gif = Vec::new();
+    let frame = image::RgbaImage::from_pixel(w, h, image::Rgba([90, 90, 90, 255]));
+    image::codecs::gif::GifEncoder::new(&mut gif).encode_frame(image::Frame::new(frame)).unwrap();
+    for (name, bytes) in [("bmp", bmp), ("gif", gif)] {
+        let header = read_header(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!((header.width, header.height, header.orientation), (w, h, 1), "{name}");
+        let d = decode(&bytes, DecodeOptions::fit(64, 64)).unwrap();
+        assert_eq!((d.source_width, d.source_height), (w, h), "{name}");
+    }
+}
+
 #[test]
 fn thumbnail_respects_configured_source_pixel_limit() {
     let image = Rgba8::from_fn(3, 2, |_, _| [40, 80, 120, 255]);
