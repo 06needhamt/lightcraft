@@ -175,6 +175,14 @@
   one (issue #1507). LightCraft used to open the library without it, showing an incomplete catalog that the next save
   would write over the stored copy. It now leaves the library unopened, saves nothing and says which file couldn't be
   read; reload the page to try again.
+## 2026-10-19
+
+### Rating in a filtered view keeps your place
+- When a filter shows only one-star photos and you take the star off a photo, it leaves the view and the photo after
+  it is now selected, so you carry on from where you were (issue #2312). The same goes for flags and colour labels,
+  in Picks and in smart albums. Before, the photo stayed selected although the grid no longer showed it, and → or
+  Auto Advance jumped back to the first photo of the view. With Auto Advance on, or with Shift+0–5, you land on the
+  photo after it: no photo is skipped.
 
 ## 2026-10-14
 

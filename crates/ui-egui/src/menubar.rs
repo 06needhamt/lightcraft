@@ -862,9 +862,10 @@ pub fn run_item(app: &mut LightcraftApp, id: &str, params: Value) -> Result<Valu
     if id == "photo.delete" && crate::menus::confirm_delete(app) {
         return Ok(Value::Null);
     }
+    let was = app.session.active();
     let r = app.run(id, params);
     if culling_cmd && r.is_ok() && app.ui.auto_advance {
-        crate::panels::compare::advance(app);
+        crate::panels::compare::advance(app, was);
     }
     r
 }

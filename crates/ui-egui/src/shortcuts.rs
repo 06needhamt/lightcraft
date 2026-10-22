@@ -443,9 +443,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     // Auto Advance then moves on (next candidate in Compare, next photo elsewhere)
     let cull = |app: &mut LightcraftApp, id: &str, mut params: serde_json::Value, advance: bool| {
         compare::target_active(app, &mut params);
+        let was = app.session.active();
         let ok = app.run(id, params).is_ok();
         if ok && (advance || app.ui.auto_advance) {
-            compare::advance(app);
+            compare::advance(app, was);
         }
     };
     for (id, params) in aliased {
@@ -922,6 +923,38 @@ mod tests {
             key(&mut h, k, false);
             assert_eq!(h.app.session.active(), Some(PhotoId(2)), "{k}");
         }
+    }
+
+    #[test]
+    fn culling_keys_go_on_from_a_photo_that_leaves_the_filter() {
+        // #2312: the filter shows one-star photos; taking photo 2's star off makes photo 3 active, once, with or
+        // without Shift and Auto Advance, and → goes on from there instead of from the first photo
+        use lightcraft_catalog::PhotoId;
+        let one_star = || {
+            let mut h = library();
+            h.app.session.execute("library.selectAll", &json!({})).unwrap();
+            h.app.session.execute("photo.rate", &json!({"rating": 1})).unwrap();
+            h.app.session.execute("library.filter", &json!({"rating": 1, "ratingOp": "exactly"})).unwrap();
+            h.app.session.execute("library.select", &json!({"ids": [2]})).unwrap();
+            h
+        };
+        for view in [crate::state::ViewMode::PhotoGrid, crate::state::ViewMode::Detail] {
+            for (shift, auto) in [(false, false), (true, false), (false, true), (true, true)] {
+                let mut h = one_star();
+                h.app.ui.view = view;
+                h.app.ui.auto_advance = auto;
+                key(&mut h, "0", shift);
+                assert_eq!(h.app.session.catalog.photo(PhotoId(2)).unwrap().rating, 0);
+                assert_eq!(h.app.session.active(), Some(PhotoId(3)), "{view:?} Shift={shift} Auto Advance={auto}");
+                key(&mut h, "right", false);
+                assert_eq!(h.app.session.active(), Some(PhotoId(4)), "{view:?} Shift={shift} Auto Advance={auto}");
+            }
+        }
+        // the Photo menu with Auto Advance too
+        let mut h = one_star();
+        h.app.ui.auto_advance = true;
+        crate::menubar::run_item(&mut h.app, "photo.rate", json!({"rating": 0})).unwrap();
+        assert_eq!(h.app.session.active(), Some(PhotoId(3)));
     }
 
     #[test]
