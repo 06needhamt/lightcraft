@@ -54,6 +54,12 @@
 - In the web version, a dropped file the browser can't read, or that can't be imported, now shows a message instead of
   failing silently.
 - For scripts: `ui.dropFiles` hovers files over the window or drops them, as the operating system does.
+### Counting many smart albums is faster
+- Counting every smart album at once (the numbers in the Albums list, and the `albums.list` command) now works out an
+  album that other smart albums test (“album is …”) once for the whole library, instead of again for every album
+  that tests it. On a synthetic library of 312,000 photos with 77 smart albums, 51 of them testing one shared album,
+  the full count took about 14 s instead of about 23 s on a heavily loaded machine; the rest is the text rules of
+  the albums themselves. The counts are the same as before, including for albums that loop through each other.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
