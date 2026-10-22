@@ -33,6 +33,7 @@ and node count are limited.
 No panics on malformed input: proptests feed random bytes to every container walker and random text to the
 XMP parser; truncation tests cut a sample JPEG at every byte and exercise truncated PSD/PSB headers and
 image-resource records with hostile declared lengths.
+PSD/PSB XMP resources require valid UTF-8; trailing NUL padding is trimmed after validation.
 
 ## Sources
 

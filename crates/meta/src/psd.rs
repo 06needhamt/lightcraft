@@ -64,14 +64,14 @@ fn parse_resources(bytes: &[u8]) -> Option<Embedded> {
             1058 if exif.is_some() => return None,
             1058 => exif = Some(data),
             1060 if xmp.is_some() => return None,
-            1060 => xmp = Some(data),
+            1060 => xmp = Some(std::str::from_utf8(data).ok()?),
             _ => {}
         }
     }
 
     Some(Embedded {
         exif: exif.map(crate::strip_exif_header).map(<[u8]>::to_vec),
-        xmp: xmp.map(|bytes| String::from_utf8_lossy(bytes).trim_end_matches('\0').to_string()),
+        xmp: xmp.map(|text| text.trim_end_matches('\0').to_string()),
         ..Default::default()
     })
 }
@@ -190,6 +190,38 @@ mod tests {
 
         assert_eq!(crate::extract(&file), Metadata::default());
         assert!(matches!(crate::try_extract(&file), Err(crate::ExtractError::MalformedPsd)));
+    }
+
+    #[test]
+    fn try_extract_rejects_invalid_utf8_psd_xmp() {
+        let mut xmp = crate::write_xmp(&dated_metadata(), None).into_bytes();
+        let latitude = xmp.windows(2).position(|bytes| bytes == b"45").unwrap();
+        xmp[latitude] = 0xff;
+        let lossy = crate::parse_xmp(&String::from_utf8_lossy(&xmp)).unwrap();
+        assert!(lossy.metadata.gps.is_none(), "lossy decoding hides the corrupted GPS value without an XML error");
+
+        for version in [1, 2] {
+            let file = image(version, &[], &resource(1060, b"", &xmp));
+            assert!(matches!(crate::try_extract(&file), Err(crate::ExtractError::MalformedPsd)));
+            assert_eq!(embedded(&file), Embedded::default());
+            assert_eq!(crate::extract(&file), Metadata::default());
+        }
+    }
+
+    #[test]
+    fn psd_xmp_preserves_valid_utf8_and_trailing_nul_trimming() {
+        let metadata = Metadata { title: Some("Café 山".into()), ..dated_metadata() };
+        let xmp = crate::write_xmp(&metadata, None);
+        let mut padded = xmp.as_bytes().to_vec();
+        padded.extend_from_slice(b"\0\0");
+
+        for version in [1, 2] {
+            let file = image(version, &[], &resource(1060, b"", &padded));
+            assert_eq!(embedded(&file).xmp.as_deref(), Some(xmp.as_str()));
+            let actual = crate::try_extract(&file).unwrap();
+            assert_eq!(actual.gps, metadata.gps);
+            assert_eq!(actual.title, metadata.title);
+        }
     }
 
     #[test]
