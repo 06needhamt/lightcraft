@@ -1810,9 +1810,14 @@ fn deep_folders_app(deep: &str, size: [f32; 2]) -> Headless {
     }
     let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
     let mut h = folders_app_sized(&paths, size);
+    // each level is opened once its row is drawn (a slow machine may need more than a frame)
     for level in &levels[..levels.len() - 1] {
-        click(&mut h, &format!("libraryFolderToggle:{level}"));
+        let toggle = format!("libraryFolderToggle:{level}");
+        assert!(h.step_until(T, |h| has(h, &toggle)), "{toggle} is drawn");
+        click(&mut h, &toggle);
     }
+    let last = format!("libraryFolderToggle:{}", levels[levels.len() - 1]);
+    assert!(h.step_until(T, |h| has(h, &last)), "{last} is drawn");
     h.settle(SETTLE);
     h
 }
