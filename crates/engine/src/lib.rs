@@ -950,7 +950,13 @@ impl Session {
             return Vec::new();
         }
         let Some(old) = self.develop_of(id) else { return Vec::new() };
-        let Some(mut delta) = json_delta(&old.to_json(), &new.to_json()) else { return Vec::new() };
+        let mut old_json = old.to_json();
+        let mut new_json = new.to_json();
+        // False is omitted from stored profile JSON. Keep it explicit for this comparison so
+        // switching camera local tone mapping off is a change without copying untouched values.
+        old_json["profile"]["camera_local_tone"] = Value::Bool(old.profile.camera_local_tone);
+        new_json["profile"]["camera_local_tone"] = Value::Bool(new.profile.camera_local_tone);
+        let Some(mut delta) = json_delta(&old_json, &new_json) else { return Vec::new() };
         if let Some(o) = delta.as_object_mut() {
             for k in ["spots", "red_eye", "version", "process"] {
                 o.remove(k);
