@@ -240,11 +240,16 @@ mod tests {
     }
 
     impl Connection {
-        fn new(open: &Arc<AtomicUsize>, idle: Duration) -> Self {
+        fn new(open: &Arc<AtomicUsize>, idle: Duration, input: &str) -> Self {
             let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
-            let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
             client.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
             let (stream, _) = listener.accept().unwrap();
+            // Small test messages must not wait for Nagle's algorithm or a delayed ACK.
+            client.set_nodelay(true).unwrap();
+            stream.set_nodelay(true).unwrap();
+            // Queue initial input before starting the worker's short idle timeout.
+            client.write_all(input.as_bytes()).unwrap();
             let (tx, requests) = channel();
             let worker = spawn_connection(stream, tx, egui::Context::default(), Arc::clone(open), idle).unwrap();
             Self { client: BufReader::new(client), requests, worker: Some(worker) }
@@ -271,9 +276,8 @@ mod tests {
     fn idle_connections_release_their_slots_without_dispatching() {
         for input in ["", "{\"method\":\"engine.execute\""] {
             let open = Arc::new(AtomicUsize::new(0));
-            let mut connection = Connection::new(&open, Duration::from_millis(100));
+            let mut connection = Connection::new(&open, Duration::from_millis(100), input);
             assert_eq!(open.load(Ordering::SeqCst), 1);
-            connection.client.get_mut().write_all(input.as_bytes()).unwrap();
             let mut reply = String::new();
             let closed = connection.client.read_to_string(&mut reply);
             assert!(closed.is_ok(), "idle connection stayed open: {closed:?}");
@@ -285,7 +289,7 @@ mod tests {
             assert!(reply["error"].as_str().unwrap().contains("idle read timed out"));
 
             // A subsequent connection is admitted through the same accounting path.
-            let mut next = Connection::new(&open, Duration::from_secs(1));
+            let mut next = Connection::new(&open, Duration::from_secs(1), "");
             next.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
             let mut eof = String::new();
             next.client.read_to_string(&mut eof).unwrap();
@@ -298,21 +302,30 @@ mod tests {
     #[test]
     fn persistent_requests_and_slow_replies_outlive_the_idle_read_timeout() {
         let open = Arc::new(AtomicUsize::new(0));
-        let mut connection = Connection::new(&open, Duration::from_millis(100));
+        let mut connection = Connection::new(&open, Duration::from_millis(100), "{\"id\":1,\"method\":\"engine.commands\"}\n");
         for id in [1, 2] {
-            writeln!(connection.client.get_mut(), "{}", json!({"id": id, "method": "engine.commands"})).unwrap();
             let req = connection.requests.recv_timeout(Duration::from_secs(3)).unwrap();
             assert_eq!(req.method, "engine.commands");
             assert!(req.take());
             // A dispatched command waits for its reply, not for socket input.
             std::thread::sleep(Duration::from_millis(250));
+            // Prepare the next read before releasing this reply. The client need not be
+            // scheduled again within the worker's short idle timeout.
+            if id == 1 {
+                writeln!(connection.client.get_mut(), "{}", json!({"id": 2, "method": "engine.commands"})).unwrap();
+            } else {
+                connection.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
+            }
             req.reply.send(json!({"ok": true, "result": id})).unwrap();
+            if id == 2 {
+                // The worker must reach EOF even before the client reads its final reply.
+                connection.join();
+            }
             let mut reply = String::new();
             connection.client.read_line(&mut reply).unwrap();
             let reply: Value = serde_json::from_str(&reply).unwrap();
             assert_eq!(reply, json!({"id": id, "ok": true, "result": id}));
         }
-        connection.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
         let mut eof = String::new();
         connection.client.read_to_string(&mut eof).unwrap();
         connection.join();
