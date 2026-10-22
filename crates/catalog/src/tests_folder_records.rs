@@ -192,6 +192,25 @@ fn a_located_folder_with_labels_inside_lands_them_at_the_same_places_below() {
 }
 
 #[test]
+fn a_folder_located_below_itself_leaves_the_records_of_the_folders_already_there_in_place() {
+    let mut c = library();
+    label(&mut c, "/pics/trip", Some(ColorLabel::Red));
+    label(&mut c, "/pics/trip/day1", Some(ColorLabel::Green));
+    // another folder of the library already sits at the place the folder is said to be at
+    label(&mut c, "/pics/trip/day1/raw", Some(ColorLabel::Blue));
+    let before = c.to_snapshot();
+    let ops = c.folder_records_located("/pics/trip", "/pics/trip/day1");
+    let undo = c.apply(Op::Batch { ops }).unwrap();
+    assert_eq!(c.folder_record("/pics/trip"), None, "what was known at the old place goes");
+    assert_eq!(c.folder_color_label("/pics/trip/day1"), Some(ColorLabel::Red), "a record carried over replaces the one at the same place");
+    assert_eq!(c.folder_color_label("/pics/trip/day1/raw"), Some(ColorLabel::Blue), "a folder below the destination keeps its own");
+    assert_eq!(c.folder_record("/pics/trip/day1/day1"), None, "the record at the destination is not carried below itself");
+    assert_eq!(c.folder_record("/pics/trip/day1/day1/raw"), None);
+    c.apply(undo).unwrap();
+    assert_eq!(c.to_snapshot(), before);
+}
+
+#[test]
 fn a_folder_located_where_it_is_or_without_labels_gives_no_ops() {
     let mut c = library();
     assert!(c.folder_records_located("/pics/trip", "/elsewhere/trip").is_empty());

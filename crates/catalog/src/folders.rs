@@ -223,10 +223,15 @@ impl Catalog {
         if root == dest {
             return Vec::new();
         }
+        // a folder located below itself: what is already at or below `to` belongs to the folders
+        // of the library there, not to the folder located, so it is neither carried nor cleared
+        // (the record of `from` itself still lands at `to`, replacing the one there)
+        let nested = !clear_destination && key_within(&dest, &root);
+        let carried = |k: &str| key_within(k, &root) && !(nested && key_within(k, &dest));
         let moved: Vec<(String, FolderRecord)> = self
             .folder_records
             .iter()
-            .filter(|(k, _)| key_within(k, &root))
+            .filter(|(k, _)| carried(k))
             .filter_map(|(k, r)| {
                 let rest = folder_rest(k, &root)?;
                 let base = dest.trim_end_matches('/');
@@ -236,7 +241,7 @@ impl Catalog {
             .collect();
         // what was known at the old place goes, and so does what is left at the new one (also
         // when the moved folder carries nothing: the folder now there is not the one it was about)
-        let stale = self.folder_records.keys().filter(|k| key_within(k, &root) || (clear_destination && key_within(k, &dest)));
+        let stale = self.folder_records.keys().filter(|k| carried(k) || (clear_destination && key_within(k, &dest)));
         let mut ops: Vec<Op> = stale.map(|k| Op::SetFolderRecord { folder: k.clone(), record: None }).collect();
         ops.extend(moved.into_iter().map(|(k, r)| Op::SetFolderRecord { folder: k, record: Some(r) }));
         ops
