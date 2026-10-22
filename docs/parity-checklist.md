@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (LR-VIEW-ZOOM: only a full-size drag within 20 ms clears a slow-drag verdict) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** patch (LR-EDIT-OPTICS-PROFILE: Fujifilm nine-knot lens tables read at the plain radius) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -896,3 +896,4 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-14 | patch | LRC-LIB-CATALOG-IMPORT: reconciled with upstream phased progress, cancellation kinds, WAL-only import, translations and current progress tracking. Status and summary counts unchanged. |
 | 2026-10-13 | minor | KEYC-COMPARE: `=` / `-` (also `+`) increase / decrease the grid thumbnail size (`view.thumbSizeUp` / `view.thumbSizeDown`, View menu), grids only; status unchanged (🟡) |
 | 2026-10-16 | patch | LR-META-XMP: a TIFF or JPEG imported beside a raw of its stem reads its own `<file>.xmp` and takes nothing from the raw's `IMG_0001.xmp`, whether it arrives with the raw or after it (a stem sidecar belongs to one file: a raw first, then the first by name); status unchanged (✅) |
+| 2026-10-21 | patch | LR-EDIT-OPTICS-PROFILE: Fujifilm nine-knot lens tables (X-T4 and other newer bodies) read at the plain radius, the corner at the eighth knot; X-T4 zoom raws now get their distortion correction (253 of 425 checked had none) and corners no longer brighten up to 6.5 % more than the camera's; status unchanged (🟡) |

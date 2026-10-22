@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Fujifilm lens corrections that match the camera
+- X-T4 raws now read the lens's own distortion and vignetting tables the way the camera does. Many photos from zoom
+  lenses got no distortion correction at all (more than half of those checked from the XF16-55 and XF70-300), and
+  corners came out up to 6.5 % brighter than in the camera's JPEG. The corrected photo now lines up with the camera's
+  framing. Other recent Fujifilm bodies whose tables have nine knots are read the same way, but only the X-T4 was
+  measured. Thumbnails are redrawn when the library next shows them.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
