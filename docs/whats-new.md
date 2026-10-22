@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Sharper resampling in HDR and panorama merges
+- Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
+  photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
+  hard edges such as clipped highlights.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
@@ -25,6 +32,11 @@
   portrait crop.
 
 ## 2026-10-15
+
+### Photo Merge takes each photo once
+- A merge that names the same photo more than once (through `ids` on the control channel, MCP or the CLI) now merges
+  it once (issue #1947). Naming one photo three times no longer "merges" it with itself, and a long repeated list no
+  longer decodes the photo again for every entry.
 
 ### Constrain Crop tightens the crop you see
 - Geometry ▸ Constrain Crop now changes the crop itself, as in Lightroom (issue #1927). Ticking it, or moving a
@@ -201,6 +213,12 @@
   further ⇧-clicks carry on from the last point, as in Lightroom. Change the brush size, feather or flow before the
   ⇧-click and the line tapers from the old values to the new ones. The whole line is one undo step.
   `mask.brushStroke {connect: true}` does the same for agents.
+
+### Local folders you browse are kept
+- Browsing a folder under Local now records it as browsed, so the photos in folders you use aren't forgotten after
+  the number of days set in Settings → Performance. Only the `library.browse` command recorded it before, so a
+  folder browsed every day from the sidebar was forgotten anyway and read again from scratch on the next visit,
+  which is slow on a network share.
 
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity

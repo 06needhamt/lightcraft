@@ -17,6 +17,18 @@ callbacks, so the app's loop is paused. Keep the window on screen while you driv
 headless snapshots or `lightcraft-cli mcp` without `--connect`. A request that has already started
 (a long command blocks frames) still gets the full 60 s.
 
+Connections close after five minutes without incoming bytes while the server is waiting for
+input, including in the middle of an unfinished request line. This allows pauses between
+automation commands while releasing abandoned connection slots. An idle read timeout gets an
+`ok: false` error saying the connection is closing; incomplete input is never dispatched.
+This is a socket read inactivity limit, not a total connection lifetime: a peer that keeps
+sending bytes can keep it open. Waiting for an already-dispatched command's reply does not
+count as idle reading and retains the request timeout above.
+
+Reconnect before sending another request after an idle close. MCP connect mode detects closed
+connections before sending and reconnects; if a connection is lost after sending a request,
+its outcome remains unknown and the client must not blindly replay it.
+
 **Only requests are read.** Every line must be a JSON object with a string `method` (`id` and `params` are
 optional; blank lines are skipped). Anything else — text that isn't JSON, a JSON array or number, an object without
 `method`, invalid UTF-8, or a line longer than 4 MiB — gets one error reply
@@ -280,6 +292,22 @@ one pixel.
   renders are in flight. Each request runs frames until it is answered and its injected input
   (clicks, keys, drags) has played out. Widget ids for `ui.clickWidget` come from `ui.widgets`
   (e.g. `button:upright-auto`). A 1600×1000 demo snapshot takes ~1–2 s (debug build).
+
+## Import album picker
+
+In the Import Photos review, `albumPicker:import-album` opens the destination picker.
+`albumPickerFolder:<folder-id>:import-album` expands or folds a folder; it never chooses a destination.
+`albumPickerItem:<album-id>:import-album` selects a regular album. The picker follows sidebar order,
+opens the current choice's ancestors and shows its full path on the closed button. Smart albums
+are not import destinations. Type into `albumPickerSearch:import-album` to search folder/album paths;
+↑ / ↓ and Enter pick a search result, and Escape closes the picker while keeping the review open.
+If the chosen album is deleted while the review is open, the destination returns to None before
+confirmation instead of submitting the deleted ID.
+
+`importAlbum:none` clears the destination and any pending new album name. `importAlbum:new` keeps
+or initializes that name, edited through `field:importAlbumName`. Choosing an existing album clears
+the pending name. `ui.dialog.confirm` starts the same import into the selected album ID; engine
+`library.import` parameters `album` and `albumName` are unchanged.
 
 ## Panel docking
 
