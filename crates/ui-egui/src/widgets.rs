@@ -328,8 +328,11 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
         typing = Some((shown_value(spec, value).trim_start_matches('+').to_string(), 0, value_pressed));
     }
     let value_released = ui.input(|i| i.pointer.button_released(egui::PointerButton::Primary));
-    // The opening press must complete the readout's original click before the edit continues.
-    if value_released && typing.as_ref().is_some_and(|(_, _, pressed)| *pressed) && !value_resp.clicked() {
+    // A release over the value keeps the field the press opened, however long the button was held
+    // (a press held past egui's click time ends without a click). A release elsewhere cancels the
+    // gesture, and a press that scrubs already dropped the field above.
+    let released_over_value = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| value_rect.contains(p));
+    if value_released && !released_over_value && typing.as_ref().is_some_and(|(_, _, pressed)| *pressed) && !value_resp.clicked() {
         typing = None;
         ui.data_mut(|m| m.remove::<(String, u8, bool)>(typing_id));
         ui.memory_mut(|m| m.surrender_focus(crate::text_field::id(&format!("sliderField:{}", spec.id))));
