@@ -16,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, channel};
 
 use lightcraft_ui_egui::LightcraftApp;
-use lightcraft_ui_egui::menubar::{MenuNode, menu_bar};
+use lightcraft_ui_egui::menubar::{MenuNode, menu_bar, native_item_presentation, native_menu_delivers as menu_delivers};
 use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use serde_json::Value;
@@ -154,13 +154,6 @@ fn yields_to_text(sc: &str) -> bool {
     !sc.contains("Cmd") && !sc.contains("Ctrl") || TEXT_EDIT.contains(&sc)
 }
 
-/// Whether AppKit hands this shortcut to the menu bar: only key presses with ⌘ or ⌃, and function
-/// keys. A plain `C` or `⇧P` never reaches it (the window's view takes the key), so egui has to run
-/// those even though their menu item shows the key.
-fn menu_delivers(sc: &str) -> bool {
-    sc.split('+').any(|part| matches!(part, "Cmd" | "Ctrl") || part.strip_prefix('F').is_some_and(|n| n.parse::<u8>().is_ok()))
-}
-
 /// The shortcuts the menu bar runs itself, for `LightcraftApp::native_shortcuts`.
 fn owned_by_menu<'a>(installed: impl Iterator<Item = &'a str>, text_focus: bool) -> HashSet<String> {
     installed.filter(|sc| menu_delivers(sc) && !(text_focus && yields_to_text(sc))).map(str::to_string).collect()
@@ -264,7 +257,7 @@ impl NativeMenu {
                 .cloned()
                 .collect();
             let nodes = tidy_separators(nodes);
-            self.append_nodes(&sub, &nodes);
+            self.append_nodes(&sub, &nodes, &app.ui.settings.keymap);
             if title == "File" {
                 // ⌘W, the system's own item
                 let _ = sub.append_items(&[
@@ -290,7 +283,7 @@ impl NativeMenu {
         self.publish_shortcuts(app);
     }
 
-    fn append_nodes(&mut self, sub: &Submenu, nodes: &[MenuNode]) {
+    fn append_nodes(&mut self, sub: &Submenu, nodes: &[MenuNode], keymap: &lightcraft_ui_egui::shortcuts::Keymap) {
         for n in nodes {
             match n {
                 MenuNode::Separator => {
@@ -298,7 +291,7 @@ impl NativeMenu {
                 }
                 MenuNode::Submenu { label, children } => {
                     let s = Submenu::new(label_text(label), true);
-                    self.append_nodes(&s, children);
+                    self.append_nodes(&s, children, keymap);
                     let _ = sub.append(&s);
                 }
                 MenuNode::Item { id, params, label, shortcut, enabled, checked } => {
@@ -306,26 +299,16 @@ impl NativeMenu {
                     if self.items.contains_key(&key) {
                         continue; // muda ids must be unique
                     }
-                    let accel = shortcut.as_deref().filter(|s| !CONTEXTUAL.contains(s)).and_then(accelerator);
+                    let (native_label, native_key) = native_item_presentation(keymap, id, params, label, shortcut.as_deref());
+                    let accel = native_key.filter(|s| !CONTEXTUAL.contains(s)).and_then(accelerator);
                     let handle = match checked {
                         Some(c) => {
-                            let it = CheckMenuItem::with_id(
-                                key.clone(),
-                                lightcraft_ui_egui::menubar::display_item_label(id, params, label).replace('&', "&&"),
-                                *enabled,
-                                *c,
-                                accel,
-                            );
+                            let it = CheckMenuItem::with_id(key.clone(), native_label.replace('&', "&&"), *enabled, *c, accel);
                             let _ = sub.append(&it);
                             Handle::Check(it)
                         }
                         None => {
-                            let it = MenuItem::with_id(
-                                key.clone(),
-                                lightcraft_ui_egui::menubar::display_item_label(id, params, label).replace('&', "&&"),
-                                *enabled,
-                                accel,
-                            );
+                            let it = MenuItem::with_id(key.clone(), native_label.replace('&', "&&"), *enabled, accel);
                             let _ = sub.append(&it);
                             Handle::Plain(it)
                         }
@@ -338,7 +321,7 @@ impl NativeMenu {
                             params: params.clone(),
                             shortcut: shortcut.clone(),
                             accel,
-                            label: label.clone(),
+                            label: native_label,
                             enabled: *enabled,
                             checked: *checked,
                         },
@@ -382,18 +365,19 @@ impl NativeMenu {
             self.rebuild(app);
             return quit;
         }
-        fn walk(nodes: &[MenuNode], items: &mut HashMap<String, Item>) {
+        fn walk(nodes: &[MenuNode], items: &mut HashMap<String, Item>, keymap: &lightcraft_ui_egui::shortcuts::Keymap) {
             for n in nodes {
                 match n {
-                    MenuNode::Submenu { children, .. } => walk(children, items),
-                    MenuNode::Item { id, params, label, enabled, checked, .. } => {
+                    MenuNode::Submenu { children, .. } => walk(children, items, keymap),
+                    MenuNode::Item { id, params, label, shortcut, enabled, checked } => {
                         let Some(it) = items.get_mut(&MenuNode::key(id, params)) else { continue };
-                        if it.label != *label {
+                        let (native_label, _) = native_item_presentation(keymap, id, params, label, shortcut.as_deref());
+                        if it.label != native_label {
                             match &it.handle {
-                                Handle::Plain(h) => h.set_text(lightcraft_ui_egui::menubar::display_item_label(id, params, label).replace('&', "&&")),
-                                Handle::Check(h) => h.set_text(lightcraft_ui_egui::menubar::display_item_label(id, params, label).replace('&', "&&")),
+                                Handle::Plain(h) => h.set_text(native_label.replace('&', "&&")),
+                                Handle::Check(h) => h.set_text(native_label.replace('&', "&&")),
                             }
-                            it.label = label.clone();
+                            it.label = native_label;
                         }
                         if it.enabled != *enabled {
                             match &it.handle {
@@ -414,7 +398,7 @@ impl NativeMenu {
                 }
             }
         }
-        walk(&bar.iter().flat_map(|(_, v)| v.clone()).collect::<Vec<_>>(), &mut self.items);
+        walk(&bar.iter().flat_map(|(_, v)| v.clone()).collect::<Vec<_>>(), &mut self.items, &app.ui.settings.keymap);
 
         let focus = ctx.egui_wants_keyboard_input();
         let capturing = app.recording_shortcut.is_some();

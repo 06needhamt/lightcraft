@@ -55,6 +55,32 @@ pub fn display_item_label<'a>(id: &str, params: &Value, label: &'a str) -> &'a s
     }
 }
 
+/// Whether AppKit offers a shortcut to its menu instead of the window. Plain letters stay
+/// with egui even when the native menu displays them as key equivalents.
+pub fn native_menu_delivers(sc: &str) -> bool {
+    sc.split('+').any(|part| matches!(part, "Cmd" | "Ctrl") || part.strip_prefix('F').is_some_and(|n| n.parse::<u8>().is_ok()))
+}
+
+/// Native label and accelerator for a menu row. A grid row may borrow the cycle key as a
+/// hint, but must not consume a modified key and turn cycling into direct grid selection.
+/// AppKit has no separate shortcut-hint column: borrowed native-owned keys are appended to
+/// the translated label instead, leaving their dispatch with egui. Ordinary G stays in the
+/// native key-equivalent column because AppKit never hands it to the menu.
+pub fn native_item_presentation<'a>(
+    keymap: &crate::shortcuts::Keymap,
+    id: &str,
+    params: &Value,
+    label: &str,
+    shortcut: Option<&'a str>,
+) -> (String, Option<&'a str>) {
+    let label = display_item_label(id, params, label);
+    let borrowed = matches!(id, "view.photoGrid" | "view.squareGrid") && shortcut != crate::shortcuts::shortcut_of(keymap, id);
+    match shortcut.filter(|sc| borrowed && native_menu_delivers(sc)) {
+        Some(sc) => (format!("{label} ({})", shortcut_text(sc, true)), None),
+        None => (label.to_string(), shortcut),
+    }
+}
+
 /// Top-level menus in order (the macOS app menu is added by the host).
 pub const MENUS: &[&str] = &["File", "Edit", "View", "Photo", "Window", "Help"];
 
@@ -740,6 +766,7 @@ fn node(app: &LightcraftApp, e: &MenuEntry) -> MenuNode {
     // in an album the Delete key removes from the album (issue #1805): the menu says so
     let delete_key = crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "photo.delete");
     let shortcut = match e.id.as_str() {
+        "view.photoGrid" | "view.squareGrid" => shortcut.or_else(|| crate::shortcuts::shortcut_of(&app.ui.settings.keymap, "view.gridToggle")),
         "album.removePhotos" => delete_key,
         "photo.delete" if matches!(app.session.source, lightcraft_engine::LibrarySource::Album(_)) => None,
         _ => shortcut,
@@ -1074,6 +1101,107 @@ mod tests {
             MenuNode::Submenu { children, .. } => find(children, id),
             _ => None,
         })
+    }
+
+    /// #2500: a direct-grid binding takes precedence over the borrowed cycle hint.
+    #[test]
+    fn grid_menu_shortcut_hints_preserve_direct_bindings_and_clicks() {
+        let mut a = app();
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.photoGrid", Some("Cmd+Shift+1")).unwrap();
+        let bar = menu_bar(&a);
+        let nodes = &bar.iter().find(|(title, _)| title == "View").unwrap().1;
+        assert!(matches!(find(nodes, "view.photoGrid"), Some(MenuNode::Item { shortcut: Some(sc), .. }) if sc == "Cmd+Shift+1"));
+        assert!(matches!(find(nodes, "view.squareGrid"), Some(MenuNode::Item { shortcut: Some(sc), .. }) if sc == "G"));
+        // A hint never assigns the cycle key to another command.
+        assert_eq!(crate::shortcuts::shortcut_of(&a.ui.settings.keymap, "view.squareGrid"), None);
+        run_item(&mut a, "view.photoGrid", Value::Null).unwrap();
+        assert_eq!(a.ui.view, ViewMode::PhotoGrid);
+        run_item(&mut a, "view.photoGrid", Value::Null).unwrap();
+        assert_eq!(a.ui.view, ViewMode::PhotoGrid, "clicking the active row does not cycle");
+        run_item(&mut a, "view.squareGrid", Value::Null).unwrap();
+        assert_eq!(a.ui.view, ViewMode::SquareGrid);
+        run_item(&mut a, "view.gridToggle", Value::Null).unwrap();
+        assert_eq!(a.ui.view, ViewMode::PhotoGrid);
+    }
+
+    /// #2500: native hints never install a borrowed modifier/function key as a direct-grid
+    /// accelerator. Plain G remains in AppKit's shortcut column and is dispatched by egui.
+    #[test]
+    fn grid_menu_shortcut_hints_keep_native_toggle_dispatch() {
+        let mut keymap = crate::shortcuts::Keymap::new();
+        for id in ["view.photoGrid", "view.squareGrid"] {
+            let (label, accelerator) = native_item_presentation(&keymap, id, &Value::Null, "Photo Grid", Some("G"));
+            assert_eq!(label, "Photo Grid");
+            assert_eq!(accelerator, Some("G"));
+            assert!(!native_menu_delivers(accelerator.unwrap()));
+            for (key, text) in [("Cmd+Shift+G", "⌘⇧G"), ("Ctrl+G", "⌃G"), ("F3", "F3")] {
+                crate::shortcuts::assign(&mut keymap, "view.gridToggle", Some(key)).unwrap();
+                let (label, accelerator) = native_item_presentation(&keymap, id, &Value::Null, "Photo Grid", Some(key));
+                assert_eq!(label, format!("Photo Grid ({text})"));
+                assert_eq!(accelerator, None, "egui keeps {key}");
+            }
+        }
+        crate::shortcuts::assign(&mut keymap, "view.photoGrid", Some("Cmd+Shift+1")).unwrap();
+        let (label, accelerator) = native_item_presentation(&keymap, "view.photoGrid", &Value::Null, "Photo Grid", Some("Cmd+Shift+1"));
+        assert_eq!(label, "Photo Grid");
+        assert_eq!(accelerator, Some("Cmd+Shift+1"), "the row's own shortcut is a real accelerator");
+    }
+
+    /// #2500: the control channel runs the real keyboard path exactly once and menu commands
+    /// continue to select their named grid after the cycle shortcut is remapped.
+    #[test]
+    fn grid_menu_shortcut_hints_preserve_control_keyboard_dispatch() {
+        let mut h = crate::headless::Headless::new(app(), [960.0, 720.0], 1.0);
+        h.app.ui.view = ViewMode::PhotoGrid;
+        for _ in 0..3 {
+            h.step();
+        }
+        let timeout = std::time::Duration::from_secs(20);
+        let press = |h: &mut crate::headless::Headless, params| {
+            let reply = h.request("ui.key", params, timeout);
+            assert_eq!(reply["ok"], true, "{reply}");
+        };
+        press(&mut h, json!({"key": "G"}));
+        assert_eq!(h.app.ui.view, ViewMode::SquareGrid);
+        press(&mut h, json!({"key": "G"}));
+        assert_eq!(h.app.ui.view, ViewMode::PhotoGrid);
+        crate::shortcuts::assign(&mut h.app.ui.settings.keymap, "view.gridToggle", Some("Cmd+Shift+G")).unwrap();
+        press(&mut h, json!({"key": "G"}));
+        assert_eq!(h.app.ui.view, ViewMode::PhotoGrid);
+        press(&mut h, json!({"key": "G", "cmd": true, "shift": true}));
+        assert_eq!(h.app.ui.view, ViewMode::SquareGrid);
+        press(&mut h, json!({"key": "G", "cmd": true, "shift": true}));
+        assert_eq!(h.app.ui.view, ViewMode::PhotoGrid);
+        for _ in 0..2 {
+            let reply = h.request("ui.menu.invoke", json!({"command": "view.squareGrid"}), timeout);
+            assert_eq!(reply["ok"], true, "{reply}");
+            assert_eq!(h.app.ui.view, ViewMode::SquareGrid);
+        }
+    }
+
+    /// #2500: grid view rows show the separate cycle command's current shortcut.
+    #[test]
+    fn grid_menu_shortcut_hints_follow_the_cycle_key() {
+        let mut a = app();
+        let hint = |a: &LightcraftApp, id: &str| {
+            let bar = menu_bar(a);
+            let nodes = &bar.iter().find(|(title, _)| title == "View").expect("View menu").1;
+            match find(nodes, id).expect("grid row") {
+                MenuNode::Item { shortcut, .. } => shortcut.clone(),
+                _ => panic!("grid row must be an item"),
+            }
+        };
+        for id in ["view.photoGrid", "view.squareGrid"] {
+            assert_eq!(hint(&a, id).as_deref(), Some("G"), "{id}");
+        }
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.gridToggle", Some("Cmd+Shift+G")).unwrap();
+        for id in ["view.photoGrid", "view.squareGrid"] {
+            assert_eq!(hint(&a, id).as_deref(), Some("Cmd+Shift+G"), "{id}");
+        }
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.gridToggle", None).unwrap();
+        for id in ["view.photoGrid", "view.squareGrid"] {
+            assert_eq!(hint(&a, id), None, "{id}");
+        }
     }
 
     #[test]

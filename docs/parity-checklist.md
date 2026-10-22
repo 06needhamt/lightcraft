@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (LR-VIEW-ZOOM: only a full-size drag within 20 ms clears a slow-drag verdict) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** patch (KEY-GRID: live grid-cycle shortcut hints in the View menu) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -603,7 +603,7 @@ From `06-shortcuts.md` part 1. Evidence is our binding; conflicts are explained 
 | KEY-EDIT | Edit — E | P0 | ✅ | `cmd:panel.edit` | |
 | KEY-FULLSCREEN | Full-screen preview — F | P1 | ✅ | `cmd:view.fullScreenPreview` | |
 | KEY-LIGHTSOUT | Lights Out — Shift+L (Classic's L is Linear Gradient here) | P2 | ✅ | `cmd:view.lightsOut` | On → Dim (80 %) → Off; Esc turns the lights on |
-| KEY-GRID | Grid — G | P0 | ✅ | `cmd:view.gridToggle`, `cmd:view.photoGrid` | G toggles Photo Grid ↔ Square Grid |
+| KEY-GRID | Grid — G | P0 | ✅ | `cmd:view.gridToggle`, `cmd:view.photoGrid` | G toggles Photo Grid ↔ Square Grid; both View menu rows show its live shortcut (including remapping/unbinding), with direct grid bindings taking priority; menu clicks still choose the named grid (#2500) |
 | KEY-INFO | Info — I | P0 | ✅ | `cmd:panel.info` | |
 | KEY-KEYWORDS | Keywords — K | P0 | ✅ | `cmd:panel.keywords` | |
 | KEY-CLIPBOARD | Copy / paste edit settings — ⌘C / ⌘V | P0 | ✅ | `cmd:develop.copy`, `cmd:develop.paste`, `crates/ui-egui/src/shortcuts.rs` (`matches`) | ⌘X has nothing to cut outside text fields; on Windows and Linux, where the windowing layer sends Ctrl+C / Ctrl+V as clipboard events rather than key presses, those run the shortcuts too (⇧Insert pastes plainly); there Ctrl+V only arrives while the system clipboard holds text (egui-winit drops it otherwise), so with an empty clipboard Paste Settings needs the menu |
@@ -797,6 +797,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-21 | patch | KEY-GRID: both grid rows in View show the cycle shortcut and follow keymap changes; direct bindings and native accelerator ownership are preserved (#2500); status and counts unchanged |
 | 2026-10-20 | patch | LR-VIEW-ZOOM: the 20 ms rule clears a slow-drag verdict only on a drag timed at full size; a drag that drafts small leaves it unchanged, as the code does; status unchanged |
 | 2026-10-19 | patch | LR-VIEW-ZOOM: the slow slider-drag verdict is described as per photo and control, as the code keys it; status unchanged |
 | 2026-10-15 | minor | LR-VIEW-ZOOM: a slow slider-drag verdict needs two drags over 20 ms and expires after 30 s (doubling to 240 s); hidden-window frame times are ignored; the slow set forgets its oldest entry, not all (issue #330); status unchanged |
