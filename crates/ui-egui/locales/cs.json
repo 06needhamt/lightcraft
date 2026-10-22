@@ -2396,5 +2396,14 @@
   "Focus Point": "Bod zaostření",
   "Layout Image": "Obrázek rozvržení",
   "Detail View": "Zobrazení detailu",
-  "Edit Panel": "Panel Úpravy"
+  "Edit Panel": "Panel Úpravy",
+  "Close the open dialog, then drop the files again": "Zavřete otevřené okno, pak soubory pusťte znovu",
+  "Close the open dialog to drop files here": "Zavřete otevřené okno, aby sem šlo soubory pustit",
+  "Drop to open the face model": "Pusťte pro otevření modelu obličejů",
+  "Drop to import": "Pusťte pro import",
+  "Dropped Files": "Přetažené soubory",
+  "Import dropped files without review": "Importovat přetažené soubory bez kontroly",
+  "An import is running": "Import už běží",
+  "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
+  "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky"
 }

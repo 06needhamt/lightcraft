@@ -3427,5 +3427,14 @@
   "Focus Point": "Fokuspunkt",
   "Layout Image": "Layoutbild",
   "Detail View": "Detailansicht",
-  "Edit Panel": "Bedienfeld „Bearbeiten“"
+  "Edit Panel": "Bedienfeld „Bearbeiten“",
+  "Close the open dialog, then drop the files again": "Schließe den geöffneten Dialog und lege die Dateien dann erneut ab",
+  "Close the open dialog to drop files here": "Schließe den geöffneten Dialog, um hier Dateien abzulegen",
+  "Drop to open the face model": "Ablegen, um das Gesichtsmodell zu öffnen",
+  "Drop to import": "Ablegen zum Importieren",
+  "Dropped Files": "Abgelegte Dateien",
+  "Import dropped files without review": "Abgelegte Dateien ohne Prüfung importieren",
+  "An import is running": "Ein Import läuft",
+  "An import is running. Drop photos when it has finished": "Ein Import läuft. Lege die Fotos ab, wenn er fertig ist",
+  "Finish Lightroom catalog import before adding photos": "Schließe den Import des Lightroom-Katalogs ab, bevor du Fotos hinzufügst"
 }

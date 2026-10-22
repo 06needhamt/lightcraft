@@ -2190,5 +2190,14 @@
   "White on Black": "Branco sobre preto",
   "Layout Image": "Imagem de layout",
   "Detail View": "Exibição de detalhe",
-  "Edit Panel": "Painel Editar"
+  "Edit Panel": "Painel Editar",
+  "Close the open dialog, then drop the files again": "Feche a caixa de diálogo aberta e solte os arquivos novamente",
+  "Close the open dialog to drop files here": "Feche a caixa de diálogo aberta para soltar arquivos aqui",
+  "Drop to open the face model": "Solte para abrir o modelo de rostos",
+  "Drop to import": "Solte para importar",
+  "Dropped Files": "Arquivos soltos",
+  "Import dropped files without review": "Importar arquivos soltos sem revisão",
+  "An import is running": "Uma importação está em andamento",
+  "An import is running. Drop photos when it has finished": "Uma importação está em andamento. Solte as fotos quando ela terminar",
+  "Finish Lightroom catalog import before adding photos": "Conclua a importação do catálogo do Lightroom antes de adicionar fotos"
 }

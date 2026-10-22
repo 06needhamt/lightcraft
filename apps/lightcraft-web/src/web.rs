@@ -517,22 +517,37 @@ impl WebApp {
 
     fn import_dropped(&mut self, ctx: &egui::Context) {
         let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        // a dialog is on screen (the card said so while the files hovered): nothing is read or imported
+        // (files read from an earlier drop still finish below)
+        if !dropped.is_empty() && self.app.ui.dialog.is_some() {
+            self.app.toast(ctx, lightcraft_ui_egui::i18n::tr("Close the open dialog, then drop the files again"));
+            return;
+        }
         for f in dropped {
             let (originals, backend, ctx) = (self.originals.clone(), self.backend.clone(), ctx.clone());
             wasm_bindgen_futures::spawn_local(async move {
                 let name = f.path().to_string_lossy().to_string();
                 match f.bytes_async().await {
                     Ok(bytes) => store_file(originals, backend, name, bytes, ctx).await,
-                    Err(e) => log::warn!("reading dropped {name}: {e}"),
+                    Err(e) => notice(lightcraft_ui_egui::i18n::dropped_file_unreadable(&name, &e.to_string())),
                 }
             });
         }
         let paths = self.originals.take_pending();
         if !paths.is_empty() {
-            let n = paths.len();
             match self.app.run("library.import", json!({"paths": paths})) {
-                Ok(_) => self.app.toast(ctx, format!("Added {n} photo{}", if n == 1 { "" } else { "s" })),
-                Err(e) => log::warn!("import: {e}"),
+                // what the import did, not what was submitted: duplicates and unsupported files add nothing,
+                // a drop that only finds duplicates says nothing (as the desktop import's toast does when it
+                // shows where they are), and one whose files could not be read says so
+                Ok(report) => {
+                    if let Some(notice) = lightcraft_ui_egui::i18n::dropped_photos_outcome(&report) {
+                        self.app.toast(ctx, notice);
+                    }
+                }
+                Err(e) => {
+                    log::warn!("import: {e}");
+                    self.app.toast(ctx, lightcraft_ui_egui::i18n::dropped_import_failed(&e));
+                }
             }
         }
     }

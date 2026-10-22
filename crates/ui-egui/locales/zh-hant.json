@@ -2145,5 +2145,14 @@
   "Checking the GPU for faces": "正在檢查用於臉孔的 GPU",
   "Layout Image": "版面圖像",
   "Detail View": "詳細檢視",
-  "Edit Panel": "編輯面板"
+  "Edit Panel": "編輯面板",
+  "Close the open dialog, then drop the files again": "請先關閉開啟的對話框，然後重新拖放檔案",
+  "Close the open dialog to drop files here": "請先關閉開啟的對話框，才能在此拖放檔案",
+  "Drop to open the face model": "放開滑鼠以開啟人臉模型",
+  "Drop to import": "放開滑鼠以匯入",
+  "Dropped Files": "拖放的檔案",
+  "Import dropped files without review": "不經檢查直接匯入拖放的檔案",
+  "An import is running": "正在匯入",
+  "An import is running. Drop photos when it has finished": "正在匯入。匯入完成後再拖放照片",
+  "Finish Lightroom catalog import before adding photos": "新增照片前，請先完成 Lightroom 目錄的匯入"
 }

@@ -2313,5 +2313,14 @@
   "Layout Image": "Asettelukuva",
   "Mask Overlay": "Maskin peittokuva",
   "Mask Pins": "Maskin nastat",
-  "Photo Counts": "Kuvamäärät"
+  "Photo Counts": "Kuvamäärät",
+  "An import is running": "Tuonti on käynnissä",
+  "An import is running. Drop photos when it has finished": "Tuonti on käynnissä. Pudota kuvat, kun se on valmis",
+  "Close the open dialog to drop files here": "Sulje avoin valintaikkuna pudottaaksesi tiedostot tähän",
+  "Close the open dialog, then drop the files again": "Sulje avoin valintaikkuna ja pudota tiedostot sitten uudelleen",
+  "Drop to import": "Pudota tuodaksesi",
+  "Drop to open the face model": "Pudota avataksesi kasvomallin",
+  "Dropped Files": "Pudotetut tiedostot",
+  "Finish Lightroom catalog import before adding photos": "Viimeistele Lightroom-luettelon tuonti ennen kuvien lisäämistä",
+  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta"
 }

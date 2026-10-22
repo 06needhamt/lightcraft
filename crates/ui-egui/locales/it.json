@@ -2336,7 +2336,6 @@
   "Loupe Info 1": "Info lente 1",
   "Loupe Info 2": "Info lente 2",
   "Use Defaults": "Usa predefiniti",
-  "Dimensions": "Dimensioni",
   "Camera & Lens": "Fotocamera e obiettivo",
   "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2.",
   "Before/After Side by Side": "Prima/Dopo affiancati",
@@ -2348,5 +2347,14 @@
   "All Mask Overlays": "Tutte le sovrapposizioni maschera",
   "Layout Image": "Immagine di layout",
   "Detail View": "Vista dettaglio",
-  "Edit Panel": "Pannello Modifica"
+  "Edit Panel": "Pannello Modifica",
+  "Close the open dialog, then drop the files again": "Chiudi la finestra di dialogo aperta, poi rilascia di nuovo i file",
+  "Close the open dialog to drop files here": "Chiudi la finestra di dialogo aperta per rilasciare qui i file",
+  "Drop to open the face model": "Rilascia per aprire il modello dei volti",
+  "Drop to import": "Rilascia per importare",
+  "Dropped Files": "File rilasciati",
+  "Import dropped files without review": "Importa i file rilasciati senza revisione",
+  "An import is running": "Un'importazione è in corso",
+  "An import is running. Drop photos when it has finished": "Un'importazione è in corso. Trascina le foto quando è finita",
+  "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto"
 }

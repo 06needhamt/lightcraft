@@ -2188,5 +2188,14 @@
   "Focus Point": "对焦点",
   "Layout Image": "版面图像",
   "Detail View": "详细视图",
-  "Edit Panel": "编辑面板"
+  "Edit Panel": "编辑面板",
+  "Close the open dialog, then drop the files again": "请先关闭打开的对话框，然后重新拖入文件",
+  "Close the open dialog to drop files here": "请先关闭打开的对话框，才能在此拖入文件",
+  "Drop to open the face model": "松开鼠标以打开人脸模型",
+  "Drop to import": "松开鼠标以导入",
+  "Dropped Files": "拖入的文件",
+  "Import dropped files without review": "不经检查直接导入拖入的文件",
+  "An import is running": "正在导入",
+  "An import is running. Drop photos when it has finished": "正在导入。导入完成后再拖放照片",
+  "Finish Lightroom catalog import before adding photos": "添加照片前，请先完成 Lightroom 目录的导入"
 }

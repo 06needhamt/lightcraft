@@ -297,5 +297,10 @@
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” já é uma pessoa. Combiná-las deixa uma só; Desfazer as separa de novo.",
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what} mesclagem adicionada em {mp}: o tamanho completo, {full}, precisa de mais memória do que este computador tem",
   "Listing folders — folders: {folders}, files: {files}": "Listando pastas — pastas: {folders}, arquivos: {files}",
-  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} mesclagem adicionada em {mp}, o maior tamanho possível para um panorama (tamanho completo: {full})"
+  "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} mesclagem adicionada em {mp}, o maior tamanho possível para um panorama (tamanho completo: {full})",
+  "Drop to review {n} item{} for import": "Solte para revisar antes de importar (itens: {n}){:.0}",
+  "Drop to import {n} item{}": "Solte para importar (itens: {n}){:.0}",
+  "Drop to import {n} preset{}": "Solte para importar predefinições: {n}{:.0}",
+  "Could not read {name}: {e}": "Não foi possível ler {name}: {e}",
+  "Added {n} photo{}": "{n} foto{0} adicionada{0}"
 }

@@ -2342,5 +2342,14 @@
   "Checking the GPU for faces": "Vérification du GPU pour les visages",
   "Layout Image": "Image de mise en page",
   "Detail View": "Vue de détail",
-  "Edit Panel": "Panneau Modifier"
+  "Edit Panel": "Panneau Modifier",
+  "Close the open dialog, then drop the files again": "Fermez la boîte de dialogue ouverte, puis déposez à nouveau les fichiers",
+  "Close the open dialog to drop files here": "Fermez la boîte de dialogue ouverte pour déposer des fichiers ici",
+  "Drop to open the face model": "Déposez pour ouvrir le modèle de visages",
+  "Drop to import": "Déposez pour importer",
+  "Dropped Files": "Fichiers déposés",
+  "Import dropped files without review": "Importer les fichiers déposés sans vérification",
+  "An import is running": "Une importation est en cours",
+  "An import is running. Drop photos when it has finished": "Une importation est en cours. Déposez les photos quand elle sera terminée",
+  "Finish Lightroom catalog import before adding photos": "Terminez l'importation du catalogue Lightroom avant d'ajouter des photos"
 }

@@ -41,6 +41,19 @@
   Panel, and Compare Before and After is Before/After Side by Side, next to Split and Top/Bottom.
 - The preview cache command has one name, Discard Preview Cache, in File ▸ Previews and in the toast that confirms
   it. Keyboard shortcuts are unchanged.
+### Dropping files shows what will happen
+- While files are dragged over the window, it dims and a card says what dropping will do: review the photos and
+  folders for import, import the presets, or open the face model. If a dialog is open, the card asks you to close it
+  first, and a drop is refused with a message instead of replacing the dialog. The same goes while an import is
+  running, and in the web version.
+- The import review of a finished scan (a drop, or File ▸ Import) no longer replaces a dialog you opened in the
+  meantime; it opens as soon as that dialog is closed.
+- Photos and folders dropped on the window now open the same import review as File ▸ Import, so you pick add, copy or
+  move, the destination and a preset before anything is imported. Settings ▸ Import ▸ "Import dropped files without
+  review" brings back the old behaviour of importing at once.
+- In the web version, a dropped file the browser can't read, or that can't be imported, now shows a message instead of
+  failing silently.
+- For scripts: `ui.dropFiles` hovers files over the window or drops them, as the operating system does.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

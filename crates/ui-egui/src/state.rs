@@ -418,6 +418,8 @@ pub struct AppSettings {
     /// A click on the dimmed backdrop around a dialog closes it, like Esc (off: a stray click
     /// never throws away a dialog's choices).
     pub close_dialogs_outside: bool,
+    /// Photos and folders dropped on the window import at once, without the import review.
+    pub import_dropped_directly: bool,
     /// GPU rendering allowed (`app.gpu`).
     pub gpu: bool,
     /// Largest long edge (pixels) the user lets the loupe render at; 0 = Automatic (the size it is
@@ -477,6 +479,7 @@ impl Default for AppSettings {
             confirm_delete: true,
             ask_before_move: true,
             close_dialogs_outside: false,
+            import_dropped_directly: false,
             gpu: true,
             preview_limit: 0,
             external_editor: String::new(),
