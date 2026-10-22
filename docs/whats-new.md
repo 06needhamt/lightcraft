@@ -26,6 +26,19 @@
   framing. Other recent Fujifilm bodies whose tables have nine knots are read the same way, but only the X-T4 was
   measured. Thumbnails are redrawn when the library next shows them.
 
+### Reference view reliability
+- Escape now leaves Reference for Detail without changing the active photo or its edits; the next
+  Escape returns to the grid. A dialog, tool or Lights Out still handles Escape first.
+- Opening or creating a different library clears the pinned reference. Photo IDs belong to one
+  catalog; a pin no longer silently becomes another library's photo with the same numeric ID.
+- Missing or Recently Deleted photos cannot be pinned. Deleting the pinned reference stops drawing
+  it; re-entering Reference chooses a live photo, and restoring the deleted photo makes it pinnable again.
+  In Recently Deleted, Set as Reference Photo is greyed out, and a refusal says to restore the photo.
+- Switching library from Reference view goes to the grid instead of an empty Reference canvas. A refused
+  or failed switch keeps both the reference and the Compare pair.
+- `photo.setReference` refuses an `id` that is not a photo id (a string, a negative or fractional
+  number) instead of pinning the active photo; only an absent or null `id` means the active photo.
+
 ## 2026-10-20
 
 ### Smart albums check File Path rules faster
@@ -41,6 +54,17 @@
 - AI Denoise on the GPU under DirectX 12 (the Windows default) gives the same result as on the CPU again on an NVIDIA
   GeForce GTX 1070. The driver ran the denoise network's output stores wrong, so every second pixel's colour
   channels came out shifted and the denoised photo was wrong without any error. Vulkan was not affected.
+
+### The Before label stays in view when zoomed in
+- Zoomed in, the "Before" label (\ key or the Before view) now sits at the canvas' corner instead of leaving the
+  screen with the photo's corner (issue #2267).
+
+### Synchronize Folder on a folder that is up to date
+- When the scan finds nothing to import, relink, remove or read, the Synchronize Folder dialog says the library is up
+  to date with the folder and has one Close button. It used to show four greyed choices, two of them still ticked,
+  and a Synchronize button that started a job with nothing to do. Files it skipped (already in the library elsewhere,
+  or unreadable) are still listed.
+
 
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
@@ -69,6 +93,20 @@
 - A crop ratio no longer flips to the photo's orientation (issue #2253): after X turns the crop portrait, picking
   another ratio (4 × 5, 2 × 3…) keeps it portrait, as in Lightroom, and a Custom ratio taller than wide gives a
   portrait crop.
+
+## 2026-10-16
+
+### Synchronize Folder shows that it is listing the folder
+- A folder with tens of thousands of photos, above all on a network share, can take minutes to list before
+  Synchronize Folder checks a single photo. Its row in the activity stack used to sit at "0 of 64085" with an empty
+  bar all that time, as if it had stopped. It now says how many folders and files it has listed so far, with a bar
+  that moves on its own, and then counts the photos it checks. The dialog says the same.
+- ✕ on the row stops the listing too, not only the checks after it.
+
+### The photo grid keeps up with imports into a large library
+- While photos are imported into a large library, the grid takes in each batch as it arrives instead of reading
+  every photo of the view again: at about 180,000 photos a batch cost the window a tenth of a second, over and over
+  for as long as the import ran. Changing one photo's capture time or crop is quicker too.
 
 ## 2026-10-15
 
@@ -267,6 +305,11 @@
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
+
+### Search finds people
+- Typing a person's name in Search Photos finds the photos with that named face (issue #1449).
+- Quotes keep several words together: `person:"Jane Doe"` finds exactly that person, `"jane doe"` those words side
+  by side, and `keyword:"new york"` a keyword of two words.
 
 ### Where the camera focused
 - **View ▸ Show Focus Point** (⌥F) draws the autofocus frame the camera recorded over the photo, in Detail, Compare

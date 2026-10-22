@@ -692,6 +692,11 @@ pub(crate) fn scan_files(mut input: ScanInput, files: Vec<String>, progress: &Sc
         .iter()
         .map(|f| {
             let info = input.cache.remove(f)?;
+            // (✕ set while the files' cached probes are checked: no more round trips to the disk; what is
+            // not reached counts as not probed, like the files after it)
+            if progress.cancel.load(Relaxed) {
+                return None;
+            }
             let size = std::fs::metadata(f).map(|m| m.len()).ok();
             (size.is_none() || size == Some(info.file_size)).then_some(info)
         })

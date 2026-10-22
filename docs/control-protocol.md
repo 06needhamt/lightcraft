@@ -88,7 +88,7 @@ filmstrip is visible.
 | `ui.scroll` | `{dx, dy, cmd?, ctrl?, shift?, alt?}` | Wheel / two-finger scroll at the current pointer; pans over the image, modifier-scroll zooms |
 | `ui.zoom` | `{factor}` | Pinch zoom at the current pointer (positive scale multiplier; 1 = unchanged). Position it first with `ui.move` or `ui.hoverWidget` |
 | `ui.set` | partial UI state, e.g. `{"view": "detail"}` | Resulting UI state |
-| `ui.dialog.confirm` / `ui.dialog.cancel` | — | Close the open dialog |
+| `ui.dialog.confirm` / `ui.dialog.cancel` | — | Close the open dialog (confirm runs its action; Synchronize Folder on a folder that is up to date answers `{"upToDate": true}` and starts nothing) |
 | `ui.resize` | `{width, height}` | Resize the window |
 | `ui.zoomFactor` | `{factor}` | Set the interface scale (0.5–3; egui's zoom keys are off, Cmd+= / Cmd+- zoom the photo) |
 | `ui.screenshot` | `{path?, headless?}` | `{path, width, height}` once the frame (with finished renders) is captured. `headless: true` draws the UI on the CPU (no compositor needed); a windowed capture that gets no frame within 2 s falls back to headless automatically. While the loupe still waits for a render, `ui.widgets {filter: "loupe:rendering"}` lists its "Rendering…" pill; `loupe:renderFailed` is the pill saying a render failed behind a stand-in; Compare and Reference panes have their own (`compare:rendering:<pane>`, `compare:renderFailed:<pane>`) |

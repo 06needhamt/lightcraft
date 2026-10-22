@@ -1337,6 +1337,8 @@ mod tests_history_cursor;
 #[cfg(test)]
 mod tests_hold_view;
 #[cfg(test)]
+mod tests_ids_params;
+#[cfg(test)]
 mod tests_import;
 #[cfg(test)]
 mod tests_import_move;

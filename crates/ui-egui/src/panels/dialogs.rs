@@ -273,6 +273,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::SamModel { .. } => "Download the SAM 3 Model?",
         Dialog::About => "About LightCraft",
         Dialog::Shortcuts => "Keyboard Shortcuts",
+        Dialog::ViewOptions => "View Options",
     }
     .to_string();
     let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(16, 12));
@@ -1315,6 +1316,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     }
                 }
                 Dialog::Shortcuts => crate::panels::keymap::body(app, ui, &t),
+                Dialog::ViewOptions => crate::panels::settings::view_options(app, ui, &t),
                 Dialog::Print => crate::print_view::body(app, ui, &t),
             });
             ui.add_space(4.0);
@@ -1366,6 +1368,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::KeywordTag { .. } => "Save",
                     Dialog::RemoveFolder { .. } => "Remove",
                     Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
+                    Dialog::SynchronizeFolder { .. } if informational => "Close",
                     Dialog::SynchronizeFolder { .. } => "Synchronize",
                     Dialog::SamModel { then: Some(_), .. } if sam_installed => "Continue",
                     Dialog::SamModel { .. } if sam_installed || sam_running || sam_nowhere => "",
@@ -1935,7 +1938,9 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         Dialog::DeleteEffects { names } => app.run("mask.deleteEffect", json!({"names": names})),
         Dialog::RemoveFolder { path, disk, .. } => app.run("library.removeFolder", json!({"path": path, "disk": disk})),
         d @ Dialog::SynchronizeFolder { .. } => crate::sync::confirm(app, d),
-        Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } | Dialog::ManageEffects { .. } => Ok(serde_json::Value::Null),
+        Dialog::About | Dialog::Shortcuts | Dialog::Settings { .. } | Dialog::ManageEffects { .. } | Dialog::ViewOptions => {
+            Ok(serde_json::Value::Null)
+        }
     }
 }
 
@@ -2304,7 +2309,8 @@ pub fn confirm_style(dlg: &Dialog) -> ConfirmStyle {
     }
 }
 
-/// A dialog that only shows something: one Close, nothing to confirm or cancel.
+/// A dialog that only shows something: one Close, nothing to confirm or cancel. (Synchronize
+/// Folder is one when its folder turned out up to date.)
 fn only_shows(dlg: &Dialog) -> bool {
     matches!(
         dlg,
@@ -2315,5 +2321,6 @@ fn only_shows(dlg: &Dialog) -> bool {
             | Dialog::AllMetadata { .. }
             | Dialog::WhatsNew
             | Dialog::ManageEffects { .. }
-    )
+            | Dialog::ViewOptions
+    ) || matches!(dlg, Dialog::SynchronizeFolder { counts: Some(c), .. } if c.up_to_date())
 }

@@ -130,6 +130,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.lightsOut", "Lights Out", Some("Shift+L"), "View"),
     ("view.enterFullScreen", "Enter Full Screen", Some("Cmd+Shift+F"), "View"),
     ("view.infoOverlay", "Cycle Info Overlay", Some("Cmd+I"), "View"),
+    ("view.viewOptions", "View Options…", Some("Cmd+J"), "View"),
     ("view.chooseLayoutImage", "Choose Layout Image…", None, "View"),
     ("view.layoutImage", "Show Layout Image", Some("Cmd+Alt+O"), "View"),
     ("view.layoutImageOpacity", "Layout Image Opacity", None, ""),
@@ -258,6 +259,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("app.resetShortcuts", "Reset All Keyboard Shortcuts", None, ""),
     ("app.export", "Export Now", None, ""),
     ("app.showInFinder", "Show in Finder", Some("Cmd+R"), "Photo"),
+    ("app.showInFolders", "Show in Folders", None, "Photo"),
     ("app.openSamModelFolder", "Show in File Manager", None, ""),
     ("dialog.rename", "Rename Photos…", Some("F2"), "Photo"),
     ("dialog.labelNames", "Edit Color Label Names…", None, ""),
@@ -588,12 +590,15 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         "view.reference" => {
             // the reference: the one set before, else the active photo (the next one becomes active)
             let vis = app.session.visible_cloned();
-            let reference = app
-                .ui
-                .reference
-                .filter(|r| app.session.catalog.photo(lightcraft_catalog::PhotoId(*r)).is_some())
-                .or_else(|| app.session.active().map(|a| a.0));
-            let Some(r) = reference else { return Some(Err("select a photo to use as the reference".into())) };
+            let live = |id: u64| crate::panels::compare::live(app, lightcraft_catalog::PhotoId(id));
+            let active = app.session.active().map(|a| a.0);
+            let reference = app.ui.reference.filter(|r| live(*r)).or_else(|| active.filter(|a| live(*a)));
+            let Some(r) = reference else {
+                return Some(Err(match active {
+                    Some(a) => format!("photo {a} is in Recently Deleted: restore it to use it as the reference"),
+                    None => "select a photo to use as the reference".into(),
+                }));
+            };
             app.ui.reference = Some(r);
             if app.session.active().is_none_or(|a| a.0 == r)
                 && let Some(i) = vis.iter().position(|x| x.0 == r)
@@ -605,8 +610,21 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(json!({"reference": r, "active": app.session.active().map(|a| a.0)}))
         }
         "photo.setReference" => {
-            let id = p.get("id").and_then(Value::as_u64).or_else(|| app.session.active().map(|a| a.0));
-            app.ui.reference = id;
+            // only an absent (or null) `id` means the active photo; any other non-id is refused
+            let id = match p.get("id").filter(|v| !v.is_null()) {
+                Some(v) => match v.as_u64() {
+                    Some(id) => Some(id),
+                    None => return Some(Err(format!("photo.setReference: `id` must be a photo id, not {v}"))),
+                },
+                None => app.session.active().map(|a| a.0),
+            };
+            let Some(id) = id else { return Some(Err("select a photo to use as the reference".into())) };
+            match app.session.catalog.photo(lightcraft_catalog::PhotoId(id)) {
+                None => return Some(Err(format!("no photo {id}"))),
+                Some(p) if p.deleted => return Some(Err(format!("photo {id} is in Recently Deleted: restore it to use it as the reference"))),
+                Some(_) => {}
+            }
+            app.ui.reference = Some(id);
             Ok(json!({"reference": id}))
         }
         "compare.swap" => crate::panels::compare::swap(app),
@@ -637,7 +655,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 panel(app, &ctx, RightPanel::Crop, "Crop, Rotate, Geometry");
             } else if app.ui.view == ViewMode::People && app.ui.person_page.is_some() {
                 app.ui.person_page = None;
-            } else if matches!(app.ui.view, ViewMode::Compare | ViewMode::Survey) {
+            } else if matches!(app.ui.view, ViewMode::Compare | ViewMode::Survey | ViewMode::Reference) {
                 app.ui.view = ViewMode::Detail;
             } else if app.ui.view == ViewMode::Detail {
                 // a photo opened from a person's page (or the unnamed faces) goes back there, any other to the grid
@@ -712,6 +730,27 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             };
             app.toast(&ctx, crate::i18n::tr(label));
             Ok(json!({"infoOverlay": app.ui.info_overlay}))
+        }
+        "view.viewOptions" => {
+            // `info1` / `info2` set the lines for an agent; without them the window opens
+            let mut info = app.ui.settings.loupe_info;
+            let mut set = false;
+            for (key, lines) in [("info1", &mut info.info1), ("info2", &mut info.info2)] {
+                let Some(v) = p.get(key) else { continue };
+                match serde_json::from_value(v.clone()) {
+                    Ok(v) => *lines = v,
+                    Err(_) => {
+                        return Some(Err(format!("`{key}`: three of none|fileName|captureDate|dimensions|exposure|camera|lens|cameraAndLens")));
+                    }
+                }
+                set = true;
+            }
+            if set {
+                app.ui.settings.loupe_info = info;
+            } else {
+                app.ui.dialog = Some(Dialog::ViewOptions);
+            }
+            Ok(json!({"loupeInfo": app.ui.settings.loupe_info}))
         }
         "view.chooseLayoutImage" => {
             let path = match p.get("path").and_then(Value::as_str) {
@@ -2137,6 +2176,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         }
         "app.export" => crate::control::export_active(app, p),
         "app.showInFinder" => show_in_finder(app),
+        "app.showInFolders" => show_in_folders(app, p.get("id").and_then(Value::as_u64).map(lightcraft_catalog::PhotoId)),
         "app.openLogFolder" => open_log_folder(app),
         "app.discord" | "app.website" | "app.github" | "app.artcraft" | "app.help" | "app.feedback" => {
             let url = crate::links::url_of(id).unwrap_or(crate::links::WEBSITE);
@@ -2191,6 +2231,7 @@ pub fn ui_enabled(app: &LightcraftApp, id: &str) -> bool {
                     .and_then(|id| app.session.catalog.photo(id))
                     .is_some_and(|p| matches!(p.source, lightcraft_engine::catalog::Source::File { .. }))
         }
+        "app.showInFolders" => show_in_folders_enabled(app, None),
         "app.openSamModelFolder" => app.session.segmenter.dir.is_some() && app.services.open_with.is_some(),
         "file.exportPresets" => app.session.presets.iter().any(|p| !p.builtin),
         "file.exportMaskEffects" => !app.session.mask_effects.is_empty(),
@@ -2317,6 +2358,39 @@ fn show_in_finder(app: &mut LightcraftApp) -> Result<Value, String> {
     };
     let reveal = app.services.reveal.as_mut().ok_or("not available here")?;
     reveal(&path)?;
+    Ok(json!({"path": path}))
+}
+
+/// The folder the active photo was imported from, as the sidebar's Folders section counts it (a
+/// photo straight in a disk's root is in the root). `None` for a demo scene, a photo only browsed
+/// in Local or in Recently Deleted, and one on the startup disk's root, which has no row to show.
+fn photo_folder(app: &LightcraftApp, id: Option<lightcraft_catalog::PhotoId>) -> Option<String> {
+    let photo = id.or_else(|| app.session.active()).and_then(|id| app.session.catalog.photo(id)).filter(|p| p.in_library())?;
+    let lightcraft_engine::catalog::Source::File { path } = &photo.source else { return None };
+    let dir = path.rfind(['/', '\\']).and_then(|i| path.get(..i.max(1)))?;
+    (!lightcraft_catalog::folders::is_startup_disk(dir)).then(|| dir.to_string())
+}
+
+/// Whether Show in Folders has a row to show for photo `id` (the active one when `None`): its
+/// folder must be a row of the tree, which stops `MAX_DEPTH` levels down. With no fresh tree to
+/// look in, the folder alone decides, and the command still checks.
+pub fn show_in_folders_enabled(app: &LightcraftApp, id: Option<lightcraft_catalog::PhotoId>) -> bool {
+    let Some(dir) = photo_folder(app, id) else { return false };
+    app.caches.folder_tree_if_fresh(&app.session.catalog).is_none_or(|tree| crate::panels::left::folder_row_of(&tree, &dir).is_some())
+}
+
+/// Photo ▸ Show in Folders (Lightroom's Go to Folder in Library): show the folder of photo `id`
+/// (the active one when `None`; the grid's menu passes the photo right-clicked) as a click on its
+/// row in the sidebar's Folders section does, and bring the row into view: the sidebar, the
+/// section and the folders above it open, and it scrolls there (`reveal_folder`).
+fn show_in_folders(app: &mut LightcraftApp, id: Option<lightcraft_catalog::PhotoId>) -> Result<Value, String> {
+    let dir = photo_folder(app, id).ok_or("this photo is not in a folder of the library")?;
+    let tree = app.caches.folder_tree(&app.session.catalog);
+    // the row's own spelling (forward slashes): what its click hands `library.source`, and its id
+    let path = crate::panels::left::folder_row_of(&tree, &dir).map(|n| n.path.clone()).ok_or("this photo's folder is not in Folders")?;
+    app.run("library.source", json!({"kind": "libraryFolder", "path": path}))?;
+    app.ui.left_panel = true;
+    app.ui.reveal_folder = Some(path.clone());
     Ok(json!({"path": path}))
 }
 
