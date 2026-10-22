@@ -386,6 +386,7 @@
   on the top bar it comes back zoomed. The other way round, a window you drag out until it is as wide as the
   screen and nearly as tall counts as zoomed.
 - For scripts: a size set with `ui.resize` is remembered like any other, so a script that needs a size sets it.
+
 ### Keyword List: a keyword shows that one inside it is applied
 - In the Keyword List (right panel ▸ Keywords), a keyword whose box is empty now carries a dot in it when the
   selected photos have a keyword inside it, at any depth: with `Places › Italy › Rome` on a photo, `Places` and
