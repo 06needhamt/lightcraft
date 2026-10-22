@@ -254,3 +254,22 @@ fn library_names_must_work_as_folder_names_on_every_system() {
     assert_eq!(app.session.library.as_ref().unwrap().dir, dir.join("Trip 2026"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The web build's page title names the active photo (a host embedding the page reads it to know
+/// which document a drop opened), with • while changes are not yet in storage (issue #2397).
+#[test]
+fn page_title_names_the_active_photo_and_unsaved_changes() {
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services::default());
+    let ids = app.session.visible_cloned();
+    let name = |app: &LightcraftApp, id: lightcraft_catalog::PhotoId| app.session.catalog.photo(id).unwrap().file_name.clone();
+    app.run("library.select", json!({"ids": [ids[0].0]})).unwrap();
+    assert_eq!(app.page_title(false), format!("{} — LightCraft", name(&app, ids[0])));
+    assert_eq!(app.page_title(true), format!("{} • — LightCraft", name(&app, ids[0])));
+    app.run("library.select", json!({"ids": [ids[1].0]})).unwrap();
+    assert_eq!(app.page_title(false), format!("{} — LightCraft", name(&app, ids[1])));
+    // no photo: the window title
+    let empty = LightcraftApp::new(lightcraft_engine::Session::new(), Services::default());
+    assert!(empty.session.active().is_none());
+    assert_eq!(empty.page_title(false), "LightCraft");
+    assert_eq!(empty.page_title(true), "LightCraft •");
+}

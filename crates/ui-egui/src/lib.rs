@@ -1454,6 +1454,18 @@ impl LightcraftApp {
         }
     }
 
+    /// The browser page's title: "<file name>[ •] — LightCraft" for the active photo (• while
+    /// `unsaved`: changes not yet written to storage), else the window title. The web build has no
+    /// window for `ViewportCommand::Title`; a host embedding it reads this title to tell which
+    /// document a drop opened and whether it is saved (issue #2397).
+    pub fn page_title(&self, unsaved: bool) -> String {
+        let dot = if unsaved { " •" } else { "" };
+        match self.session.active().and_then(|id| self.session.catalog.photo(id)) {
+            Some(p) => format!("{}{dot} — LightCraft", p.file_name),
+            None => format!("{}{dot}", self.window_title()),
+        }
+    }
+
     /// Lay out the whole window.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         i18n::set_language(self.ui.language);
