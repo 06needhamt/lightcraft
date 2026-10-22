@@ -217,23 +217,38 @@ fn a_long_library_folder_is_cut_short_and_its_tooltip_has_all_of_it() {
         assert!((button.center().y - folder.center().y).abs() < 6.0, "Choose… {button:?} is on the line of the path {folder:?} (path of {n})");
         assert!(folder.right() <= button.left(), "the path {folder:?} ends before Choose… {button:?} (path of {n})");
     }
-    // And so does "(library default)" after the smart previews folder (on Performance, at the foot of
-    // the page), which is cut the same way
-    show(&mut h, "performance");
-    let window = rect(&h, "dialog:window");
-    h.request("ui.move", json!({"x": window.center().x, "y": window.center().y}), T);
-    for _ in 0..6 {
-        h.request("ui.scroll", json!({"dy": -400.0}), T);
-        h.step();
-    }
-    h.settle(T);
-    let room = rect(&h, "settings:pageRoom");
-    let (smart, note) = (rect(&h, "text:settingsSmartFolder"), rect(&h, "text:settingsSmartDefault"));
-    assert!(room.intersects(smart) && room.intersects(note), "the smart previews folder {smart:?} {note:?} is in view in {room:?}");
-    assert!(note.right() <= room.right() + 0.5, "(library default) {note:?} is inside {room:?}");
-    assert!((note.center().y - smart.center().y).abs() < 6.0, "(library default) {note:?} is on the line of the path {smart:?}");
-    assert!(smart.right() <= note.left(), "the path {smart:?} ends before (library default) {note:?}");
     drop(h);
+}
+
+#[test]
+fn library_default_stays_on_the_line_of_the_smart_previews_folder_whatever_its_length() {
+    // Given libraries whose folder names grow in steps (the smart previews folder is `Smart Previews` in
+    // each, so its path is cut at a different place every time, and some cut leaves less room than the note needs)
+    let base = TempFolder::new("settings-smart");
+    for n in 0..24 {
+        let dir = base.0.join(format!("photographs-kept-on-the-second-external-drive-{n}")).join("m".repeat(2 + 3 * n));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut session = lightcraft_engine::Session::new().with_fs();
+        session.open_library(&dir, true).unwrap();
+        let mut h = headless(session, [1600.0, 1000.0]);
+        // When Performance is scrolled to the foot of its page
+        show(&mut h, "performance");
+        let window = rect(&h, "dialog:window");
+        h.request("ui.move", json!({"x": window.center().x, "y": window.center().y}), T);
+        for _ in 0..6 {
+            h.request("ui.scroll", json!({"dy": -400.0}), T);
+            h.step();
+        }
+        h.settle(T);
+        // Then "(library default)" stays inside the room, on the line of the path, after it
+        let room = rect(&h, "settings:pageRoom");
+        let (smart, note) = (rect(&h, "text:settingsSmartFolder"), rect(&h, "text:settingsSmartDefault"));
+        assert!(room.intersects(smart) && room.intersects(note), "the smart previews folder {smart:?} {note:?} is in view in {room:?} (name of {n})");
+        assert!(note.right() <= room.right() + 0.5, "(library default) {note:?} is inside {room:?} (name of {n})");
+        assert!((note.center().y - smart.center().y).abs() < 6.0, "(library default) {note:?} is on the line of the path {smart:?} (name of {n})");
+        assert!(smart.right() <= note.left(), "the path {smart:?} ends before (library default) {note:?} (name of {n})");
+        drop(h);
+    }
 }
 
 #[test]
