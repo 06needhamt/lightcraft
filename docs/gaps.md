@@ -80,6 +80,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-22 | patch | Gap 28: View shows the current grid-cycle key beside Photo Grid and Square Grid (#2500); no new binding and no change to the remaining shortcut gap or hours |
+| 2026-10-22 | minor | Gap 15: the Print page setup and PDF gain the Japanese photo and postcard paper sizes (L判 89×127, 2L判 127×178, KG判 102×152, はがき 100×148, 往復はがき 148×200, 六切 203×254, 四切 254×305, 名刺 55×91 mm), by their customary names; gap not closed |
 | 2026-10-21 | minor | Gap 28 shrinks: F8 shows / hides the right panel (`view.rightPanel`); rating `[` `]`, flag cycling and F1 help were already bound, so the entry lists only filter-bar keys, Tab / ⇧Tab and F5; 2–4 h (was 4–8) |
 | 2026-10-20 | minor | #2362: import destination albums use the shared hierarchy/search picker instead of a flat name list; existing import workflows retained; ranked gaps/readiness counts unchanged |
 | 2026-10-19 | minor | Gap 21: Indonesian (`id`) shipped with every catalog message but What's New; four new languages left (Hindi, Arabic, Korean, Vietnamese), 135–239 h |
