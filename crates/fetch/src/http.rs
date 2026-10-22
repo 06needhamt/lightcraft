@@ -137,6 +137,10 @@ impl Url {
         }
         // relative to the current directory
         let dir = self.path.split('?').next().unwrap_or("/");
+        // a query-only reference keeps the whole path, file name included (RFC 3986 §5.2.2)
+        if l.starts_with('?') {
+            return Url::parse(&format!("{base}{dir}{l}"));
+        }
         let dir = dir.rsplit_once('/').map_or("", |(d, _)| d);
         Url::parse(&format!("{base}{dir}/{l}"))
     }
@@ -616,6 +620,12 @@ mod tests {
     fn rejects_oversized_and_control_character_urls() {
         assert!(Url::parse(&format!("https://example.com/{}", "x".repeat(16 * 1024))).is_err());
         assert!(Url::parse("https://example.com/x?secret=abc\r\nInjected: 1").is_err());
+    }
+
+    #[test]
+    fn join_query_only_keeps_file_name() {
+        let u = Url::parse("https://a.example/x/y/file?q=1").unwrap();
+        assert_eq!(u.join("?page=2").unwrap().path, "/x/y/file?page=2");
     }
 
     #[test]
