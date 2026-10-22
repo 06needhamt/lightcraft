@@ -22,6 +22,12 @@
 - The stars in the bottom bar, the Info panel and the filter bar are now one shared control, and the badges on grid
   cells, filmstrip thumbnails and the Compare caption use the same drawing. Hovering a star in the filter bar now
   previews the rating like the others do, and with a star focused (Tab), ← and → lower and raise the rating.
+### Progress looks the same everywhere
+- Download, scan, denoise and activity progress now use one bar that fills the width it is given, with its text on
+  it, and a gentle sweep while the amount of work isn't known yet. Waits that only said "Selecting…", "Waiting to
+  start…" or "Installing…" now show a small turning arc beside the text, and a thumbnail still being made shows a
+  quiet placeholder that fits the theme in the grid, the filmstrip and Compare. Screen readers hear a progress
+  indicator with its percentage.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

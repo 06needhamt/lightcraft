@@ -856,6 +856,8 @@ fn paint_cell(
             clip.add(egui::Shape::mesh(mesh));
         }
         None => {
+            // the page is paper in every theme (its colour is the print's, not the theme's), so
+            // these stay fixed greys: a photo still to come, and an empty cell
             clip.rect_filled(shown, 0.0, if photo.is_some() { Color32::from_gray(52) } else { Color32::from_gray(200) });
         }
     }
