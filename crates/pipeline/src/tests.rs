@@ -96,6 +96,8 @@ fn dehaze_does_not_crush_dark_regions_next_to_bright_ones() {
         }
         v.sort_unstable();
         let mid = v[v.len() / 2] as i32;
+        // a field rendered all black would pass the comparison below vacuously
+        assert!(mid > 2, "the dark field itself is crushed in ch {ch}: level {mid}");
         for y in 0..160 {
             for x in 0..120 {
                 let p = r.get(x, y)[ch] as i32;
