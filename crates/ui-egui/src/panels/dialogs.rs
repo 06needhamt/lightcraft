@@ -522,10 +522,18 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                             "shift" => params["shift"].as_i64(),
                             _ => Some((*zone as f64 * 3600.0).round() as i64),
                         };
-                        let after = delta.and_then(|d| lightcraft_catalog::dates::shift_iso(&cur, d));
+                        // the photo's own time is the problem (a Lightroom catalog's capture time
+                        // is copied verbatim), not what was typed
+                        let unreadable = lightcraft_catalog::dates::shift_iso(&cur, 0).is_none();
+                        let after = match (mode.as_str(), unreadable && n == 1) {
+                            // alone, it simply gets the time typed (photo.setCaptureTime repairs it)
+                            ("set", true) => lightcraft_catalog::dates::normalize_iso(time),
+                            _ => delta.and_then(|d| lightcraft_catalog::dates::shift_iso(&cur, d)),
+                        };
                         ui.label(
                             egui::RichText::new(match after {
                                 Some(a) => format!("{name}: {} → {}", cur.replace('T', " "), a.replace('T', " ")),
+                                None if unreadable && !(mode == "set" && n == 1) => crate::i18n::tr("The active photo's capture time can't be read").to_string(),
                                 None => "Enter a date as YYYY-MM-DD HH:MM:SS".into(),
                             })
                             .color(t.text_label),
@@ -1454,7 +1462,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if confirm {
         match confirm_dialog(app, &dlg) {
             // the import review stays open on an error (e.g. an unusable folder template), and so
-            // does Export (e.g. no folder chosen) so the choices aren't lost
+            // does Export (e.g. no folder chosen) so the choices aren't lost, and Edit Capture Time
+            // (a time that isn't a date, or a shift it refuses)
             Err(e)
                 if matches!(
                     dlg,
@@ -1470,6 +1479,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         | Dialog::KeywordSet { .. }
                         | Dialog::SynchronizeFolder { .. }
                         | Dialog::SaveEffect { .. }
+                        | Dialog::CaptureTime { .. }
                 ) =>
             {
                 app.toast(ctx, e)
@@ -1495,6 +1505,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             }
             Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
                 app.toast(ctx, e);
+                close = true;
+            }
+            // photos whose capture time doesn't read are left as they were: say so
+            Ok(r) if matches!(dlg, Dialog::CaptureTime { .. }) && r["unreadable"].as_u64().is_some_and(|n| n > 0) => {
+                app.toast(ctx, crate::i18n::tr("Photos whose capture time can't be read were left as they were"));
                 close = true;
             }
             Ok(_) if keeps_open(app, &dlg) => {

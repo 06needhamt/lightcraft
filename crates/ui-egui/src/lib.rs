@@ -65,6 +65,8 @@ mod tests_button;
 #[cfg(test)]
 mod tests_canvas_keys;
 #[cfg(test)]
+mod tests_capture_time;
+#[cfg(test)]
 mod tests_compare;
 #[cfg(test)]
 mod tests_copy_paste_dialogs;

@@ -1319,7 +1319,15 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "dialog.captureTime" => {
-            let time = app.session.active().and_then(|id| app.session.catalog.photo(id)).map(|p| p.date().replace('T', " ")).unwrap_or_default();
+            // a time that doesn't fully read isn't offered as the starting point (`10:0` would read as midnight)
+            let time = app
+                .session
+                .active()
+                .and_then(|id| app.session.catalog.photo(id))
+                .map(|p| p.date())
+                .filter(|d| lightcraft_catalog::dates::shift_iso(d, 0).is_some())
+                .map(|d| d.replace('T', " "))
+                .unwrap_or_default();
             let mode = p.get("mode").and_then(Value::as_str).unwrap_or("set").to_string();
             app.ui.dialog =
                 Some(Dialog::CaptureTime { mode, time: time.get(..19).unwrap_or(&time).to_string(), days: 0, hours: 0, minutes: 0, zone: 0.0 });

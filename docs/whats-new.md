@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Edit Capture Time leaves a capture time it can't read as it was
+- A capture time that is cut short, has seconds that aren't digits or has text after it (a Lightroom catalog's capture
+  time is copied as it is) is no longer shifted into a clean-looking wrong time: Edit Capture Time leaves the photo as
+  it was and says so, and its preview says the photo's time can't be read instead of previewing a wrong one.
+  `photo.setCaptureTime` counts those photos as `unreadable`. Set date & time still repairs such a photo selected on
+  its own; with other photos selected it says why it can't move them by the same amount. When the dialog can't make a
+  change (a time that isn't a date, a shift past year 9999), it now says why and stays open, instead of closing.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
