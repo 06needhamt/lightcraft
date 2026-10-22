@@ -208,6 +208,12 @@ fn a_failed_filmstrip_thumbnail_is_announced_with_its_reason() {
 }
 
 #[test]
+fn a_failed_filmstrip_thumbnail_without_a_file_name_has_no_leading_comma() {
+    assert_eq!(crate::panels::detail::film_spoken("", true), "This photo can't be opened");
+    assert_eq!(crate::panels::detail::film_spoken("", false), "");
+}
+
+#[test]
 fn the_sam_bar_keeps_its_name_and_height_while_the_size_is_unknown() {
     let (nodes, _, (known, unknown)) = frames(Vec::new(), |ui| {
         let known = crate::panels::masking::sam_download_bar(ui, 5, 10, 200.0).rect.height();

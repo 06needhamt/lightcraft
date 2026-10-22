@@ -2936,9 +2936,14 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
 }
 
 /// What a screen reader says for a filmstrip thumbnail: the file, and why there is no picture
-/// when the thumbnail failed (the painted `!` has no name of its own).
+/// when the thumbnail failed (the painted `!` has no name of its own). The name is empty when the
+/// catalog no longer has the photo (or its file name is blank); the reason then stands alone.
 pub(crate) fn film_spoken(file_name: &str, failed: bool) -> String {
-    if failed { format!("{file_name}, {}", crate::i18n::tr("This photo can't be opened")) } else { file_name.to_string() }
+    match (file_name.is_empty(), failed) {
+        (_, false) => file_name.to_string(),
+        (true, true) => crate::i18n::tr("This photo can't be opened").to_string(),
+        (false, true) => format!("{file_name}, {}", crate::i18n::tr("This photo can't be opened")),
+    }
 }
 
 /// Rating, flag and edited badges along a filmstrip thumbnail's bottom edge (Settings → Interface).
