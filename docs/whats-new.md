@@ -18,6 +18,10 @@
 - A long folder (General ▸ Library ▸ Location, the folder Auto Import watches, the smart previews folder, a monitor
   profile's file) is shortened to its last folders ("…/Pictures/Library") on one line; rest the pointer on it for
   the whole path.
+### One star rating control
+- The stars in the bottom bar, the Info panel and the filter bar are now one shared control, and the badges on grid
+  cells, filmstrip thumbnails and the Compare caption use the same drawing. Hovering a star in the filter bar now
+  previews the rating like the others do, and with a star focused (Tab), ← and → lower and raise the rating.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
