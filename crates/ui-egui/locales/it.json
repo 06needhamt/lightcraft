@@ -2334,5 +2334,15 @@
   "Color Overlay on B&W": "Sovrapposizione colore su B/N",
   "Image on Black": "Immagine su nero",
   "Image on White": "Immagine su bianco",
-  "White on Black": "Bianco su nero"
+  "White on Black": "Bianco su nero",
+  "View Options…": "Opzioni di visualizzazione…",
+  "View Options": "Opzioni di visualizzazione",
+  "Loupe View": "Vista lente",
+  "Show Info Overlay": "Mostra sovrapposizione informazioni",
+  "Loupe Info 1": "Info lente 1",
+  "Loupe Info 2": "Info lente 2",
+  "Use Defaults": "Usa predefiniti",
+  "Dimensions": "Dimensioni",
+  "Camera & Lens": "Fotocamera e obiettivo",
+  "View → View Options chooses the lines Info 1 and Info 2 show.": "Visualizza → Opzioni di visualizzazione sceglie le righe di Info 1 e Info 2."
 }
