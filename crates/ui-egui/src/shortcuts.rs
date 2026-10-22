@@ -203,6 +203,8 @@ pub const ALIASES: &[(&str, &str, &str)] = &[
     // Keep existing primary shortcuts and honour custom keymap assignments.
     ("F6", "view.filmstrip", "{}"),
     ("F7", "view.leftPanel", "{}"),
+    // and F8 the right panel
+    ("F8", "view.rightPanel", "{}"),
     ("Shift+M", "version.create", "{}"),
     // grid thumbnail size: Classic's key is `=`; `+` (keypad, or Shift+= reported as Plus) agrees
     ("Plus", "view.thumbSizeUp", "{}"),
@@ -825,6 +827,27 @@ mod tests {
         key(&mut h, "F6", false);
         key(&mut h, "F7", false);
         assert_eq!((h.app.ui.filmstrip, h.app.ui.left_panel), (filmstrip, left));
+    }
+
+    /// Classic's F8 hides the right panel and shows the same one again; the other panels stay.
+    #[test]
+    fn classic_f8_hides_the_right_panel_and_brings_the_same_one_back() {
+        use crate::state::RightPanel;
+        let mut h = library();
+        h.app.ui.view = crate::state::ViewMode::Detail;
+        h.app.ui.right = RightPanel::Keywords;
+        h.settle(std::time::Duration::from_secs(10));
+        let (filmstrip, left) = (h.app.ui.filmstrip, h.app.ui.left_panel);
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::None);
+        assert_eq!((h.app.ui.filmstrip, h.app.ui.left_panel), (filmstrip, left));
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::Keywords, "the panel F8 hid comes back");
+        // a tool ends when F8 hides it; with nothing hidden before, F8 opens Edit
+        h.app.ui.right = RightPanel::None;
+        h.app.ui.right_hidden = RightPanel::None;
+        key(&mut h, "F8", false);
+        assert_eq!(h.app.ui.right, RightPanel::Edit);
     }
 
     #[test]

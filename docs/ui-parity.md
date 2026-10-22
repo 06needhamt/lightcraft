@@ -66,15 +66,15 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 | Create Version | ⌘⇧S (+ ⇧M) | ⇧M (Windows: Ctrl+⇧S) | — |
 | Select None | ⌘⇧A (+ ⌘D) | ⌘D | — |
 
-**Library culling (KEYC-RATING):** `0–5`, `6–9` and `P/X/U` reach egui on macOS even when displayed in the native menu (adapted from PR #261; issue #283). `Shift+0–9` applies and advances once; `Shift+P` picks and advances in Photo Grid / Square Grid and retains Presets elsewhere. See [library shortcuts](library-shortcuts.md) for the verified Classic mapping and regression coverage. `` ` `` cycles the flag (unflagged → pick → reject → unflagged) and ⌘↑ / ⌘↓ raise / lower it; the native menu leaves ⌘↑ / ⌘↓ to egui so Compare/Survey act on the active photo. Remaining Classic gaps: filter-bar keys.
+**Library culling (KEYC-RATING):** `0–5`, `6–9` and `P/X/U` reach egui on macOS even when displayed in the native menu (adapted from PR #261; issue #283). `Shift+0–9` applies and advances once; `Shift+P` picks and advances in Photo Grid / Square Grid and retains Presets elsewhere. See [library shortcuts](library-shortcuts.md) for the verified Classic mapping and regression coverage. F6, F7 and F8 show / hide the filmstrip, the left panel and the right panel (F8 brings back the panel it hid; `view.rightPanel`). `` ` `` cycles the flag (unflagged → pick → reject → unflagged) and ⌘↑ / ⌘↓ raise / lower it; the native menu leaves ⌘↑ / ⌘↓ to egui so Compare/Survey act on the active photo. Remaining Classic gaps: filter-bar keys.
 
 **Grid thumbnail size (KEYC-COMPARE):** Classic's `=` and `-` increase and decrease the Grid thumbnail size (same keys on macOS and Windows; `+` also works for the larger size here, as Shift+`=` or the keypad). They step the bottom-bar slider by 30 pt inside its 90–480 pt range, in Photo Grid, Square Grid and People only; Detail, Compare, Survey and Reference ignore them, and ⌘= / ⌘− stay Zoom In / Out. See [library shortcuts](library-shortcuts.md).
 
 **Library navigation keys (KEYC-COMPARE):** in Photo Grid and Square Grid, `Home` / `End` make the first / last photo of the view the active, selected one, and `Shift+Left` / `Shift+Right` add the previous / next photo of the view to the selection (the added photo becomes active; the keys never remove a photo from the selection, and do nothing at either end of the view). They wait in the other views, in the full-screen preview, while a text field or a dialog has the keyboard, and when you gave the key to a command; they are listed under Fixed keys in Help → Keyboard Shortcuts. `Cmd+O` (`Ctrl+O` on Windows and Linux) runs File → Open Library… ; View → Visualize HDR has no default key (`Shift+H` cycles the Tool Overlay, issue #224; `Cmd+Shift+H` stays the Histogram). Covered by `crates/ui-egui/src/tests_keymap.rs`; the macOS native menu path for `Cmd+O` is not exercised by the headless tests.
 
 **Still missing / broken:**
-- No command yet: F1 help (verify the rest of the old list: full screen, settings, stacks,
-  visualize spots and merges have commands now).
+- Tab / ⇧Tab (hide the side panels / all panels): Tab moves the keyboard focus here (accessibility), so it is
+  not bound; F5 (hide the top panel) is not bound either.
 - ⌘M / ⌘H / ⌘Q / ⌘W rely on the platform window defaults (unverified).
 
 

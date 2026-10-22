@@ -774,7 +774,7 @@ From `08-lightroom-classic-extras.md` (Classic-only features) and part 2 of `06-
 | LRC-WEB-IMAGEINFO | Web gallery image info | OOS | 🚫 | | |
 | LRC-WEB-OUTPUT | Web gallery output | OOS | 🚫 | | |
 | LRC-WEB-UPLOAD | Web gallery upload | OOS | 🚫 | | |
-| KEYC-PANELS | Classic panel keys (Tab, ⇧Tab, T, F5–F8, solo) | P2 | ⬜ | | solo itself (⌥-click a header, Solo Mode) is done: see LR-EDIT-SECTION-SOLO |
+| KEYC-PANELS | Classic panel keys (Tab, ⇧Tab, T, F5–F8, solo) | P2 | 🟡 | `cmd:view.filmstrip`, `cmd:view.leftPanel`, `cmd:view.rightPanel`, `crates/ui-egui/src/shortcuts.rs` | F6 / F7 / F8 show / hide the filmstrip, the left panel and the right panel (F8 brings back the panel it hid); Tab / ⇧Tab not bound (Tab moves the keyboard focus), no F5 or T; solo itself (⌥-click a header, Solo Mode) is done: see LR-EDIT-SECTION-SOLO |
 | KEYC-MODULES | Classic module switching (⌘⌥1–7) | P2 | 🚫 | | no modules in LightCraft |
 | KEYC-VIEWS | Classic view keys (E, G, C, N, L, F, I, ⇧R, ⌘⌥0) | P2 | 🟡 | `cmd:view.photoGrid`, `cmd:view.zoom100` | G works; E opens Edit (not loupe); no compare/survey/lights-out/screen modes |
 | KEYC-SECONDWINDOW | Classic secondary-window keys | P2 | ⬜ | | |
@@ -800,6 +800,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-21 | patch | KEY-SLIDER-NUDGE: vertical wheel nudges need a click or drag in the slider's row; leaving it (even between two frames) or Tab focus alone does not arm them (issue #1355); status unchanged |
+| 2026-10-21 | minor | KEYC-PANELS: F8 shows / hides the right panel (`view.rightPanel`), with F6 / F7 already bound; ⬜ → 🟡 |
 | 2026-10-20 | minor | LR-PRE-PANEL: the preset applied to a photo is marked again (with its Amount slider) on returning to the photo, until the photo is edited further (#2392); status unchanged (✅) |
 | 2026-10-20 | minor | LR-MASK-OVERLAY: creating, picking, duplicating or adding to a mask shows the overlay a mask slider hid (#1800); status unchanged (✅) |
 | 2026-10-20 | patch | LR-VIEW-ZOOM: the 20 ms rule clears a slow-drag verdict only on a drag timed at full size; a drag that drafts small leaves it unchanged, as the code does; status unchanged |

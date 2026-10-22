@@ -642,6 +642,9 @@ pub struct UiState {
     pub view: ViewMode,
     pub left_panel: bool,
     pub right: RightPanel,
+    /// The right panel F8 (`view.rightPanel`) hid, which the next F8 shows again.
+    #[serde(skip)]
+    pub right_hidden: RightPanel,
     /// Widths of the left sidebar and of the right panel in points (dragging their inner edge
     /// resizes them; within [`LEFT_WIDTH`] / [`RIGHT_WIDTH`]).
     pub left_width: f32,
@@ -1279,6 +1282,7 @@ impl Default for UiState {
             left_width: LEFT_WIDTH.default,
             right_width: RIGHT_WIDTH.default,
             right: RightPanel::Edit,
+            right_hidden: RightPanel::None,
             presets: false,
             preset_thumbs: false,
             filmstrip: true,
