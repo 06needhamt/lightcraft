@@ -2,7 +2,7 @@
 
 **Stage: alpha** · next: beta, ~14 points and ~340–600 h away
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-15 · **Change:** minor (Minolta MRW decoded, 6 bodies verified; RAW: 83% of Adobe's models decode, 38% verified after the camera-coverage sweep #1327) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-16 · **Change:** minor (Minolta MRW decoded, 6 bodies verified; RAW: 83% of Adobe's models decode, 38% verified after the camera-coverage sweep #1327; German catalog 91% → 97%: interface strings and What's New lines translated) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 One-page summary of how close LightCraft is to Adobe Lightroom. Agents: read this, then pick work
 from [docs/gaps.md](docs/gaps.md). The full assessment, method and evidence are in
@@ -49,7 +49,7 @@ Hours are calibrated on this repo's PR history; see
 | UI/UX fidelity | ~70% | ~85% | 32–54 h | [ui-parity](docs/ui-parity.md) |
 | File formats (non-raw) | ~70% | ~85% | 30–55 h | [file-format-parity](docs/file-format-parity.md) |
 | Hardware | ~40% | ~50% | 40–80 h | [hardware-parity](docs/hardware-parity.md) |
-| Localization | ~55% of the 12 key languages | 7 of 12 present | 130–210 h (+145–255 h new scripts) | [localization-parity](docs/localization-parity.md) |
+| Localization | ~64% of the 12 key languages | 8 of 12 present | 130–210 h (+135–239 h new scripts) | [localization-parity](docs/localization-parity.md) |
 | Performance | ~70% | ~80% | 30–50 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
 | Stability | ~60% | — | 30–60 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
 | Platforms | ~60% | macOS, Windows, Linux, FreeBSD, web | 25–45 h | [target-app-parity](docs/target-app-parity.md#by-dimension) |
@@ -78,7 +78,7 @@ Weights and evidence: [target-app-parity.md](docs/target-app-parity.md#features)
 
 ## Languages
 
-Measured from `crates/ui-egui/locales` (share of 2,304 catalog messages translated); none is `full`
+Measured from `crates/ui-egui/locales` (share of 2,304 catalog messages translated; German counts 3,644 of 3,754, because its What's New lines add keys); none is `full`
 while lower-layer errors stay English. Detail: [localization-parity.md](docs/localization-parity.md).
 
 | Language | Code | Translated | Status |
@@ -90,13 +90,13 @@ while lower-layer errors stay English. Detail: [localization-parity.md](docs/loc
 | Arabic | ar | 0% | none (no RTL / shaping) |
 | French | fr | 88% | partial |
 | Portuguese (Brazil) | pt-br | 85% | partial |
-| Indonesian | id | 0% | none |
+| Indonesian | id | 100% (What's New in English) | partial |
 | Japanese | ja | 87% | partial |
-| German | de | 91% | partial |
+| German | de | 97% (3,644/3,754) | partial |
 | Korean | ko | 0% | none (no Hangul face) |
 | Vietnamese | vi | 0% | none |
 
-Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%), Italian (92%), Georgian (100%).
+Also shipped: Traditional Chinese (87%), Russian (74%), Ukrainian (99%), Italian (92%), Georgian (100%), Finnish (79%).
 
 ## Upcoming
 
@@ -186,15 +186,18 @@ Ranked toward beta; detail in [docs/roadmap.md](docs/roadmap.md), gaps in [docs/
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-19 | minor | Indonesian interface (`id`): every plain and formats message, plus 69 command labels, locale, menu command and tests; What's New left in English; Localization ~55% → ~64% (mean of the 12 key languages), 8 of 12 present |
 | 2026-10-12 | minor | Italian interface (`it`, #1192): 2,201 of 2,398 messages, locale, menu command and tests; headline numbers unchanged |
 | 2026-10-13 | minor | Sony ILCA-99M2 camera colour profile in the log; numbers unchanged |
 | 2026-10-14 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
+| 2026-10-16 | minor | German 91% → 97% (217 interface strings and 862 What's New lines added); headline numbers unchanged |
 | 2026-10-14 | minor | 21 Sony and Leica models verified (258 models, 18%); headline numbers unchanged |
 | 2026-10-12 | minor | UI/UX remaining 34–58 h → 32–54 h (canvas tools by keyboard); headline numbers unchanged |
 | 2026-10-14 | minor | 17 uncompressed Olympus and Samsung models verified on one CC0 file each (254 models verified, 18%); headline numbers unchanged |
 | 2026-10-12 | minor | Mamiya MEF decoded and imported: ZD verified (241); headline numbers unchanged |
 | 2026-10-12 | minor | Epson ERF decoded: 3 more verified models (240); headline numbers unchanged |
 | 2026-10-12 | minor | Georgian (`ka`) interface language added (every catalog message) |
+| 2026-10-17 | minor | Finnish (`fi`) interface language added: 2,610 of 3,308 messages (79%), locale, menu command and tests; headline numbers unchanged |
 | 2026-10-14 | minor | Full-resolution zoom (gap 4) closed: soft proofing gets zoom windows; headline numbers unchanged |
 | 2026-10-12 | minor | UI/UX remaining 40–70 h → 34–58 h (accessibility audit landed); headline numbers unchanged |
 | 2026-10-18 | minor | Minolta MRW decodes from sensor data; 6 Konica Minolta bodies verified; headline numbers unchanged |
