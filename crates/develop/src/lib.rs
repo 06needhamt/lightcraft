@@ -158,8 +158,13 @@ impl DevelopSettings {
             }
             Section::Color => self.wb.mode = WbMode::AsShot,
             Section::Detail => self.enhance.denoise_on = None,
-            // the creative profile is not a control: the chosen look goes back to the default one
-            Section::Profile => self.profile.id = Profile::default().id,
+            // the creative profile is not a control: the chosen look goes back to the default one,
+            // and so does the camera's own local tone mapping
+            Section::Profile => {
+                let d = Profile::default();
+                self.profile.id = d.id;
+                self.profile.camera_local_tone = d.camera_local_tone;
+            }
             _ => {}
         }
     }
@@ -328,6 +333,15 @@ mod tests {
         s.reset_section(Section::Profile);
         assert_eq!(s.profile.id, "lc.color", "the creative profile survives a Profile reset");
         assert_eq!(s.profile.amount, 100.0);
+    }
+
+    #[test]
+    fn resetting_the_profile_section_clears_the_camera_local_tone() {
+        // the camera's local tone mapping is not a control either: a Profile reset switches it off
+        let mut s = DevelopSettings::default();
+        s.profile.camera_local_tone = true;
+        s.reset_section(Section::Profile);
+        assert!(!s.profile.camera_local_tone);
     }
 
     #[test]
