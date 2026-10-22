@@ -173,7 +173,7 @@ No Imaging Edge On/Off pairs were measured for this body. Camera JPEGs are the r
 
 This branch supplies the warp for camera-look pairing in PR #1586. It does not duplicate that pairing code.
 
-`LOOK_VERSION` 11 refreshes smart previews that stored no A7CR lens data; `RENDER_CACHE_VERSION` 68 redraws cached
+`LOOK_VERSION` 12 refreshes smart previews that stored no A7CR lens data; `RENDER_CACHE_VERSION` 69 redraws cached
 renders.
 
 Existing edits are preserved. Reload from Disk reads the new lens data for old imports. Enable the

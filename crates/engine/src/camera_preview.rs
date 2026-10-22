@@ -35,10 +35,10 @@ use lightcraft_raw::{
 /// 8: the bundled NIKON Z 6_2 profile.
 /// 9: the bundled NIKON Z 8 and NIKON D5300 profiles.
 /// 10: DNG tone fit for profiles with a look table and for 1024 px (Lightroom) previews.
-/// 12: tone curves of low-contrast scenes (range limit 1.2, with the bright-area check for curves under 1.5, #699).
-/// 10: tone-only fallback for near-black scenes with too few colour pairs (#1587).
-/// 10: DNG tone fitting uses a lens-corrected proxy when the file carries lens opcodes.
-/// 11: validated A7CR distortion, including the lens data stored with each smart preview.
+/// 12: tone curves of low-contrast scenes (range limit 1.2, with the bright-area check for curves under 1.5, #699);
+/// a tone-only fallback for near-black scenes with too few colour pairs (#1587); DNG tone fitting uses a
+/// lens-corrected proxy when the file carries lens opcodes; validated A7CR distortion, including the lens data
+/// stored with each smart preview.
 pub const LOOK_VERSION: u32 = 12;
 
 #[derive(Clone, Debug)]
