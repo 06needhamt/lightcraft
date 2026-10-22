@@ -61,7 +61,9 @@ fn parse_resources(bytes: &[u8]) -> Option<Embedded> {
             reader.take(1)?;
         }
         match id {
+            1058 if exif.is_some() => return None,
             1058 => exif = Some(data),
+            1060 if xmp.is_some() => return None,
             1060 => xmp = Some(data),
             _ => {}
         }
@@ -180,6 +182,32 @@ mod tests {
         let exif = lightcraft_tiff::TiffWriter::default().write(&[ifd0]).unwrap();
         let file = image(1, &[], &resource(1058, b"", &exif));
         assert!(crate::try_extract(&file).is_ok());
+    }
+
+    #[test]
+    fn try_extract_rejects_malformed_psd_xmp_but_extract_remains_best_effort() {
+        let file = image(1, &[], &resource(1060, b"", b"<x:xmpmeta><broken"));
+
+        assert_eq!(crate::extract(&file), Metadata::default());
+        assert!(matches!(crate::try_extract(&file), Err(crate::ExtractError::MalformedPsd)));
+    }
+
+    #[test]
+    fn try_extract_rejects_duplicate_psd_exif_and_xmp_resources() {
+        let gps = dated_metadata();
+        let no_gps = Metadata::default();
+        let gps_exif = crate::write_exif(&gps);
+        let no_gps_exif = crate::write_exif(&no_gps);
+        let gps_xmp = crate::write_xmp(&gps, None);
+        let no_gps_xmp = crate::write_xmp(&no_gps, None);
+
+        let duplicate_exif = [resource(1058, b"", &gps_exif), resource(1058, b"", &no_gps_exif)].concat();
+        let duplicate_xmp = [resource(1060, b"", gps_xmp.as_bytes()), resource(1060, b"", no_gps_xmp.as_bytes())].concat();
+
+        for (id, resources) in [(1058, duplicate_exif), (1060, duplicate_xmp)] {
+            let file = image(1, &[], &resources);
+            assert!(matches!(crate::try_extract(&file), Err(crate::ExtractError::MalformedPsd)), "duplicate resource {id} must be rejected");
+        }
     }
 
     #[test]

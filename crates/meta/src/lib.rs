@@ -284,28 +284,35 @@ impl Metadata {
 pub fn extract(bytes: &[u8]) -> Metadata {
     let e = embedded(bytes);
     let exif = e.exif.as_deref().map(read_exif).unwrap_or_default();
-    extract_embedded(e, exif)
+    let xmp = e.xmp.as_deref().and_then(|xmp| parse_xmp(xmp).ok()).map(|xmp| xmp.metadata);
+    extract_embedded(e, exif, xmp)
 }
 
-/// Read metadata while reporting malformed PSD/PSB containers or embedded EXIF instead of treating them as empty.
-/// Other container formats retain [`extract`]'s best-effort behavior.
+/// Read metadata while reporting malformed PSD/PSB containers, embedded EXIF, or embedded XMP instead of treating
+/// them as empty. Other container formats retain [`extract`]'s best-effort behavior.
 pub fn try_extract(bytes: &[u8]) -> Result<Metadata, ExtractError> {
     let e = container::try_embedded(bytes)?;
+    let is_psd = bytes.starts_with(b"8BPS");
     let exif = match e.exif.as_deref() {
-        Some(exif) if bytes.starts_with(b"8BPS") => try_read_exif(exif).map_err(|_| ExtractError::MalformedPsd)?,
+        Some(exif) if is_psd => try_read_exif(exif).map_err(|_| ExtractError::MalformedPsd)?,
         Some(exif) => read_exif(exif),
         None => Metadata::default(),
     };
-    Ok(extract_embedded(e, exif))
+    let xmp = match e.xmp.as_deref() {
+        Some(xmp) if is_psd => Some(parse_xmp(xmp).map_err(|_| ExtractError::MalformedPsd)?.metadata),
+        Some(xmp) => parse_xmp(xmp).ok().map(|xmp| xmp.metadata),
+        None => None,
+    };
+    Ok(extract_embedded(e, exif, xmp))
 }
 
-fn extract_embedded(e: Embedded, mut m: Metadata) -> Metadata {
+fn extract_embedded(e: Embedded, mut m: Metadata, xmp: Option<Metadata>) -> Metadata {
     if let Some(i) = e.iptc.as_deref() {
         m.fill_missing(&parse_iptc(i));
     }
-    if let Some(x) = e.xmp.as_deref().and_then(|x| parse_xmp(x).ok()) {
-        m.overlay_user_fields(&x.metadata);
-        m.fill_missing(&x.metadata);
+    if let Some(xmp) = xmp {
+        m.overlay_user_fields(&xmp);
+        m.fill_missing(&xmp);
     }
     m
 }
@@ -313,14 +320,14 @@ fn extract_embedded(e: Embedded, mut m: Metadata) -> Metadata {
 /// A container-level error reported by [`try_extract`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExtractError {
-    /// The PSD/PSB header, image-resource section, or embedded EXIF structure is malformed.
+    /// The PSD/PSB header, image-resource section, or embedded EXIF/XMP structure is malformed.
     MalformedPsd,
 }
 
 impl std::fmt::Display for ExtractError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MalformedPsd => f.write_str("malformed PSD/PSB header, image-resource section, or embedded EXIF structure"),
+            Self::MalformedPsd => f.write_str("malformed PSD/PSB header, image-resource section, or embedded EXIF/XMP structure"),
         }
     }
 }

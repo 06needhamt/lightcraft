@@ -674,6 +674,26 @@ fn remove_location_refuses_a_psd_that_embeds_gps() {
 }
 
 #[test]
+fn remove_location_refuses_a_psd_with_unreadable_xmp() {
+    let dir = temp_dir("export-noloc-psd-xmp");
+    let path = dir.join("Unreadable.psd");
+    let pixels = [40, 80, 120];
+    let image = lightcraft_codecs::EncodeImage::new(1, 1, 3, lightcraft_codecs::Samples::U8(&pixels));
+    let xmp = "<x:xmpmeta><broken";
+    let embedded = lightcraft_codecs::EncodeMeta { xmp: Some(xmp), ..Default::default() };
+    let bytes = lightcraft_codecs::encode_psd(&image, &embedded).unwrap();
+    assert_eq!(lightcraft_meta::extract(&bytes), lightcraft_meta::Metadata::default(), "ordinary extraction stays best-effort");
+    std::fs::write(&path, bytes).unwrap();
+
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    let err = export_photo(&mut session, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
+    assert!(err.contains("can't verify location metadata") && err.contains("malformed PSD/PSB"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn remove_location_refuses_a_psd_with_unreadable_resources() {
     let dir = temp_dir("export-noloc-psd-malformed");
     let gps = lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 45.0, longitude: 7.0, altitude: None }), ..Default::default() };
