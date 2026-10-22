@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Find the grid shortcut in View
+- Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
+  shortcut changes; clicking a menu row still selects that grid (issue #2500).
+
 ## 2026-10-21
 
 ### Settings window
