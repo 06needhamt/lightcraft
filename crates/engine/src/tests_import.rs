@@ -778,6 +778,18 @@ fn assisted_culling_groups_bursts_and_scores_focus() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Assisted culling: a photo listed twice is analysed once and is not a burst with itself.
+#[test]
+fn assisted_culling_ignores_repeated_ids() {
+    let mut s = Session::with_demo();
+    let id = s.visible_cloned()[0];
+    let r = s.execute("photo.analyze", &json!({"ids": [id.0, id.0]})).unwrap();
+    assert_eq!(r["groups"], 0, "a photo listed twice is not a burst of two: {r}");
+    assert_eq!(r["photos"].as_array().map(Vec::len), Some(1), "{r}");
+    let an = s.catalog.photo(id).unwrap().analysis.unwrap();
+    assert!(an.group.is_none() && !an.best, "{an:?}");
+}
+
 /// Assisted culling: two look-alike shots one second apart across midnight form a burst at the end of
 /// every month, including those with fewer than 31 days.
 #[test]
