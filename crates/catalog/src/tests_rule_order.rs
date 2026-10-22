@@ -291,6 +291,7 @@ fn a_chain_as_deep_as_the_limit_keeps_the_written_order() {
     let mut c = Catalog::new();
     let mut p = Photo::new(c.alloc_photo_id(), Source::File { path: "/a/1.jpg".into() }, "1.jpg", "JPEG", 6000, 4000, "2026-09-30T10:00:00");
     p.flag = Flag::Pick;
+    p.rating = 0; // (Z, rating at least 0, holds for it)
     let photo = p.id;
     c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
     let new_smart = |c: &mut Catalog, name: &str| {
@@ -318,6 +319,9 @@ fn a_chain_as_deep_as_the_limit_keeps_the_written_order() {
     let ask = |c: &Catalog| [a, w, z, chain[0]].map(|id| (c.album_contains(id, c.photo(photo).unwrap()), c.album_photos(id), c.album_count(id)));
     WRITTEN_ORDER.set(true);
     let as_written = ask(&written);
+    // (the expected answers, written down: the same evaluator gives both sides below, so a
+    // regression that lets the 33rd album in would otherwise change both alike)
+    assert_eq!(as_written.each_ref().map(|answer| answer.0), [false, true, true, true], "the depth limit cuts the chain only while A is asked");
     WRITTEN_ORDER.set(false);
     assert!(c.keeps_written_order());
     assert_eq!(ask(&c), as_written);
