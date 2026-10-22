@@ -552,17 +552,17 @@ Kodak	EasyShare Z1015 IS	KDC	2008	preview	KDC is opened from its embedded JPEG o
 Kodak	EasyShare Z980	KDC	2008	preview	KDC is opened from its embedded JPEG only
 Kodak	EasyShare Z981	RAW	2010	preview	RAW is opened from its embedded JPEG only
 Kodak	EasyShare Z990	RAW	2010	preview	RAW is opened from its embedded JPEG only
-Konica Minolta	Alpha-5 Digital (China)	MRW	2005	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	Alpha Sweet Digital (Japan)	MRW	2005	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE 5	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE 7	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE 7i	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE 7Hi	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE A1	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE A2	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	DiMAGE A200	MRW	2003	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	Maxxum 5D Dynax 5D	MRW	2005	preview	MRW is opened from its embedded JPEG only
-Konica Minolta	Maxxum 7D Dynax 7D	MRW	2003	preview	MRW is opened from its embedded JPEG only
+Konica Minolta	Alpha-5 Digital (China)	MRW	2005	unverified	MRW decoder (12-bit packed, 16-bit words)
+Konica Minolta	Alpha Sweet Digital (Japan)	MRW	2005	unverified	MRW decoder (12-bit packed, 16-bit words)
+Konica Minolta	DiMAGE 5	MRW	2003	unverified	MRW decoder (12-bit packed, 16-bit words)
+Konica Minolta	DiMAGE 7	MRW	2003	verified	raw.pixls.us check: CC0 sample decoded and its WB / CFA matched to the embedded preview (vendor/mrw.rs)
+Konica Minolta	DiMAGE 7i	MRW	2003	unverified	MRW decoder (12-bit packed, 16-bit words)
+Konica Minolta	DiMAGE 7Hi	MRW	2003	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Konica Minolta	DiMAGE A1	MRW	2003	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Konica Minolta	DiMAGE A2	MRW	2003	verified	raw.pixls.us check: CC0 sample decoded and its WB / CFA matched to the embedded preview (vendor/mrw.rs)
+Konica Minolta	DiMAGE A200	MRW	2003	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
+Konica Minolta	Maxxum 5D Dynax 5D	MRW	2005	unverified	MRW decoder (12-bit packed, 16-bit words)
+Konica Minolta	Maxxum 7D Dynax 7D	MRW	2003	verified	corpus: crates/raw/tests/corpus.rs (xtask RAW_SAMPLES)
 Leaf	AFi II 6	MOS	2008	preview	MOS is opened from its embedded JPEG only
 Leaf	AFi II 7	MOS	2008	preview	MOS is opened from its embedded JPEG only
 Leaf	Aptus 17	MOS	2007	preview	MOS is opened from its embedded JPEG only

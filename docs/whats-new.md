@@ -19,6 +19,13 @@
 - Pinching the loupe now keeps the size the fit view is rendered at until the gesture is quiet, as it already did for
   the render sizes and windows. Before, each frame of a pinch asked for a new full-frame render at a new size.
 
+### Fujifilm lens corrections that match the camera
+- X-T4 raws now read the lens's own distortion and vignetting tables the way the camera does. Many photos from zoom
+  lenses got no distortion correction at all (more than half of those checked from the XF16-55 and XF70-300), and
+  corners came out up to 6.5 % brighter than in the camera's JPEG. The corrected photo now lines up with the camera's
+  framing. Other recent Fujifilm bodies whose tables have nine knots are read the same way, but only the X-T4 was
+  measured. Thumbnails are redrawn when the library next shows them.
+
 ## 2026-10-20
 
 ### Smart albums check File Path rules faster
@@ -30,11 +37,22 @@
 
 ## 2026-10-19
 
+### AI Denoise on DirectX 12 with NVIDIA GTX 10-series cards
+- AI Denoise on the GPU under DirectX 12 (the Windows default) gives the same result as on the CPU again on an NVIDIA
+  GeForce GTX 1070. The driver ran the denoise network's output stores wrong, so every second pixel's colour
+  channels came out shifted and the denoised photo was wrong without any error. Vulkan was not affected.
+
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
 
 ## 2026-10-18
+
+### Thumbnails of Lightroom HDR and panorama merges in a second
+- Grid and filmstrip thumbnails of DNGs that Lightroom merged (HDR, Panorama, HDR Panorama) now develop from the
+  small copies of the raw image Lightroom keeps inside the file (256 to 2048 px), not from the whole merge. A 23836 ×
+  7078 drone panorama's 512 px thumbnail took 38 s and now takes about a second, with the same look; your edits still
+  apply. Loupe previews larger than the biggest copy, 1:1 views and exports still read the full image.
 
 ### Fill Location from GPS: no more neighbouring town in City
 - The offline place names list towns of 15,000 people or more, so a photo taken in a smaller one got the nearest larger
@@ -84,6 +102,11 @@
 - Model downloads (AI denoise, faces, SAM) give up on a server name that doesn't resolve within the connect timeout,
   and Cancel stops a download that is still looking the name up (issue #1532). The lookup used to block with no time
   limit, and each of a server's addresses then got the whole connect timeout of its own.
+
+### Sony A7CR distortion correction
+
+- Full-frame 3:2 Bayer A7CR raws with distortion Auto or forced Auto now use their embedded distortion table. The corrected render is closer to the camera JPEG geometry. Off files keep their original geometry. APS-C, aspect crops and lossless M/S remain excluded.
+- The warp also supplies the geometry needed by the lens-aligned camera-look fit in PR #1586. The pairing code is a separate change. Details and numeric validation are in `docs/sony-lens-corrections.md`.
 
 ### Lightroom radial masks on the right side
 - Radial masks brought over from Lightroom Classic (catalog import, XMP sidecars, edits inside DNGs and presets) now
