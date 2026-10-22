@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Exports don't create a photo's sidecar
+- Saving an export, a preset or any other file as `IMG_1.xmp` or `IMG_1.jpg.xmp` in the folder of the library photo
+  `IMG_1.jpg` is now refused when no sidecar is there yet, as writing over an existing one already was. The library
+  would have read the new file back as that photo's edits.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
