@@ -10,6 +10,8 @@
 //! * Synchronize with the defaults imports the new photos and leaves missing ones alone.
 //! * Ticking "Remove missing photos" also moves those to Recently Deleted.
 //! * Cancel leaves the library as it was.
+//! * A folder that has nothing to bring in only says so: the dialog has one Close and no
+//!   choices, and closing it starts nothing.
 //! * Synchronize hands the work to the background at once: the dialog closes, the app keeps
 //!   answering, and the photos arrive over the next frames under a row in the activity stack, as one undo
 //!   step.
@@ -62,12 +64,19 @@ fn write_png(path: &str, seed: u8) {
 /// The app with `trip/a.png` and `trip/b.png` imported, then `c.png` added and `b.png` deleted
 /// on disk behind its back.
 fn changed_folder(dir: &Scratch) -> Headless {
+    imported_folder(dir, || {
+        write_png(&dir.path("trip/c.png"), 3);
+        std::fs::remove_file(dir.path("trip/b.png")).unwrap();
+    })
+}
+
+/// The app with `trip/a.png` and `trip/b.png` imported, and `then` done on disk after.
+fn imported_folder(dir: &Scratch, then: impl FnOnce()) -> Headless {
     write_png(&dir.path("trip/a.png"), 1);
     write_png(&dir.path("trip/b.png"), 2);
     let mut session = lightcraft_engine::Session::new().with_fs();
     session.execute("library.import", &json!({"paths": [dir.path("trip")]})).unwrap();
-    write_png(&dir.path("trip/c.png"), 3);
-    std::fs::remove_file(dir.path("trip/b.png")).unwrap();
+    then();
     let app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
     let mut h = Headless::new(app, [1400.0, 900.0], 1.0);
     let r = h.request("ui.set", json!({"view": "photoGrid", "leftPanel": true}), T);
@@ -182,6 +191,42 @@ fn cancel_leaves_the_library_as_it_was() {
     assert!(h.app.session.folder_changes.is_none(), "the scan is let go");
 }
 
+fn shown(h: &Headless, widget: &str) -> bool {
+    h.app.widgets.iter().any(|(w, _)| w == widget)
+}
+
+#[test]
+fn a_folder_with_nothing_to_bring_in_is_only_reported() {
+    let dir = Scratch::new("uptodate");
+    let mut h = imported_folder(&dir, || {});
+    open_and_scan(&mut h, &dir.path("trip"));
+    h.step();
+    assert!(shown(&h, "button:dialogOk"), "one button, to close it");
+    for gone in ["button:dialogCancel", "syncImportNew", "syncRelinkMoved", "syncRemoveMissing", "syncReadMetadata"] {
+        assert!(!shown(&h, gone), "nothing to choose: {gone}");
+    }
+    let r = h.request("ui.clickWidget", json!({"id": "button:dialogOk"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(h.step_until(T, |h| h.app.ui.dialog.is_none()), "the button closes it");
+    assert!(h.app.sync_run.is_none() && h.app.session.activity.list().is_empty(), "and starts nothing");
+    assert!(h.app.session.folder_changes.is_none(), "the scan is let go");
+    assert_eq!(in_library(&h), vec!["a.png", "b.png"]);
+}
+
+#[test]
+fn confirming_a_folder_with_nothing_to_bring_in_starts_nothing() {
+    let dir = Scratch::new("uptodate-agent");
+    let mut h = imported_folder(&dir, || {});
+    open_and_scan(&mut h, &dir.path("trip"));
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["result"]["upToDate"], true, "{r}");
+    assert!(h.app.ui.dialog.is_none());
+    assert!(h.app.sync_run.is_none() && h.app.session.activity.list().is_empty(), "no job that does nothing");
+    h.step();
+    assert!(h.app.session.folder_changes.is_none(), "the scan is let go");
+}
+
 #[test]
 fn an_agents_scan_is_kept_between_frames() {
     let dir = Scratch::new("agent");
@@ -250,7 +295,7 @@ fn a_synchronize_and_an_import_never_run_at_once() {
         path: dir.path("trip"),
         name: "trip".into(),
         disk: false,
-        counts: Some(Default::default()),
+        counts: Some(crate::state::SyncCounts { new: 1, ..Default::default() }),
         import_new: true,
         relink_moved: true,
         remove_missing: false,

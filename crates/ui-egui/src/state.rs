@@ -1261,6 +1261,14 @@ pub struct SyncCounts {
     pub moved: usize,
 }
 
+impl SyncCounts {
+    /// The folder is there and the scan found nothing to bring in, relink, remove or read: the
+    /// dialog only says so (files it skipped are not changes).
+    pub fn up_to_date(&self) -> bool {
+        !self.offline && self.new + self.moved + self.missing + self.metadata == 0
+    }
+}
+
 impl Default for UiState {
     fn default() -> Self {
         UiState {

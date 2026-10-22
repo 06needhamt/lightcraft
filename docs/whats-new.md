@@ -2,6 +2,12 @@
 
 ## 2026-10-19
 
+### Synchronize Folder on a folder that is up to date
+- When the scan finds nothing to import, relink, remove or read, the Synchronize Folder dialog says the library is up
+  to date with the folder and has one Close button. It used to show four greyed choices, two of them still ticked,
+  and a Synchronize button that started a job with nothing to do. Files it skipped (already in the library elsewhere,
+  or unreadable) are still listed.
+
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
