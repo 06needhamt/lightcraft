@@ -114,11 +114,7 @@ pub fn parse_gpx(s: &str) -> Result<Tracklog, GpxError> {
                 match name.as_slice() {
                     b"gpx" if path.is_empty() => seen_gpx = true,
                     b"trk" if parent == Some(b"gpx") => log.tracks += 1,
-                    b"trkseg" if parent == Some(b"trk") => {
-                        if log.points.last().is_some_and(|p| p.segment == segment) {
-                            segment += 1;
-                        }
-                    }
+                    b"trkseg" if parent == Some(b"trk") && log.points.last().is_some_and(|p| p.segment == segment) => segment += 1,
                     b"trkpt" if parent == Some(b"trkseg") => {
                         let mut p = Pending::default();
                         for a in e.attributes().with_checks(false).flatten() {
@@ -151,7 +147,7 @@ pub fn parse_gpx(s: &str) -> Result<Tracklog, GpxError> {
                 match name.as_slice() {
                     b"ele" if parent == Some(b"trkpt") => {
                         if let Some(p) = pt.as_mut() {
-                            p.ele = text.trim().parse().ok();
+                            p.ele = text.trim().parse().ok().filter(|v: &f64| v.is_finite());
                         }
                     }
                     b"time" if parent == Some(b"trkpt") => {
@@ -353,6 +349,18 @@ mod tests {
         assert_eq!(log.points.len(), 2);
         // +11:00 is converted to UTC; no zone = UTC
         assert_eq!(log.points[1].time - log.points[0].time, 60.0);
+    }
+
+    #[test]
+    fn non_finite_elevation_is_dropped() {
+        for ele in ["inf", "-inf", "NaN", "infinity"] {
+            let s = format!(
+                r#"<gpx><trk><trkseg><trkpt lat="45" lon="7"><ele>{ele}</ele><time>2026-01-01T00:00:00Z</time></trkpt></trkseg></trk></gpx>"#
+            );
+            let log = parse_gpx(&s).unwrap();
+            assert_eq!(log.points.len(), 1, "{ele}");
+            assert_eq!(log.points[0].elevation, None, "{ele}");
+        }
     }
 
     #[test]

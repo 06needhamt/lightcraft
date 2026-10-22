@@ -25,6 +25,33 @@ pub enum MatteKind {
     Glasses,
 }
 
+impl MatteKind {
+    /// A stable code for serialization (e.g. a smart preview's stored mattes); never renumber.
+    pub fn code(self) -> u8 {
+        match self {
+            MatteKind::Sky => 0,
+            MatteKind::Person => 1,
+            MatteKind::Skin => 2,
+            MatteKind::Hair => 3,
+            MatteKind::Teeth => 4,
+            MatteKind::Glasses => 5,
+        }
+    }
+
+    /// [`MatteKind::code`]'s inverse (`None` for a code this build doesn't know).
+    pub fn from_code(code: u8) -> Option<Self> {
+        match code {
+            0 => Some(MatteKind::Sky),
+            1 => Some(MatteKind::Person),
+            2 => Some(MatteKind::Skin),
+            3 => Some(MatteKind::Hair),
+            4 => Some(MatteKind::Teeth),
+            5 => Some(MatteKind::Glasses),
+            _ => None,
+        }
+    }
+}
+
 /// Segmentation mattes that came with the source: 0..255 alpha planes, each covering the whole
 /// (EXIF-oriented) source image at its own resolution. Several mattes of one kind (e.g. one per
 /// person) are combined with max.
@@ -54,6 +81,12 @@ impl Mattes {
     /// Memory held (bytes).
     pub fn bytes(&self) -> usize {
         self.mattes.iter().map(|(_, m)| m.data.len()).sum()
+    }
+
+    /// The stored mattes, in insertion order (kind and plane), e.g. for storing them with a
+    /// photo's proxy source.
+    pub fn iter(&self) -> impl Iterator<Item = (MatteKind, &Image<u8>)> {
+        self.mattes.iter().map(|(k, m)| (*k, m))
     }
 
     fn of(&self, kinds: &[MatteKind]) -> Vec<&Image<u8>> {
@@ -398,7 +431,9 @@ fn box_down(m: &Image<u8>, f: usize) -> Plane {
 
 /// Bilinear sample at continuous pixel coordinates (pixel centres at +0.5), edges extended.
 fn bilinear(p: &Plane, x: f32, y: f32) -> f32 {
-    let (fx, fy) = (x - 0.5, y - 0.5);
+    // (held a pixel outside, which reads the same edge: an infinite coordinate reads the edge
+    // instead of a NaN weight and a neighbour index past isize::MAX)
+    let (fx, fy) = (x.clamp(-1.0, p.width as f32 + 1.0) - 0.5, y.clamp(-1.0, p.height as f32 + 1.0) - 0.5);
     let (x0, y0) = (fx.floor(), fy.floor());
     let (tx, ty) = (fx - x0, fy - y0);
     let (x0, y0) = (x0 as isize, y0 as isize);
@@ -438,11 +473,54 @@ pub struct BrushDabs {
     pub erase: bool,
     /// Auto Mask: paint only pixels like the one under each dab, then snap to edges.
     pub auto: bool,
+    /// Pen pressure (0..1) of each dab, parallel to `dabs`; empty when the stroke has no pressure data (full pressure).
+    pub pressure: Vec<f32>,
+}
+
+impl BrushDabs {
+    /// Radius, hard core and flow of dab `i`, pen pressure applied ([`pressure_radius`], [`pressure_flow`]).
+    pub fn dab(&self, i: usize) -> (f64, f64, f32) {
+        match self.pressure.get(i) {
+            Some(&p) => {
+                let r = pressure_radius(self.r, p);
+                (r, if self.r > 0.0 { self.hard * r / self.r } else { self.hard }, pressure_flow(self.flow, p))
+            }
+            None => (self.r, self.hard, self.flow),
+        }
+    }
+}
+
+/// The radius of a dab of a brush of radius `r` (pixels) painted at pen pressure `p` (0..1): from a tenth of the
+/// brush at the lightest touch to the full brush at full pressure, never below half a pixel.
+#[inline]
+pub fn pressure_radius(r: f64, p: f32) -> f64 {
+    let p = if p.is_nan() { 1.0 } else { f64::from(p.clamp(0.0, 1.0)) };
+    (r * (0.1 + 0.9 * p)).max(0.5).min(r.max(0.5))
+}
+
+/// The flow (0..1) of a dab painted at pen pressure `p` (0..1): proportional to the pressure.
+#[inline]
+pub fn pressure_flow(flow: f32, p: f32) -> f32 {
+    let p = if p.is_nan() { 1.0 } else { p.clamp(0.0, 1.0) };
+    flow * p
+}
+
+/// Pressures for the `added` dabs [`push_dabs`] just laid from a sample at pressure `from` to one at `to`: evenly
+/// interpolated, the last one at `to`, as the dabs themselves are placed.
+pub fn push_pressures(pressure: &mut Vec<f32>, added: usize, from: f32, to: f32) {
+    for k in 1..=added {
+        pressure.push(from + (to - from) * k as f32 / added as f32);
+    }
 }
 
 /// Output pixels a brush sample must move from the last dab to count as movement: below this the
 /// pointer is held still (the same screen position mapped again, up to float rounding).
 const STATIONARY_PX: f64 = 1e-6;
+
+/// Most dabs one stroke holds (32 MiB of centres). A segment is capped on its own, but a stroke of
+/// many hostile segments (an agent, a crafted XMP or catalog) would otherwise add up without
+/// bound; past this the rest of the stroke lays nothing (#1520).
+pub const MAX_STROKE_DABS: usize = 2_000_000;
 
 /// The dabs of stroke `s` in a `w × h` output.
 pub fn brush_dabs(s: &BrushStroke, frame: &Frame, w: usize, h: usize) -> BrushDabs {
@@ -454,11 +532,22 @@ pub fn brush_dabs(s: &BrushStroke, frame: &Frame, w: usize, h: usize) -> BrushDa
     // long the button is held: a sample where the pointer hasn't moved (a stationary hold records
     // one per frame) lays no dab, so waiting in place adds nothing (#518).
     let mut dabs: Vec<Point> = Vec::new();
+    let mut pressure: Vec<f32> = Vec::new();
+    let with_pressure = !s.pressure.is_empty();
     let mut prev = None;
-    for p in &s.points {
+    let mut prev_p = 1.0;
+    for (i, p) in s.points.iter().enumerate() {
         let q = to_out.apply(*p);
+        let before = dabs.len();
         if push_dabs(&mut dabs, prev, q, r) {
+            let pq = s.pressure_at(i);
+            if with_pressure {
+                // the first dab of the stroke has nothing to interpolate from
+                let from = if prev.is_some() { prev_p } else { pq };
+                push_pressures(&mut pressure, dabs.len() - before, from, pq);
+            }
             prev = Some(q);
+            prev_p = pq;
         }
     }
     BrushDabs {
@@ -469,6 +558,7 @@ pub fn brush_dabs(s: &BrushStroke, frame: &Frame, w: usize, h: usize) -> BrushDa
         density: (s.density / 100.0).clamp(0.0, 1.0) as f32,
         erase: s.erase,
         auto: s.auto_mask,
+        pressure,
     }
 }
 
@@ -485,11 +575,21 @@ pub fn dab_spacing(r: f64) -> f64 {
 /// their dabs with this, so they cover the same pixels (issue #517). A sample where the pointer
 /// hasn't moved (a stationary hold records one per frame) or that is not a finite point lays
 /// nothing, so holding the brush still adds no coverage (#518). Returns whether `q` was stamped;
-/// callers move `prev` on only then.
+/// callers move `prev` on only then. A stroke holding [`MAX_STROKE_DABS`] takes no more.
 pub fn push_dabs(dabs: &mut Vec<Point>, prev: Option<Point>, q: Point, r: f64) -> bool {
-    if !(q.x.is_finite() && q.y.is_finite()) {
+    let mut emitted = dabs.len();
+    push_dabs_counted(dabs, &mut emitted, prev, q, r)
+}
+
+/// Append one segment using a persistent count of all dabs emitted for this stroke, including
+/// dabs no longer held in `dabs`. Incremental callers retain `emitted` when clearing their buffer;
+/// it advances only by the number actually appended. Acceptance and spacing match [`push_dabs`].
+pub fn push_dabs_counted(dabs: &mut Vec<Point>, emitted: &mut usize, prev: Option<Point>, q: Point, r: f64) -> bool {
+    let room = MAX_STROKE_DABS.saturating_sub(*emitted);
+    if room == 0 || !(q.x.is_finite() && q.y.is_finite()) {
         return false;
     }
+    let before = dabs.len();
     if let Some(prev) = prev {
         let dist = prev.dist(q);
         if dist.is_nan() || dist <= STATIONARY_PX {
@@ -499,11 +599,14 @@ pub fn push_dabs(dabs: &mut Vec<Point>, prev: Option<Point>, q: Point, r: f64) -
         // a hostile or degenerate segment (huge) gets no in-between dabs rather than a huge
         // allocation: 1 M dabs is far more than any on-screen stroke needs
         let n = if n.is_finite() { n.clamp(0.0, 1_000_000.0) as usize } else { 0 };
+        // the in-between dabs and `q` together fit what is left of the stroke's budget
+        let n = n.min(room);
         for k in 1..n {
             dabs.push(prev.lerp(q, k as f64 / n as f64));
         }
     }
     dabs.push(q);
+    *emitted += dabs.len() - before;
     true
 }
 
@@ -594,9 +697,11 @@ fn rasterize_brush(strokes: &[BrushStroke], frame: &Frame, w: usize, h: usize, i
         return;
     }
     for s in strokes {
-        let BrushDabs { dabs, r, hard, flow, density: dens, erase, auto } = brush_dabs(s, frame, w, h);
+        let bd = brush_dabs(s, frame, w, h);
+        let (dens, erase, auto) = (bd.density, bd.erase, bd.auto);
         let mut stroke_alpha = Plane::new(w, h);
-        for d in &dabs {
+        for (k, d) in bd.dabs.iter().enumerate() {
+            let (r, hard, flow) = bd.dab(k);
             let refc = auto.then(|| {
                 let j = dab_pixel(*d, w, h);
                 (log_l.data[j], chromaticity(img.data[j]))
@@ -621,7 +726,7 @@ fn rasterize_brush(strokes: &[BrushStroke], frame: &Frame, w: usize, h: usize, i
             }
         }
         if auto {
-            let (sigma, eps) = auto_refine(r);
+            let (sigma, eps) = auto_refine(bd.r);
             let q = guided_cross(log_l, &stroke_alpha, sigma, eps);
             // the refinement fills gaps along edges; it never takes paint away
             stroke_alpha = stroke_alpha.zip_map(&q, f32::max);
@@ -784,12 +889,83 @@ mod tests {
         }
         assert_eq!(committed.dabs, again);
         assert!(committed.dabs.windows(2).all(|w| w[0].dist(w[1]) <= dab_spacing(committed.r) + 1e-9));
+        // many huge segments stop at the stroke budget instead of adding up without bound
+        let mut big = Vec::new();
+        let mut at = Point::new(0.0, 0.0);
+        for i in 0..5 {
+            let q = Point::new(if i % 2 == 0 { 1e12 } else { 0.0 }, 0.0);
+            if push_dabs(&mut big, Some(at), q, 1.0) {
+                at = q;
+            }
+        }
+        assert!(big.len() <= MAX_STROKE_DABS, "{} dabs", big.len());
+        assert!(!push_dabs(&mut big, Some(at), Point::new(5.0, 5.0), 1.0), "a full stroke takes no more");
         // a hostile segment places no in-between dabs
         let mut v = Vec::new();
         assert!(!push_dabs(&mut v, Some(Point::new(f64::NAN, 0.0)), Point::new(1.0, 1.0), r));
         assert!(!push_dabs(&mut v, None, Point::new(f64::INFINITY, 1.0), r));
         push_dabs(&mut v, Some(Point::new(0.0, 0.0)), Point::new(1e300, 1.0), 0.0);
         assert!(v.len() <= 1_000_002, "{}", v.len());
+    }
+
+    /// A temporary output buffer must spend the same stroke budget as a retained one.
+    #[test]
+    fn incremental_dab_buffers_share_the_stroke_budget() {
+        let points = [Point::new(20.0, 20.0), Point::new(80.0, 20.0), Point::new(200.0, 80.0), Point::new(21.0, 20.0)];
+        let mut retained = Vec::new();
+        let mut streamed = Vec::new();
+        let mut retained_count = MAX_STROKE_DABS - 3;
+        let mut streamed_count = retained_count;
+        let mut prev = None;
+        for q in points {
+            let mut chunk = Vec::new();
+            let accepted = push_dabs_counted(&mut retained, &mut retained_count, prev, q, 10.0);
+            assert_eq!(accepted, push_dabs_counted(&mut chunk, &mut streamed_count, prev, q, 10.0));
+            streamed.extend(chunk);
+            if accepted {
+                prev = Some(q);
+            }
+        }
+        assert_eq!(retained, streamed);
+        assert_eq!(retained.len(), 3);
+        assert_eq!(retained_count, MAX_STROKE_DABS);
+        assert_eq!(streamed_count, retained_count);
+        assert_eq!(prev, Some(points[1]));
+        assert!(!retained.contains(&points[2]));
+        assert!(!retained.contains(&points[3]));
+    }
+
+    /// Pen pressure scales each dab's radius and flow; a stroke without pressure data paints as before, and hostile
+    /// pressures (NaN, out of range, a short list) neither panic nor paint more than full pressure.
+    #[test]
+    fn pen_pressure_scales_dab_size_and_flow() {
+        let (w, h) = (400, 100);
+        let f = frame(w, h);
+        let img = Rgb32f::new(w, h);
+        let l = Plane::new(w, h);
+        let line = vec![Point::new(0.1, 0.5), Point::new(0.9, 0.5)];
+        let alpha = |pressure: Vec<f32>| {
+            let s = BrushStroke { points: line.clone(), size: 0.05, feather: 0.0, flow: 100.0, pressure, ..Default::default() };
+            shape_alpha(&MaskShape::Brush { strokes: vec![s] }, &f, w, h, &img, &l, 0.0, None)
+        };
+        let full = alpha(vec![]);
+        assert_eq!(full.data, alpha(vec![1.0, 1.0]).data, "full pressure is no pressure");
+        // light at the start, full at the end: thin and faint on the left, as wide as the brush on the right
+        let ramp = alpha(vec![0.1, 1.0]);
+        let width = |a: &Plane, x: usize| (0..h).filter(|y| a.get(x, *y) > 0.01).count();
+        assert!(width(&ramp, 60) < width(&full, 60) / 2, "{} vs {}", width(&ramp, 60), width(&full, 60));
+        assert!(width(&ramp, 350) + 2 >= width(&full, 350));
+        assert!(ramp.get(60, 50) < full.get(60, 50) + 1e-6);
+        let faint = alpha(vec![0.2]);
+        assert!(faint.data.iter().zip(&full.data).all(|(a, b)| *a <= *b + 1e-6), "never more than full pressure");
+        assert!(faint.get(200, 50) > 0.0 && faint.get(200, 50) < full.get(200, 50));
+        for hostile in [vec![f32::NAN, f32::INFINITY], vec![-3.0], vec![0.5; 10_000]] {
+            let a = alpha(hostile);
+            assert!(a.data.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)));
+        }
+        assert_eq!(pressure_radius(10.0, f32::NAN), 10.0);
+        assert_eq!(pressure_radius(10.0, 0.0), 1.0);
+        assert_eq!(pressure_flow(0.8, 2.0), 0.8);
     }
 
     #[test]

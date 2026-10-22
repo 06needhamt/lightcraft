@@ -11,14 +11,15 @@ use lightcraft_pipeline::SourceInfo;
 use lightcraft_raster::Rgb32f;
 use lightcraft_raster::resample::{Filter, fit};
 
-use crate::media::{DenoiseSpec, FileLoader, FileProbe, PairLoader, PreviewLoader, ProbeInfo};
+use crate::media::{DenoiseSpec, FileLoader, FileProbe, PairLoader, PreviewLoader, ProbeInfo, ReducedLoader};
 
 fn meta_of(m: &lightcraft_meta::Metadata) -> (Meta, Option<String>) {
     let shutter = m.exposure_time.map(|t| if t >= 1.0 { format!("{t:.0}") } else { format!("1/{:.0}", 1.0 / t) }).unwrap_or_default();
     let camera = [m.make.clone().unwrap_or_default(), m.model.clone().unwrap_or_default()].join(" ").trim().to_string();
     let meta = Meta {
         camera,
-        lens: m.lens_model.clone().unwrap_or_default(),
+        // (a camera that writes no lens name, like Nikon's DSLRs, still says what range the lens covers)
+        lens: m.lens_model.clone().or_else(|| m.lens_spec.and_then(lightcraft_meta::lens_spec_name)).unwrap_or_default(),
         focal_mm: m.focal_length.map(|f| f as f32),
         aperture: m.f_number.map(|f| f as f32),
         shutter,
@@ -40,6 +41,7 @@ fn meta_of(m: &lightcraft_meta::Metadata) -> (Meta, Option<String>) {
         // paths from `lr:hierarchicalSubject`, names from `dc:subject` that aren't their levels
         keywords: lightcraft_catalog::keywords::from_file(&m.keywords, &m.hierarchical_keywords),
         regions: m.regions.clone(),
+        focus: m.focus.clone(),
     };
     (meta, m.capture_time.as_ref().map(|d| d.to_iso()))
 }
@@ -158,10 +160,8 @@ pub fn probe_bytes(name: &str, bytes: &[u8]) -> Result<ProbeInfo, String> {
             }
             Err(Err(e)) => return Err(e),
         };
-        let (mut w, mut h) = (raw.crop.width.max(1) as u32, raw.crop.height.max(1) as u32);
-        if w <= 1 || h <= 1 {
-            (w, h) = (raw.active_area.width as u32, raw.active_area.height as u32);
-        }
+        let (w, h) = raw.developed_size();
+        let (mut w, mut h) = (w.max(1) as u32, h.max(1) as u32);
         if raw.orientation.swaps_axes() {
             std::mem::swap(&mut w, &mut h);
         }
@@ -266,19 +266,43 @@ impl CameraColourModel<'_> {
     /// White balance, matrix, tables and baseline exposure, in place.
     pub fn apply(&self, img: &mut Rgb32f) {
         let (wb, m, gain) = (self.wb, self.matrix.to_f32(), self.gain);
-        img.map_in_place(|p| {
-            let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
-            let rgb = [
-                m[0][0] * c[0] + m[0][1] * c[1] + m[0][2] * c[2],
-                m[1][0] * c[0] + m[1][1] * c[1] + m[1][2] * c[2],
-                m[2][0] * c[0] + m[2][1] * c[1] + m[2][2] * c[2],
-            ];
-            let rgb = match self.tables {
-                Some(tables) => tables.apply(rgb, gain),
-                None => rgb.map(|v| v * gain),
-            };
-            self.hue_sat.map_or(rgb, |h| h.apply(rgb)).map(|v| v.max(0.0))
-        });
+        if let (None, Some(hue_sat)) = (self.tables, self.hue_sat) {
+            // a fitted camera look: `pixel`, `LANES` pixels at a time so the table step vectorises (same bits)
+            const LANES: usize = 16;
+            lightcraft_raster::par_rows(&mut img.data, img.width, |_, row| {
+                for chunk in row.chunks_mut(LANES) {
+                    let mut rgb = [[0.0f32; LANES]; 3];
+                    for (l, p) in chunk.iter().enumerate() {
+                        let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
+                        for (i, rgb) in rgb.iter_mut().enumerate() {
+                            rgb[l] = (m[i][0] * c[0] + m[i][1] * c[1] + m[i][2] * c[2]) * gain;
+                        }
+                    }
+                    let out = hue_sat.apply_lanes(rgb);
+                    for (l, p) in chunk.iter_mut().enumerate() {
+                        *p = [out[0][l], out[1][l], out[2][l]].map(|v| v.max(0.0));
+                    }
+                }
+            });
+            return;
+        }
+        img.map_in_place(|p| self.pixel(&m, p));
+    }
+
+    /// [`Self::apply`] to one pixel; `m` is the matrix as `f32`.
+    fn pixel(&self, m: &[[f32; 3]; 3], p: [f32; 3]) -> [f32; 3] {
+        let (wb, gain) = (self.wb, self.gain);
+        let c = [p[0] * wb[0], p[1] * wb[1], p[2] * wb[2]];
+        let rgb = [
+            m[0][0] * c[0] + m[0][1] * c[1] + m[0][2] * c[2],
+            m[1][0] * c[0] + m[1][1] * c[1] + m[1][2] * c[2],
+            m[2][0] * c[0] + m[2][1] * c[1] + m[2][2] * c[2],
+        ];
+        let rgb = match self.tables {
+            Some(tables) => tables.apply(rgb, gain),
+            None => rgb.map(|v| v * gain),
+        };
+        self.hue_sat.map_or(rgb, |h| h.apply(rgb)).map(|v| v.max(0.0))
     }
 }
 
@@ -342,20 +366,27 @@ pub fn bin_factor(raw: &lightcraft_raw::RawImage, max_edge: usize) -> Option<usi
 /// instead of each one waking the pool from outside and waiting for it (which costs more than the
 /// loops themselves when the machine is busy).
 pub fn load_bytes(bytes: &[u8], max_edge: usize) -> Result<(Rgb32f, SourceInfo), String> {
-    rayon::scope(|_| load_bytes_now(std::borrow::Cow::Borrowed(bytes), max_edge, None).map(|(img, _, info)| (img, info)))
+    rayon::scope(|_| load_bytes_now(std::borrow::Cow::Borrowed(bytes), max_edge, None, false).map(|(img, _, info, _)| (img, info)))
 }
 
 /// [`load_bytes`] taking the file's bytes: a raw file's bytes are freed as soon as it is decoded
 /// (less memory held while it is developed).
 pub fn load_vec(bytes: Vec<u8>, max_edge: usize) -> Result<(Rgb32f, SourceInfo), String> {
-    rayon::scope(move |_| load_bytes_now(std::borrow::Cow::Owned(bytes), max_edge, None).map(|(img, _, info)| (img, info)))
+    rayon::scope(move |_| load_bytes_now(std::borrow::Cow::Owned(bytes), max_edge, None, false).map(|(img, _, info, _)| (img, info)))
+}
+
+/// [`load_vec`] for a thumbnail: a DNG that keeps reduced-resolution copies of its raw image (Lightroom's HDR and
+/// panorama merges) develops the smallest that covers `max_edge` instead of the whole image. The flag says whether
+/// it did: such a picture is not the full image, and an export never renders from it.
+pub fn load_vec_reduced(bytes: Vec<u8>, max_edge: usize) -> Result<(Rgb32f, SourceInfo, bool), String> {
+    rayon::scope(move |_| load_bytes_now(std::borrow::Cow::Owned(bytes), max_edge, None, true).map(|(img, _, info, reduced)| (img, info, reduced)))
 }
 
 /// [`load_vec`] that also develops the photo's cached denoised picture (`spec`) from the same decode: the plain
 /// picture, the denoised one (`None` when it cannot be read or does not fit this raw: the plain one is then all
 /// there is) and the source facts. Both pictures are the same size.
 pub fn load_vec_pair(bytes: Vec<u8>, max_edge: usize, spec: &DenoiseSpec) -> Result<(Rgb32f, Option<Rgb32f>, SourceInfo), String> {
-    rayon::scope(move |_| load_bytes_now(std::borrow::Cow::Owned(bytes), max_edge, Some(spec)))
+    rayon::scope(move |_| load_bytes_now(std::borrow::Cow::Owned(bytes), max_edge, Some(spec), false).map(|(img, twin, info, _)| (img, twin, info)))
 }
 
 /// The denoised camera RGB of `raw` from its cached product, as the plain development would have it: the default
@@ -384,14 +415,25 @@ fn load_bytes_now(
     bytes: std::borrow::Cow<'_, [u8]>,
     max_edge: usize,
     denoise: Option<&DenoiseSpec>,
-) -> Result<(Rgb32f, Option<Rgb32f>, SourceInfo), String> {
+    allow_reduced: bool,
+) -> Result<(Rgb32f, Option<Rgb32f>, SourceInfo, bool), String> {
     if lightcraft_raw::probe(&bytes).is_some() {
-        let mut raw = match lightcraft_raw::decode(&bytes).map_err(|e| preview_reason(&bytes, e)) {
+        // a thumbnail (`allow_reduced`, never an export) of a DNG that keeps smaller copies of its raw image
+        // (Lightroom's merges) develops the smallest that covers it; a denoised photo's twin needs the full mosaic
+        let reduced = (allow_reduced && denoise.is_none() && max_edge < usize::MAX)
+            .then(|| lightcraft_raw::decode_reduced(&bytes, max_edge).ok().flatten())
+            .flatten();
+        let used_reduced = reduced.is_some();
+        let decoded = match reduced {
+            Some(r) => Ok(r),
+            None => lightcraft_raw::decode(&bytes),
+        };
+        let mut raw = match decoded.map_err(|e| preview_reason(&bytes, e)) {
             Ok(r) => r,
             Err(Ok(why)) => {
                 // show the camera's embedded JPEG (rendered, not raw) until the variant is supported
                 return load_embedded_preview(&bytes, max_edge)
-                    .map(|(img, info)| (img, None, info))
+                    .map(|(img, info)| (img, None, info, false))
                     .ok_or(format!("unsupported raw ({why}) without an embedded preview"));
             }
             Err(Err(e)) => return Err(e),
@@ -400,12 +442,30 @@ fn load_bytes_now(
         // (removed before the camera look's binned sensor proxy too, which needs an empty `OpcodeList3`).
         let info = raw.info();
         let lens = crate::lens_profiles::for_raw(&info, || lightcraft_meta::extract(&bytes));
+        // (the camera look still pairs the sensor with the camera JPEG through the warp the camera applied to it)
+        let lens_geometry = crate::camera_preview::lens_geometry(&raw.opcodes.list3);
+        // A DNG's preview already has its lens opcodes applied. Keep them for its single tone fit,
+        // then remove them again: the rendered source leaves those corrections to the pipeline.
+        let dng_lens_ops = (raw.format == lightcraft_raw::RawFormat::Dng && raw.opcodes.list3.iter().any(|op| op.is_lens_correction()))
+            .then(|| raw.opcodes.list3.clone());
         raw.opcodes.list3.retain(|op| !op.is_lens_correction());
         // Which scale white balance is edited on, and the as-shot white on it, from the file's own colour tags or
         // the camera's measured matrices (`Photo::relative_wb` decides the same from the catalog's camera)
         let scale = WbScaleOf::new(raw.format, &raw.color, raw.wb_multipliers, &raw.metadata);
         // the source's segmentation mattes (DNG semantic masks), read while the starting colour is fitted
-        let ((xy, t, camera_look), mattes) = rayon::join(|| crate::camera_preview::starting_colour(&mut raw, &bytes), || dng_mattes(&bytes, &info));
+        let ((xy, t, camera_look), mattes) = rayon::join(
+            || {
+                let removed = dng_lens_ops.map(|ops| std::mem::replace(&mut raw.opcodes.list3, ops));
+                // With the opcodes restored, the proxy already includes vignetting; do not apply it twice.
+                let embedded = if removed.is_some() { None } else { lens.as_ref() };
+                let colour = crate::camera_preview::starting_colour(&mut raw, &bytes, lens_geometry.as_ref(), embedded);
+                if let Some(ops) = removed {
+                    raw.opcodes.list3 = ops;
+                }
+                colour
+            },
+            || dng_mattes(&bytes, &info),
+        );
         drop(bytes);
         // Previews and thumbnails bin the mosaic straight to (about) the size they need; only
         // larger levels (exports, 1:1) demosaic the whole sensor.
@@ -450,7 +510,8 @@ fn load_bytes_now(
             stages.push(("highlights", t0.elapsed()));
             colour.apply(&mut img);
             stages.push(("colour", t0.elapsed()));
-            let img = fit(&img, max_edge, max_edge, Filter::Box);
+            // a full-size render keeps the picture (fitting it to its own size would copy it, ~390 MB at 33 MP)
+            let img = if img.width.max(img.height) > max_edge { fit(&img, max_edge, max_edge, Filter::Box) } else { img };
             stages.push(("fit", t0.elapsed()));
             let img = img.into_oriented(raw.orientation);
             stages.push(("orient", t0.elapsed()));
@@ -474,10 +535,11 @@ fn load_bytes_now(
         // on top of it). A model's measured matrices never do: they only give the Kelvin scale its numbers, and the
         // picture is adapted from the as-shot white as every fitted look is (so settings from before that scale
         // existed render exactly as they did, `lightcraft_pipeline::local::legacy_white`).
-        let camera_color = (scale.own_matrix && !t.matrix_is_fallback && camera_look.is_none()).then(|| {
-            let tags = lightcraft_raw::ColorData { profile: Default::default(), ..raw.color.clone() };
-            Arc::new(lightcraft_pipeline::CameraColor { tags, developed_for: xy })
-        });
+        let camera_color = (scale.own_matrix && !t.matrix_is_fallback && (camera_look.is_none() || raw.format == lightcraft_raw::RawFormat::Dng))
+            .then(|| {
+                let tags = lightcraft_raw::ColorData { profile: Default::default(), ..raw.color.clone() };
+                Arc::new(lightcraft_pipeline::CameraColor { tags, developed_for: xy })
+            });
         let camera_tone = camera_look.as_ref().map(|p| p.tone).or_else(|| raw.color.profile.tone_curve.as_ref().and_then(dng_tone_curve));
         let local_tone = local_tone(&raw);
         let (temp, tint) = scale.as_shot(xy);
@@ -495,14 +557,17 @@ fn load_bytes_now(
                 camera_tone,
                 mattes,
                 local_tone,
+                // (the catalog knows the original's size: `media::source_info`)
+                native_long: None,
             },
+            used_reduced,
         ));
     }
     let d = lightcraft_codecs::decode(&bytes, fit_box(max_edge)).map_err(|e| e.to_string())?;
     drop(bytes);
     let img = d.to_working();
     let img = if img.width.max(img.height) > max_edge { fit(&img, max_edge, max_edge, Filter::Mitchell) } else { img };
-    Ok((img.into_oriented(Orientation::from_exif(d.orientation)), None, SourceInfo::default()))
+    Ok((img.into_oriented(Orientation::from_exif(d.orientation)), None, SourceInfo::default(), false))
 }
 
 /// Which white-balance scale a raw is edited on, decided from the file alone, the way the catalog decides it from
@@ -513,17 +578,28 @@ fn load_bytes_now(
 /// (`lightcraft_raw::spectral`), else when its camera's white-balance presets give one
 /// (`lightcraft_raw::kelvin_presets`): either turns its as-shot multipliers into Kelvin and tint, nothing else — the
 /// look stays the file's fit. Any other raw is edited relative to its as-shot look (6500 K / 0 means as shot).
-struct WbScaleOf {
+pub(crate) struct WbScaleOf {
     own_matrix: bool,
     relative: bool,
     /// Kelvin through the camera's measured matrices or presets: edited on the relative scale before those were used.
     legacy_relative: bool,
     /// The as-shot white through the measured matrices or the presets, when that is where the scale comes from.
     scale_white: Option<lightcraft_color::Xy>,
+    /// The camera's measured matrices, when they give the scale.
+    camera: Option<&'static lightcraft_raw::spectral::Camera>,
+}
+
+/// The white balance a DNG of a raw's camera RGB (Photo Merge) declares so that it shows as its source does
+/// ([`WbScaleOf::dng_white`]).
+pub(crate) enum DngWhite {
+    /// Colour tags with the camera's measured matrices: the DNG reads every white through them, as the source does.
+    Matrices(Box<lightcraft_raw::ColorData>),
+    /// The white the source's scale shows at As Shot.
+    At(lightcraft_color::Xy),
 }
 
 impl WbScaleOf {
-    fn new(
+    pub(crate) fn new(
         format: lightcraft_raw::RawFormat,
         color: &lightcraft_raw::ColorData,
         wb_multipliers: Option<[f32; 3]>,
@@ -540,7 +616,23 @@ impl WbScaleOf {
             None => None,
         };
         let covered = camera.is_some() || presets;
-        WbScaleOf { own_matrix, relative: fitted && !covered, legacy_relative: fitted && covered, scale_white }
+        WbScaleOf { own_matrix, relative: fitted && !covered, legacy_relative: fitted && covered, scale_white, camera }
+    }
+
+    /// What a DNG of this raw's camera RGB declares so that it shows the white balance as this scale does: the
+    /// camera's measured matrices when they give the scale, else the white the scale shows at As Shot (the presets'
+    /// reading; 6500 K / 0 on the relative scale; else `own`, the white the file's tags give).
+    pub(crate) fn dng_white(&self, color: &lightcraft_raw::ColorData, own: lightcraft_color::Xy) -> DngWhite {
+        if let Some(camera) = self.camera {
+            let mut c = lightcraft_raw::ColorData { profile: Default::default(), kelvin_presets: None, ..color.clone() };
+            if camera.fill(&mut c) {
+                return DngWhite::Matrices(Box::new(c));
+            }
+        }
+        if self.relative {
+            return DngWhite::At(lightcraft_color::cct::temp_tint_to_xy(6500.0, 0.0));
+        }
+        DngWhite::At(self.scale_white.unwrap_or(own))
     }
     /// The as-shot temperature and tint on the file's scale: the relative scale's reference, the white through
     /// the measured matrices or the presets, else `own` (the white the file's own tags give). Whole numbers, as the
@@ -622,11 +714,16 @@ fn preview_orientation(raw_bytes: &[u8], jpeg_orientation: u16) -> Orientation {
     lightcraft_meta::extract(raw_bytes).orientation.unwrap_or(Orientation::Normal)
 }
 
-/// What stands in for a raw file we can't decode: its largest embedded JPEG, else, for a TIFF-based
-/// raw, the file's own first image when the TIFF reader can show it (a reduced RGB copy: the only
-/// preview some containers carry). Returns image bytes for [`lightcraft_codecs::decode`].
-fn stand_in_image(bytes: &[u8]) -> Option<std::borrow::Cow<'_, [u8]>> {
-    if let Some(jpeg) = lightcraft_raw::embedded_preview(bytes) {
+/// What stands in for a raw file we can't decode: its largest embedded JPEG (with `covering`, the smallest one that is
+/// at least that big, [`lightcraft_raw::embedded_preview_covering`]), else, for a TIFF-based raw, the file's own first
+/// image when the TIFF reader can show it (a reduced RGB copy: the only preview some containers carry). Returns image
+/// bytes for [`lightcraft_codecs::decode`].
+fn stand_in_image(bytes: &[u8], covering: Option<usize>) -> Option<std::borrow::Cow<'_, [u8]>> {
+    let jpeg = match covering {
+        Some(edge) => lightcraft_raw::embedded_preview_covering(bytes, u32::try_from(edge).unwrap_or(u32::MAX)),
+        None => lightcraft_raw::embedded_preview(bytes),
+    };
+    if let Some(jpeg) = jpeg {
         return Some(std::borrow::Cow::Owned(jpeg));
     }
     let undecodable = lightcraft_raw::probe(bytes).is_some_and(|f| !f.is_supported());
@@ -634,11 +731,17 @@ fn stand_in_image(bytes: &[u8]) -> Option<std::borrow::Cow<'_, [u8]>> {
         .then_some(std::borrow::Cow::Borrowed(bytes))
 }
 
-/// Shared colour interpretation for quick previews, unsupported RAW fallback and camera-look fitting.
-pub(crate) fn decode_raw_preview(bytes: &[u8], opts: lightcraft_codecs::DecodeOptions) -> Option<lightcraft_codecs::Decoded> {
-    let jpeg = stand_in_image(bytes)?;
-    // the colour space is a property of the JPEG; a TIFF stand-in is read by the TIFF reader
-    let is_jpeg = matches!(jpeg, std::borrow::Cow::Owned(_));
+/// Shared colour interpretation for quick previews, unsupported RAW fallback and camera-look fitting (`covering`: see
+/// [`stand_in_image`]).
+pub(crate) fn decode_raw_preview(
+    bytes: &[u8],
+    opts: lightcraft_codecs::DecodeOptions,
+    covering: Option<usize>,
+) -> Option<lightcraft_codecs::Decoded> {
+    let jpeg = stand_in_image(bytes, covering)?;
+    // the colour space is a property of the JPEG; a TIFF stand-in (the file itself, or a Hasselblad RGB preview
+    // wrapped as a TIFF) and a JPEG XL preview are read by their own decoders
+    let is_jpeg = jpeg.starts_with(&[0xff, 0xd8]);
     match lightcraft_raw::embedded_preview_color_space(bytes).filter(|_| is_jpeg) {
         Some(space) => {
             let space = match space {
@@ -653,7 +756,7 @@ pub(crate) fn decode_raw_preview(bytes: &[u8], opts: lightcraft_codecs::DecodeOp
 
 /// Oriented size of the embedded preview of a raw file.
 fn embedded_preview_size(bytes: &[u8]) -> Option<(u32, u32)> {
-    let jpeg = stand_in_image(bytes)?;
+    let jpeg = stand_in_image(bytes, None)?;
     // headers only, as for other images (issue #367): decoding a full-size preview just for its
     // size took about a second per file in an import; a decode remains the fallback
     let (mut w, mut h, orientation) = match lightcraft_codecs::read_header(&jpeg) {
@@ -671,16 +774,18 @@ fn embedded_preview_size(bytes: &[u8]) -> Option<(u32, u32)> {
 
 /// The embedded preview of a raw file as a working-space image no larger than `max_edge`, oriented.
 pub fn load_embedded_preview(bytes: &[u8], max_edge: usize) -> Option<(Rgb32f, SourceInfo)> {
-    let d = decode_raw_preview(bytes, fit_box(max_edge))?;
+    // always the largest JPEG: a source's geometry must not depend on its size level (previews match exports)
+    let d = decode_raw_preview(bytes, fit_box(max_edge), None)?;
     let img = d.to_working();
     let img = if img.width.max(img.height) > max_edge { fit(&img, max_edge, max_edge, Filter::Mitchell) } else { img };
     Some((img.oriented(preview_orientation(bytes, d.orientation)), SourceInfo::default()))
 }
 
 /// The embedded preview of a raw file for display (sRGB, oriented, no larger than `max_edge`): the
-/// loupe and grid show it until the raw itself has been developed ([`crate::media::QuickJob`]).
+/// loupe and grid show it until the raw itself has been developed ([`crate::media::QuickJob`]). The smallest
+/// embedded JPEG that covers `max_edge` is decoded, not the largest.
 pub fn embedded_preview_srgb(bytes: &[u8], max_edge: usize) -> Option<lightcraft_raster::Rgba8> {
-    let mut d = decode_raw_preview(bytes, fit_box(max_edge))?;
+    let mut d = decode_raw_preview(bytes, fit_box(max_edge), Some(max_edge))?;
     if d.image.width.max(d.image.height) > max_edge {
         d.image = fit(&d.image, max_edge, max_edge, Filter::Box);
         d.alpha = None;
@@ -708,7 +813,11 @@ pub fn fs_preview_loader() -> PreviewLoader {
         let len = std::fs::metadata(path).map(|m| usize::try_from(m.len()).unwrap_or(usize::MAX)).unwrap_or(0);
         let gate = crate::memory::work_gate();
         let _permit = if crate::memory::is_background() { gate.acquire(len.saturating_mul(2)) } else { gate.acquire_urgent(len.saturating_mul(2)) };
-        if let Some(image) = preview_window(path).ok().flatten().and_then(|(header, window, _)| quick_image_srgb(&header, &window, max_edge)) {
+        if let Some(image) = preview_window(path, max_edge)
+            .ok()
+            .flatten()
+            .and_then(|(header, window, read)| quick_image_srgb(&header, &window, read.adobe_rgb, max_edge))
+        {
             return Some(image);
         }
         embedded_preview_srgb(&std::fs::read(path).ok()?, max_edge)
@@ -729,6 +838,9 @@ pub struct PreviewRead {
     /// path a Canon CR3 and the TIFF raws whose preview tag sits past the prefix take (`false` on
     /// the header path, and on the whole-file fallback).
     pub planned: bool,
+    /// Adobe RGB when the container says the preview is in it and the JPEG doesn't say otherwise
+    /// (`decode_raw_preview` applies the same declaration): the quick decode applies it too.
+    pub adobe_rgb: bool,
 }
 
 impl PreviewRead {
@@ -743,7 +855,9 @@ impl PreviewRead {
 
 /// The file's header and its embedded preview, read without the rest of the file: `(header bytes,
 /// preview bytes, what was read)`. `None` when the header points at no preview this build can find,
-/// which is the caller's cue to read the file whole.
+/// which is the caller's cue to read the file whole. `max_edge` is the size the preview is for: where a file keeps
+/// several JPEGs (the plan route), the window is the one [`embedded_preview_srgb`] decodes for that size, the smallest
+/// that covers it ([`lightcraft_raw::embedded_preview_covering`]).
 ///
 /// Why it exists: a 56 MB Fuji RAF keeps its JPEG in the first 5.6 MB (measured: `DSCF9492.RAF`),
 /// so reading the file whole to extract it costs ten times the bytes — and on a network share ten
@@ -751,7 +865,7 @@ impl PreviewRead {
 /// still needs the whole container, so the header comes back with the window; for a preview taken
 /// out of a container that carries no preview colour space of its own (Nikon's maker note) the
 /// whole-file fallback stays in charge.
-pub fn preview_window(path: &str) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRead)>, String> {
+pub fn preview_window(path: &str, max_edge: usize) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRead)>, String> {
     use std::io::{Read, Seek, SeekFrom};
 
     let mut file = std::fs::File::open(path).map_err(|e| format!("{path}: {e}"))?;
@@ -773,7 +887,7 @@ pub fn preview_window(path: &str) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRea
         // preview tag sits past the prefix, the containers whose preview only a scan finds: ask the
         // sparse planner which ranges `embedded_preview` reads before handing the caller the
         // whole-file fallback.
-        return planned_preview(&mut file, path, total);
+        return planned_preview(&mut file, path, total, max_edge);
     };
     // A preview at the file's end may have been padded past it: clamp rather than fail.
     let end = range.offset.saturating_add(range.window_len).min(total);
@@ -796,7 +910,7 @@ pub fn preview_window(path: &str) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRea
     if lightcraft_raw::embedded_preview_from_range(&window, range).is_none() {
         return Ok(None);
     }
-    let read = PreviewRead { read: bytes_read, total, header_path: true, planned: false };
+    let read = PreviewRead { read: bytes_read, total, header_path: true, planned: false, adobe_rgb: false };
     // On a network share the bytes are the wait, so say what this preview actually cost. A window
     // taken from the prefix cost nothing beyond the prefix itself.
     if lightcraft_pipeline::profiling() {
@@ -838,7 +952,7 @@ const PLAN_PREFIX: u64 = 64 * 1024;
 /// below). The planner's contract is the one its corpus test asserts over real files (what it loaded
 /// gives what the whole file gives), so a window that still fails to decode ends in the same
 /// whole-file fallback in [`fs_preview_loader`], never in a wrong picture.
-fn planned_preview(file: &mut std::fs::File, path: &str, total: u64) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRead)>, String> {
+fn planned_preview(file: &mut std::fs::File, path: &str, total: u64, max_edge: usize) -> Result<Option<(Vec<u8>, Vec<u8>, PreviewRead)>, String> {
     use std::io::{Read, Seek, SeekFrom};
 
     if total > MAX_PREVIEW_PLAN_BYTES {
@@ -867,19 +981,20 @@ fn planned_preview(file: &mut std::fs::File, path: &str, total: u64) -> Result<O
                 }
             }
             lightcraft_raw::sparse::HeaderPlan::Ready => {
-                let Some(window) = lightcraft_raw::embedded_preview(&buf) else { return Ok(None) };
+                // the plan loads every preview's strips, so the JPEG picked for `max_edge` is the whole file's pick
+                let edge = u32::try_from(max_edge).unwrap_or(u32::MAX);
+                let Some(window) = lightcraft_raw::embedded_preview_covering(&buf, edge) else { return Ok(None) };
                 // The quick path hands the JPEG to the decoder alone, so what the *container* says
                 // about the preview has to be something the bytes it is handed can show. Two container
                 // facts change the pixels and are not in the JPEG: the preview's colour space (which
                 // the whole-file path applies through `decode_raw_preview`) and, when the JPEG carries
-                // no orientation of its own, the file's EXIF orientation. Where either is present and
-                // the header cannot answer for it, the whole-file path keeps the preview — exactly as
-                // it already does for a container-declared colour space. A container that says sRGB
-                // agrees with the JPEG-only decode (its own declaration, else sRGB), so only the other
-                // space declines.
-                if lightcraft_raw::embedded_preview_color_space(&buf) == Some(lightcraft_raw::PreviewColorSpace::AdobeRgb) {
-                    return Ok(None);
-                }
+                // no orientation of its own, the file's EXIF orientation. The colour space is read
+                // here and handed on ([`PreviewRead::adobe_rgb`]: a Sony α1 writes Adobe RGB previews,
+                // which used to send each of them to the whole-file path, issue #1440); a container
+                // that says sRGB agrees with the JPEG-only decode (its own declaration, else sRGB).
+                // Where the orientation is present and the header cannot answer for it, the
+                // whole-file path keeps the preview.
+                let adobe_rgb = lightcraft_raw::embedded_preview_color_space(&buf) == Some(lightcraft_raw::PreviewColorSpace::AdobeRgb);
                 // `extract` copies a TIFF's bytes to hand on its Exif block, so ask the cheap side
                 // first: a JPEG that carries its own orientation needs nothing from the container.
                 if lightcraft_meta::extract(&window).orientation.is_none()
@@ -888,7 +1003,7 @@ fn planned_preview(file: &mut std::fs::File, path: &str, total: u64) -> Result<O
                 {
                     return Ok(None);
                 }
-                let read = PreviewRead { read: loaded.total(), total, header_path: true, planned: true };
+                let read = PreviewRead { read: loaded.total(), total, header_path: true, planned: true, adobe_rgb };
                 // A plan-driven preview is the one that used to cost the whole file, so it is worth
                 // saying what it cost now too.
                 if lightcraft_pipeline::profiling() {
@@ -937,9 +1052,15 @@ fn raf_preview_extent(prefix: &[u8]) -> Option<u64> {
 
 /// The display-ready preview of a raw whose embedded JPEG was already located: the counterpart of
 /// [`embedded_preview_srgb`] for [`preview_window`], which does not re-read the container.
-/// `None` when the bytes are not a decodable image.
-fn quick_image_srgb(header: &[u8], window: &[u8], max_edge: usize) -> Option<lightcraft_raster::Rgba8> {
-    let mut d = lightcraft_codecs::decode(window, fit_box(max_edge)).ok()?;
+/// `adobe_rgb`: the container declares the preview Adobe RGB ([`PreviewRead::adobe_rgb`]), applied
+/// as [`decode_raw_preview`] applies it. `None` when the bytes are not a decodable image.
+fn quick_image_srgb(header: &[u8], window: &[u8], adobe_rgb: bool, max_edge: usize) -> Option<lightcraft_raster::Rgba8> {
+    let decoded = if adobe_rgb && window.starts_with(&[0xff, 0xd8]) {
+        lightcraft_codecs::decode_jpeg_with_fallback(window, fit_box(max_edge), lightcraft_codecs::NamedSpace::AdobeRgb)
+    } else {
+        lightcraft_codecs::decode(window, fit_box(max_edge))
+    };
+    let mut d = decoded.ok()?;
     if d.image.width.max(d.image.height) > max_edge {
         d.image = fit(&d.image, max_edge, max_edge, Filter::Box);
         d.alpha = None;
@@ -971,17 +1092,7 @@ pub fn fs_pair_loader() -> PairLoader {
 /// interactive loads (the loupe, exports) never wait — they are counted, so background work
 /// yields to them.
 pub fn fs_hooks() -> (FileLoader, FileProbe) {
-    let loader: FileLoader = Arc::new(|path: &str, max_edge: usize| {
-        let len = std::fs::metadata(path).map(|m| usize::try_from(m.len()).unwrap_or(usize::MAX)).unwrap_or(0);
-        let weight = len * if max_edge <= crate::media::SourceLevel::Thumb.max_edge() { 3 } else { 6 };
-        let gate = crate::memory::work_gate();
-        let _permit = if crate::memory::is_background() { gate.acquire(weight) } else { gate.acquire_urgent(weight) };
-        let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
-        let r = load_vec(bytes, max_edge);
-        // the file, the samples and the intermediate images are gone: give their pages back
-        crate::memory::release();
-        r
-    });
+    let loader: FileLoader = Arc::new(|path: &str, max_edge: usize| fs_load(path, max_edge, |bytes| load_vec(bytes, max_edge)));
     let probe: FileProbe = Arc::new(|path: &str| {
         let len = std::fs::metadata(path).map(|m| usize::try_from(m.len()).unwrap_or(usize::MAX)).unwrap_or(0);
         let _permit = crate::memory::work_gate().acquire(len);
@@ -991,6 +1102,24 @@ pub fn fs_hooks() -> (FileLoader, FileProbe) {
         Ok(info)
     });
     (loader, probe)
+}
+
+/// The filesystem [`ReducedLoader`]: [`load_vec_reduced`] of the file, gated like [`fs_hooks`]' loader.
+pub fn fs_reduced_loader() -> ReducedLoader {
+    Arc::new(|path: &str, max_edge: usize| fs_load(path, max_edge, |bytes| load_vec_reduced(bytes, max_edge)))
+}
+
+/// Read `path` and `load` it, waiting on [`crate::memory::work_gate`] as [`fs_hooks`] explains.
+fn fs_load<T>(path: &str, max_edge: usize, load: impl FnOnce(Vec<u8>) -> Result<T, String>) -> Result<T, String> {
+    let len = std::fs::metadata(path).map(|m| usize::try_from(m.len()).unwrap_or(usize::MAX)).unwrap_or(0);
+    let weight = len.saturating_mul(if max_edge <= crate::media::SourceLevel::Thumb.max_edge() { 3 } else { 6 });
+    let gate = crate::memory::work_gate();
+    let _permit = if crate::memory::is_background() { gate.acquire(weight) } else { gate.acquire_urgent(weight) };
+    let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
+    let r = load(bytes);
+    // the file, the samples and the intermediate images are gone: give their pages back
+    crate::memory::release();
+    r
 }
 
 /// `path`'s modification time as ISO 8601 (see [`ProbeInfo::file_modified`]); `None` when the
@@ -1007,6 +1136,7 @@ impl crate::Session {
     pub fn with_fs(mut self) -> Self {
         let (l, p) = fs_hooks();
         self.media.file_loader = Some(l);
+        self.media.reduced_loader = Some(fs_reduced_loader());
         self.media.file_probe = Some(p);
         self.media.preview_loader = Some(fs_preview_loader());
         self.media.denoise.loader = Some(fs_pair_loader());
@@ -1019,10 +1149,24 @@ impl crate::Session {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     /// Keywords from a file keep their hierarchy: the paths of `lr:hierarchicalSubject`, not the
     /// flat names of `dc:subject` that LightCraft's exports (and Lightroom Classic) write besides
     /// them; an exported `travel|Italy|Rome` comes back as itself.
+    #[test]
+    fn a_lens_without_a_name_is_shown_by_its_range() {
+        // a Nikon DSLR raw: no LensModel, the range from the maker note
+        let m = lightcraft_meta::Metadata { lens_spec: Some([18.0, 135.0, 3.5, 5.6]), ..Default::default() };
+        assert_eq!(super::meta_of(&m).0.lens, "18.0-135.0 mm f/3.5-5.6");
+        let named = lightcraft_meta::Metadata {
+            lens_model: Some("NIKKOR Z 24-70mm f/4 S".into()),
+            lens_spec: Some([24.0, 70.0, 4.0, 4.0]),
+            ..Default::default()
+        };
+        assert_eq!(super::meta_of(&named).0.lens, "NIKKOR Z 24-70mm f/4 S");
+        assert_eq!(super::meta_of(&lightcraft_meta::Metadata::default()).0.lens, "");
+    }
+
     #[test]
     fn imported_keywords_keep_their_hierarchy() {
         let m = lightcraft_meta::Metadata {
@@ -1080,6 +1224,21 @@ mod tests {
         let (t, tint) = a99m2.as_shot(d65);
         assert!((5000.0..6000.0).contains(&t) && tint.abs() < 10.0 && t.fract() == 0.0, "{t} {tint}");
         assert!(!lightcraft_catalog::relative_wb_camera("ARW", "SONY ILCA-99M2"));
+        // a Canon body without matrices, through the presets its ColorData lists (PowerShot G1 X Mark III, a
+        // Daylight shot with the camera's white balance shifted towards blue: below Daylight's 5651 K)
+        let canon = lightcraft_raw::kelvin_presets::KelvinPresets::from_unordered([
+            (5651.0, g(1418.0, 1357.0)),
+            (7505.0, g(1653.0, 1171.0)),
+            (6594.0, g(1533.0, 1259.0)),
+            (3174.0, g(963.0, 2016.0)),
+            (8529.0, g(1807.0, 1080.0)),
+        ]);
+        let with_canon = ColorData { kelvin_presets: canon, ..Default::default() };
+        let g1x3 = WbScaleOf::new(RawFormat::Cr2, &with_canon, Some(g(1264.0, 1537.0)), &meta("Canon", "Canon PowerShot G1 X Mark III"));
+        assert!(!g1x3.relative && g1x3.scale_white.is_some());
+        let (t, tint) = g1x3.as_shot(d65);
+        assert!((4300.0..5200.0).contains(&t) && tint.abs() < 10.0, "{t} {tint}");
+        assert!(!lightcraft_catalog::relative_wb_camera("CR2", "Canon Canon PowerShot G1 X Mark III"));
         let bare = WbScaleOf::new(RawFormat::Arw, &ColorData::default(), mul, &meta("SONY", "ILCA-99M2"));
         assert!(bare.legacy_relative && bare.scale_white.is_none());
         // presets in a file of a camera not listed: relative, as the catalog decides from the camera alone
@@ -1094,6 +1253,40 @@ mod tests {
         let xy = lightcraft_color::cct::temp_tint_to_xy(4200.0, 12.0);
         assert_eq!(dng.as_shot(xy), (4200.0, 12.0));
         assert!(!lightcraft_catalog::relative_wb_camera("DNG", "SONY ILCE-7M3"));
+    }
+
+    /// A merged DNG (Photo Merge) of a raw without colour matrices shows the As Shot temperature and tint its source
+    /// shows, on every scale: through the measured matrices (ILCE-7M3), through the presets (ILCA-99M2), the relative
+    /// scale's 6500 K / 0 (ILCE-7M2) and a file's own white (an unfitted format). Merges of real ILCE-7M3 brackets
+    /// opened at 6113–7307 K / +115 where the ARWs show 3932–5268 K / +7.
+    #[test]
+    fn a_merged_dng_shows_the_white_balance_its_source_shows() {
+        use lightcraft_raw::{ColorData, RawFormat};
+        let meta = |make: &str, model: &str| lightcraft_meta::Metadata { make: Some(make.into()), model: Some(model.into()), ..Default::default() };
+        let g = |r: f32, b: f32| [r / 1024.0, 1.0, b / 1024.0];
+        let presets = lightcraft_raw::kelvin_presets::KelvinPresets::new([
+            (2500.0, g(1336.0, 3672.0)),
+            (3200.0, g(1720.0, 2620.0)),
+            (4500.0, g(2256.0, 1880.0)),
+            (6000.0, g(2680.0, 1544.0)),
+            (8500.0, g(3136.0, 1300.0)),
+        ]);
+        let with_presets = ColorData { kelvin_presets: presets, ..Default::default() };
+        let cases = [
+            (RawFormat::Arw, ColorData::default(), [2.5039f32, 1.0, 1.5078], meta("SONY", "ILCE-7M3")),
+            (RawFormat::Arw, with_presets, g(2500.0, 1668.0), meta("SONY", "ILCA-99M2")),
+            (RawFormat::Arw, ColorData::default(), [2.2, 1.0, 1.6], meta("SONY", "ILCE-7M2")),
+            (RawFormat::Rw2, ColorData::default(), [2.0, 1.0, 1.4], meta("Panasonic", "DC-G9")),
+        ];
+        for (format, color, mul, meta) in cases {
+            let own = lightcraft_raw::color::as_shot_white_of(&color, Some(mul));
+            let source = WbScaleOf::new(format, &color, Some(mul), &meta);
+            let t = lightcraft_raw::color::camera_transform_of(&color, own);
+            let dng = crate::camera_preview::dng_colour(&color, &source.dng_white(&color, own), &t, None).unwrap();
+            let merged = WbScaleOf::new(RawFormat::Dng, &dng, None, &meta);
+            let shown = source.as_shot(own);
+            assert_eq!(merged.as_shot(lightcraft_raw::color::as_shot_white_of(&dng, None)), shown, "{:?}", meta.model);
+        }
     }
 
     /// A RAF whose preview pointer is in its header, then a large raw tail the reader must not need.
@@ -1125,7 +1318,7 @@ mod tests {
         let path = path.to_string_lossy().into_owned();
         let max_edge = 512;
 
-        let (header, window, read) = preview_window(&path).expect("the file reads").expect("it has a preview");
+        let (header, window, read) = preview_window(&path, max_edge).expect("the file reads").expect("it has a preview");
         assert_eq!(header.len(), lightcraft_raw::PREVIEW_PREFIX, "the header prefix is bounded");
         assert!(read.header_path, "the header path is what answered");
         assert!(!read.planned, "a RAF pointer in the header needs no planner");
@@ -1134,7 +1327,7 @@ mod tests {
         assert!(window.len() < file.len() / 2, "the raw tail must not be read: {} of {} bytes", window.len(), file.len());
 
         // The quick path and the whole-file path agree byte for byte.
-        let quick = quick_image_srgb(&header, &window, max_edge).expect("the window holds a decodable preview");
+        let quick = quick_image_srgb(&header, &window, read.adobe_rgb, max_edge).expect("the window holds a decodable preview");
         let whole = embedded_preview_srgb(&file, max_edge).expect("the whole file decodes too");
         assert_eq!((quick.width, quick.height), (whole.width, whole.height), "same preview size");
         assert_eq!(quick.data, whole.data, "byte for byte");
@@ -1142,8 +1335,8 @@ mod tests {
         // A file with no locatable preview declines (the caller then reads it whole), a missing file errors.
         let plain = dir.join("plain.jpg");
         std::fs::write(&plain, &jpeg).unwrap();
-        assert!(preview_window(&plain.to_string_lossy()).expect("a plain file reads").is_none());
-        assert!(preview_window(&dir.join("nope.raf").to_string_lossy()).is_err());
+        assert!(preview_window(&plain.to_string_lossy(), max_edge).expect("a plain file reads").is_none());
+        assert!(preview_window(&dir.join("nope.raf").to_string_lossy(), max_edge).is_err());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1163,6 +1356,12 @@ mod tests {
     /// `tail` bytes. The writer puts each IFD's table after its own chunk, so a `strip` bigger than
     /// the plan's bounded header puts IFD0 (and any orientation tag in it) out of that header's reach.
     fn tiff_with_preview_strip(strip: &[u8], tail: usize, what: Fixture) -> Vec<u8> {
+        tiff_with_preview_strips(strip, &[], tail, what)
+    }
+
+    /// [`tiff_with_preview_strip`] that also keeps the `smaller` JPEGs in sub-IFDs of IFD0, as an ARW keeps its
+    /// 1616 px preview beside the full-size one.
+    fn tiff_with_preview_strips(strip: &[u8], smaller: &[&[u8]], tail: usize, what: Fixture) -> Vec<u8> {
         use lightcraft_tiff::{IfdBuilder, ImageData, TiffWriter, Value, tags as t};
         let mut preview = IfdBuilder::new();
         if what.dng {
@@ -1189,6 +1388,15 @@ mod tests {
         preview.set(t::IMAGE_WIDTH, Value::Long(vec![48]));
         preview.set(t::IMAGE_LENGTH, Value::Long(vec![32]));
         preview.set_image(ImageData::Strips { rows_per_strip: 32, strips: vec![strip.to_vec()] });
+        for jpeg in smaller {
+            let mut sub = IfdBuilder::new();
+            sub.set(t::COMPRESSION, Value::Short(vec![7]));
+            sub.set(t::PHOTOMETRIC, Value::Short(vec![t::photometric::RGB]));
+            sub.set(t::IMAGE_WIDTH, Value::Long(vec![48]));
+            sub.set(t::IMAGE_LENGTH, Value::Long(vec![32]));
+            sub.set_image(ImageData::Strips { rows_per_strip: 32, strips: vec![jpeg.to_vec()] });
+            preview.add_sub_ifd(sub);
+        }
         let mut raw = IfdBuilder::new();
         raw.set(t::COMPRESSION, Value::Short(vec![1]));
         raw.set(t::PHOTOMETRIC, Value::Short(vec![t::photometric::CFA]));
@@ -1216,7 +1424,7 @@ mod tests {
         let path = path.to_string_lossy().into_owned();
         let max_edge = 512;
 
-        let (header, window, read) = preview_window(&path).expect("the file reads").expect("the plan locates its preview");
+        let (header, window, read) = preview_window(&path, max_edge).expect("the file reads").expect("the plan locates its preview");
         assert_eq!(header.len(), PLAN_PREFIX as usize, "the plan's header is bounded");
         assert!(read.planned, "the planner is what answered");
         assert!(read.header_path, "and it is still a bounded read");
@@ -1225,7 +1433,7 @@ mod tests {
         assert!(window.len() < file.len() / 2, "the sensor strip must not be read: {} of {} bytes", window.len(), file.len());
 
         // The plan path and the whole-file path agree byte for byte.
-        let quick = quick_image_srgb(&header, &window, max_edge).expect("the window holds a decodable preview");
+        let quick = quick_image_srgb(&header, &window, read.adobe_rgb, max_edge).expect("the window holds a decodable preview");
         let whole = embedded_preview_srgb(&file, max_edge).expect("the whole file decodes too");
         assert_eq!((quick.width, quick.height), (whole.width, whole.height), "same preview size");
         assert_eq!(quick.data, whole.data, "byte for byte");
@@ -1234,7 +1442,39 @@ mod tests {
         // caller's whole-file read is what answers (no guessing at what a file might hold).
         let not_a_raw = tiff_with_preview_strip(&jpeg, 400_000, Fixture::default());
         std::fs::write(&path, &not_a_raw).unwrap();
-        assert!(preview_window(&path).expect("the file reads").is_none(), "an unknown container falls back");
+        assert!(preview_window(&path, max_edge).expect("the file reads").is_none(), "an unknown container falls back");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A raw that keeps several JPEGs is shown, on the plan route as on the whole-file path, from the smallest one that
+    /// covers the box (`embedded_preview_covering`). The plan route used to hand on the largest whatever the size: an
+    /// A7R VI ARW's 9984 × 6656 JPEG for a 512 px thumbnail instead of its 1616 × 1080 one.
+    #[test]
+    fn preview_loading_plans_the_smallest_covering_jpeg() {
+        let jpeg = |w: u32, h: u32| {
+            let rgb: Vec<u8> = (0..w * h * 3).map(|i| (i * 31 % 247) as u8).collect();
+            encode_jpeg(&EncodeImage::new(w, h, 3, Samples::U8(&rgb)), 90, ChromaSubsampling::S420, &EncodeMeta::default()).unwrap()
+        };
+        let (big, small) = (jpeg(96, 64), jpeg(48, 32));
+        assert!(big.len() > small.len(), "the full-size JPEG is the largest");
+        let file = tiff_with_preview_strips(&big, &[&small], 400_000, Fixture { dng: true, ..Default::default() });
+        let dir = crate::tests_xmp::temp_dir("preview-plan-covering");
+        let path = dir.join("two-previews.dng");
+        std::fs::write(&path, &file).unwrap();
+        let path = path.to_string_lossy().into_owned();
+
+        for (edge, want, which) in [(48, &small, "small"), (49, &big, "full-size"), (usize::MAX, &big, "full-size")] {
+            let (header, window, read) = preview_window(&path, edge).expect("the file reads").expect("the plan locates its preview");
+            assert!(read.planned, "the planner is what answered");
+            assert!(&window == want, "a {edge} px box takes the {which} JPEG");
+            let quick = quick_image_srgb(&header, &window, read.adobe_rgb, edge).expect("the window holds a decodable preview");
+            let whole = embedded_preview_srgb(&file, edge).expect("the whole file decodes too");
+            assert_eq!(
+                (quick.width, quick.height, quick.data),
+                (whole.width, whole.height, whole.data),
+                "{edge} px: the plan and the whole file agree"
+            );
+        }
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -1262,17 +1502,17 @@ mod tests {
         assert_eq!(lightcraft_meta::extract(&file).orientation, Some(Orientation::from_exif(6)), "the fixture states an orientation");
         assert!(lightcraft_meta::extract(&file[..PLAN_PREFIX as usize]).orientation.is_none(), "which the bounded header cannot see");
         assert!(lightcraft_meta::extract(&jpeg).orientation.is_none(), "and the preview JPEG carries none of its own");
-        assert!(preview_window(&path).expect("the file reads").is_none(), "the whole-file path keeps it");
+        assert!(preview_window(&path, usize::MAX).expect("the file reads").is_none(), "the whole-file path keeps it");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A container can declare what its preview JPEG is in, and the whole-file path applies that
-    /// declaration (`decode_raw_preview`). A JPEG-only decode has the JPEG's own space, else sRGB, so
-    /// a container that declares Adobe RGB must keep the whole-file path — while one that declares
-    /// sRGB (what most bodies write) must **not** take the fast path away: that half is a regression
-    /// test, since a guard that declined every declared space did exactly that to a real Sony ARW.
+    /// declaration (`decode_raw_preview`). The planned path reads it too and the quick decode applies
+    /// it, so a container that declares Adobe RGB (a Sony α1's ARW) is read in part like any other and
+    /// shows the same pixels as the whole-file path (issue #1440; it used to be read whole) — and one
+    /// that declares sRGB (what most bodies write) keeps the fast path as before.
     #[test]
-    fn preview_loading_declines_only_a_container_colour_space_it_cannot_apply() {
+    fn preview_loading_applies_a_container_colour_space() {
         use lightcraft_raw::PreviewColorSpace;
         let (w, h) = (48u32, 32u32);
         let rgb: Vec<u8> = (0..w * h * 3).map(|i| (i * 23 % 233) as u8).collect();
@@ -1285,13 +1525,20 @@ mod tests {
         let adobe = tiff_with_preview_strip(&jpeg, 400_000, Fixture { sony: true, color_space: Some(0xFFFF), ..Default::default() });
         assert_eq!(lightcraft_raw::embedded_preview_color_space(&adobe), Some(PreviewColorSpace::AdobeRgb), "the fixture declares Adobe RGB");
         std::fs::write(&path, &adobe).unwrap();
-        assert!(preview_window(&path).expect("the file reads").is_none(), "the whole-file path applies the space");
+        let (header, window, read) = preview_window(&path, usize::MAX).expect("the file reads").expect("the plan answers for Adobe RGB too");
+        assert!(read.planned && read.adobe_rgb, "{read:?}");
+        assert!(read.fraction() < 0.5, "the sensor strip is not read: {read:?}");
+        let quick = quick_image_srgb(&header, &window, read.adobe_rgb, 512).expect("the window decodes");
+        let whole = embedded_preview_srgb(&adobe, 512).expect("the whole file decodes too");
+        assert_eq!(quick.data, whole.data, "the space is applied as the whole-file path applies it");
+        let plain = quick_image_srgb(&header, &window, false, 512).expect("the window decodes");
+        assert_ne!(plain.data, whole.data, "and it changes the pixels (the fixture's colours are saturated enough)");
 
         let srgb = tiff_with_preview_strip(&jpeg, 400_000, Fixture { sony: true, color_space: Some(1), ..Default::default() });
         assert_eq!(lightcraft_raw::embedded_preview_color_space(&srgb), Some(PreviewColorSpace::Srgb), "the fixture declares sRGB");
         std::fs::write(&path, &srgb).unwrap();
-        let (_, window, read) = preview_window(&path).expect("the file reads").expect("sRGB is what the JPEG-only decode assumes");
-        assert!(read.planned, "the plan still answers");
+        let (_, window, read) = preview_window(&path, usize::MAX).expect("the file reads").expect("sRGB is what the JPEG-only decode assumes");
+        assert!(read.planned && !read.adobe_rgb, "the plan still answers");
         assert!(window.starts_with(&[0xff, 0xd8]), "and hands on the JPEG");
     }
 
@@ -1468,6 +1715,49 @@ mod tests {
         Some((best.1, best.0))
     }
 
+    #[test]
+    fn corpus_a7cr_warp_keeps_coordinates_after_orientation_and_resizing() {
+        use lightcraft_geom::{Orientation, Point};
+        use lightcraft_pipeline::optics::Warp;
+        let root = std::env::var_os("LIGHTCRAFT_CORPUS")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"));
+        for name in ["arw-sony-a7cr-compressed.arw", "arw-sony-a7cr-lossless-l.arw"] {
+            let Ok(mut bytes) = std::fs::read(root.join("raw").join(name)) else { continue };
+            let off = lightcraft_raw::probe_info(&bytes).unwrap();
+            assert!(embedded_lens(&off).is_none());
+            let tiff = lightcraft_tiff::Tiff::parse(&bytes).unwrap();
+            let at = tiff.find(0x7036).unwrap().offset as usize;
+            let mut enabled = Vec::new();
+            tiff.order.put_u16(&mut enabled, 17);
+            bytes[at..at + 2].copy_from_slice(&enabled);
+            let mut raw = lightcraft_raw::probe_info(&bytes).unwrap();
+            raw.orientation = Orientation::Normal;
+            let mut settings = lightcraft_develop::DevelopSettings::default();
+            settings.optics.lens_profile = true;
+            let base_lens = embedded_lens(&raw).unwrap();
+            let base = Warp::from_settings(9504.0, 6336.0, &settings, Some(&base_lens));
+            for orientation in 1..=8 {
+                let o = Orientation::from_exif(orientation);
+                raw.orientation = o;
+                let lens = embedded_lens(&raw).unwrap();
+                for edge in [1200.0, 2560.0, 9504.0] {
+                    let scale = edge / 9504.0;
+                    let (w, h) = if o.swaps_axes() { (6336.0 * scale, edge) } else { (edge, 6336.0 * scale) };
+                    let oriented = Warp::from_settings(w, h, &settings, Some(&lens));
+                    for (x, y) in [(0.05, 0.1), (0.5, 0.5), (0.9, 0.8)] {
+                        let point = Point::new(x * 9504.0, y * 6336.0);
+                        let source = base.corrected_to_source(point, 1);
+                        let (px, py) = o.map(point.x, point.y, 9504.0, 6336.0);
+                        let (sx, sy) = o.map(source.x, source.y, 9504.0, 6336.0);
+                        let got = oriented.corrected_to_source(Point::new(px * scale, py * scale), 1);
+                        assert!((got.x - sx * scale).hypot(got.y - sy * scale) < 1e-8, "{name} orientation {orientation} edge {edge}");
+                    }
+                }
+            }
+        }
+    }
+
     /// Issue #256: public Panasonic / Leica raws (skipped without the corpus) are corrected for distortion the way the
     /// camera corrected its own JPEG (tag 0x0119): at the corners of the frame, the render with "Enable Profile
     /// Corrections" lines up with the embedded JPEG within 2 px at 640 px, while the uncorrected render of the wide
@@ -1479,7 +1769,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw");
         let Ok(gh1) = std::fs::read(dir.join("rw2-panasonic-gh1.rw2")) else {
-            eprintln!("skip: {} absent", dir.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
             return;
         };
         assert_eq!(probe_bytes("gh1.rw2", &gh1).unwrap().embedded_lens, None, "correction off: nothing to apply");
@@ -1550,7 +1840,7 @@ mod tests {
     }
 
     /// A CR3-shaped file (not decodable yet) whose only content is a `PRVW` preview box.
-    fn cr3_with_preview(w: u32, h: u32) -> Vec<u8> {
+    pub(crate) fn cr3_with_preview(w: u32, h: u32) -> Vec<u8> {
         let px: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 128, 200]).collect();
         let jpeg = encode_jpeg(&EncodeImage::new(w, h, 3, Samples::U8(&px)), 90, ChromaSubsampling::S444, &EncodeMeta::default()).unwrap();
         let mut b = b"\0\0\0\x18ftypcrx \0\0\0\x01crx isom".to_vec();
@@ -1640,10 +1930,127 @@ mod tests {
         assert!((mean(&dim) / mean(&before) - 0.5).abs() < 0.02, "{} vs {}", mean(&dim), mean(&before));
     }
 
+    /// Corrections used while fitting a DNG's preview must not be baked into its editable source.
+    /// The pipeline applies them once from SourceInfo, and a file-defined tone stays authoritative.
+    #[test]
+    fn dng_preview_corrections_leave_the_render_source_uncorrected() {
+        let plain = crate::tests_xmp::synthetic_dng_with(None, Default::default());
+        let mut raw = lightcraft_raw::decode(&plain).unwrap();
+        raw.color.profile.tone_curve = lightcraft_raw::profile::ToneCurve::from_tag(&[0.0, 0.0, 0.18, 0.4, 1.0, 1.0]);
+        let before = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+        raw.opcodes.list3 = vec![lightcraft_raw::Opcode::FixVignetteRadial { k: [1.0, 0.0, 0.0, 0.0, 0.0], center: [0.5, 0.5] }];
+        let corrected = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+        let (before, expected) = load_bytes(&before, 64).unwrap();
+        let (after, info) = load_bytes(&corrected, 64).unwrap();
+        assert_eq!(before.data, after.data, "lens correction belongs to the pipeline");
+        assert!(info.lens.as_ref().is_some_and(|l| l.vignette.is_some()));
+        assert_eq!(info.camera_tone, expected.camera_tone, "the file's own tone is preserved");
+    }
+
+    /// A camera JPEG made from the corrected scene teaches one tone to the DNG's existing fit.
+    /// The source pixels stay uncorrected, including when the file is rotated.
+    #[test]
+    fn dng_lens_corrected_preview_teaches_one_tone_without_baking_in_the_lens() {
+        use lightcraft_color::{REC2020, SRGB, luminance_2020, transfer::linear_to_srgb};
+        use lightcraft_raw::{Opcode, Orientation};
+        let (w, h) = (384usize, 256usize);
+        let data = (0..w * h)
+            .map(|i| {
+                let (x, y) = ((i % w) as f32, (i / w) as f32);
+                let v = 0.02 + 0.2 * (0.5 + 0.5 * (x * 0.045).sin() * (y * 0.06).cos()) + 0.1 * x / w as f32;
+                let colour = match (i / w % 2, i % w % 2) {
+                    (0, 0) => 1.2,
+                    (1, 1) => 0.8,
+                    _ => 1.0,
+                };
+                256 + (v * colour * 15744.0) as u16
+            })
+            .collect();
+        let bytes = crate::tests_xmp::synthetic_dng_of(w, h, "RGGB", data, None, Default::default());
+        let mut raw = lightcraft_raw::decode(&bytes).unwrap();
+        raw.color = lightcraft_raw::ColorData {
+            illuminant: [21, 0],
+            color_matrix: [Some(REC2020.from_xyz()), None],
+            as_shot_neutral: Some([1.0; 3]),
+            ..Default::default()
+        };
+        let plain = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+        raw.opcodes.list3 = vec![
+            Opcode::FixVignetteRadial { k: [0.8, 0.0, 0.0, 0.0, 0.0], center: [0.5, 0.5] },
+            Opcode::WarpRectilinear { planes: vec![[0.7, 0.2, 0.0, 0.0, 0.0, 0.0]], center: [0.5, 0.5] },
+        ];
+        let t = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
+        let corrected = raw.develop(lightcraft_raw::Method::Bilinear).unwrap();
+        let to_srgb = REC2020.to_space(&SRGB);
+        let pixels: Vec<u8> = corrected
+            .data
+            .iter()
+            .flat_map(|p| {
+                let p = t.matrix.apply_f32(std::array::from_fn(|i| p[i] * t.wb[i]));
+                let y = luminance_2020(p).max(1e-6);
+                let gain = (1.0 - (-3.0 * y).exp()) / y;
+                to_srgb.apply_f32(p.map(|v| v * gain)).map(|v| (255.0 * linear_to_srgb(v).clamp(0.0, 1.0)).round() as u8)
+            })
+            .collect();
+        let image = lightcraft_codecs::EncodeImage::new(w as u32, h as u32, 3, lightcraft_codecs::Samples::U8(&pixels));
+        let jpeg = lightcraft_codecs::encode_jpeg(&image, 98, lightcraft_codecs::ChromaSubsampling::S444, &Default::default()).unwrap();
+        for orientation in [Orientation::Normal, Orientation::Rotate90] {
+            raw.orientation = orientation;
+            let mut file = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+            // Append a preview IFD to the little-endian DNG written above.
+            let root = u32::from_le_bytes(file[4..8].try_into().unwrap()) as usize;
+            let count = u16::from_le_bytes(file[root..root + 2].try_into().unwrap()) as usize;
+            let next = root + 2 + 12 * count;
+            let start = file.len() as u32;
+            file[next..next + 4].copy_from_slice(&start.to_le_bytes());
+            let jpeg_at = start + 2 + 4 * 12 + 4;
+            file.extend(4u16.to_le_bytes());
+            for (tag, value) in [(256u16, w as u32), (257, h as u32), (0x201, jpeg_at), (0x202, jpeg.len() as u32)] {
+                file.extend(tag.to_le_bytes());
+                file.extend(4u16.to_le_bytes());
+                file.extend(1u32.to_le_bytes());
+                file.extend(value.to_le_bytes());
+            }
+            file.extend(0u32.to_le_bytes());
+            file.extend(&jpeg);
+            let (source, info) = load_bytes(&file, 96).unwrap();
+            let tone = info.camera_tone.expect("one DNG look fitted to the lens-corrected preview");
+            let target = 1.0 - (-3.0f32 * 0.18).exp();
+            assert!((tone.apply(0.18) - target).abs() < 0.04, "one tone: {} vs {target}", tone.apply(0.18));
+            let expected = load_bytes(&plain, 96).unwrap().0.into_oriented(orientation);
+            assert_eq!(source.data, expected.data, "the editable source is not lens-corrected");
+        }
+    }
+
     /// A look fitted to a camera's JPEG, as `camera_preview` makes them: its rows don't sum to one, so the camera's
     /// own white-balanced neutral comes out yellow (blue 12 % low).
     fn yellowing_look() -> lightcraft_color::Mat3 {
         lightcraft_color::Mat3([[0.42, 0.548, 0.04], [0.246, 0.728, 0.033], [-0.247, 0.679, 0.447]])
+    }
+
+    /// A fitted camera look applied in lanes, on rows that aren't a whole number of them, gives the bits of the
+    /// pixel-by-pixel path, awkward pixels (black, negative, huge, NaN, infinite) included.
+    #[test]
+    fn camera_look_in_lanes_matches_pixel_by_pixel() {
+        let data = (0..72 * 5 * 5).map(|i| [((i * 37) % 61) as f32 - 30.0, 0.6 + ((i * 11) % 13) as f32 / 13.0, 1.0]).collect();
+        let table = lightcraft_raw::profile::HsvTable { hue_divisions: 72, sat_divisions: 5, val_divisions: 5, data, srgb_value: true };
+        let hue_sat = crate::camera_preview::HueSat::new(&table).unwrap();
+        let colour = CameraColourModel { wb: [2.1, 1.0, 1.5], matrix: yellowing_look(), gain: 1.3, tables: None, hue_sat: Some(&hue_sat) };
+        let special = [0.0, -0.0, -0.01, 1e-30, 0.3, 1.0, 5.0, 1e30, f32::INFINITY, f32::NAN];
+        let img = Rgb32f::from_fn(37, 5, |x, y| {
+            let k = y * 37 + x;
+            if k % 5 == 0 {
+                [special[k % 10], special[k / 10 % 10], special[k / 100 % 10]]
+            } else {
+                [(x as f32 * 0.37).sin().abs(), ((x + y) as f32 * 0.11).cos().abs(), y as f32 / 4.0 - 0.05]
+            }
+        });
+        let mut lanes = img.clone();
+        colour.apply(&mut lanes);
+        let m = colour.matrix.to_f32();
+        for (p, got) in img.data.iter().zip(&lanes.data) {
+            assert_eq!(got.map(f32::to_bits), colour.pixel(&m, *p).map(f32::to_bits), "{p:?}");
+        }
     }
 
     #[test]
@@ -1830,7 +2237,7 @@ mod tests {
             .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
             .join("raw");
         let Ok(bytes) = std::fs::read(dir.join("arw-sony-a7rm4-14bit-compressed.arw")) else {
-            eprintln!("skip: {} absent", dir.display());
+            lightcraft_testkit::skip!(Corpus, "{} absent", dir.display());
             return;
         };
         let (img, _) = load_bytes(&bytes, 1600).unwrap();
@@ -1872,6 +2279,84 @@ mod tests {
             let d = (0..2).map(|c| ((near[side][c] - far[side][c]) / rows as f64).abs()).fold(0.0, f64::max);
             assert!(d < 0.004, "{} of the tree the clipped sky's chromaticity is off by {d:.4}", ["left", "right"][side]);
         }
+    }
+
+    /// A Lightroom merge (a LinearRaw DNG keeping a reduced copy of its raw image): its grid thumbnail develops the
+    /// copy, but an export never does, whatever its size, and not from the thumbnail's source in memory either. The
+    /// copy's samples are much brighter than the image's here, so a picture says which one it came from.
+    #[test]
+    fn exports_never_develop_a_dngs_reduced_copy() {
+        use lightcraft_tiff::tags::{self as t, photometric};
+        use lightcraft_tiff::{ByteOrder, IfdBuilder, ImageData, TiffWriter, Value};
+        use serde_json::json;
+        let linear = |subfile: u32, w: u32, h: u32, sample: u16| {
+            let mut ifd = IfdBuilder::new();
+            ifd.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![subfile]));
+            ifd.set(t::IMAGE_WIDTH, Value::Long(vec![w]));
+            ifd.set(t::IMAGE_LENGTH, Value::Long(vec![h]));
+            ifd.set(t::BITS_PER_SAMPLE, Value::Short(vec![16, 16, 16]));
+            ifd.set(t::SAMPLES_PER_PIXEL, Value::Short(vec![3]));
+            ifd.set(t::PHOTOMETRIC, Value::Short(vec![photometric::LINEAR_RAW]));
+            ifd.set(t::COMPRESSION, Value::Short(vec![1]));
+            ifd.set(t::WHITE_LEVEL, Value::Long(vec![32768]));
+            ifd.set_image(ImageData::Strips { rows_per_strip: h, strips: vec![sample.to_le_bytes().repeat((w * h * 3) as usize)] });
+            ifd
+        };
+        // (the copy must cover a thumbnail source's 512 px)
+        let (w, h) = (1200u32, 600u32);
+        let mut main = linear(0, w, h, 1500);
+        main.set(t::DEFAULT_CROP_ORIGIN, Value::Long(vec![4, 2]));
+        main.set(t::DEFAULT_CROP_SIZE, Value::Long(vec![w - 8, h - 4]));
+        let mut ifd0 = IfdBuilder::new();
+        ifd0.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![1]));
+        ifd0.set(t::DNG_VERSION, Value::Byte(vec![1, 7, 0, 0]));
+        ifd0.set(t::MAKE, Value::Ascii("DJI".into()));
+        ifd0.set(t::COLOR_MATRIX_1, Value::SRational(vec![(1, 1), (0, 1), (0, 1), (0, 1), (1, 1), (0, 1), (0, 1), (0, 1), (1, 1)]));
+        ifd0.set(t::CALIBRATION_ILLUMINANT_1, Value::Short(vec![21]));
+        ifd0.set(t::PHOTOMETRIC, Value::Short(vec![photometric::RGB]));
+        ifd0.set(t::IMAGE_WIDTH, Value::Long(vec![4]));
+        ifd0.set(t::IMAGE_LENGTH, Value::Long(vec![2]));
+        ifd0.set(t::BITS_PER_SAMPLE, Value::Short(vec![8, 8, 8]));
+        ifd0.set(t::SAMPLES_PER_PIXEL, Value::Short(vec![3]));
+        ifd0.set(t::COMPRESSION, Value::Short(vec![1]));
+        ifd0.set_image(ImageData::Strips { rows_per_strip: 2, strips: vec![vec![128; 24]] });
+        ifd0.add_sub_ifd(main);
+        ifd0.add_sub_ifd(linear(1, w / 2, h / 2, 24000));
+        let bytes = TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap();
+        let g = |img: &Rgb32f| img.data.iter().map(|p| p[1] as f64).sum::<f64>() / img.data.len().max(1) as f64;
+        let mean = |img: &lightcraft_raster::Rgba8| img.data.iter().map(|p| p[1] as f64).sum::<f64>() / img.data.len().max(1) as f64;
+
+        // the loaders: only the thumbnail's develops the copy, and only when it covers the size
+        let (copy, _, used) = load_vec_reduced(bytes.clone(), 512).unwrap();
+        assert!(used, "a thumbnail develops the copy");
+        assert!(!load_vec_reduced(bytes.clone(), 1024).unwrap().2, "no copy covers 1024 px");
+        let (full, _) = load_vec(bytes.clone(), 512).unwrap();
+        assert!(g(&copy) > 4.0 * g(&full), "the fixture's copy is much brighter: {} vs {}", g(&copy), g(&full));
+
+        let dir = std::env::temp_dir().join(format!("lc-reduced-export-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("merge-pano.dng");
+        std::fs::write(&path, &bytes).unwrap();
+        let mut s = crate::Session::new().with_fs();
+        let r = s.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+        let id = lightcraft_catalog::PhotoId(r["imported"][0].as_u64().unwrap());
+        let (space, depth) = (lightcraft_pipeline::OutputSpace::Srgb, lightcraft_pipeline::OutputDepth::U8);
+        // an export at a thumbnail's size, before any thumbnail
+        assert_eq!(s.export_job(id, 64, 64, space, depth).unwrap().level, crate::media::SourceLevel::Thumb);
+        let export = mean(&s.render_export(id, 64, 64, space, depth).unwrap().image);
+        // the thumbnail develops the copy and its source stays in memory…
+        s.media.clear_sources();
+        let thumb = s.thumb_job(id, 64).unwrap().run();
+        assert!(thumb.loaded.as_ref().is_some_and(|l| l.reduced));
+        let thumb_mean = mean(&thumb.rendered.as_ref().unwrap().image);
+        s.accept(&thumb);
+        assert!(thumb_mean > export + 20.0, "the thumbnail shows the copy: {thumb_mean} vs {export}");
+        // …and an export after it still reads the full image
+        let job = s.export_job(id, 64, 64, space, depth).unwrap();
+        assert!(matches!(&job.source, crate::media::SourceRef::File { reduced: None, .. }), "the file, not the copy");
+        let again = mean(&s.render_export(id, 64, 64, space, depth).unwrap().image);
+        assert!((again - export).abs() < 1.0, "{again} vs {export}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// iPhone ProRAW-style semantic masks drive the Sky mask: Apple's sky matte (here the right
@@ -2074,10 +2559,13 @@ mod tests {
         let p = s.catalog.photo(id).unwrap().clone();
         let why = p.preview_only.clone().expect("marked preview only");
         assert!(why.to_uppercase().contains("CR3"), "the decoder's reason: {why}");
+        // stamped with the version that decided it, so a later version rechecks it (#662)
+        assert_eq!(p.preview_checked, lightcraft_catalog::APP_VERSION);
+        assert!(!p.preview_only_stale());
         assert_eq!(p.kind, MediaKind::Raw, "still a raw file (filters, Convert to DNG…)");
         assert!(!p.develops_raw());
         // rendered like the JPEG it is: relative white balance, display tone curve, no raw defaults
-        assert_eq!(crate::media::source_info(&p), SourceInfo::default());
+        assert_eq!(SourceInfo { native_long: None, ..crate::media::source_info(&p) }, SourceInfo::default());
         assert_eq!(*p.develop, lightcraft_develop::DevelopSettings::default());
         assert!(s.render_job(id, 48, 48, false, true).unwrap().run().rendered.is_ok());
         // agents see it
@@ -2091,14 +2579,17 @@ mod tests {
         let mut s = crate::Session::new().with_fs();
         s.open_library(&lib, false).unwrap();
         assert_eq!(s.catalog.photo(id).unwrap().preview_only.as_deref(), Some(why.as_str()));
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, lightcraft_catalog::APP_VERSION);
         // the file decodes now (here: replaced by a DNG): Reload clears it, undo brings it back
         std::fs::write(&path, crate::tests_xmp::synthetic_dng_with(None, lightcraft_meta::Metadata::default())).unwrap();
         let r = s.execute("photo.reload", &json!({"ids": [id.0]})).unwrap();
         assert_eq!(r["reloaded"], json!([id.0]), "{r}");
         assert!(s.catalog.photo(id).unwrap().develops_raw());
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, "", "the stamp goes with the flag");
         assert!(crate::media::source_info(s.catalog.photo(id).unwrap()).raw);
         s.execute("edit.undo", &json!({})).unwrap();
         assert_eq!(s.catalog.photo(id).unwrap().preview_only.as_deref(), Some(why.as_str()));
+        assert_eq!(s.catalog.photo(id).unwrap().preview_checked, lightcraft_catalog::APP_VERSION);
         // relinking to a file that decodes clears it too
         let dng = files.join("DSC_0001.dng");
         std::fs::write(&dng, crate::tests_xmp::synthetic_dng_with(None, lightcraft_meta::Metadata::default())).unwrap();
@@ -2171,8 +2662,8 @@ mod tests {
         }
     }
 
-    /// Recognised raw containers we don't decode (Minolta MRW here: the preview's first byte is
-    /// overwritten in the file) import as preview only with the JPEG's size, instead of failing.
+    /// Recognised raw containers we can't decode (an MRW whose block header is damaged here; its preview's first
+    /// byte is overwritten, as in real MRW files) import as preview only with the JPEG's size, instead of failing.
     #[test]
     fn undecodable_container_with_a_preview_imports_as_preview_only() {
         let px: Vec<u8> = (0..40 * 30).flat_map(|i| [(i % 251) as u8, 128, 200]).collect();
@@ -2294,6 +2785,135 @@ mod tests {
         let job = s.thumb_job(id, 128).unwrap();
         assert!(s.quick_thumb_job(&job).is_none());
         assert_eq!(s.quick_view_job(id, 1600, true).unwrap().run().quick, Some(QuickSource::Small));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Issue #1448: the grid renders nothing behind an unedited raw's quick thumbnail, so when the
+    /// embedded preview can't be read (and nothing is cached) the quick job itself must render the
+    /// raw, or the cell stays empty for good ("no quick preview").
+    #[test]
+    fn a_quick_thumbnail_without_an_embedded_preview_renders_the_raw() {
+        use crate::media::QuickSource;
+        let dir = std::env::temp_dir().join(format!("lc-quick-none-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("a.cr3");
+        std::fs::write(&path, cr3_with_preview(96, 64)).unwrap();
+        let mut s = crate::Session::new().with_fs();
+        let r = s.execute("library.import", &serde_json::json!({"paths": [path.to_string_lossy()]})).unwrap();
+        let id = lightcraft_catalog::PhotoId(r["imported"][0].as_u64().unwrap());
+        s.media.preview_loader = Some(std::sync::Arc::new(|_: &str, _| None));
+        let job = s.thumb_job(id, 128).unwrap();
+        let q = s.quick_thumb_job(&job).unwrap().run();
+        assert_eq!((q.quick, q.key), (Some(QuickSource::Small), job.key));
+        assert!(q.rendered.is_ok(), "{:?}", q.rendered.err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A Sony ARW of `model`: a 64 × 48 uncompressed 14-bit CFA strip in a SubIFD (as `crates/raw/tests/vendor_robust.rs`
+    /// lays it out) whose IFD carries the full-frame 16–35 mm distortion table (tag 0x7037).
+    fn sony_arw(model: &str) -> Vec<u8> {
+        use lightcraft_tiff::tags::{self as t, photometric};
+        use lightcraft_tiff::{ByteOrder, IfdBuilder, ImageData, TiffWriter, Value};
+        // 3:2, the aspect Sony's lens opcodes are limited to
+        let (w, h) = (72u32, 48u32);
+        let mut raw = IfdBuilder::new();
+        raw.set(t::NEW_SUBFILE_TYPE, Value::Long(vec![0]));
+        raw.set(t::IMAGE_WIDTH, Value::Long(vec![w]));
+        raw.set(t::IMAGE_LENGTH, Value::Long(vec![h]));
+        raw.set(t::BITS_PER_SAMPLE, Value::Short(vec![14]));
+        raw.set(t::COMPRESSION, Value::Short(vec![1]));
+        raw.set(t::PHOTOMETRIC, Value::Short(vec![photometric::CFA]));
+        raw.set(t::CFA_REPEAT_PATTERN_DIM, Value::Short(vec![2, 2]));
+        raw.set(t::CFA_PATTERN_EP, Value::Byte(vec![0, 1, 1, 2]));
+        raw.set(0x7037, Value::SShort(vec![16, 0, 2, 7, 16, 28, 43, 61, 83, 109, 139, 175, 217, 267, 325, 395, 479]));
+        raw.set_image(ImageData::Strips { rows_per_strip: h, strips: vec![2000u16.to_le_bytes().repeat((w * h) as usize)] });
+        let mut ifd0 = IfdBuilder::new();
+        ifd0.set(t::MAKE, Value::Ascii("SONY".into()));
+        ifd0.set(t::MODEL, Value::Ascii(model.into()));
+        ifd0.add_sub_ifd(raw);
+        TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap()
+    }
+
+    /// Sony's embedded distortion correction is on by default: an ARW of a verified body imports with "Enable Lens
+    /// Corrections" on and still counts as unedited; another body's tables aren't read, so its correction is off.
+    #[test]
+    fn arw_with_lens_data_imports_with_profile_corrections_on() {
+        let dir = std::env::temp_dir().join(format!("lc-arw-lens-default-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut s = crate::Session::new().with_fs();
+        for (model, on) in [("ILCE-7RM6", true), ("ILCE-7M4", false)] {
+            let path = dir.join(format!("{model}.arw"));
+            std::fs::write(&path, sony_arw(model)).unwrap();
+            let r = s.execute("library.import", &serde_json::json!({"paths": [path.to_string_lossy()]})).unwrap();
+            let p = s.catalog.photo(lightcraft_catalog::PhotoId(r["imported"][0].as_u64().unwrap())).unwrap();
+            assert_eq!((p.format.as_str(), p.embedded_lens.is_some(), p.develop.optics.lens_profile), ("ARW", on, on), "{model}");
+            assert!(!p.is_edited(), "{model}: as imported");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// RW2 and DNG keep their default: the correction is on when the file carries one (RW2 distortion, a DNG's
+    /// opcodes), off when it doesn't.
+    #[test]
+    fn rw2_and_dng_defaults_unchanged() {
+        use lightcraft_catalog::{Photo, PhotoId, Source};
+        let s = crate::Session::new();
+        let lens = lightcraft_develop::EmbeddedLens { warp: Some(Default::default()), ..Default::default() };
+        for format in ["RW2", "DNG"] {
+            for embedded in [None, Some(lens)] {
+                let name = format!("x.{format}");
+                let mut p = Photo::new(PhotoId(1), Source::File { path: format!("/{name}") }, &name, format, 64, 48, "");
+                p.kind = MediaKind::Raw;
+                p.embedded_lens = embedded;
+                crate::import::apply_import_defaults(&s, &mut p);
+                assert_eq!(p.develop.optics.lens_profile, embedded.is_some(), "{format} {embedded:?}");
+            }
+        }
+    }
+
+    /// Stored settings stay as they are when the library opens again: an ARW catalogued before its lens data was read
+    /// (none, correction off) keeps the correction off and counts as unedited, and one whose user switched the
+    /// correction off keeps it off.
+    #[test]
+    fn existing_photo_settings_are_not_rewritten() {
+        use lightcraft_catalog::{Op, PhotoId};
+        let dir = std::env::temp_dir().join(format!("lc-arw-lens-existing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (lib, files) = (dir.join("lib"), dir.join("files"));
+        std::fs::create_dir_all(&files).unwrap();
+        let mut s = crate::Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        let import = |s: &mut crate::Session, name: &str| {
+            let path = files.join(name);
+            // trailing bytes of its own: not a duplicate of the other file
+            std::fs::write(&path, [sony_arw("ILCE-7RM6"), name.as_bytes().to_vec()].concat()).unwrap();
+            let r = s.execute("library.import", &serde_json::json!({"paths": [path.to_string_lossy()]})).unwrap();
+            PhotoId(r["imported"][0].as_u64().unwrap())
+        };
+        let old = import(&mut s, "old.arw");
+        // as a release that didn't read the Sony tables catalogued it
+        let mut d = (*s.catalog.photo(old).unwrap().develop).clone();
+        d.optics.lens_profile = false;
+        let ops = vec![
+            Op::SetEmbeddedLens { id: old, lens: None },
+            Op::SetDevelop { id: old, settings: std::sync::Arc::new(d), label: "x".into(), edited: None },
+        ];
+        s.commit("x", Op::Batch { ops }).unwrap();
+        let off = import(&mut s, "off.arw");
+        s.execute("develop.merge", &serde_json::json!({"settings": {"optics": {"lens_profile": false}}})).unwrap();
+        let before: Vec<_> = [old, off].iter().map(|id| s.catalog.photo(*id).unwrap().clone()).collect();
+        assert!(before.iter().all(|p| !p.develop.optics.lens_profile));
+        s.persist().unwrap();
+        drop(s);
+        let mut s = crate::Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        for b in &before {
+            let p = s.catalog.photo(b.id).unwrap();
+            assert_eq!((&p.develop, &p.embedded_lens), (&b.develop, &b.embedded_lens), "{}", p.file_name);
+        }
+        assert!(!s.catalog.photo(old).unwrap().is_edited(), "still as imported");
+        drop(s);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

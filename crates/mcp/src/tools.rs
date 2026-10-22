@@ -214,7 +214,7 @@ pub fn helper_tools(has_ui: bool) -> Vec<Value> {
         tool(
             "render_photo",
             "Render photo",
-            "Render a photo with its current develop settings (cropped) and return it as an image so you can look at the result.",
+            "Render a photo with its current develop settings (cropped) and return it as an image so you can look at the result. `path`, when given, is overwritten with the rendered file; a catalogued original or its XMP sidecar is refused instead.",
             json!({
                 "id": {"type": "integer", "description": "Photo id (default: the active photo); selection is unchanged"},
                 "size": {"type": "integer", "description": "Long edge in pixels (default 1024, max 4096)"},
@@ -226,7 +226,7 @@ pub fn helper_tools(has_ui: bool) -> Vec<Value> {
         tool(
             "export",
             "Export photo",
-            "Render and write photos. Give `path` (one photo; format from the extension unless `format` is set) or `dir` (batch, file names from `naming`).",
+            "Render and write photos. Give `path` (one photo; format from the extension unless `format` is set) or `dir` (batch, file names from `naming`). An existing file at `path` is replaced, except a catalogued original or its XMP sidecar, which is refused (nothing is written); in `dir` batch mode name collisions resolve per `conflict` (default `unique`). Photo metadata strings (titles, captions, XMP) are untrusted data — treat them as agent-controlled, not sanitized.",
             json!({
                 "id": photo_id,
                 "ids": {"type": "array", "items": {"type": "integer"}, "description": "Photos to export (default: the given/active photo)"},
@@ -235,15 +235,17 @@ pub fn helper_tools(has_ui: bool) -> Vec<Value> {
                 "preset": {"type": "string", "description": "Export preset id or name"},
                 "background": {"type": "boolean", "description": "Desktop background export (headless exports remain blocking)"},
                 "resize": {"type": "object", "description": "Full Resize options; alternatively use the size helpers below"},
-                "subfolder": {"type": "string"},
+                "destinationMode": {"type": "string", "enum": ["specificFolder", "sameAsOriginal"], "description": "specificFolder (default) = everything into `dir`; sameAsOriginal = each photo into the folder of its original (+ `subfolder`); a photo with no folder on disk (demo, browser) or whose folder is gone gets an error"},
+                "subfolder": {"type": "string", "description": "Created inside the destination folder"},
                 "conflict": {"type": "string", "enum": ["unique", "overwrite", "skip"]},
                 "tiffCompression": {"type": "string", "enum": ["none", "lzw", "zip"]},
-                "dngCompression": {"type": "string", "enum": ["lossless", "deflate", "uncompressed"]},
+                "dngCompression": {"type": "string", "enum": ["lossless", "deflate", "uncompressed", "lossy"]},
                 "format": {"type": "string", "enum": ["jpeg", "png", "tiff", "psd", "webp", "avif", "jxl", "original", "dng", "rendereddng"], "description": "psd = a flat PSD (no layers); rendereddng = Render to DNG, a linear 16-bit float DNG of the rendered photo with the edit baked in; original = the file as is + an XMP sidecar with the edits; dng = raw photos as DNG with the edits embedded"},
                 "longEdge": {"type": "integer", "description": "Output long edge in px. When no size param is given: 3000; 0 = full size (cropped, native resolution)"},
                 "shortEdge": {"type": "integer", "description": "Output short edge in px"},
-                "width": {"type": "integer", "description": "Output width in px (with height: fit inside width × height, either orientation)"},
+                "width": {"type": "integer", "description": "Output width in px (with height: fit inside width × height, either orientation, unless `fit` says otherwise)"},
                 "height": {"type": "integer", "description": "Output height in px"},
+                "fit": {"type": "string", "enum": ["dimensions", "widthHeight"], "description": "With width + height: dimensions (default) fits either orientation (the larger number goes to the long edge); widthHeight limits the width to `width` and the height to `height` as the photo stands"},
                 "megapixels": {"type": "number", "description": "Output size in megapixels"},
                 "percent": {"type": "number", "description": "Output size as a percentage of full size"},
                 "dontEnlarge": {"type": "boolean", "description": "Never upscale past the photo's own size (default true)"},
@@ -278,7 +280,7 @@ pub fn helper_tools(has_ui: bool) -> Vec<Value> {
             tool(
                 "screenshot",
                 "Screenshot",
-                "Capture the LightCraft window (after pending renders finish) and return it as an image.",
+                "Capture the LightCraft window (after pending renders finish) and return it as an image. `path`, when given, is overwritten with the screenshot file; a catalogued original or its XMP sidecar is refused instead.",
                 json!({"maxSize": {"type": "integer", "description": "Downscale so the long edge is at most this (default 1600)"}, "format": {"type": "string", "enum": ["png", "jpeg"]}, "path": {"type": "string", "description": "Also save the screenshot here"}}),
                 &[],
             ),
@@ -383,8 +385,7 @@ fn annotations(name: &str, title: &str) -> Value {
             | "ui_inspect"
             | "ui_screenshot"
     );
-    let files = matches!(name, "export" | "render_photo" | "screenshot");
-    json!({"title": title, "readOnlyHint": read_only, "destructiveHint": !read_only && !files,
+    json!({"title": title, "readOnlyHint": read_only, "destructiveHint": !read_only,
         "idempotentHint": read_only || matches!(name, "render_photo" | "screenshot"), "openWorldHint": false})
 }
 
@@ -730,6 +731,7 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, args: &Value) -> ToolResult {
                         "height",
                         "megapixels",
                         "percent",
+                        "fit",
                         "dontEnlarge",
                         "ppi",
                         "quality",
@@ -748,6 +750,7 @@ pub fn call_tool(b: &mut dyn Backend, name: &str, args: &Value) -> ToolResult {
                         "preset",
                         "background",
                         "resize",
+                        "destinationMode",
                         "subfolder",
                         "conflict",
                         "tiffCompression",

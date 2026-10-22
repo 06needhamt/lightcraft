@@ -93,6 +93,17 @@ const NON_ADJUSTMENT: &[&str] = &[
     // the file's as-shot white, recorded next to the edit (ours comes from the file itself)
     "crs:AsShotTemperature",
     "crs:AsShotTint",
+    // which Lightroom version may read the edit, and checksums of the profiles it names
+    "crs:CompatibleVersion",
+    "crs:CameraProfileDigest",
+    "crs:LensProfileDigest",
+    // the lens profile Lightroom picked: ours is the file's own, only `LensProfileEnable` carries over
+    "crs:LensProfileName",
+    "crs:LensProfileFilename",
+    "crs:LensProfileIsEmbedded",
+    "crs:LensProfileSetup",
+    // a crop tool option (keep the crop inside the photo), not the crop itself
+    "crs:CropConstrainToUnitSquare",
 ];
 
 /// True if the packet carries any `crs:` adjustment (not just bookkeeping fields).
@@ -173,7 +184,8 @@ fn curve(props: &Props, k: &str) -> Option<Value> {
     let mut pts = Vec::new();
     for it in items {
         let (x, y) = it.split_once(',')?;
-        let (x, y) = (x.trim().parse::<f64>().ok()?, y.trim().parse::<f64>().ok()?);
+        // (`parse` reads "NaN" and "inf" too: a curve with such a point is not a curve)
+        let (x, y) = (x.trim().parse::<f64>().ok().filter(|v| v.is_finite())?, y.trim().parse::<f64>().ok().filter(|v| v.is_finite())?);
         pts.push(json!({"x": (x / 255.0).clamp(0.0, 1.0), "y": (y / 255.0).clamp(0.0, 1.0)}));
     }
     if pts.len() < 2 {
@@ -491,6 +503,8 @@ pub fn to_partial_report(props: &Props, values: Option<&crate::crs_masks::Values
             || k == "AutoTone"
             || k == "AutoGrayscaleMix"
             || (k == "PointColors" && value_is(k, &empty_points))
+            // the lens profile's strength, written at its default (100 %) next to every profile
+            || (matches!(k, "LensProfileDistortionScale" | "LensProfileVignettingScale") && value_is(k, &|v| v.iter().all(|s| s.trim() == "100")))
     };
     let mut unmapped: Vec<String> = props
         .keys()
@@ -615,6 +629,19 @@ mod tests {
         );
         let c = s.crop.geometry;
         assert_eq!((c.rect.x0, c.rect.y0, c.rect.x1, c.rect.y1, c.angle), (0.05, 0.1, 0.8, 0.9, 1.5));
+    }
+
+    /// A sidecar curve with a `NaN` or `inf` point (Rust's `parse` reads both) is not a curve:
+    /// it is left out, rather than stored with a point the curve editor can't place.
+    #[test]
+    fn curves_with_non_finite_points_are_left_out() {
+        for bad in ["NaN, 0", "64, inf", "-inf, 3"] {
+            let x = SIDECAR.replace("<rdf:li>64, 52</rdf:li>", &format!("<rdf:li>{bad}</rdf:li>"));
+            let partial = to_partial(&props(&x), Target::RawAbsolute);
+            let s = apply_partial(&DevelopSettings::for_raw(5000.0, 0.0), &partial, 1.0);
+            assert!(s.curve.master.is_empty(), "{bad}: {:?}", s.curve.master);
+            assert!(s.curve.master.iter().all(|p| p.x.is_finite() && p.y.is_finite()));
+        }
     }
 
     #[test]
@@ -853,6 +880,21 @@ mod tests {
         let used_points = "<crs:PointColors><rdf:Seq><rdf:li>0.5, 0.2, 0.1, 10, 0, 0, 0, 0</rdf:li></rdf:Seq></crs:PointColors>";
         let got = unmapped(&preset_packet(r#"crs:HDREditMode="1" crs:FutureSlider="12""#, used_points));
         assert_eq!(got, ["FutureSlider", "PointColors"]);
+    }
+
+    #[test]
+    fn lightroom_profile_bookkeeping_is_not_reported() {
+        // what Lightroom Classic writes next to every raw's edit: none of it changes the rendering
+        let bookkeeping = r#"crs:CompatibleVersion="268435456" crs:CameraProfileDigest="0A1B" crs:LensProfileDigest="2C3D"
+            crs:LensProfileName="Sony FE 24-70mm" crs:LensProfileFilename="x.lcp" crs:LensProfileIsEmbedded="False"
+            crs:LensProfileSetup="LensDefaults" crs:LensProfileDistortionScale="100" crs:LensProfileVignettingScale="100"
+            crs:CropConstrainToUnitSquare="1""#;
+        let look = r#"<crs:Look rdf:parseType="Resource"><crs:Name>Vivid</crs:Name></crs:Look>"#;
+        assert_eq!(unmapped(&preset_packet(bookkeeping, "")), Vec::<String>::new());
+        assert_eq!(unmapped(&preset_packet(bookkeeping, look)), ["Look"], "the Look is a real gap");
+        // a lens profile's strength away from 100 % is an adjustment we don't carry over
+        let scaled = preset_packet(r#"crs:LensProfileDistortionScale="60""#, "");
+        assert_eq!(unmapped(&scaled), ["LensProfileDistortionScale"]);
     }
 
     #[test]

@@ -43,6 +43,8 @@ Overrides (read once at launch):
 - else `WGPU_BACKEND` (wgpu's own variable, same names) — before #136 only the window honoured it,
   the compute device always used Vulkan + DX12 (+ Metal).
 - `LIGHTCRAFT_GPU=0`: GPU rendering off for the process (the window is unaffected).
+- Both `LIGHTCRAFT_GPU=0` and `LIGHTCRAFT_GPU_BACKEND=off` also keep AI Denoise, the face models
+  and the AI mask model (SAM 3 on Metal) on the CPU.
 
 **DX12 shader compiler (issue #471).** Every instance (window and compute) compiles DX12 shaders with
 FXC (`d3dcompiler_47.dll`, part of Windows; `lightcraft_gpu::backend::backend_options`). wgpu's
@@ -54,6 +56,13 @@ compile error, its indirect-validation pipelines fail, the device is lost, and t
 chooses; with `dxc`, put `dxcompiler.dll` *and* `dxil.dll` (DXC ≥ 1.8.2502) next to `lightcraft.exe`.
 FXC builds the compute kernels somewhat slower than DXC (≈ 9 s vs 7.5 s for the GPU test suite on an
 RTX 4080), off the startup path.
+
+FXC merges stores to neighbouring elements of a storage array into one wider store. NVIDIA's DX12 driver ran
+the 16-byte store it made of a denoise convolution's output wrong on a GTX 1070 (every second pixel's channels
+shifted; DXC and Vulkan were right), so `nn_conv.wgsl` steps those stores by `1 + zero` from its uniform and FXC
+leaves them apart. The transposed convolution's merged store ran right on that card, but it steps the same way.
+`nn::tests::a_layer_stores_every_pixels_channels_where_the_next_reads_them` catches the fault on such a card;
+`a_transposed_convolution_stores_every_pixels_channels_where_the_next_reads_them` checks the other store exactly.
 
 **Off the startup path.** The compute device is created on a background thread once the window is
 up (`gpu::warm_up` from the first frame's settings), and never while GPU rendering is off: with
@@ -104,6 +113,14 @@ with `set LIGHTCRAFT_GPU_BACKEND=dx12` (the default since #136), or `=off` to ke
 rendering; `set VK_LOADER_DRIVERS_DISABLE=*igvk64*` (Vulkan loader) hides a specific Vulkan driver
 from every program started with it. Help ▸ System Info and `app.gpu` show the adapter and backend in
 use (e.g. `Intel(R) UHD Graphics 630 (Dx12)`).
+
+**LightCraft stops during an export or a render; the log says "device lost" (Windows, issue #1337).**
+When the graphics driver resets the GPU (the Windows watchdog, a driver hang: DXGI `0x887A0005`, "GPU
+device instance has been suspended"), renders fall back to the CPU, but the window's renderer (egui-wgpu)
+panics on the lost device and LightCraft stops. It says so ("LightCraft stopped unexpectedly", not "could
+not open its window") and records it in `gpu-lost.marker` in the settings folder: the next start turns
+*Use the GPU for rendering* off and says why once. Turn it back on in Settings ▸ Performance after a
+driver update.
 
 **Window never appears, "not responding" (Windows, NVIDIA; issue #374).** With *Shader Cache Size*
 set to **Disabled** in NVIDIA Control Panel (Manage 3D settings → Global Settings), NVIDIA's driver

@@ -584,8 +584,10 @@ pub(crate) fn synthetic_dng_of(w: usize, h: usize, cfa: &str, data: Vec<u16>, xm
         },
         wb_multipliers: None,
         linearized: false,
+        pixel_aspect: 1.0,
         opcodes: OpcodeLists::default(),
         metadata,
+        lens_metadata: Default::default(),
     };
     write_dng(&raw, &DngWriteOptions { xmp: xmp.map(str::to_string), ..Default::default() }).unwrap()
 }
@@ -616,6 +618,214 @@ fn dng_embedded_crs_settings_are_read_on_import() {
     let mut s2 = Session::new().with_fs();
     s2.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
     assert_eq!(s2.catalog.photos().next().unwrap().develop.light.contrast, -10.0);
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+fn jpeg_xmp_packet(rating: i8, title: &str) -> String {
+    lightcraft_meta::write_xmp(&lightcraft_meta::Metadata { rating: Some(rating), title: Some(title.into()), ..Default::default() }, None)
+}
+
+fn write_jpeg_xmp(path: &Path, packet: &str) -> Vec<u8> {
+    let img = lightcraft_raster::Rgba8::from_fn(32, 24, |x, y| [(x * 7) as u8, (y * 9) as u8, 90, 255]);
+    let meta = lightcraft_codecs::EncodeMeta { xmp: Some(packet), ..Default::default() };
+    let bytes = lightcraft_codecs::encode_jpeg(&lightcraft_codecs::EncodeImage::rgba8(&img), 90, Default::default(), &meta).unwrap();
+    assert_eq!(lightcraft_meta::embedded(&bytes).xmp.as_deref(), Some(packet), "the procedural JPEG carries the requested packet");
+    std::fs::write(path, &bytes).unwrap();
+    bytes
+}
+
+#[test]
+fn embedded_jpeg_xmp_reread_refreshes_metadata_and_undoes_once() {
+    let src = temp_dir("jpeg-xmp-refresh");
+    let file = src.join("photo.jpg");
+    let initial = write_jpeg_xmp(&file, &jpeg_xmp_packet(1, "Initial embedded title"));
+    let mut s = Session::new().with_fs();
+    let imported = s.execute("library.import", &json!({"paths": [file.to_string_lossy()]})).unwrap();
+    assert_eq!(imported["imported"].as_array().unwrap().len(), 1, "{imported}");
+    let id = only(&s);
+    assert_eq!(s.catalog.photo(id).unwrap().kind, lightcraft_catalog::MediaKind::Image);
+    s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+    s.execute("photo.rate", &json!({"rating": 2})).unwrap();
+    s.execute("photo.setMeta", &json!({"title": "Catalog title"})).unwrap();
+    let before = s.catalog.photo(id).unwrap().clone();
+    assert!(!s.xmp.auto_write);
+
+    // Change the packet after import: rereading must use the file, not the imported metadata.
+    let changed = write_jpeg_xmp(&file, &jpeg_xmp_packet(4, "Changed embedded title"));
+    assert_ne!(initial, changed);
+    assert!(!src.join("photo.xmp").exists() && !src.join("photo.jpg.xmp").exists());
+    let read = s.execute("photo.readMetadataFromFile", &json!({"ids": [id.0]})).unwrap();
+    assert_eq!(read["read"], json!([{"id": id.0, "from": file.to_string_lossy()}]), "embedded JPEG XMP must be reread: {read}");
+    assert_eq!(read["failed"], json!([]), "{read}");
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, photo.meta.title.as_str()), (4, "Changed embedded title"));
+    assert_eq!(photo.develop, before.develop);
+
+    s.execute("edit.undo", &json!({})).unwrap();
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, &photo.meta.title), (before.rating, &before.meta.title), "one undo restores both fields");
+    assert_eq!(std::fs::read(&file).unwrap(), changed, "reading and undo never rewrite the original");
+    assert!(!src.join("photo.xmp").exists() && !src.join("photo.jpg.xmp").exists());
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+#[test]
+fn embedded_jpeg_xmp_reread_keeps_sidecar_precedence() {
+    let src = temp_dir("jpeg-xmp-sidecar");
+    let file = src.join("photo.jpg");
+    let original = write_jpeg_xmp(&file, &jpeg_xmp_packet(4, "Embedded title"));
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [file.to_string_lossy()]})).unwrap();
+    let id = only(&s);
+    let sidecar = src.join("photo.xmp");
+    let packet = jpeg_xmp_packet(5, "Sidecar title");
+    std::fs::write(&sidecar, &packet).unwrap();
+    let read = s.execute("photo.readMetadataFromFile", &json!({"ids": [id.0]})).unwrap();
+    assert_eq!(read["read"], json!([{"id": id.0, "from": sidecar.to_string_lossy()}]), "{read}");
+    assert_eq!(read["failed"], json!([]), "{read}");
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, photo.meta.title.as_str()), (5, "Sidecar title"));
+    assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), packet);
+
+    // A malformed sidecar must report its failure, not fall back to the valid embedded packet.
+    let malformed = "<a>".repeat(1000);
+    assert!(lightcraft_meta::parse_xmp(&malformed).is_err());
+    std::fs::write(&sidecar, &malformed).unwrap();
+    let read = s.execute("photo.readMetadataFromFile", &json!({"ids": [id.0]})).unwrap();
+    assert_eq!(read["read"], json!([]), "{read}");
+    assert_eq!(read["failed"].as_array().unwrap().len(), 1, "{read}");
+    assert_eq!(read["failed"][0]["id"], id.0);
+    assert!(!read["failed"][0]["error"].as_str().unwrap().is_empty());
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, photo.meta.title.as_str()), (5, "Sidecar title"));
+    assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), malformed);
+    assert_eq!(std::fs::read(&file).unwrap(), original);
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+#[test]
+fn embedded_jpeg_xmp_reread_malformed_input_preserves_state_and_undo() {
+    let src = temp_dir("jpeg-xmp-malformed");
+    let file = src.join("photo.jpg");
+    write_jpeg_xmp(&file, &jpeg_xmp_packet(1, "Original title"));
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [file.to_string_lossy()]})).unwrap();
+    let id = only(&s);
+    s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+    s.execute("photo.rate", &json!({"rating": 2})).unwrap();
+    let previous_title = s.catalog.photo(id).unwrap().meta.title.clone();
+    s.execute("photo.setMeta", &json!({"title": "Catalog title"})).unwrap();
+    let before = s.catalog.photo(id).unwrap().clone();
+    let malformed = "<a>".repeat(1000);
+    assert!(lightcraft_meta::parse_xmp(&malformed).is_err());
+    let broken_packet = write_jpeg_xmp(&file, &malformed);
+    let truncated_container = vec![0xff, 0xd8, 0xff, 0xe1, 0, 40, b'x'];
+    for bytes in [broken_packet, truncated_container] {
+        std::fs::write(&file, &bytes).unwrap();
+        let read = s.execute("photo.readMetadataFromFile", &json!({"ids": [id.0]})).unwrap();
+        assert_eq!(read["read"], json!([]), "{read}");
+        assert_eq!(read["failed"].as_array().unwrap().len(), 1, "{read}");
+        assert_eq!(read["failed"][0]["id"], id.0);
+        assert!(!read["failed"][0]["error"].as_str().unwrap().is_empty());
+        let photo = s.catalog.photo(id).unwrap();
+        assert_eq!((photo.rating, &photo.meta.title), (before.rating, &before.meta.title));
+        assert_eq!(photo.develop, before.develop);
+        assert_eq!(std::fs::read(&file).unwrap(), bytes);
+        assert!(!src.join("photo.xmp").exists() && !src.join("photo.jpg.xmp").exists());
+    }
+    // Failed reads do not add an undo entry: the last successful title edit is still next.
+    s.execute("edit.undo", &json!({})).unwrap();
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, &photo.meta.title), (2, &previous_title));
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+#[test]
+fn embedded_jpeg_xmp_reread_non_utf8_sidecar_preserves_state_and_undo() {
+    let src = temp_dir("jpeg-xmp-non-utf8-sidecar");
+    let file = src.join("photo.jpg");
+    let original = write_jpeg_xmp(&file, &jpeg_xmp_packet(4, "Embedded title"));
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [file.to_string_lossy()]})).unwrap();
+    let id = only(&s);
+    assert!(!s.xmp.auto_write);
+    s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+    s.execute("photo.rate", &json!({"rating": 2})).unwrap();
+    let previous_title = s.catalog.photo(id).unwrap().meta.title.clone();
+    s.execute("photo.setMeta", &json!({"title": "Catalog title"})).unwrap();
+    let before = s.catalog.photo(id).unwrap().clone();
+    let sidecar = src.join("photo.xmp");
+    let invalid = [0xff, 0xfe, 0x80];
+    std::fs::write(&sidecar, invalid).unwrap();
+    assert_eq!(std::fs::read_to_string(&sidecar).unwrap_err().kind(), std::io::ErrorKind::InvalidData);
+    assert_eq!(crate::sidecar::find_sidecar(file.to_str().unwrap(), s.sidecar_naming(id)), Some(sidecar.clone()));
+
+    let read = s.execute("photo.readMetadataFromFile", &json!({"ids": [id.0]})).unwrap();
+    assert_eq!(read["read"], json!([]), "an existing non-UTF-8 sidecar must not fall back to embedded JPEG XMP: {read}");
+    assert_eq!(read["failed"].as_array().unwrap().len(), 1, "{read}");
+    assert_eq!(read["failed"][0]["id"], id.0);
+    assert!(!read["failed"][0]["error"].as_str().unwrap().is_empty());
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, &photo.meta.title), (before.rating, &before.meta.title));
+    assert_eq!(photo.develop, before.develop);
+
+    s.execute("edit.undo", &json!({})).unwrap();
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, &photo.meta.title), (2, &previous_title), "failed reads must not add an undo entry");
+    assert_eq!(photo.develop, before.develop);
+    assert_eq!(std::fs::read(&file).unwrap(), original);
+    assert_eq!(std::fs::read(&sidecar).unwrap(), invalid);
+    assert!(!src.join("photo.jpg.xmp").exists());
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+#[test]
+fn embedded_jpeg_xmp_reread_all_metadata_uses_supplied_bytes() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let src = temp_dir("jpeg-xmp-all-metadata");
+    let file = src.join("photo.jpg");
+    let original = write_jpeg_xmp(&file, &jpeg_xmp_packet(1, "On-disk title"));
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [file.to_string_lossy()]})).unwrap();
+    let id = only(&s);
+    assert!(!s.xmp.auto_write);
+    let before = s.catalog.photo(id).unwrap().clone();
+    let supplied = write_jpeg_xmp(&src.join("supplied.jpg"), &jpeg_xmp_packet(4, "Supplied title"));
+    let reads = Arc::new(AtomicUsize::new(0));
+    let counted = reads.clone();
+    let expected_path = file.to_string_lossy().into_owned();
+    s.media.file_bytes = Some(Arc::new(move |path| {
+        assert_eq!(path, expected_path);
+        counted.fetch_add(1, Ordering::SeqCst);
+        Ok(supplied.clone())
+    }));
+
+    let query = s.execute("photo.allMetadata", &json!({"id": id.0})).unwrap();
+    assert_eq!(reads.load(Ordering::SeqCst), 1);
+    let xmp = query["xmp"].as_array().unwrap();
+    assert!(
+        xmp.iter().any(|x| x["name"] == "dc:title" && x["value"] == "Supplied title"),
+        "All Metadata must use the bytes already supplied: {query}"
+    );
+    assert!(xmp.iter().any(|x| x["name"] == "xmp:Rating" && x["value"] == "4"), "{query}");
+    assert!(!xmp.iter().any(|x| x["value"] == "On-disk title"), "{query}");
+
+    let sidecar = src.join("photo.xmp");
+    let packet = jpeg_xmp_packet(5, "Sidecar title");
+    std::fs::write(&sidecar, &packet).unwrap();
+    let query = s.execute("photo.allMetadata", &json!({"id": id.0})).unwrap();
+    assert_eq!(reads.load(Ordering::SeqCst), 2);
+    let xmp = query["xmp"].as_array().unwrap();
+    assert!(xmp.iter().any(|x| x["name"] == "dc:title" && x["value"] == "Sidecar title"), "{query}");
+    assert!(xmp.iter().any(|x| x["name"] == "xmp:Rating" && x["value"] == "5"), "{query}");
+    assert!(!xmp.iter().any(|x| x["value"] == "Supplied title"), "{query}");
+    let photo = s.catalog.photo(id).unwrap();
+    assert_eq!((photo.rating, &photo.meta.title), (before.rating, &before.meta.title));
+    assert_eq!(photo.develop, before.develop);
+    assert_eq!(std::fs::read(&file).unwrap(), original);
+    assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), packet);
     let _ = std::fs::remove_dir_all(&src);
 }
 
@@ -666,7 +876,7 @@ fn convert_raw_to_dng() {
     let r = s.execute("photo.convertToDng", &json!({})).unwrap();
     assert_eq!((r["converted"].as_array().unwrap().len(), r["skipped"].as_array().unwrap().len()), (0, 1));
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let nef = dir.join("shot.nef");
@@ -928,14 +1138,14 @@ fn dng_export_compression_choices() {
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus"))
         .join("raw/nef-nikon-d5100-uncompressed.nef");
     if !corpus.exists() {
-        eprintln!("skip: {} absent", corpus.display());
+        lightcraft_testkit::skip!(Corpus, "{} absent", corpus.display());
         return;
     }
     let mut s = Session::new().with_fs();
     s.execute("library.import", &json!({"paths": [corpus.to_string_lossy()]})).unwrap();
     let id = s.active().unwrap();
     let mut sizes = Vec::new();
-    for c in ["lossless", "deflate", "uncompressed"] {
+    for c in ["lossless", "deflate", "uncompressed", "lossy"] {
         let o = crate::export::ExportOptions::from_json(&json!({"format": "dng", "dngCompression": c}));
         let mut out = Vec::new();
         let mut write = |_: &str, b: &[u8]| {
@@ -948,6 +1158,57 @@ fn dng_export_compression_choices() {
         sizes.push((c, out.len()));
     }
     assert!(sizes[2].1 > sizes[0].1 && sizes[2].1 > sizes[1].1, "uncompressed is the biggest: {sizes:?}");
+    assert!(sizes[3].1 < sizes[0].1 / 2, "lossy is much smaller than lossless: {sizes:?}");
+}
+
+/// Issue #1745: the DNG of a raw without colour matrices of its own (a Nikon Z 9 NEF) had no `ColorMatrix1`, and
+/// other raw converters refused it. Export as DNG and Convert / Copy as DNG now write the colour the raw opens with:
+/// the measured matrices of a camera that has them (Z f), the neutral fallback of one that doesn't (Z 9, whose
+/// look is fitted to its JPEG when there is one).
+#[test]
+fn dngs_of_raws_without_colour_matrices_carry_the_colour_they_open_with() {
+    use lightcraft_raw::color::{as_shot_white_xy, camera_transform, has_matrix};
+    let dir = temp_dir("dng-colour");
+    let samples = [[0.2, 0.3, 0.1], [0.05, 0.02, 0.4], [0.6, 0.6, 0.6], [0.01, 0.5, 0.03]];
+    let render = |t: &lightcraft_raw::color::CameraTransform, c: [f64; 3]| {
+        t.matrix.apply(std::array::from_fn(|i| c[i] * t.wb[i] as f64)).map(|v| v * t.baseline_exposure.exp2())
+    };
+    for (model, measured) in [("NIKON Z f", true), ("NIKON Z 9", false)] {
+        let metadata = lightcraft_meta::Metadata { make: Some("NIKON CORPORATION".into()), model: Some(model.into()), ..Default::default() };
+        let mut raw = lightcraft_raw::decode(&synthetic_dng_with(None, metadata)).unwrap();
+        // a vendor raw's colour: a white balance, no matrices
+        raw.color = lightcraft_raw::ColorData { as_shot_neutral: Some([0.5, 1.0, 0.7]), ..Default::default() };
+        let bytes = lightcraft_raw::write_dng(&raw, &Default::default()).unwrap();
+        let path = dir.join(format!("{model}.dng"));
+        std::fs::write(&path, &bytes).unwrap();
+        let mut opened = lightcraft_raw::decode(&bytes).unwrap();
+        assert!(!has_matrix(&opened.color));
+        let (_, want, look) = crate::camera_preview::starting_colour(&mut opened, &bytes, None, None);
+        assert_eq!((want.matrix_is_fallback, look.is_none()), (!measured, true), "{model}");
+
+        let mut s = Session::new().with_fs();
+        s.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+        let id = s.active().unwrap();
+        let o = crate::export::ExportOptions::from_json(&json!({"format": "dng"}));
+        let mut exported = Vec::new();
+        let mut write = |_: &str, b: &[u8]| {
+            exported = b.to_vec();
+            Ok(())
+        };
+        crate::export::export_batch(&mut s, &[id], &o, &crate::export::Destination { dir: "x".into(), exact: None }, &mut write, &|_| false).unwrap();
+        let converted = crate::cmd::convert::write_dng_with(None, &path.to_string_lossy(), String::new()).unwrap();
+        for (how, dng) in [("export", exported), ("convert", std::fs::read(&converted).unwrap())] {
+            let back = lightcraft_raw::decode(&dng).unwrap();
+            assert!(back.color.color_matrix[0].is_some() && back.color.illuminant[0] != 0, "{model} {how}: {:?}", back.color);
+            let got = camera_transform(&back, as_shot_white_xy(&back));
+            for c in samples {
+                let (a, b) = (render(&want, c), render(&got, c));
+                assert!(a.iter().zip(b).all(|(a, b)| (a - b).abs() < 1e-3), "{model} {how} {c:?}: {a:?} vs {b:?}");
+            }
+        }
+        std::fs::remove_file(&converted).unwrap();
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 fn write_jpeg(path: &Path, capture: Option<&str>) {
@@ -1210,32 +1471,68 @@ fn files_sharing_a_stem_get_their_own_sidecars() {
     let _ = std::fs::remove_dir_all(&lib);
 }
 
-/// A file that shares its stem with another catalogued file never reads the stem sidecar the
-/// other one owns, whichever naming the library uses.
+/// Lossy DNG export: demosaiced JPEG tiles at the resize long edge, smaller than lossless, colour tags kept.
 #[test]
-fn a_non_owner_does_not_read_its_siblings_stem_sidecar() {
-    let src = temp_dir("stem-read");
-    let lib = temp_dir("stem-read-lib");
-    write_png(&src.join("IMG_1.png"), 1);
-    let img = lightcraft_raster::Rgba8::from_fn(40, 24, |x, y| [(x * 6) as u8, (y * 9) as u8, 7, 255]);
-    let jpg =
-        crate::export::encode_image(&img, &crate::export::ExportOptions { format: crate::export::ExportFormat::Jpeg, ..Default::default() }).unwrap();
-    std::fs::write(src.join("IMG_1.jpg"), jpg).unwrap();
+fn lossy_dng_export_scales_and_shrinks() {
+    let src = temp_dir("lossydng");
+    std::fs::write(src.join("synth.dng"), synthetic_dng_with(None, Default::default())).unwrap();
     let mut s = Session::new().with_fs();
-    s.open_library(&lib, false).unwrap();
     s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
-    let id = |s: &Session, name: &str| s.catalog.photos().find(|p| p.file_name == name).unwrap().id;
-    let (j, p) = (id(&s, "IMG_1.jpg"), id(&s, "IMG_1.png"));
-    s.execute("photo.rate", &json!({"ids": [j.0], "rating": 2})).unwrap();
-    s.execute("photo.saveMetadataToFile", &json!({"ids": [j.0]})).unwrap();
-    assert!(src.join("IMG_1.xmp").is_file());
-    assert!(!src.join("IMG_1.png.xmp").exists());
-    // the owner reads its packet; the other file has none of its own
-    assert!(s.read_sidecar_op(j).unwrap().is_some());
-    assert!(s.read_sidecar_op(p).unwrap().is_none());
-    s.xmp.naming = crate::sidecar::SidecarNaming::Full;
-    assert!(s.read_sidecar_op(j).unwrap().is_some());
-    assert!(s.read_sidecar_op(p).unwrap().is_none());
+    let id = s.catalog.photos().next().unwrap().id;
+    let mut export = |p: serde_json::Value| {
+        let o = crate::export::ExportOptions::from_json(&p);
+        let mut out = Vec::new();
+        let mut write = |_: &str, b: &[u8]| {
+            out = b.to_vec();
+            Ok(())
+        };
+        crate::export::export_batch(&mut s, &[id], &o, &crate::export::Destination { dir: "x".into(), exact: None }, &mut write, &|_| false).unwrap();
+        out
+    };
+    let lossless = export(json!({"format": "dng"}));
+    let lossy = export(json!({"format": "dng", "dngCompression": "lossy", "quality": 80, "longEdge": 32}));
+    let raw = lightcraft_raw::decode(&lossy).unwrap();
+    assert_eq!((raw.cpp, raw.cfa.is_none(), raw.width.max(raw.height)), (3, true, 32));
+    assert_eq!(raw.color.as_shot_neutral, Some([0.5, 1.0, 0.7]));
+    assert!(lossy.len() < lossless.len(), "{} vs {}", lossy.len(), lossless.len());
     let _ = std::fs::remove_dir_all(&src);
-    let _ = std::fs::remove_dir_all(&lib);
+}
+
+/// An automatic sidecar write that fails (here the folder is read-only, as a network share that dropped out or went
+/// read-only) waits instead of being forgotten, and `library.retrySidecars` writes it once the folder takes writes
+/// again.
+#[cfg(unix)]
+#[test]
+fn a_failed_auto_write_waits_and_is_written_on_retry() {
+    use std::os::unix::fs::PermissionsExt;
+    let src = temp_dir("auto-retry");
+    write_png(&src.join("a.png"), 4);
+    let mut s = Session::new().with_fs();
+    s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+    s.execute("library.xmpPreferences", &json!({"autoWrite": true})).unwrap();
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // (root writes anyway: nothing to test there)
+    if std::fs::write(src.join(".probe"), b"x").is_ok() {
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+    s.execute("photo.rate", &json!({"rating": 4})).unwrap();
+    let sidecar = src.join("a.xmp");
+    assert!(!sidecar.exists());
+    assert_eq!(s.unsaved_sidecars(), 1, "the failed write waits");
+    let r = s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(r, json!({"written": 0, "waiting": 1}), "still read-only");
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let r = s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(r, json!({"written": 1, "waiting": 0}));
+    assert!(std::fs::read_to_string(&sidecar).unwrap().contains("<xmp:Rating>4</xmp:Rating>"));
+    // a later edit that writes fine leaves nothing waiting; turning auto-write off drops what still waits
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o555)).unwrap();
+    s.execute("photo.rate", &json!({"rating": 3})).unwrap();
+    assert_eq!(s.unsaved_sidecars(), 1);
+    s.execute("library.xmpPreferences", &json!({"autoWrite": false})).unwrap();
+    s.execute("library.retrySidecars", &json!({})).unwrap();
+    assert_eq!(s.unsaved_sidecars(), 0);
+    std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let _ = std::fs::remove_dir_all(&src);
 }

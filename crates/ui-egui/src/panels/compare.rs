@@ -23,11 +23,15 @@ pub fn culling(app: &LightcraftApp) -> bool {
 
 /// The (select, candidate) pair, repaired or chosen if needed: the active photo against the next
 /// selected photo, else against its neighbour in the view.
+/// A photo that can be shown or pinned: in the catalog and not in Recently Deleted.
+pub fn live(app: &LightcraftApp, id: PhotoId) -> bool {
+    app.session.catalog.photo(id).is_some_and(|p| !p.deleted)
+}
+
 pub fn compare_pair(app: &mut LightcraftApp) -> Option<(PhotoId, PhotoId)> {
-    let exists = |app: &LightcraftApp, id: PhotoId| app.session.catalog.photo(id).is_some_and(|p| !p.deleted);
     if let Some((a, b)) = app.ui.compare {
         let (a, b) = (PhotoId(a), PhotoId(b));
-        if a != b && exists(app, a) && exists(app, b) {
+        if a != b && live(app, a) && live(app, b) {
             return Some((a, b));
         }
     }
@@ -95,6 +99,31 @@ pub fn set_photo(app: &mut LightcraftApp, id: PhotoId, side: Option<&str>) -> Re
     };
     select_pair(app, a, b, id);
     Ok(json!({"select": a.0, "candidate": b.0}))
+}
+
+/// A ⌘/Ctrl-click (`range: false`, toggles the photo) or Shift-click (`range: true`, extends
+/// from the active photo) on the filmstrip in Compare: the selection changes as it does in the
+/// grid, but the two photos shown stay selected and the active one stays active, so the photo the
+/// rating keys act on is still on screen (#744). A plain click is [`set_photo`].
+pub fn select_with_modifier(app: &mut LightcraftApp, id: PhotoId, range: bool) -> Result<Value, String> {
+    if app.session.catalog.photo(id).is_none_or(|p| p.deleted) {
+        return Err(format!("no photo {}", id.0));
+    }
+    let (sel, cand) = compare_pair(app).ok_or("nothing to compare")?;
+    let mut next = app.session.selection.clone();
+    if range {
+        next.extend_to(id, &app.session.visible_cloned());
+    } else {
+        next.toggle(id);
+    }
+    for shown in [sel, cand] {
+        if !next.contains(shown) {
+            next.ids.push(shown);
+        }
+    }
+    let active = app.session.selection.active.filter(|a| next.contains(*a)).unwrap_or(cand);
+    let ids: Vec<u64> = next.ids.iter().map(|p| p.0).collect();
+    app.session.execute("library.select", &json!({"ids": ids, "active": active.0})).map_err(|e| e.to_string())
 }
 
 /// The candidate becomes the select; the next photo becomes the candidate.
@@ -172,6 +201,7 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
     let t = Tokens::get(ui.ctx());
     let ppp = ui.ctx().pixels_per_point();
     let resp = ui.interact(area, egui::Id::new(("cull-tile", slot_index(slot), id.0)), Sense::click_and_drag());
+    crate::widgets::announce(&resp, app.session.catalog.photo(id).map(|p| p.file_name.clone()).unwrap_or_default());
     let Some(photo) = app.session.catalog.photo(id).cloned() else { return (area, resp) };
     let caption_h = 26.0;
     let img_area = Rect::from_min_max(area.min, pos2(area.right(), area.bottom() - caption_h));
@@ -254,6 +284,9 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
     if photo.flag == Flag::Reject {
         p.rect_filled(display, 0.0, Color32::from_black_alpha(110));
     }
+    if app.ui.settings.focus_point {
+        super::detail::draw_focus_point(&p, display, &photo, &format!("compare:focusPoint:{}", id.0));
+    }
     let active = app.session.selection.active == Some(id);
     if active {
         p.rect_stroke(display.intersect(img_area.shrink(1.0)), 0.0, Stroke::new(2.0, Color32::WHITE), StrokeKind::Outside);
@@ -288,7 +321,7 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
             super::detail::loupe_pill(ui, img_area, over, None, &format!("compare:rendering:{i}"), crate::i18n::tr("Rendering…"), false);
         }
     }
-    // caption: label · file name · stars · flag
+    // caption: label · file name · stars · flag · colour label
     // caption right under the image (at the bottom when zoomed in)
     let cap_top = (display.bottom() + 2.0).min(img_area.bottom());
     let cap = Rect::from_min_max(pos2(img.left().max(area.left()), cap_top), pos2(area.right(), cap_top + caption_h));
@@ -316,9 +349,17 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
     x += 5.0 * 13.0 + 4.0;
     let fr = Rect::from_min_size(pos2(x, cap.center().y - 7.0), vec2(14.0, 14.0));
     match photo.flag {
-        Flag::Pick if fr.right() < cap.right() => paint(pt, fr, Icon::FlagPick, t.pick),
+        Flag::Pick if fr.right() < cap.right() => paint(pt, fr, Icon::FlagPickFilled, t.pick),
         Flag::Reject if fr.right() < cap.right() => paint(pt, fr, Icon::FlagReject, t.reject),
         _ => {}
+    }
+    // the colour label as a dot, so labelling while culling shows on the photo (#2398)
+    let lr = Rect::from_min_size(pos2(fr.right() + 6.0, cap.center().y - 5.0), vec2(10.0, 10.0));
+    if let Some(l) = photo.label
+        && lr.right() < cap.right()
+    {
+        pt.circle_filled(lr.center(), 5.0, super::grid::label_color(l));
+        register(ui.ctx(), format!("cull:{}:label", id.0), lr);
     }
     register(ui.ctx(), format!("cull:{}", id.0), display);
     (display, resp)
@@ -421,9 +462,16 @@ pub fn prepare(app: &mut LightcraftApp) {
         app.renderer.release(Slot::Region);
         app.renderer.release(Slot::RegionBefore);
     }
-    if matches!(app.ui.view, ViewMode::Compare | ViewMode::Reference) {
+    // Reference with no live pin draws no panes: release them as other views do.
+    let reference_shown = app.ui.reference.is_some_and(|r| live(app, PhotoId(r)));
+    if app.ui.view == ViewMode::Compare || (app.ui.view == ViewMode::Reference && reference_shown) {
         app.session.media.set_full_capacity(WINDOW_PANES as usize);
         return;
+    }
+    if app.ui.view == ViewMode::Reference {
+        // the reference (pane 0) and the active photo beside it (pane 1)
+        app.renderer.release(Slot::Compare(0));
+        app.renderer.release(Slot::Compare(1));
     }
     app.session.media.set_full_capacity(1);
     for i in 0..WINDOW_PANES {
@@ -465,7 +513,7 @@ pub fn show_compare(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         if resp.double_clicked() {
             app.ui.zoom = if app.ui.zoom == Zoom::Fit { Zoom::Percent(100.0) } else { Zoom::Fit };
         }
-        resp.context_menu(|ui| {
+        crate::widgets::context_menu(&resp, |ui| {
             if ui.button(crate::i18n::tr("Swap")).clicked() {
                 let _ = swap(app);
             }
@@ -525,13 +573,14 @@ pub fn show_survey(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         if resp.hovered() && photos.len() > 1 {
             let xr = Rect::from_min_size(pos2(img.right() - 26.0, img.top() + 6.0), vec2(20.0, 20.0));
             let xresp = ui.interact(xr, egui::Id::new(("survey-x", id.0)), Sense::click()).on_hover_text(crate::i18n::tr("Remove from survey"));
+            crate::widgets::announce(&xresp, crate::i18n::tr("Remove from survey"));
             ui.painter().circle_filled(xr.center(), 10.0, Color32::from_black_alpha(if xresp.hovered() { 230 } else { 160 }));
             paint(ui.painter(), xr.shrink(4.0), Icon::Close, t.text);
             if xresp.clicked() {
                 let _ = app.run("library.select", json!({"ids": [id.0], "mode": "toggle"}));
             }
         }
-        resp.context_menu(|ui| super::grid::context_menu(app, ui, *id));
+        crate::widgets::context_menu(&resp, |ui| super::grid::context_menu(app, ui, *id));
     }
     let n = photos.len();
     let msg = if app.session.selection.ids.len() > SURVEY_MAX {
@@ -548,7 +597,7 @@ pub fn show_survey(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 /// the Edit panel works on, so a look can be matched by eye.
 pub fn show_reference(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let canvas = area_and_filmstrip(app, ui);
-    let reference = app.ui.reference.map(PhotoId).filter(|r| app.session.catalog.photo(*r).is_some());
+    let reference = app.ui.reference.map(PhotoId).filter(|r| live(app, *r));
     let (Some(r), Some(active)) = (reference, app.session.active()) else {
         super::empty_message(ui, canvas, "No reference photo", "Right-click a photo ▸ Set as Reference Photo, then View → Reference View (Shift+R)");
         return;
@@ -561,7 +610,7 @@ pub fn show_reference(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let (_, lresp) = photo_tile(app, ui, r, Slot::Compare(0), left, "Reference", zoom);
     let (img, _) = photo_tile(app, ui, active, Slot::Compare(1), right, "Active", zoom);
     app.image_rect = Some(img);
-    lresp.context_menu(|ui| {
+    crate::widgets::context_menu(&lresp, |ui| {
         if ui.button(crate::i18n::tr("Clear Reference")).clicked() {
             app.ui.reference = None;
             app.ui.view = ViewMode::Detail;
