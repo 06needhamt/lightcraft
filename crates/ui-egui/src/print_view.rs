@@ -154,6 +154,12 @@ fn paper_label(name: &str) -> String {
     }
 }
 
+/// The paper the selector shows as current: `custom`, or the canonical name an alias stands for,
+/// so a `print.set` with `はがき` still selects the `postcard` option.
+fn current_paper(paper: &str) -> &str {
+    if paper.eq_ignore_ascii_case("custom") { "custom" } else { layout::paper_name(paper).unwrap_or(paper) }
+}
+
 /// The dialog's body: the settings column and the page preview side by side.
 pub fn body(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens) {
     let ctx = ui.ctx().clone();
@@ -383,8 +389,8 @@ fn settings(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens, pu: &mut PrintUi, 
 
     heading(ui, t, "Page Setup");
     row(ui, t, "Paper", |ui| {
-        let current = if l.page.paper.eq_ignore_ascii_case("custom") { "custom".to_string() } else { l.page.paper.to_ascii_lowercase() };
-        let c = egui::ComboBox::from_id_salt("printPaper").selected_text(paper_label(&current)).show_ui(ui, |ui| {
+        let current = current_paper(&l.page.paper);
+        let c = egui::ComboBox::from_id_salt("printPaper").selected_text(paper_label(current)).show_ui(ui, |ui| {
             for name in layout::paper_names().chain(std::iter::once("custom")) {
                 if ui.selectable_label(current == name, paper_label(name)).clicked() {
                     patch(app, &ctx, json!({"layout": {"page": {"paper": name}}}));
@@ -974,5 +980,11 @@ mod tests {
         assert_eq!(paper_label("double-postcard"), "往復はがき (148 × 200 mm)");
         assert_eq!(paper_label("6cut"), "六切 (203 × 254 mm)");
         assert_eq!(paper_label("4cut"), "四切 (254 × 305 mm)");
+        // The selector resolves an alias stored by print.set to the canonical option.
+        assert_eq!(current_paper("はがき"), "postcard");
+        assert_eq!(current_paper("L判"), "l");
+        assert_eq!(current_paper("Custom"), "custom");
+        assert_eq!(paper_label(current_paper("はがき")), "はがき (100 × 148 mm)");
+        assert_eq!(paper_label(current_paper("a4")), "A4");
     }
 }

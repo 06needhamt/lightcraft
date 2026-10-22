@@ -88,33 +88,38 @@ pub fn paper_names() -> impl Iterator<Item = &'static str> {
     PAPER.iter().map(|p| p.0)
 }
 
-/// The form [`paper_size`] matches names in: lower case, with whitespace, hyphens, underscores and
-/// parentheses ignored and `×`/`*` read as `x`, so `L判`, `l-size` and `l` are one name and `4 × 6`
-/// is `4x6`.
+/// The form [`paper_name`] matches names in: lower case, letters and digits only, and `×`/`*` read
+/// as `x`, so `L判`, `L判。`, `l-size` and `（l）` are one name and `4 × 6` is `4x6`.
 fn normalize_paper(name: &str) -> String {
     name.chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, '-' | '_' | '(' | ')'))
-        .map(|c| match c {
-            '×' | '*' => 'x',
-            c => c,
+        .filter_map(|c| match c {
+            '×' | '*' => Some('x'),
+            c if c.is_alphanumeric() => Some(c),
+            _ => None,
         })
         .collect::<String>()
         .to_lowercase()
+}
+
+/// The canonical name of the paper `name` stands for, `None` for unknown names and `custom`.
+/// `L判` is `l`, `はがき` is `postcard`, `六切` is `6cut`, and so on.
+pub fn paper_name(name: &str) -> Option<&'static str> {
+    let n = normalize_paper(name);
+    if n.is_empty() {
+        return None;
+    }
+    PAPER
+        .iter()
+        .find(|p| normalize_paper(p.0) == n)
+        .map(|p| p.0)
+        .or_else(|| PAPER_ALIASES.iter().find(|(alias, _)| normalize_paper(alias) == n).map(|(_, name)| *name))
 }
 
 /// Portrait size in inches of a named paper, `None` for unknown names and `custom`. Case, spaces
 /// and punctuation don't matter, and the Japanese customary names (`L判`, `2L判`, `KG判`, `はがき`,
 /// `往復はがき`, `六切`, `四切`, `名刺`) are aliases of the papers above.
 pub fn paper_size(name: &str) -> Option<(f64, f64)> {
-    let n = normalize_paper(name);
-    if n.is_empty() {
-        return None;
-    }
-    let canonical = PAPER
-        .iter()
-        .find(|p| normalize_paper(p.0) == n)
-        .map(|p| p.0)
-        .or_else(|| PAPER_ALIASES.iter().find(|(alias, _)| normalize_paper(alias) == n).map(|(_, name)| *name))?;
+    let canonical = paper_name(name)?;
     PAPER.iter().find(|p| p.0 == canonical).map(|p| (p.1, p.2))
 }
 
@@ -1036,6 +1041,12 @@ mod tests {
         ] {
             assert_eq!(paper_size(a), paper_size(b), "{a} vs {b}");
         }
+        // Punctuation is ignored, including the periods and Japanese marks a pasted name may carry.
+        for (name, canonical) in [("L判。", "l"), ("L判、", "l"), ("（L判）", "l"), ("l-size.", "l"), ("はがき。", "postcard"), ("6切。", "6cut")]
+        {
+            assert_eq!(paper_name(name), Some(canonical), "{name}");
+        }
+        assert_eq!(paper_name("custom"), None);
         assert!(paper_size("poster").is_none());
         // The papers that were already there keep their sizes.
         assert_eq!(pt("letter"), (612.0, 792.0));
