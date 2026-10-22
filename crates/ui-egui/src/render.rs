@@ -328,8 +328,13 @@ impl Renderer {
         if quick && !self.textures.contains_key(&slot) {
             // Stand-in path (`grid::request_thumb`): the embedded preview is still on its way, or
             // the real thumbnail is requested at the background priority whatever the caller's.
-            return self.pending.get(&Slot::ThumbQuick(photo.id)).is_some_and(|p| p.0 == key)
-                || !self.request_needed(slot, key, crate::panels::grid::BACKGROUND_THUMB_PRIORITY);
+            let quick_slot = Slot::ThumbQuick(photo.id);
+            if let Some(&(k, p)) = self.pending.get(&quick_slot)
+                && k == key
+            {
+                return p == priority.saturating_add(1) || !self.is_queued(quick_slot);
+            }
+            return !self.request_needed(slot, key, crate::panels::grid::BACKGROUND_THUMB_PRIORITY);
         }
         !self.request_needed(slot, key, priority)
     }
@@ -344,17 +349,31 @@ impl Renderer {
         old.as_ptr() == Arc::as_ptr(photo) && *size == bucket && !self.request_needed(Slot::ThumbQuick(photo.id), *key, priority)
     }
 
-    /// Whether this photo's embedded-preview thumbnail is being fetched right now: the grid has
-    /// asked, and neither the picture nor a render behind it is owed.
-    pub fn thumb_quick_pending(&self, photo: &Arc<lightcraft_catalog::Photo>, bucket: usize) -> bool {
-        let Some((old, size, _, quick)) = self.thumb_inputs.get(&photo.id) else { return false };
-        old.as_ptr() == Arc::as_ptr(photo) && *size == bucket && *quick && self.pending.contains_key(&Slot::ThumbQuick(photo.id))
+    /// Whether this photo's embedded-preview thumbnail is pending at the requested priority, or
+    /// already running. A queued priority change must reach the grid's stand-in request.
+    pub fn thumb_quick_pending(&self, photo: &Arc<lightcraft_catalog::Photo>, bucket: usize, priority: u32) -> bool {
+        let Some((old, size, key, quick)) = self.thumb_inputs.get(&photo.id) else { return false };
+        let slot = Slot::ThumbQuick(photo.id);
+        old.as_ptr() == Arc::as_ptr(photo)
+            && *size == bucket
+            && *quick
+            && self.pending.contains_key(&slot)
+            && !self.request_needed(slot, *key, priority.saturating_add(1))
     }
 
     /// Remember that the camera's embedded preview is this photo's final thumbnail, so the grid's
     /// per-frame requests stop at it (the quick render's key, which [`Self::thumb_quick_is_final`]
     /// compares against).
     pub fn remember_embedded_thumb(&mut self, photo: &Arc<lightcraft_catalog::Photo>, bucket: usize, key: u64) {
+        let slot = Slot::Thumb(photo.id);
+        if self.pending.get(&slot).is_some_and(|(pending_key, _)| *pending_key != key) {
+            // An edit can still be rendering when Undo restores this embedded-final thumbnail.
+            // Retire its full-render identity before it can replace the correct stand-in.
+            self.pending.remove(&slot);
+            self.request_ids.remove(&slot);
+            self.pool.reprioritize(|s, p| if *s == slot { None } else { Some(p) });
+            self.queue.retain(|q| q.slot != slot);
+        }
         self.remember_thumb(photo, bucket, key, true);
         self.embedded_thumbs.insert(photo.id, (Arc::downgrade(photo), bucket, key));
     }
@@ -496,6 +515,22 @@ impl Renderer {
     /// Request a stand-in for `slot` (once per job key).
     pub fn request_quick(&mut self, slot: Slot, mut job: QuickJob, priority: u32) {
         if self.quick_tried.get(&slot) == Some(&job.key) {
+            if self.pending.get(&slot).is_some_and(|p| p.0 == job.key && p.1 != priority) {
+                // Scrolling changes a stand-in's priority too. Keep the original closure and
+                // request identity; running or completed work must never be started again.
+                let mut queued = false;
+                self.pool.reprioritize(|s, p| {
+                    if *s == slot {
+                        queued = true;
+                        Some(priority)
+                    } else {
+                        Some(p)
+                    }
+                });
+                if queued && let Some(p) = self.pending.get_mut(&slot) {
+                    p.1 = priority;
+                }
+            }
             return;
         }
         self.quick_tried.insert(slot, job.key);
@@ -1118,6 +1153,65 @@ mod thumbnail_tests {
         r.evict_thumbs(&Default::default(), 600);
         assert!(r.thumb_inputs.is_empty());
     }
+    fn queued_quick_thumbnail(id: PhotoId) -> (Arc<Photo>, QuickJob) {
+        let mut session = Session::new();
+        session.media.preview_loader =
+            Some(Arc::new(|_, _| Some(lightcraft_raster::Rgba8 { width: 4, height: 4, data: vec![[200, 100, 50, 255]; 16] })));
+        let mut raw = (*photo()).clone();
+        raw.id = id;
+        raw.kind = lightcraft_catalog::MediaKind::Raw;
+        raw.develop = Arc::new(raw.camera_defaults());
+        session.catalog.apply(Op::AddPhoto { photo: Box::new(raw) }).unwrap();
+        let p = session.catalog.photo(id).unwrap().clone();
+        let job = session.thumb_job(id, 384).unwrap();
+        (p, session.quick_thumb_job(&job).unwrap())
+    }
+
+    #[test]
+    fn queued_standin_promotes_from_prefetch_to_visible_without_restarting() {
+        let (p, quick) = queued_quick_thumbnail(PhotoId(1));
+        let (_, other) = queued_quick_thumbnail(PhotoId(2));
+        let slot = Slot::ThumbQuick(p.id);
+        // Deterministic queue: no native worker starts.
+        let mut r = Renderer { pool: JobPool::new(0), ..Default::default() };
+        r.remember_thumb(&p, 384, quick.key, true);
+        r.request_quick(slot, quick.clone(), 6); // grid prefetch: 5 + 1
+        r.request_quick(Slot::ThumbQuick(PhotoId(2)), other, 9); // filmstrip: 8 + 1
+        let request_id = r.request_ids[&slot];
+        assert!(r.thumb_current(&p, 384, 5));
+        assert!(!r.thumb_current(&p, 384, 10));
+        r.request_quick(slot, quick.clone(), 11); // visible grid: 10 + 1
+        assert!(r.thumb_current(&p, 384, 10));
+        r.request_quick(slot, quick.clone(), 11);
+        assert_eq!(r.request_ids[&slot], request_id);
+        assert_eq!(r.pool.queued(), 2);
+        r.pool.run_inline(1);
+        let done = r.pool.try_recv().unwrap();
+        assert_eq!(done.slot, slot);
+        assert_eq!(done.result.result.request_id, request_id);
+        assert_eq!(done.result.result.quick, Some(QuickSource::Embedded));
+        // A finished result awaiting collection also must not start another extraction.
+        r.request_quick(slot, quick, 6);
+        assert!(r.thumb_current(&p, 384, 5));
+        assert_eq!(r.pool.queued(), 1);
+    }
+
+    #[test]
+    fn queued_standin_demotes_when_it_leaves_the_visible_grid() {
+        let (p, quick) = queued_quick_thumbnail(PhotoId(1));
+        let (_, other) = queued_quick_thumbnail(PhotoId(2));
+        let slot = Slot::ThumbQuick(p.id);
+        let mut r = Renderer { pool: JobPool::new(0), ..Default::default() };
+        r.remember_thumb(&p, 384, quick.key, true);
+        r.request_quick(slot, quick.clone(), 11);
+        r.request_quick(Slot::ThumbQuick(PhotoId(2)), other, 9);
+        assert!(!r.thumb_current(&p, 384, 5));
+        r.request_quick(slot, quick, 6);
+        assert!(r.thumb_current(&p, 384, 5));
+        r.pool.run_inline(1);
+        assert_eq!(r.pool.try_recv().unwrap().slot, Slot::ThumbQuick(PhotoId(2)));
+    }
+
     #[test]
     fn failures_retry_after_revision_and_quick_only_is_not_final() {
         let p = photo();
@@ -1256,6 +1350,49 @@ mod thumbnail_tests {
         assert!(!message.contains("audit.jpg"), "{message}");
         assert!(app.renderer.requests.is_empty(), "completed request identity is released");
         std::fs::remove_file(replacement).unwrap();
+    }
+
+    #[test]
+    fn grid_queued_standin_changes_priority_without_restarting() {
+        let mut s = Session::new();
+        s.media.preview_loader = Some(Arc::new(|_, _| Some(lightcraft_raster::Rgba8 { width: 4, height: 4, data: vec![[200, 100, 50, 255]; 16] })));
+        let mut raw = (*photo()).clone();
+        raw.kind = lightcraft_catalog::MediaKind::Raw;
+        raw.develop = Arc::new(raw.camera_defaults());
+        let (mut app, work, ctx) = fixture_with(s, raw);
+        app.renderer.pool = JobPool::new(0); // deterministic: no quick job starts until run_inline
+        let id = PhotoId(1);
+        let slot = Slot::ThumbQuick(id);
+
+        crate::panels::grid::request_thumb(&mut app, id, 384, 5);
+        let request_id = app.renderer.request_ids[&slot];
+        assert_eq!(app.renderer.pending[&slot].1, 6);
+        assert_eq!(app.renderer.pool.queued(), 1);
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        assert_eq!(app.renderer.pending[&slot].1, 11, "the grid must promote its queued stand-in");
+        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.pool.queued(), 1);
+
+        crate::panels::grid::request_thumb(&mut app, id, 384, 5);
+        assert_eq!(app.renderer.pending[&slot].1, 6, "the grid must demote its queued stand-in");
+        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.pool.queued(), 1);
+        let built = app.renderer.thumb_jobs_built;
+        app.renderer.pool.run_inline(1);
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        assert_eq!(app.renderer.pending[&slot].1, 6, "completed work must not be restarted");
+        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.pool.queued(), 0);
+        app.renderer.poll(&ctx, &mut app.session);
+        assert_eq!(app.renderer.textures[&slot].quick, Some(QuickSource::Embedded));
+
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        crate::panels::grid::request_thumb(&mut app, id, 384, 5);
+        assert_eq!(app.renderer.thumb_jobs_built, built);
+        assert_eq!(app.renderer.pool.queued(), 0);
+        assert!(!app.renderer.is_pending(Slot::Thumb(id)));
+        assert!(!app.renderer.textures.contains_key(&Slot::Thumb(id)));
+        assert!(work.borrow().jobs.is_empty(), "the final embedded thumbnail needs no real render");
     }
 
     #[test]
@@ -1623,6 +1760,74 @@ mod thumbnail_tests {
             app.renderer.thumb(PhotoId(1)).unwrap().pixels.as_ref().unwrap().pixels.iter().flat_map(|c| c.to_array()).collect::<Vec<_>>(),
             expected.as_bytes()
         );
+    }
+
+    #[test]
+    fn undo_to_embedded_thumb_rejects_late_full_render() {
+        let mut s = Session::new();
+        s.media.preview_loader = Some(Arc::new(|_, _| Some(lightcraft_raster::Rgba8 { width: 4, height: 4, data: vec![[200, 100, 50, 255]; 16] })));
+        let mut raw = (*photo()).clone();
+        raw.kind = lightcraft_catalog::MediaKind::Raw;
+        raw.develop = Arc::new(raw.camera_defaults());
+        let (mut app, work, ctx) = fixture_with(s, raw);
+        app.renderer.pool = JobPool::new(0);
+        let id = PhotoId(1);
+        let quick_slot = Slot::ThumbQuick(id);
+        let full_slot = Slot::Thumb(id);
+        let settings_a = app.session.catalog.photo(id).unwrap().develop.clone();
+
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        assert_eq!(app.renderer.pool.run_inline(1), 1);
+        app.renderer.poll(&ctx, &mut app.session);
+        let (key_a, pixels_a) = {
+            let shown = app.renderer.thumb(id).unwrap();
+            assert_eq!(shown.quick, Some(QuickSource::Embedded));
+            (shown.key, shown.pixels.as_ref().unwrap().pixels.clone())
+        };
+        assert!(app.renderer.textures.contains_key(&quick_slot));
+        assert!(!app.renderer.textures.contains_key(&full_slot));
+        assert!(work.borrow().jobs.is_empty());
+
+        let mut settings_b = (*settings_a).clone();
+        settings_b.light.exposure += 0.5;
+        app.session.commit("Exposure", Op::SetDevelop { id, settings: Arc::new(settings_b), label: "Exposure".into(), edited: None }).unwrap();
+        assert!(!app.session.embedded_thumb_is_final(app.session.catalog.photo(id).unwrap()));
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        // Manual owns dispatched jobs: hold B until the real Undo command restores A.
+        let (slot, held_b) = take_job(&work);
+        assert_eq!(slot, full_slot);
+        let key_b = held_b.key;
+        assert_ne!(key_b, key_a);
+        assert!(app.renderer.is_pending(full_slot));
+
+        app.run("edit.undo", serde_json::json!({})).unwrap();
+        assert_eq!(app.session.catalog.photo(id).unwrap().develop.as_ref(), settings_a.as_ref());
+        assert!(app.session.embedded_thumb_is_final(app.session.catalog.photo(id).unwrap()));
+        crate::panels::grid::request_thumb(&mut app, id, 384, 10);
+        {
+            let restored = app.renderer.thumb(id).unwrap();
+            assert_eq!(restored.key, key_a);
+            assert_eq!(restored.pixels.as_ref().unwrap().pixels, pixels_a);
+            assert_eq!(restored.quick, Some(QuickSource::Embedded));
+        }
+        assert!(work.borrow().jobs.is_empty(), "restoring embedded-final A needs no full render");
+        assert_eq!(app.renderer.pool.queued(), 0);
+
+        let result_b = held_b.run();
+        assert_eq!(result_b.key, key_b);
+        let rendered_b = result_b.rendered.as_ref().expect("held edited thumbnail must render before the stale-result oracle");
+        assert_ne!(color_image(&rendered_b.image).pixels, pixels_a, "the held result must be distinguishable from A");
+        finish(&mut app, &work, &ctx, slot, result_b);
+
+        let shown = app.renderer.thumb(id).unwrap();
+        assert_eq!(shown.key, key_a, "late edited Thumb(B) must not replace restored embedded ThumbQuick(A)");
+        assert_eq!(shown.pixels.as_ref().unwrap().pixels, pixels_a);
+        assert_eq!(shown.quick, Some(QuickSource::Embedded));
+        let quick = app.renderer.textures.get(&quick_slot).expect("the correct embedded thumbnail must remain installed");
+        assert_eq!(quick.key, key_a);
+        assert_eq!(quick.quick, Some(QuickSource::Embedded));
+        assert_eq!(quick.pixels.as_ref().unwrap().pixels, pixels_a);
+        assert!(!app.renderer.is_pending(full_slot));
     }
 }
 
