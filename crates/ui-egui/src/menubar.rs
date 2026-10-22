@@ -81,6 +81,41 @@ pub fn native_item_presentation<'a>(
     }
 }
 
+/// Cache key for native menu structure and effective accelerator ownership. A transfer from
+/// a direct grid binding to a borrowed cycle hint must rebuild native handles and republish
+/// their owned shortcuts even when the visible menu model is identical.
+pub fn native_menu_structure(bar: &[(String, Vec<MenuNode>)], keymap: &crate::shortcuts::Keymap) -> String {
+    /// Add stable identities and effective native keys; live checked values stay outside the cache key.
+    fn walk(n: &[MenuNode], out: &mut String, keymap: &crate::shortcuts::Keymap) {
+        for x in n {
+            match x {
+                MenuNode::Item { id, params, label, checked, shortcut, .. } => {
+                    out.push_str(&MenuNode::key(id, params));
+                    out.push(if checked.is_some() { 'c' } else { 'i' });
+                    out.push_str(shortcut.as_deref().unwrap_or(""));
+                    // A key can change owners while both visible hints stay identical.
+                    out.push('|');
+                    out.push_str(native_item_presentation(keymap, id, params, label, shortcut.as_deref()).1.unwrap_or(""));
+                }
+                MenuNode::Separator => out.push('-'),
+                MenuNode::Submenu { label, children } => {
+                    out.push('[');
+                    out.push_str(label);
+                    walk(children, out, keymap);
+                    out.push(']');
+                }
+            }
+            out.push(';');
+        }
+    }
+    let mut s = format!("{};", crate::i18n::language().code());
+    for (t, items) in bar {
+        s.push_str(t);
+        walk(items, &mut s, keymap);
+    }
+    s
+}
+
 /// Top-level menus in order (the macOS app menu is added by the host).
 pub const MENUS: &[&str] = &["File", "Edit", "View", "Photo", "Window", "Help"];
 
@@ -760,6 +795,7 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
     })
 }
 
+/// Resolve a live menu row, including contextual keys and borrowed grid-cycle hints.
 fn node(app: &LightcraftApp, e: &MenuEntry) -> MenuNode {
     // Shift+P picks and advances in Library; don't advertise it on Presets in those views.
     let shortcut = if e.id == "panel.presets" && crate::shortcuts::library_grid(app) { None } else { e.shortcut.as_deref() };
@@ -1177,6 +1213,22 @@ mod tests {
             assert_eq!(reply["ok"], true, "{reply}");
             assert_eq!(h.app.ui.view, ViewMode::SquareGrid);
         }
+    }
+
+    /// #2513 review: moving a direct-grid key to the cycle command leaves the visible model
+    /// unchanged, but must invalidate the native cache so its old accelerator is removed.
+    #[test]
+    fn grid_menu_shortcut_hints_invalidate_native_ownership_cache() {
+        let mut a = app();
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.gridToggle", None).unwrap();
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.photoGrid", Some("Cmd+Shift+G")).unwrap();
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.squareGrid", Some("Cmd+Shift+2")).unwrap();
+        let before = menu_bar(&a);
+        let direct = native_menu_structure(&before, &a.ui.settings.keymap);
+        crate::shortcuts::assign(&mut a.ui.settings.keymap, "view.gridToggle", Some("Cmd+Shift+G")).unwrap();
+        let after = menu_bar(&a);
+        assert_eq!(before, after, "visible hint text does not expose the ownership change");
+        assert_ne!(direct, native_menu_structure(&after, &a.ui.settings.keymap), "rebuild removes the stale direct-grid accelerator");
     }
 
     /// #2500: grid view rows show the separate cycle command's current shortcut.

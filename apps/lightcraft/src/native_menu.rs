@@ -16,7 +16,9 @@ use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, channel};
 
 use lightcraft_ui_egui::LightcraftApp;
-use lightcraft_ui_egui::menubar::{MenuNode, menu_bar, native_item_presentation, native_menu_delivers as menu_delivers};
+use lightcraft_ui_egui::menubar::{
+    MenuNode, menu_bar, native_item_presentation, native_menu_delivers as menu_delivers, native_menu_structure as structure_of,
+};
 use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use serde_json::Value;
@@ -164,34 +166,6 @@ fn label_text(s: &str) -> String {
     lightcraft_ui_egui::i18n::tr(s).replace('&', "&&")
 }
 
-fn structure_of(bar: &[(String, Vec<MenuNode>)]) -> String {
-    fn walk(n: &[MenuNode], out: &mut String) {
-        for x in n {
-            match x {
-                MenuNode::Item { id, params, checked, shortcut, .. } => {
-                    out.push_str(&MenuNode::key(id, params));
-                    out.push(if checked.is_some() { 'c' } else { 'i' });
-                    out.push_str(shortcut.as_deref().unwrap_or(""));
-                }
-                MenuNode::Separator => out.push('-'),
-                MenuNode::Submenu { label, children } => {
-                    out.push('[');
-                    out.push_str(label);
-                    walk(children, out);
-                    out.push(']');
-                }
-            }
-            out.push(';');
-        }
-    }
-    let mut s = format!("{};", lightcraft_ui_egui::i18n::language().code());
-    for (t, items) in bar {
-        s.push_str(t);
-        walk(items, &mut s);
-    }
-    s
-}
-
 /// Drop a trailing separator (left behind when an item moved to the app menu).
 fn tidy_separators(mut nodes: Vec<MenuNode>) -> Vec<MenuNode> {
     while matches!(nodes.last(), Some(MenuNode::Separator)) {
@@ -215,9 +189,10 @@ impl NativeMenu {
         m
     }
 
+    /// Recreate native handles and shortcut ownership from the current shared menu model.
     fn rebuild(&mut self, app: &mut LightcraftApp) {
         let bar = menu_bar(app);
-        self.structure = structure_of(&bar);
+        self.structure = structure_of(&bar, &app.ui.settings.keymap);
         self.menu = Menu::new();
         self.items.clear();
 
@@ -283,6 +258,7 @@ impl NativeMenu {
         self.publish_shortcuts(app);
     }
 
+    /// Install translated rows with their effective accelerators, preserving hint-only keys.
     fn append_nodes(&mut self, sub: &Submenu, nodes: &[MenuNode], keymap: &lightcraft_ui_egui::shortcuts::Keymap) {
         for n in nodes {
             match n {
@@ -361,10 +337,11 @@ impl NativeMenu {
             }
         }
         let bar = menu_bar(app);
-        if structure_of(&bar) != self.structure {
+        if structure_of(&bar, &app.ui.settings.keymap) != self.structure {
             self.rebuild(app);
             return quit;
         }
+        /// Synchronize live labels and states; accelerator ownership changes already triggered a rebuild.
         fn walk(nodes: &[MenuNode], items: &mut HashMap<String, Item>, keymap: &lightcraft_ui_egui::shortcuts::Keymap) {
             for n in nodes {
                 match n {
@@ -438,7 +415,7 @@ mod tests {
         let mut seen = std::collections::BTreeSet::new();
         for language in Locale::ALL {
             set_language(*language);
-            assert!(seen.insert(structure_of(&bar)), "{language:?} shares another language's menu structure key");
+            assert!(seen.insert(structure_of(&bar, &app.ui.settings.keymap)), "{language:?} shares another language's menu structure key");
         }
         set_language(Locale::ZhHant);
         assert_eq!(label_text("File"), "檔案");
