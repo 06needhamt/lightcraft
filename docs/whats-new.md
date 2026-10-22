@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Find Missing Photos finds the files of a library made on Windows
+- A library made on Windows records its originals with Windows paths. Opened on macOS or Linux, its photos are
+  missing until relinked, and Find Missing Photos found them only by their content, so it missed every photo it had
+  no fingerprint for (such as photos brought in from a Lightroom catalog) or that had been edited since, even in a
+  folder holding every file under the same name. It now matches them by name as it does any other photo: the name
+  after the last `/` or `\`, in any letter case, checked against the size when the library has one. Several files
+  of that name are still reported rather than guessed, and undo puts back the paths as they were.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
