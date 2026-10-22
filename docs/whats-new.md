@@ -207,7 +207,7 @@
   the number of days set in Settings → Performance. Only the `library.browse` command recorded it before, so a
   folder browsed every day from the sidebar was forgotten anyway and read again from scratch on the next visit,
   which is slow on a network share.
-## 2026-10-14
+
 ### Hard-edged Heal and Clone spots
 - A spot with Feather at 0 no longer draws black pixels exactly on its radius. This also fixes spots at 0% Opacity
   changing pixels along their edge. The hard edge now leaves pixels on the radius unchanged.
