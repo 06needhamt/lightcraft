@@ -253,6 +253,7 @@
   "new, inside {parent}": "nové, pod {parent}",
   "Keywords of {n} selected photos": "Klíčová slova vybraných fotografií (počet: {n})",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "Klíčové slovo „{name}“ bylo odebráno z fotografií v počtu {n}. Úpravy → Zpět jej vrátí.",
+  "Inside: {names}": "Uvnitř: {names}",
   " in {g} group{}": " ve skupinách: {g}{:.0}",
   " · kept, not applied: {}": " · zachováno, nepoužito: {}",
   " — kept but not applied: {}": " — zachováno, ale nepoužito: {}",

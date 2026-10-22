@@ -283,6 +283,7 @@
   "Delete the effect preset “{name}”?": "Eliminare il preset effetto “{name}”?",
   "{n} raws can now be developed from their raw data": "Raw che ora si possono sviluppare dai loro dati raw: {n}",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "Removed “{name}” from {n} photos. Edit → Undo puts it back.",
+  "Inside: {names}": "Al suo interno: {names}",
   "Template preview: {name}": "Anteprima del modello: {name}",
   "{n} photos in view · {slides} slides · {time}": "Foto nella vista: {n} · diapositive: {slides} · {time}",
   "Applied {name}": "{name} applicato",
