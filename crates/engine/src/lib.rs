@@ -956,6 +956,9 @@ impl Session {
         // switching camera local tone mapping off is a change without copying untouched values.
         old_json["profile"]["camera_local_tone"] = Value::Bool(old.profile.camera_local_tone);
         new_json["profile"]["camera_local_tone"] = Value::Bool(new.profile.camera_local_tone);
+        // Compare actual HDR leaves even when persisted defaults omit the whole HDR object.
+        old_json["hdr"] = serde_json::json!(old.hdr);
+        new_json["hdr"] = serde_json::json!(new.hdr);
         let Some(mut delta) = json_delta(&old_json, &new_json) else { return Vec::new() };
         if let Some(o) = delta.as_object_mut() {
             for k in ["spots", "red_eye", "version", "process"] {

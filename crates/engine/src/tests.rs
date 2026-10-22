@@ -1013,6 +1013,24 @@ fn auto_sync_camera_local_tone_changes_only_when_edited() {
 }
 
 #[test]
+fn auto_sync_hdr_off_returns_selected_photos_to_sdr() {
+    use lightcraft_catalog::PhotoId;
+    let mut s = demo();
+    let ids: Vec<u64> = s.catalog.photos().take(2).map(|p| p.id.0).collect();
+    assert_eq!(ids.len(), 2);
+    for id in &ids {
+        assert_eq!(s.develop_of(PhotoId(*id)).unwrap().hdr, lightcraft_develop::Hdr::default(), "default-HDR fixture");
+    }
+    s.execute("library.select", &json!({"ids": ids, "active": ids[0]})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    let enabled = |s: &Session| ids.iter().map(|id| s.develop_of(PhotoId(*id)).unwrap().hdr.enabled).collect::<Vec<_>>();
+    s.execute("develop.hdr", &json!({"enabled": true})).unwrap();
+    assert_eq!(enabled(&s), vec![true, true], "HDR On must reach both selected photos");
+    s.execute("develop.hdr", &json!({"enabled": false})).unwrap();
+    assert_eq!(enabled(&s), vec![false, false], "HDR Off must reach both selected photos");
+}
+
+#[test]
 fn json_delta_keeps_only_changes() {
     let a = json!({"light": {"exposure": 0, "contrast": 5}, "masks": [1], "x": 1});
     let b = json!({"light": {"exposure": 1, "contrast": 5}, "masks": [1, 2], "x": 1});
@@ -1776,4 +1794,47 @@ fn malformed_photo_targets_are_refused_not_widened() {
     // a preset's id is not a photo target
     let preset = s.presets.first().unwrap().id.clone();
     s.execute("preset.apply", &json!({"id": preset})).unwrap();
+}
+
+#[test]
+fn auto_sync_hdr_enabled_preserves_per_photo_tuning() {
+    use lightcraft_develop::{DevelopSettings, Hdr, ProcessVersion};
+    let mut s = demo();
+    let ids: Vec<_> = s.catalog.photos().take(2).map(|p| p.id).collect();
+    assert_eq!(ids.len(), 2);
+    s.execute("develop.autoSync", &json!({"on": false})).unwrap();
+    // Keep distinct stored processes explicit: the default is now V2; no rendering claim is made.
+    let mut expected = [DevelopSettings::default(), DevelopSettings { process: ProcessVersion(2), ..DevelopSettings::default() }];
+    expected[0].process = ProcessVersion(1);
+    expected[0].light.exposure = 0.5;
+    expected[0].light.contrast = 12.0;
+    expected[1].light.exposure = -0.25;
+    expected[1].light.contrast = -22.0;
+    expected[1].hdr = Hdr {
+        enabled: false,
+        max_ev: 4.0,
+        sdr_brightness: 11.0,
+        sdr_contrast: -12.0,
+        sdr_highlights: 13.0,
+        sdr_shadows: -14.0,
+        sdr_whites: 15.0,
+        sdr_clarity: -16.0,
+    };
+    for (id, settings) in ids.iter().zip(&expected) {
+        s.set_develop(*id, settings.clone(), "HDR tuning fixture").unwrap();
+    }
+    s.execute("library.select", &json!({"ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "active": ids[0].0})).unwrap();
+    s.execute("develop.autoSync", &json!({"on": true})).unwrap();
+    let selection = s.selection.clone();
+    for enabled in [true, false] {
+        s.execute("develop.hdr", &json!({"enabled": enabled})).unwrap();
+        for (id, settings) in ids.iter().zip(&mut expected) {
+            settings.hdr.enabled = enabled;
+            let actual = s.develop_of(*id).unwrap();
+            assert_eq!(actual.hdr, settings.hdr, "HDR tuning must survive enabled={enabled} for photo {id:?}");
+            assert_eq!(actual.as_ref(), &*settings, "other per-photo edits and process must survive enabled={enabled}");
+        }
+        assert_eq!(s.selection, selection, "selection and active photo must survive enabled={enabled}");
+        assert!(s.auto_sync, "Auto Sync must remain enabled");
+    }
 }
