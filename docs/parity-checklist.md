@@ -1,6 +1,6 @@
 # Lightroom parity checklist
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-20 · **Change:** minor (LR-VIEW-ZOOM: only a full-size drag within 20 ms clears a slow-drag verdict) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-21 · **Change:** minor (LR-IMP-LOCAL: browsing from the sidebar records the folder; LR-VIEW-ZOOM: only a full-size drag within 20 ms clears a slow-drag verdict) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 The measured, row-by-row checklist: one row per Lightroom feature, menu item and shortcut, what we
 have and what is missing. It answers *does the feature exist?* (feature breadth). Whether it is good
@@ -822,6 +822,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 | 2026-10-15 | patch | LR-VIEW-BEFOREAFTER: side by side and stacked panes share click-zoom animation for whole-frame images, window tiles and input; render requests keep the final target (#1821); status unchanged |
 | 2026-10-14 | patch | LR-MASK-BRUSH: ⇧-click with the brush draws a straight stroke from where the last stroke ended, tapering when the brush changed in between (`cmd:mask.brushStroke` `connect`); status unchanged |
 | 2026-10-14 | minor | LR-VIEW-ZOOM 🟡 → ✅: soft proofing gets zoom windows (mask overlays already had them; row text corrected), 1:1 pixels tested equal to the full-size export, slider-drag latency at 1:1 measured on Linux |
+| 2026-10-14 | patch | LR-IMP-LOCAL: browsing a folder from the sidebar records it as browsed, as `library.browse` does, so its untouched photos aren't forgotten while in use; status unchanged (✅) |
 | 2026-10-13 | patch | LR-VIEW-COMPARE, LRC-LIB-COMPARE: ⌘/Ctrl- and Shift-clicks on the filmstrip in Compare change the selection as in the grid; the two photos shown stay selected and the active photo is unchanged (#187); statuses unchanged |
 | 2026-10-13 | minor | KEYC-SELECTONLYACTIVE: Edit → Select Only Active Photo (⌘⇧D) lands as a new row; status 🟡 (headless-tested, native macOS menu path unverified) |
 | 2026-10-13 | patch | LRC-LIB-CATALOG-IMPORT: a catalog whose tables are all still in its `-wal` file (main file schema format 0) opens instead of failing as an unsupported schema format; status unchanged |
