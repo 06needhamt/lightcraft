@@ -145,7 +145,8 @@ impl DevelopSettings {
         }
     }
 
-    /// Reset every control in `section` to its default.
+    /// Reset every control in `section` to its default, and the settings of the section that are not
+    /// controls (the creative profile, the curve, the white balance mode).
     pub fn reset_section(&mut self, section: Section) {
         for c in controls::in_section(section) {
             controls::set(self, c.id, c.default);
@@ -157,6 +158,8 @@ impl DevelopSettings {
             }
             Section::Color => self.wb.mode = WbMode::AsShot,
             Section::Detail => self.enhance.denoise_on = None,
+            // the creative profile is not a control: the chosen look goes back to the default one
+            Section::Profile => self.profile.id = Profile::default().id,
             _ => {}
         }
     }
@@ -314,6 +317,17 @@ mod tests {
         assert!(!s.is_unedited());
         s.reset_section(Section::Light);
         assert!(s.is_unedited());
+    }
+
+    #[test]
+    fn resetting_the_profile_section_restores_the_default_profile() {
+        // the chosen creative profile is not a control, so resetting the section must restore it too
+        let mut s = DevelopSettings::default();
+        s.profile.id = "lc.muted.matte-soft".into();
+        s.profile.amount = 40.0;
+        s.reset_section(Section::Profile);
+        assert_eq!(s.profile.id, "lc.color", "the creative profile survives a Profile reset");
+        assert_eq!(s.profile.amount, 100.0);
     }
 
     #[test]
