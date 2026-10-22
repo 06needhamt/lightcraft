@@ -45,6 +45,15 @@ pub fn fraction_of(done: u64, total: u64) -> Option<f32> {
     (total > 0).then(|| clamp_fraction(done as f32 / total as f32))
 }
 
+/// The whole percent a bar says for `fraction`: rounded down, so 100 comes only at exactly 1.0, but
+/// with a little slack so a fraction that is exact in decimals (53 of 100, held as 0.52999997)
+/// still says 53. A bar's text and its accessible value both come from here, so they agree.
+pub fn percent(fraction: f32) -> u32 {
+    let f = clamp_fraction(fraction);
+    let whole = (f64::from(f) * 100.0 + 1e-3).floor() as u32;
+    if f < 1.0 { whole.min(99) } else { 100 }
+}
+
 /// A progress bar, built and then shown with [`Progress::show`].
 #[derive(Clone, Debug)]
 pub struct Progress {
@@ -103,7 +112,7 @@ impl Progress {
                 Some(l) => egui::WidgetInfo::labeled(egui::WidgetType::ProgressIndicator, ui.is_enabled(), l),
                 None => egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator),
             };
-            info.value = self.fraction.map(|f| f64::from(f * 100.0).floor());
+            info.value = self.fraction.map(|f| f64::from(percent(f)));
             info
         });
         if let Some(w) = &self.widget {

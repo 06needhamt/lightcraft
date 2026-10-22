@@ -766,7 +766,7 @@ pub(crate) fn start_describe(app: &mut LightcraftApp, op: &str) {
 pub(crate) fn sam_download_bar(ui: &mut egui::Ui, done: u64, total: u64, width: f32) -> egui::Response {
     let fraction = crate::progress::fraction_of(done, total);
     let label = match fraction {
-        Some(f) => format!("SAM 3: {} %", (f64::from(f) * 100.0).floor()),
+        Some(f) => format!("SAM 3: {} %", crate::progress::percent(f)),
         None => "SAM 3".to_string(),
     };
     crate::progress::Progress::new(fraction).label(label).width(width).widget("maskSamProgress").show(ui)

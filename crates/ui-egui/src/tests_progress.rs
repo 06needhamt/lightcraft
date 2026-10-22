@@ -240,13 +240,27 @@ fn the_denoise_bars_keep_their_widths_in_a_wide_container() {
 
 #[test]
 fn the_denoise_bar_label_and_its_accessible_value_agree() {
-    // 3 of 7 is 42.86 %: the number drawn on the bar is the one announced
-    let (nodes, _, _) = frames(Vec::new(), |ui| {
-        crate::panels::denoise::detail_bar(ui, 3, 7);
-    });
-    let bar = nodes.iter().find(|n| n.role == "ProgressIndicator").unwrap_or_else(|| panic!("{nodes:?}"));
-    let shown: f64 = bar.label.rsplit(' ').next().unwrap().trim_end_matches('%').parse().unwrap();
-    assert_eq!(bar.value, Some(shown), "{bar:?}");
+    // the number drawn on the bar is the one announced, and exact decimals stay exact
+    for (done, total, says) in
+        [(3, 7, 42.0), (53, 100, 53.0), (59, 100, 59.0), (29, 100, 29.0), (99, 100, 99.0), (100, 100, 100.0), (999, 1000, 99.0)]
+    {
+        let (nodes, _, _) = frames(Vec::new(), |ui| {
+            crate::panels::denoise::detail_bar(ui, done, total);
+        });
+        let bar = nodes.iter().find(|n| n.role == "ProgressIndicator").unwrap_or_else(|| panic!("{nodes:?}"));
+        let shown: f64 = bar.label.rsplit(' ').next().unwrap().trim_end_matches('%').parse().unwrap();
+        assert_eq!((shown, bar.value), (says, Some(says)), "{done}/{total}: {bar:?}");
+    }
+}
+
+#[test]
+fn the_sam_bar_text_and_its_accessible_value_agree() {
+    for (done, total, says) in [(53, 100, 53.0), (59, 100, 59.0), (29, 100, 29.0), (999, 1000, 99.0), (100, 100, 100.0)] {
+        let (nodes, _, _) = frames(Vec::new(), |ui| crate::panels::masking::sam_download_bar(ui, done, total, 200.0).rect.width());
+        let bar = nodes.iter().find(|n| n.role == "ProgressIndicator").unwrap_or_else(|| panic!("{nodes:?}"));
+        assert_eq!(bar.label, format!("SAM 3: {says} %"), "{done}/{total}");
+        assert_eq!(bar.value, Some(says), "{done}/{total}");
+    }
 }
 
 #[test]
