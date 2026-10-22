@@ -494,6 +494,7 @@ pub fn load(path: &Path) -> Result<crate::media::DecodedSource, String> {
         camera_tone,
         denoised: None,
         from_proxy: true,
+        reduced: false,
     })
 }
 

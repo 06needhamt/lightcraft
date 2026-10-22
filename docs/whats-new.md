@@ -8,6 +8,12 @@
 
 ## 2026-10-18
 
+### Thumbnails of Lightroom HDR and panorama merges in a second
+- Grid and filmstrip thumbnails of DNGs that Lightroom merged (HDR, Panorama, HDR Panorama) now develop from the
+  small copies of the raw image Lightroom keeps inside the file (256 to 2048 px), not from the whole merge. A 23836 ×
+  7078 drone panorama's 512 px thumbnail took 38 s and now takes about a second, with the same look; your edits still
+  apply. Loupe previews larger than the biggest copy, 1:1 views and exports still read the full image.
+
 ### Fill Location from GPS: no more neighbouring town in City
 - The offline place names list towns of 15,000 people or more, so a photo taken in a smaller one got the nearest larger
   town in City, sometimes another municipality (issue #2242). The Fill Location tooltip and the command help now say so,
