@@ -73,6 +73,52 @@ fn hovering_alone_changes_nothing() {
     assert!(got.is_empty());
 }
 
+/// How many stars `Rating::show` paints filled (in the star colour) after the pointer has moved to
+/// the centre of star `hover` (1 to 5), if given. A filled star is ten triangles of one colour.
+fn filled_stars(rating: u8, hover: Option<u8>) -> usize {
+    fn count(shape: &egui::Shape, colour: egui::Color32) -> usize {
+        match shape {
+            egui::Shape::Path(path) => usize::from(path.fill == colour),
+            egui::Shape::Vec(shapes) => shapes.iter().map(|shape| count(shape, colour)).sum(),
+            _ => 0,
+        }
+    }
+    let ctx = egui::Context::default();
+    crate::theme::install_fonts(&ctx);
+    let colour = crate::theme::Tokens::get(&ctx).star;
+    let mut at = None;
+    let mut filled = 0;
+    for frame in 0..4 {
+        let mut events = Vec::new();
+        if frame >= 1
+            && let Some(at) = at
+        {
+            events.push(egui::Event::PointerMoved(at));
+        }
+        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(raw, |ui| {
+            let _ = row(rating).show(ui);
+        });
+        out.textures_delta.clear();
+        let seen = crate::widgets::take_registry(&ctx);
+        if let (Some(n), true) = (hover, frame == 0) {
+            let want = format!("star:t:{n}");
+            at = seen.iter().find(|(id, _)| *id == want).map(|(_, r)| r.center());
+            assert!(at.is_some(), "star {n} is registered");
+        }
+        filled = out.shapes.iter().map(|clipped| count(&clipped.shape, colour)).sum::<usize>() / 10;
+    }
+    filled
+}
+
+#[test]
+fn hovering_a_star_paints_the_rating_a_click_would_set() {
+    // the row shows 2 filled stars; the pointer over star 4 shows 4, and over star 1 shows 1
+    assert_eq!(filled_stars(2, None), 2);
+    assert_eq!(filled_stars(2, Some(4)), 4);
+    assert_eq!(filled_stars(2, Some(1)), 1, "hovering a lower star previews the lower rating");
+}
+
 #[test]
 fn a_screen_reader_hears_every_star_with_its_state() {
     let (_, nodes) = drive(None, &[], |ui| row(2).show(ui));
