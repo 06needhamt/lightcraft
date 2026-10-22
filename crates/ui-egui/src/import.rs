@@ -647,16 +647,23 @@ fn show_pending_review(app: &mut LightcraftApp, ctx: &egui::Context) {
 /// Tests: a review scan that never ends while the returned value lives, so a drop meets it running.
 #[cfg(test)]
 pub(crate) fn stall_scan(app: &mut LightcraftApp) -> Box<dyn std::any::Any> {
+    stall_scan_of(app, false)
+}
+
+/// Tests: the same, for a Local folder browse scan (`browse`) instead of the review's scan.
+#[cfg(test)]
+pub(crate) fn stall_scan_of(app: &mut LightcraftApp, browse: bool) -> Box<dyn std::any::Any> {
     let progress = std::sync::Arc::new(ScanProgress::default());
     let (tx, rx) = std::sync::mpsc::channel::<ScanOutput>();
     let guard = scan_guard(app, &progress, false);
-    app.scan = Some(ScanTask { progress, rx, copy: false, album: None, browse: false, sources: Vec::new(), guard });
+    app.scan = Some(ScanTask { progress, rx, copy: false, album: None, browse, sources: Vec::new(), guard });
     Box::new(tx)
 }
 
-/// Whether an import (or the review's scan) is running, which a drop of photos must not replace.
+/// Whether an import or any scan (the review's, or a Local folder browse) is running, which a drop of
+/// photos must not replace: `open` refuses while a scan runs, and a browse that finishes replaces `app.import`.
 pub fn running(app: &LightcraftApp) -> bool {
-    app.import.is_some() || app.scan.as_ref().is_some_and(|t| !t.browse)
+    app.import.is_some() || app.scan.is_some()
 }
 
 impl ScanTask {

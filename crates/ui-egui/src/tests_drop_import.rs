@@ -200,6 +200,28 @@ fn a_direct_drop_while_an_import_runs_is_refused_too() {
     assert!(h.app.ui.toast.is_some());
 }
 
+/// A Local folder browse scan counts too: a review-first drop would be rejected by `open`, and a
+/// direct drop would be replaced when the browse completes.
+#[test]
+fn a_drop_while_a_browse_scan_runs_is_refused_in_both_modes() {
+    for direct in [false, true] {
+        let dir = Scratch::new("running-browse");
+        let mut h = app(&dir);
+        h.app.ui.settings.import_dropped_directly = direct;
+        write_png(&dir.path("more/c.png"), 3);
+        let _scan = crate::import::stall_scan_of(&mut h.app, true);
+        drop_files(&mut h, &[dir.path("more/c.png")], true);
+        assert!(said(&h, "An import is running"), "{:?}", h.painted_text());
+        drop_files(&mut h, &[dir.path("more")], false);
+        for _ in 0..30 {
+            h.step();
+        }
+        assert!(h.app.ui.dialog.is_none() && h.app.import.is_none(), "direct={direct}: nothing started");
+        assert!(h.app.scan.is_some(), "the browse was left alone");
+        assert!(h.app.ui.toast.is_some(), "the person is told why");
+    }
+}
+
 /// While a Lightroom catalog import is pending the drop is refused, and the card says so instead of
 /// promising a review.
 #[test]
