@@ -559,6 +559,22 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                         }
                         continue;
                     }
+                    R::Crop if app.ui.tool == "guidedUpright" => {
+                        // Delete removes the selected guide alone; with none selected it removes
+                        // nothing (the photo itself is never deleted while the tool is open)
+                        if let (Some((photo, i)), Some(active)) = (app.ui.selected_guide, app.session.active()) {
+                            if photo == active.0
+                                && let Some(d) = app.session.develop_of(active)
+                                && i < d.geometry.guides.len()
+                            {
+                                let guides: Vec<[f64; 4]> =
+                                    d.geometry.guides.iter().enumerate().filter(|(k, _)| *k != i).map(|(_, (a, b))| [a.x, a.y, b.x, b.y]).collect();
+                                let _ = app.run("geometry.guides", json!({"guides": guides}));
+                            }
+                            app.ui.selected_guide = None;
+                        }
+                        continue;
+                    }
                     R::RedEye => continue,
                     _ => {}
                 }
