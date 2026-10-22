@@ -114,7 +114,7 @@ pub enum RawFormat {
     Srw,
     /// Canon CRW (CIFF heap), the bodies before the CR2 era.
     Crw,
-    /// Minolta MRW (`\0MRM` block container).
+    /// Minolta MRW (`\0MRM` block container, `vendor::mrw`).
     Mrw,
     /// Sigma / Foveon X3F (`FOVb`).
     X3f,
@@ -149,6 +149,7 @@ impl RawFormat {
                 | RawFormat::CfaTiff
                 | RawFormat::Srw
                 | RawFormat::KodakDcs
+                | RawFormat::Mrw
                 | RawFormat::Erf
                 | RawFormat::Mef
         )
@@ -421,6 +422,7 @@ fn decode_with(bytes: &[u8], mode: Mode) -> Result<RawImage> {
         RawFormat::CfaTiff => vendor::hasselblad::decode(bytes, mode).map(lift_clipped),
         RawFormat::Srw => vendor::srw::decode(bytes, mode),
         RawFormat::KodakDcs => vendor::kodak::decode(bytes, mode),
+        RawFormat::Mrw => vendor::mrw::decode(bytes, mode),
         RawFormat::Erf => vendor::erf::decode(bytes, mode),
         RawFormat::Mef => vendor::mef::decode(bytes, mode),
         RawFormat::OtherTiff => Err(RawError::Unsupported(other_tiff_reason(bytes))),
@@ -1153,10 +1155,10 @@ mod tests {
         assert_eq!(probe(b"II\x1a\0\0\0HEAPCCDR\0\0"), Some(RawFormat::Crw));
         assert_eq!(probe(b"\0MRM\0\x01\0\0"), Some(RawFormat::Mrw));
         assert_eq!(probe(b"FOVb\x02\0\x02\0"), Some(RawFormat::X3f));
-        for f in [RawFormat::Crw, RawFormat::Mrw, RawFormat::X3f] {
+        for f in [RawFormat::Crw, RawFormat::X3f] {
             assert!(!f.is_supported());
         }
-        assert!(matches!(decode(b"\0MRM\0\x01\0\0"), Err(RawError::Unsupported(w)) if w.contains("Mrw")));
+        assert!(matches!(decode(b"FOVb\x02\0\x02\0"), Err(RawError::Unsupported(w)) if w.contains("X3f")));
         // too short for the CIFF signature
         assert_eq!(probe(b"II\x1a\0\0\0HEAP"), None);
     }

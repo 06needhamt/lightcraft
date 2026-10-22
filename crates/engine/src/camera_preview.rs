@@ -72,6 +72,7 @@ pub(crate) fn file_local_look(format: RawFormat) -> bool {
             | RawFormat::Pef
             | RawFormat::Srw
             | RawFormat::Orf
+            | RawFormat::Mrw
             | RawFormat::Erf
     )
 }
@@ -2975,6 +2976,7 @@ mod tests {
             RawFormat::Pef,
             RawFormat::Srw,
             RawFormat::Orf,
+            RawFormat::Mrw,
             RawFormat::Erf,
         ];
         assert!(local.into_iter().all(file_local_look));

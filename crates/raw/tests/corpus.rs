@@ -1564,3 +1564,51 @@ fn corpus_mamiya_mef() {
     let step: f64 = d.chunks(4016).take(400).flat_map(|r| r.windows(3).map(|w| f64::from(w[0].abs_diff(w[2])))).sum::<f64>() / (400.0 * 4014.0);
     assert!(step < 40.0, "rough {step}");
 }
+
+/// Minolta MRW (`crates/raw/src/vendor/mrw.rs`): packed and 16-bit-word storage, RGGB and GBRG cells, the image
+/// size as the crop, the `WBG` gains in cell order and an embedded preview. Skips files that are absent.
+#[test]
+fn corpus_minolta_mrw() {
+    let root = corpus_root().join("raw");
+    let mut checked = 0;
+    // (file, sensor size, crop size, cell, white, red gain, blue gain)
+    for (name, sensor, crop, cell, white, r, b) in [
+        ("mrw-minolta-dimage7hi-words16.mrw", (2568, 1928), (2560, 1920), "RGGB", 4095.0, 411.0 / 256.0, 343.0 / 256.0),
+        ("mrw-minolta-dimage-a1.mrw", (2568, 1928), (2560, 1920), "RGGB", 3964.0, 341.0 / 256.0, 539.0 / 256.0),
+        ("mrw-minolta-dimage-a200-gbrg.mrw", (3280, 2454), (3264, 2448), "GBRG", 4020.0, 480.0 / 255.0, 416.0 / 255.0),
+        ("mrw-minolta-dynax7d.mrw", (3016, 2008), (3008, 2000), "RGGB", 4076.0, 435.0 / 256.0, 435.0 / 256.0),
+    ] {
+        let Ok(bytes) = std::fs::read(root.join(name)) else {
+            eprintln!("skip: {name} absent");
+            continue;
+        };
+        assert_eq!(probe(&bytes), Some(RawFormat::Mrw), "{name}");
+        let img = decode(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(((img.width, img.height), img.bits), (sensor, 12), "{name}");
+        assert_eq!((img.crop.width, img.crop.height), crop, "{name}");
+        assert_eq!(img.cfa.as_ref().map(|c| c.name()).as_deref(), Some(cell), "{name}");
+        assert!((img.white_at(0) - white).abs() <= 8.0, "{name}: white {}", img.white_at(0));
+        assert_eq!(img.black.mean(), 0.0, "{name}");
+        let wb = img.wb_multipliers.unwrap_or_else(|| panic!("{name}: no white balance"));
+        assert!((wb[0] - r).abs() < 1e-4 && (wb[2] - b).abs() < 1e-4, "{name}: {wb:?}");
+        assert!(img.metadata.make.as_deref().is_some_and(|m| m.to_ascii_uppercase().contains("MINOLTA")), "{name}: {:?}", img.metadata.make);
+        // the two greens of the cell agree (a wrong cell or a packing slip would split them)
+        let lightcraft_raw::RawData::U16(d) = &img.data else { panic!("float data") };
+        let (w, h) = sensor;
+        let mean = |y0: usize, x0: usize| {
+            let (mut s, mut n) = (0f64, 0f64);
+            for y in (y0..h).step_by(2) {
+                for x in (x0..w).step_by(2) {
+                    s += f64::from(d[y * w + x]);
+                    n += 1.0;
+                }
+            }
+            s / n
+        };
+        let (g1, g2) = if cell == "RGGB" { (mean(0, 1), mean(1, 0)) } else { (mean(0, 0), mean(1, 1)) };
+        assert!((g1 - g2).abs() < 0.02 * g1, "{name}: greens {g1} vs {g2}");
+        assert!(embedded_preview(&bytes).is_some(), "{name}: no preview");
+        checked += 1;
+    }
+    eprintln!("MRW: {checked} corpus files checked");
+}
