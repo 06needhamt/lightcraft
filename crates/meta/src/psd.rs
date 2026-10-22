@@ -166,6 +166,23 @@ mod tests {
     }
 
     #[test]
+    fn try_extract_rejects_structurally_malformed_psd_exif() {
+        for version in [1, 2] {
+            let file = image(version, &[], &resource(1058, b"", b"not a TIFF stream"));
+            assert!(matches!(crate::try_extract(&file), Err(crate::ExtractError::MalformedPsd)));
+        }
+    }
+
+    #[test]
+    fn try_extract_accepts_unknown_exif_tags_in_psd() {
+        let mut ifd0 = lightcraft_tiff::IfdBuilder::new();
+        ifd0.set(0xc001, lightcraft_tiff::Value::Ascii("vendor metadata".into()));
+        let exif = lightcraft_tiff::TiffWriter::default().write(&[ifd0]).unwrap();
+        let file = image(1, &[], &resource(1058, b"", &exif));
+        assert!(crate::try_extract(&file).is_ok());
+    }
+
+    #[test]
     fn psd_skips_unknown_resources_with_pascal_name_and_payload_padding() {
         let exif = crate::write_exif(&dated_metadata());
         let mut resources = resource(4000, b"xy", &[1, 2, 3]);

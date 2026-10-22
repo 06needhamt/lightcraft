@@ -282,18 +282,24 @@ impl Metadata {
 /// Read everything we understand from a whole file (JPEG, PNG, WebP, TIFF-based incl. DNG/raw).
 /// Precedence: EXIF, then IPTC fills gaps, then XMP overrides user fields and fills the rest.
 pub fn extract(bytes: &[u8]) -> Metadata {
-    extract_embedded(embedded(bytes))
+    let e = embedded(bytes);
+    let exif = e.exif.as_deref().map(read_exif).unwrap_or_default();
+    extract_embedded(e, exif)
 }
 
-/// Read metadata while reporting malformed PSD/PSB resource sections instead of treating them as empty.
+/// Read metadata while reporting malformed PSD/PSB containers or embedded EXIF instead of treating them as empty.
 /// Other container formats retain [`extract`]'s best-effort behavior.
 pub fn try_extract(bytes: &[u8]) -> Result<Metadata, ExtractError> {
     let e = container::try_embedded(bytes)?;
-    Ok(extract_embedded(e))
+    let exif = match e.exif.as_deref() {
+        Some(exif) if bytes.starts_with(b"8BPS") => try_read_exif(exif).map_err(|_| ExtractError::MalformedPsd)?,
+        Some(exif) => read_exif(exif),
+        None => Metadata::default(),
+    };
+    Ok(extract_embedded(e, exif))
 }
 
-fn extract_embedded(e: Embedded) -> Metadata {
-    let mut m = e.exif.as_deref().map(read_exif).unwrap_or_default();
+fn extract_embedded(e: Embedded, mut m: Metadata) -> Metadata {
     if let Some(i) = e.iptc.as_deref() {
         m.fill_missing(&parse_iptc(i));
     }
@@ -307,14 +313,14 @@ fn extract_embedded(e: Embedded) -> Metadata {
 /// A container-level error reported by [`try_extract`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExtractError {
-    /// The PSD/PSB header or image-resource section is malformed.
+    /// The PSD/PSB header, image-resource section, or embedded EXIF structure is malformed.
     MalformedPsd,
 }
 
 impl std::fmt::Display for ExtractError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MalformedPsd => f.write_str("malformed PSD/PSB header or image-resource section"),
+            Self::MalformedPsd => f.write_str("malformed PSD/PSB header, image-resource section, or embedded EXIF structure"),
         }
     }
 }
@@ -377,6 +383,17 @@ mod tests {
         assert_eq!(m.exposure_display().as_deref(), Some("2″"));
         m.exposure_time = Some(0.0);
         assert_eq!(m.exposure_display(), None);
+    }
+
+    #[test]
+    fn try_extract_keeps_non_psd_exif_best_effort() {
+        let payload = b"Exif\0\0not a TIFF stream";
+        let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe1];
+        jpeg.extend_from_slice(&u16::try_from(payload.len() + 2).unwrap().to_be_bytes());
+        jpeg.extend_from_slice(payload);
+        jpeg.extend_from_slice(&[0xff, 0xd9]);
+
+        assert!(matches!(try_extract(&jpeg), Ok(metadata) if metadata == Metadata::default()));
     }
 
     #[test]
