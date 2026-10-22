@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Dodge and burn with the brush on the photo itself
+- With the mask overlay hidden (O, View ▸ Show Mask Overlay or the eye beside Masks, or after a mask slider hid it),
+  the brush stroke you are painting is no longer drawn in the overlay colour while you hold the button, so the photo
+  stays visible as you dodge and burn (issue #2549). The stroke's effect still appears when you let go. With the
+  overlay shown, the stroke is tinted as before; a colour overlay at opacity 0 leaves it untinted too.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

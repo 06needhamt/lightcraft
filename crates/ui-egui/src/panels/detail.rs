@@ -2384,10 +2384,17 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             }
         }
         // the stroke being painted (the render shows it once it's committed), with the committed
-        // stroke's dab spacing, feather and flow (issue #517)
-        if let Some(Gesture::Brush { points, pressure }) = &app.gesture {
+        // stroke's dab spacing, feather and flow (issue #517), tinted only when the overlay will
+        // show it: with the overlay hidden (O, or a mask slider hid it) or a colour overlay at
+        // opacity 0, the photo stays untinted while painting, so dodging and burning is judged on
+        // the photo (issue #2549)
+        use lightcraft_pipeline::MaskView;
+        let colored = matches!(MaskView::parse(&app.ui.mask_overlay_mode).unwrap_or_default(), MaskView::Color | MaskView::ColorOnBw);
+        let shown = (app.ui.mask_overlay || app.ui.mask_overlay_all) && !(colored && app.ui.mask_overlay_opacity <= 0.0);
+        if shown && let Some(Gesture::Brush { points, pressure }) = &app.gesture {
             let screen: Vec<Pos2> = points.iter().map(|q| map.screen(*q)).collect();
-            let opacity = if app.ui.mask_overlay && app.ui.mask_overlay_opacity > 0.0 { app.ui.mask_overlay_opacity / 100.0 } else { 110.0 / 255.0 };
+            // opacity 0 only gets here in the image views, which ignore it: a fixed tint there
+            let opacity = if app.ui.mask_overlay_opacity > 0.0 { app.ui.mask_overlay_opacity / 100.0 } else { 110.0 / 255.0 };
             let params = crate::brush_live::LiveParams {
                 clip,
                 scale: ui.ctx().pixels_per_point(),
