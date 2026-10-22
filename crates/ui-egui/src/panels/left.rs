@@ -28,6 +28,10 @@ const ROW_HEIGHT: f32 = 29.0;
 /// this frame: set before the sections are drawn, cleared after.
 const SCROLL_TO_ROW: &str = "left-scroll-to-row";
 
+/// Temp-data key of the Folders choice whose rows above were last opened ([`reveal_chosen`]):
+/// removed, they open again.
+const LIBFOLDER_REVEALED: &str = "libfolder-revealed";
+
 /// A row says how wide it needs to be.
 fn note_width(ui: &egui::Ui, w: f32) {
     ui.data_mut(|d| {
@@ -719,6 +723,14 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 }
                 // …and the sidebar scrolls to it
                 ui.data_mut(|d| d.insert_temp(egui::Id::new(SCROLL_TO_ROW), format!("keyword:{path}").to_lowercase()));
+            }
+            // the folder Show in Folders went to: Folders is shown and opened, and so are the
+            // folders above it, also when it was already the one shown and one was folded by hand…
+            if let Some(path) = app.ui.reveal_folder.take() {
+                app.ui.sidebar.reveal(SidebarSection::Folders);
+                ui.data_mut(|d| d.remove::<Option<String>>(egui::Id::new(LIBFOLDER_REVEALED)));
+                // …and the sidebar scrolls to it
+                ui.data_mut(|d| d.insert_temp(egui::Id::new(SCROLL_TO_ROW), format!("libfolder:{path}").to_lowercase()));
             }
             // Local keeps track of the folder being browsed whether or not it is drawn
             let local = local_now(app, ui);
@@ -1800,7 +1812,7 @@ fn is_within(app: &LightcraftApp, id: lightcraft_catalog::AlbumId, ancestor: lig
 fn reveal_chosen(app: &LightcraftApp, ui: &egui::Ui, tree: &[FolderNode]) {
     let shown = app.session.library_folder.clone().filter(|_| app.session.source == LibrarySource::LibraryFolder);
     let chosen = shown.filter(|c| !lightcraft_catalog::query::folder_key(c).is_empty());
-    let seen = egui::Id::new("libfolder-revealed");
+    let seen = egui::Id::new(LIBFOLDER_REVEALED);
     let now = chosen.as_deref().map(lightcraft_catalog::query::folder_key);
     if ui.data(|d| d.get_temp::<Option<String>>(seen)) == Some(now.clone()) {
         return;
@@ -1817,6 +1829,16 @@ fn reveal_chosen(app: &LightcraftApp, ui: &egui::Ui, tree: &[FolderNode]) {
         }
     }
     open_above(ui, tree, &chosen);
+}
+
+/// The Folders row that stands for folder `dir`, however it is spelled. `None` when no row is that
+/// folder.
+pub(crate) fn folder_row_of<'a>(tree: &'a [FolderNode], dir: &str) -> Option<&'a FolderNode> {
+    // only the rows that hold `dir` are opened (the startup disk's holds the other disks' paths
+    // too, so more than one may), and the tree is at most `MAX_DEPTH` deep
+    tree.iter()
+        .filter(|n| lightcraft_catalog::query::folder_within(dir, &n.path))
+        .find_map(|n| if same_folder(&n.path, dir) { Some(n) } else { folder_row_of(&n.children, dir) })
 }
 
 fn folder_rows(app: &mut LightcraftApp, ui: &mut egui::Ui, nodes: &[FolderNode], indent: f32) {

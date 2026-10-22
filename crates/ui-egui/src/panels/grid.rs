@@ -1404,6 +1404,11 @@ pub fn context_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
     if ui.add_enabled(crate::menus::ui_enabled(app, "app.showInFinder"), egui::Button::new(crate::i18n::tr(crate::menus::reveal_label()))).clicked() {
         let _ = app.run("app.showInFinder", json!({}));
     }
+    // the photo's folder in the sidebar's Folders section, as Lightroom's Go to Folder in Library
+    // (the photo right-clicked, which a multi-selection may leave other than the active one)
+    if ui.add_enabled(crate::menus::show_in_folders_enabled(app, Some(id)), egui::Button::new(crate::i18n::tr("Show in Folders"))).clicked() {
+        let _ = app.run("app.showInFolders", json!({"id": id.0}));
+    }
     if ui.button(crate::i18n::tr("Export…")).clicked() {
         let _ = app.run("dialog.export", json!({}));
     }

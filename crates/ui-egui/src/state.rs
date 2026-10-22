@@ -870,6 +870,10 @@ pub struct UiState {
     /// A keyword just made from the sidebar: Keywords opens down to it, once.
     #[serde(skip)]
     pub reveal_keyword: Option<String>,
+    /// A folder Photo ▸ Show in Folders went to (its Folders row's path): the sidebar's Folders
+    /// section opens down to it and scrolls to it, once.
+    #[serde(skip)]
+    pub reveal_folder: Option<String>,
     /// An album or folder row being dragged in the sidebar (dropped on a folder to move it there).
     #[serde(skip)]
     pub dragging_album: Option<u64>,
@@ -1422,6 +1426,7 @@ impl Default for UiState {
             dragging_photos: None,
             reveal_album: None,
             reveal_keyword: None,
+            reveal_folder: None,
             dragging_album: None,
             dragging_section: None,
             curve_channel: "parametric".into(),
