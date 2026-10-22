@@ -260,7 +260,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("app.systemInfo", "System Info…", None, "Help"),
     ("app.openLogFolder", "Open Log Folder", None, "Help"),
     // the frame-rate display (`frame_rate`): a debugging aid, never saved
-    ("view.frameRate", "Show Frame Rate", None, "Help>Debug"),
+    ("view.frameRate", "Frame Rate", None, "Help>Debug"),
     ("app.whatsNew", "What's New", None, "Help"),
     ("dialog.cull", "Assisted Culling…", None, "Photo"),
     ("app.help", "LightCraft Help", Some("F1"), "Help"),

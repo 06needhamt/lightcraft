@@ -267,7 +267,7 @@ Remaining differences come from f32 vs f64 coordinate math, fast-math transcende
 Metal and summation order in the box filters — all far below one 8-bit step.
 
 ## Measurements
-**In the app:** Help ▸ Debug ▸ Show Frame Rate (`view.frameRate`, `{show?}`; `LIGHTCRAFT_FPS=1`
+**In the app:** Help ▸ Debug ▸ Frame Rate (`view.frameRate`, `{show?}`; `LIGHTCRAFT_FPS=1`
 starts with it on, never saved) draws frames per second, each frame's UI CPU time against its
 time spent waiting (for vsync, or for the GPU), the latest whole-frame and zoom-window render
 times, the render queue, renders thrown away as superseded, the GPU adapter and its memory, and a

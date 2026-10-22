@@ -719,7 +719,7 @@ pub struct UiState {
     /// a later save succeeds).
     #[serde(skip)]
     pub unsaved_seen: bool,
-    /// Help ▸ Debug ▸ Show Frame Rate (`view.frameRate`): the frame-rate display
+    /// Help ▸ Debug ▸ Frame Rate (`view.frameRate`): the frame-rate display
     /// (`crate::frame_rate`). A debugging aid, never saved; `LIGHTCRAFT_FPS=1` starts with it on.
     #[serde(skip)]
     pub frame_rate: bool,

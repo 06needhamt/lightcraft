@@ -1,4 +1,4 @@
-//! Help ▸ Debug ▸ Show Frame Rate (`view.frameRate`; `LIGHTCRAFT_FPS=1` starts with it on): a
+//! Help ▸ Debug ▸ Frame Rate (`view.frameRate`; `LIGHTCRAFT_FPS=1` starts with it on): a
 //! frame-rate display in the window's top-right corner, to watch how a slider drag or a zoom holds
 //! up. It shows where a frame's time goes: the UI
 //! thread's CPU time (layout, painting, texture uploads) and the rest of the frame interval, which
@@ -237,7 +237,7 @@ mod tests {
         })
     }
 
-    /// Help ▸ Debug ▸ Show Frame Rate toggles the display (a checked menu item), `{show}` sets it,
+    /// Help ▸ Debug ▸ Frame Rate toggles the display (a checked menu item), `{show}` sets it,
     /// and frames draw with it on.
     #[test]
     fn show_frame_rate_is_a_debug_toggle() {
