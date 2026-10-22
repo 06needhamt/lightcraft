@@ -2,6 +2,10 @@
 
 ## 2026-10-19
 
+### The Before label stays in view when zoomed in
+- Zoomed in, the "Before" label (\ key or the Before view) now sits at the canvas' corner instead of leaving the
+  screen with the photo's corner (issue #2267).
+
 ### Synchronize Folder on a folder that is up to date
 - When the scan finds nothing to import, relink, remove or read, the Synchronize Folder dialog says the library is up
   to date with the folder and has one Close button. It used to show four greyed choices, two of them still ticked,
