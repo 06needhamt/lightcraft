@@ -10,6 +10,10 @@
   click it to scroll-adjust it. Sideways scrolling still adjusts the slider under the pointer without selecting it
   first.
 
+### A pinch no longer re-renders the photo at every zoom step
+- Pinching the loupe now keeps the size the fit view is rendered at until the gesture is quiet, as it already did for
+  the render sizes and windows. Before, each frame of a pinch asked for a new full-frame render at a new size.
+
 ## 2026-10-20
 
 ### Smart albums check File Path rules faster
