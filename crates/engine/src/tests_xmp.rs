@@ -1375,6 +1375,38 @@ const OTHER_APP_SIDECAR: &str = r#"<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTc
 </x:xmpmeta>
 <?xpacket end="w"?>"#;
 
+/// A foreign namespace may use a familiar prefix without becoming LightCraft-owned metadata.
+#[test]
+fn saving_preserves_foreign_namespace_prefix_collisions() {
+    let src = temp_dir("namespace-src");
+    let lib = temp_dir("namespace-lib");
+    write_png(&src.join("shot.png"), 1);
+    let foreign = r#"<rdf:Description xmlns:lc="https://example.org/vendor/" xmlns:xmp="https://example.org/vendor/"
+        lc:Secret="keep-me" xmp:Rating="2"><lc:Other>also keep</lc:Other></rdf:Description>"#;
+    let packet = format!(r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">{foreign}</rdf:RDF>"#);
+    let path = src.join("shot.xmp");
+    std::fs::write(&path, packet).unwrap();
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    s.execute("library.import", &json!({"paths": [src.join("shot.png")]})).unwrap();
+    let id = only(&s);
+    assert_eq!(s.catalog.photo(id).unwrap().rating, 0, "a foreign rating must not become catalog metadata");
+    s.execute("library.select", &json!({"ids": [id.0]})).unwrap();
+    s.execute("photo.rate", &json!({"rating": 5})).unwrap();
+    for _ in 0..2 {
+        let result = s.execute("photo.saveMetadataToFile", &json!({})).unwrap();
+        assert_eq!(result["failed"], json!([]), "{result}");
+        assert_eq!(result["backups"], json!([]), "a valid packet must merge: {result}");
+        assert_eq!(result["merged"], json!([path.to_string_lossy()]), "{result}");
+        let saved = std::fs::read_to_string(&path).unwrap();
+        assert!(saved.contains(foreign), "lost foreign bytes: {saved}");
+        assert_eq!(lightcraft_meta::parse_xmp(&saved).unwrap().metadata.rating, Some(5));
+    }
+    drop(s);
+    std::fs::remove_dir_all(src).unwrap();
+    std::fs::remove_dir_all(lib).unwrap();
+}
+
 /// Issue #92: saving merges into another app's sidecar instead of replacing it.
 #[test]
 fn saving_merges_into_another_apps_sidecar() {

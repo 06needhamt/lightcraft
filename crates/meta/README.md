@@ -27,6 +27,13 @@ prefixes by namespace URI, handles attribute and element forms, `rdf:Seq`/`Bag`/
 `rdf:parseType="Resource"` and nested-description structs, predefined and numeric entities. Nesting depth
 and node count are limited.
 
+An explicitly foreign namespace using a recognized prefix (for example `lc` or `xmp`) cannot supply
+recognized properties. Its keys use `Q{hex-encoded namespace URI}local` in `properties` and `values`;
+hex encoding keeps `/` reserved for struct paths. Other unknown prefixes keep their existing QName keys.
+Merging preserves the original foreign XML rather than writing these opaque keys into the packet.
+The parser and merge scanner each cap generated opaque names at 8 MiB per packet, returning `TooComplex`
+if repeated use of a long namespace URI would exceed that budget.
+
 ## Robustness
 
 No panics on malformed input: proptests feed random bytes to every container walker and random text to the
