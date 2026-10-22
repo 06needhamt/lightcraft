@@ -321,7 +321,7 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
             super::detail::loupe_pill(ui, img_area, over, None, &format!("compare:rendering:{i}"), crate::i18n::tr("Rendering…"), false);
         }
     }
-    // caption: label · file name · stars · flag
+    // caption: label · file name · stars · flag · colour label
     // caption right under the image (at the bottom when zoomed in)
     let cap_top = (display.bottom() + 2.0).min(img_area.bottom());
     let cap = Rect::from_min_max(pos2(img.left().max(area.left()), cap_top), pos2(area.right(), cap_top + caption_h));
@@ -352,6 +352,14 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
         Flag::Pick if fr.right() < cap.right() => paint(pt, fr, Icon::FlagPickFilled, t.pick),
         Flag::Reject if fr.right() < cap.right() => paint(pt, fr, Icon::FlagReject, t.reject),
         _ => {}
+    }
+    // the colour label as a dot, so labelling while culling shows on the photo (#2398)
+    let lr = Rect::from_min_size(pos2(fr.right() + 6.0, cap.center().y - 5.0), vec2(10.0, 10.0));
+    if let Some(l) = photo.label
+        && lr.right() < cap.right()
+    {
+        pt.circle_filled(lr.center(), 5.0, super::grid::label_color(l));
+        register(ui.ctx(), format!("cull:{}:label", id.0), lr);
     }
     register(ui.ctx(), format!("cull:{}", id.0), display);
     (display, resp)

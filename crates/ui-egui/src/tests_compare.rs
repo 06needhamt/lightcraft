@@ -284,3 +284,37 @@ fn deleting_the_pinned_reference_stops_drawing_it_and_reentry_uses_a_live_photo(
     h.settle(SETTLE);
     assert!(h.app.renderer.textures.get(&crate::render::Slot::Compare(0)).is_some_and(|t| t.photo == reference));
 }
+
+/// Clicking a colour label (or stars) in the Info panel while culling labels the active photo
+/// only, as the label keys and the bottom bar's stars and flags do, and the label shows under that
+/// photo in Compare (#2398: "Can't assign color to photo when culling").
+#[test]
+fn info_panel_label_in_compare_labels_the_active_photo_and_shows_it() {
+    use lightcraft_catalog::{ColorLabel, PhotoId};
+    let mut h = demo();
+    let vis: Vec<u64> = h.app.session.visible_cloned().iter().map(|p| p.0).collect();
+    for id in &vis[..2] {
+        h.request("engine.execute", json!({"command": "photo.label", "params": {"label": "none", "ids": [id]}}), T);
+        h.request("engine.execute", json!({"command": "photo.rate", "params": {"rating": 0, "ids": [id]}}), T);
+    }
+    h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [vis[0], vis[1]], "active": vis[0]}}), T);
+    let r = h.request("engine.execute", json!({"command": "view.compare"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    let (sel, cand) = (r["result"]["select"].as_u64().unwrap(), r["result"]["candidate"].as_u64().unwrap());
+    h.app.ui.right = crate::state::RightPanel::Info;
+    h.settle(SETTLE);
+    let photo = |h: &Headless, id: u64| h.app.session.catalog.photo(PhotoId(id)).cloned().expect("photo");
+    let widgets = |h: &mut Headless| h.request("ui.widgets", json!({}), T)["result"].to_string();
+    assert!(!widgets(&mut h).contains(&format!("cull:{cand}:label")), "no label yet");
+    let r = h.request("ui.clickWidget", json!({"id": "label:red"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(photo(&h, cand).label, Some(ColorLabel::Red), "the active photo (the candidate) is labelled");
+    assert_eq!(photo(&h, sel).label, None, "the select is not labelled with it");
+    assert!(widgets(&mut h).contains(&format!("cull:{cand}:label")), "the label shows under the candidate");
+    let r = h.request("ui.clickWidget", json!({"id": "star:info:3"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.settle(SETTLE);
+    assert_eq!(photo(&h, cand).rating, 3);
+    assert_eq!(photo(&h, sel).rating, 0, "the select is not rated with it");
+}

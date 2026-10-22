@@ -970,7 +970,9 @@ pub fn toast_skipped(app: &mut LightcraftApp, ctx: &egui::Context, r: &serde_jso
 pub fn label_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let current = app.session.active().and_then(|id| app.session.catalog.photo(id)).and_then(|p| p.label);
     if let Some(l) = label_items(app, ui, current, "photoLabel") {
-        let _ = app.run("photo.label", json!({"label": label_param(l)}));
+        let mut params = json!({"label": label_param(l)});
+        crate::panels::compare::target_active(app, &mut params);
+        let _ = app.run("photo.label", params);
         ui.close();
     }
 }
