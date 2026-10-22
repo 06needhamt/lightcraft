@@ -593,6 +593,62 @@ mod tests {
         set_language(Locale::En);
     }
 
+    /// Polish: the menu and control channel select it, dates read day.month.year, and every count
+    /// reads right for any number. Polish has three plural forms (1 zdjęcie, 2 zdjęcia, 5 zdjęć), so
+    /// counts follow their noun ("Zaimportowane zdjęcia: 22") instead of a form that fits only some.
+    #[test]
+    fn polish_switches_formats_dates_and_reads_every_count() {
+        use crate::control::{ControlRequest, Outcome};
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.run("app.language.polish", serde_json::json!({})).unwrap();
+        assert_eq!(app.ui.language, Locale::Pl);
+        assert_eq!(Locale::Pl.name(), "Polski");
+        assert_eq!(crate::menubar::checked(&app, "app.language.polish"), Some(true));
+        assert_eq!(tr("File"), "Plik");
+        assert_eq!(tr("Exposure"), "Ekspozycja");
+        assert_eq!(date_group_label("2026-09-20", false), "Niedziela, 20.09.2026");
+        assert_eq!(date_group_label("2026-09-20", true), "Niedziela, 20");
+        assert_eq!(date_group_label("2026-09", false), "09.2026");
+        assert_eq!(date_group_label("2026", false), "2026");
+        assert_eq!(display_time("2026-09-20T16:04:05"), "Niedziela, 20.09.2026 16:04:05");
+        for n in [0, 1, 2, 3, 4, 5, 12, 21, 22, 25, 111] {
+            let s = if n == 1 { "" } else { "s" };
+            assert_eq!(tr_format!("Imported {} photo{}", n, s), format!("Zaimportowane zdjęcia: {n}"));
+            for (one, many, noun) in [
+                ("photo waiting", "photos waiting", "Oczekujące zdjęcia"),
+                ("cached picture", "cached pictures", "Obrazy w pamięci podręcznej"),
+                ("photo has its denoised picture.", "photos have their denoised picture.", "Zdjęcia z odszumioną wersją"),
+            ] {
+                assert_eq!(tr_format!("{n} {noun}", n = n, noun = tr(if n == 1 { one } else { many })), format!("{noun}: {n}"));
+            }
+            assert_eq!(tr_format!("Delete {n} Photos", n = n), format!("Usuń zdjęcia ({n})"));
+            assert_eq!(tr_format!("{n} preset{}", s, n = n), format!("Ustawienia: {n}"));
+        }
+        let name = String::from("Color 1234.56 {title} 日本語");
+        assert_eq!(tr_format!("Added {n} photo{} to “{}”", "s", name, n = 22), format!("Dodano do „{name}”: 22"));
+        let saved = serde_json::to_string(&app.ui).unwrap();
+        assert_eq!(serde_json::from_str::<crate::state::UiState>(&saved).unwrap().language, Locale::Pl);
+        let ctx = egui::Context::default();
+        for tag in ["pl", "pl-PL", "pl_PL.UTF-8", "PL-pl"] {
+            assert_eq!(Locale::parse_tag(tag), Some(Locale::Pl), "{tag}");
+            let (request, _) = ControlRequest::new("ui.set", serde_json::json!({"language": tag}));
+            let Outcome::Done(reply) = crate::control::handle(&mut app, &ctx, &request) else { panic!("expected reply") };
+            assert_eq!(reply["ok"], true);
+            assert_eq!(language(), Locale::Pl);
+        }
+        let text = painted_text(&ctx, &mut app, Locale::Pl);
+        assert!(text.contains("Plik") && text.contains("Ekspozycja"), "{text}");
+        ctx.fonts_mut(|fonts| {
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into())] {
+                let font = egui::FontId::new(13.0, family);
+                for ch in "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ„”".chars() {
+                    assert!(fonts.has_glyph(&font, ch), "missing Polish glyph {ch}");
+                }
+            }
+        });
+        set_language(Locale::En);
+    }
+
     #[test]
     fn indonesian_switches_persists_formats_dates_and_preserves_values() {
         use crate::control::{ControlRequest, Outcome};

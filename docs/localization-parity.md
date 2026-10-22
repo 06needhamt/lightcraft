@@ -6,7 +6,7 @@ How far each interface language is from `full`. How to add or maintain a languag
 [localization.md](localization.md); per-language notes are in `localization-<code>.md`
 ([zh-hans](localization-zh-hans.md), [zh-hant](localization-zh-hant.md), [ja](localization-ja.md),
 [pt-br](localization-pt-br.md), [es](localization-es.md), [de](localization-de.md),
-[ru](localization-ru.md), [fi](localization-fi.md), [ka](localization-ka.md), [id](localization-id.md), [vi](localization-vi.md)).
+[ru](localization-ru.md), [fi](localization-fi.md), [ka](localization-ka.md), [id](localization-id.md), [vi](localization-vi.md), [pl](localization-pl.md)).
 
 ## The target
 
@@ -72,8 +72,9 @@ string follows that.
 | Italian | `it` | 2,628 / 3,278 (80%, measured 2026-10-15; every interface string is translated, the other 650 are What's New lines, left in English) | Latin (Inter) | partly (written with an agent; corrections and the 2026-10-15 additions by a native speaker) | partial (lower-layer errors English) | 3–5 h |
 | Georgian | `ka` | 2,398 / 2,398 (100%: every plain and formats message any catalog has on 2026-10-12, plus the 27 display labels and 397 What's New lines no other catalog translates) | Geor: no craft-fonts face yet (boxes until one is available) | yes (native speaker) | partial (lower-layer errors English) | 2–4 h (+ a Georgian face) |
 | Finnish | `fi` | 2,610 / 3,308 (79%, measured 2026-10-17: 2,313 plain + 297 formats; the rest is What's New) | Latin (Inter) | yes (written with an agent; native-speaker review by @roopeg) | partial (lower-layer errors English) | 3–5 h |
+| Polish | `pl` | 2,159 messages + 291 formats; every format message translated (2026-10-15) | Latin (Inter) | no (AI-drafted; follow-up by a native speaker) | partial (lower-layer errors English) | 2–4 h (full native review) |
 
-Target languages LightCraft lacks: Korean, Dutch, Polish, Swedish, Norwegian Bokmål, Thai
+Target languages LightCraft lacks: Korean, Dutch, Swedish, Norwegian Bokmål, Thai
 (Thai needs shaping and line breaking without spaces). Each Latin-script one is ~10–16 h; Thai
 ~20–35 h on top of the shaping work.
 
@@ -103,6 +104,7 @@ Target languages LightCraft lacks: Korean, Dutch, Polish, Swedish, Norwegian Bok
 | 2026-10-15 | trivial | Italian (`it`): 339 interface messages and 60 format strings that were missing or still in English translated (2,628 of 3,278; only What's New left in English); native-speaker corrections: Exposure → *Esposizione*, Sharpening → *Nitidezza*, Preset → *Preset*, blurry → *sfocate* |
 | 2026-10-13 | minor | Remeasured denominator (2,222 plain + 249 formats = 2,471); Vietnamese catalog complete at 2,471/2,471 (status partial: lower-layer errors still English) |
 | 2026-10-12 | minor | Italian interface catalog (`it`): 2,201 of 2,398 messages, What's New left in English |
+| 2026-10-15 | minor | Polish row added: the format messages still in English translated, counts made right for every number, dates day.month.year ([localization-pl.md](localization-pl.md)) |
 | 2026-10-11 | minor | Shared work: the interface decides on error kinds, not English error text (#1046) |
 | 2026-10-12 | minor | Georgian (`ka`) row: every catalog message |
 | 2026-10-10 | major | Created: per-language counts measured from the catalogs, the twelve key languages, script support, estimates |
