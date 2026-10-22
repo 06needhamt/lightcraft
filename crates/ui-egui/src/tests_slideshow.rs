@@ -16,9 +16,13 @@ const T: Duration = Duration::from_secs(20);
 const SETTLE: Duration = Duration::from_secs(120);
 
 fn grid() -> Headless {
+    grid_sized([1000.0, 700.0])
+}
+
+fn grid_sized(size: [f32; 2]) -> Headless {
     let services = Services { png: None, ..Default::default() };
     let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), services);
-    let mut h = Headless::new(app, [1000.0, 700.0], 1.0);
+    let mut h = Headless::new(app, size, 1.0);
     h.step();
     h
 }
@@ -259,12 +263,19 @@ fn a_photo_deleted_while_it_plays_does_not_stall_the_slideshow() {
 }
 
 /// Scroll the Settings ▸ Slideshow page until widget `id` is in view (in the middle of the room
-/// for the page): the sections are taller than the dialog.
+/// for the page): the sections are taller than the dialog. (The slide preview and its choice are pinned
+/// above the page and are in view already.)
 fn reveal(h: &mut Headless, id: &str) {
     let find = |h: &Headless, w: &str| h.app.widgets.iter().find(|(i, _)| i == w).map(|(_, r)| *r);
     for _ in 0..40 {
         h.step();
         let room = find(h, "settings:pageRoom").expect("the Slideshow settings are open");
+        // (the preview and its Photo / Intro / Ending choice are pinned above the page: always in
+        // view, never scrolled to)
+        let pinned = id == "slideshow:preview" || id.starts_with("button:settingsSlideshowPreviewShows-");
+        if pinned && find(h, id).is_some_and(|w| w.bottom() <= room.top()) {
+            return;
+        }
         let dy = match find(h, id) {
             Some(w) if w.center().y >= room.top() + 10.0 && w.center().y <= room.bottom() - 10.0 => {
                 // (in view and still: the page eases to where it was scrolled to)
@@ -381,7 +392,7 @@ fn settings_shows_the_slide_layout_and_a_live_preview() {
     run(&mut h, "slideshow.layout", json!({"margins": 0.2, "backdropColor": "#00ff00"}));
     assert!(h.step_until(SETTLE, |h| h.app.renderer.textures.get(&Slot::SlidePreview).map(|t| t.key) != before));
     h.step();
-    // (the preview scrolls with the page: back to it)
+    // (the preview is pinned above the page: in view already)
     reveal(&mut h, "slideshow:preview");
     let rect = h.app.widgets.iter().find(|(id, _)| id == "slideshow:preview").map(|(_, r)| *r).unwrap();
     let img = h.paint();
@@ -743,4 +754,26 @@ fn template_browser_previews_on_hover_applies_and_manages_user_templates() {
     assert_eq!(SlideLook::of(&h.app.session).overlays, before.overlays);
     h.settle(SETTLE);
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Hovering a template in the Template Browser previews it in the slide preview, so the preview
+/// must be in view while the templates (further down the page) are: it is pinned above the page,
+/// under the tab bar, and does not scroll away with it.
+#[test]
+fn the_slide_preview_stays_in_view_while_the_templates_are_browsed() {
+    // (900 x 560 is the least the desktop app's window is)
+    for size in [[1000.0, 700.0], [900.0, 560.0]] {
+        let mut h = grid_sized(size);
+        run(&mut h, "view.slideshowOptions", json!({}));
+        h.step();
+        let find = |h: &Headless, w: &str| h.app.widgets.iter().find(|(i, _)| i == w).map(|(_, r)| *r);
+        let tabs = find(&h, "button:settingsTab-slideshow").expect("the tab bar");
+        // down to the last section of the page: the templates are far above the preview's old place
+        reveal(&mut h, "button:slideshowExportPdf");
+        let preview = find(&h, "slideshow:preview").expect("the preview is still drawn");
+        let room = find(&h, "settings:pageRoom").unwrap();
+        assert!(preview.height() > 40.0, "{size:?}: {preview:?}");
+        assert!(preview.top() >= tabs.bottom(), "{size:?}: under the tab bar, not scrolled up behind it: {preview:?} {tabs:?}");
+        assert!(preview.bottom() <= room.top() + 1.0, "{size:?}: above the page, not in it: {preview:?} {room:?}");
+    }
 }

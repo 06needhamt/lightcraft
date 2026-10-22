@@ -24,6 +24,8 @@ use crate::widgets::register;
 pub const DEBOUNCE: f64 = 0.15;
 /// The preview's greatest width in points (less where the room is narrower).
 pub const PREVIEW_W: f32 = 300.0;
+/// The least tall the preview is drawn.
+pub const PREVIEW_MIN_H: f32 = 80.0;
 
 #[derive(Clone, Copy)]
 enum Unit {
@@ -162,8 +164,9 @@ fn screen_aspect(ctx: &egui::Context) -> f64 {
     if r.y > 0.0 { (r.x / r.y) as f64 } else { 1.6 }
 }
 
-/// The small composed slide of the active photo, with the margin guides when they are on.
-pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+/// The small composed slide of the active photo, with the margin guides when they are on. It is
+/// at most `max_h` tall (but for [`PREVIEW_MIN_H`], and without counting its heading).
+pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f32) {
     heading(ui, t, "Preview");
     // the template the pointer is over in the Template Browser, else the settings
     let template = super::slide_templates::hovered(ui.ctx()).and_then(|id| app.session.slide_template(&id).ok());
@@ -176,7 +179,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let ratio = s.aspect.ratio(screen_aspect(ui.ctx())) as f32;
     let own = SlideLook::of(&app.session).layout.aspect.ratio(screen_aspect(ui.ctx())) as f32;
     let w = ui.available_width().clamp(1.0, PREVIEW_W);
-    let room_h = (w / own).clamp(80.0, 320.0);
+    let room_h = (w / own).clamp(PREVIEW_MIN_H, 320.0).min(max_h.max(PREVIEW_MIN_H));
     let (room, _) = ui.allocate_exact_size(vec2(w, room_h), Sense::hover());
     let (fit_w, fit_h) = if ratio >= w / room_h { (w, w / ratio) } else { (room_h * ratio, room_h) };
     let rect = Rect::from_center_size(room.center(), vec2(fit_w, fit_h));

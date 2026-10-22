@@ -4,14 +4,17 @@
 
 ### Settings window
 - Settings is one size on every tab and stays where it is as you go through them; before, each tab made its own
-  size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls, a page that goes on
-  below shows a scroll handle without the pointer on it, and each page remembers where it was scrolled to, also when Settings is closed and opened again.
+  size and the tabs moved under the pointer. The tabs stay in place while a long page scrolls (in a very short
+  LightCraft window, where the page has too little room to scroll by itself, the tabs and the page scroll together), a
+  page that goes on below shows a scroll handle without the pointer on it, and each page remembers where it was
+  scrolled to, also when Settings is closed and opened again.
 - Nothing in Settings runs off the side any more. A row with more choices than fit (the languages on General) wraps
   onto further lines and a long label wraps in its column, where both used to widen the window: in a small
   LightCraft window the labels and the Close button of General ended up off screen.
 - The Slideshow tab is one column like the other tabs, with the slide preview first, instead of a column beside the
-  preview that made Settings much wider on that tab. Pointing at a template no longer pushes its rows out from
-  under the pointer, and the Export buttons wrap.
+  preview that made Settings much wider on that tab. The preview stays above the page while it scrolls, so pointing
+  at a template further down still shows it there (in a very short window it scrolls with the page instead). Pointing
+  at a template no longer pushes its rows out from under the pointer, and the Export buttons wrap.
 - A long folder (General ▸ Library ▸ Location, the folder Auto Import watches, the smart previews folder, a monitor
   profile's file) is shortened to its last folders ("…/Pictures/Library") on one line; rest the pointer on it for
   the whole path.

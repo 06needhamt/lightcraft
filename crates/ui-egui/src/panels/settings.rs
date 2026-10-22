@@ -44,7 +44,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &str) {
         "performance" => performance_tab(app, ui, &t),
         "display" => display_tab(app, ui, &t),
         "interface" => interface_tab(app, ui, &t),
-        "slideshow" => slideshow_tab(app, ui, &t),
+        "slideshow" => slideshow_tab(app, ui, &t, true),
         "faces" => super::faces::settings_tab(app, ui, &t),
         "denoise" => super::denoise::settings_tab(app, ui, &t),
         _ => general_tab(app, ui, &t),
@@ -59,14 +59,24 @@ const PAGE_SIZE: egui::Vec2 = egui::vec2(560.0, 640.0);
 /// desktop minimum), the tabs and the page scroll together in the dialog's own scroll area.
 const PAGE_MIN_HEIGHT: f32 = 120.0;
 
+/// The share of the page's room the pinned slide preview of the Slideshow tab takes, when the page
+/// has more room than it needs to keep [`PAGE_MIN_HEIGHT`] for itself.
+const PINNED_PREVIEW_SHARE: f32 = 0.4;
+
+/// What the preview's heading, the one-line hint under the slide, its Photo / Intro / Ending
+/// choice and the rule under it take around the slide (at the default spacing, about 82 pt).
+const PREVIEW_CHROME: f32 = 82.0;
+
 /// The Settings window's content: the tab bar, which stays put, above the page of `tab`
 /// ([`body`]), which scrolls when it is taller than the room for it, with a scroll handle that
 /// shows without the pointer on it. `max_height` is the room the app window leaves for both: the
 /// two together never take more, so the scroll area every dialog is drawn in has nothing to
 /// scroll (but for a window with less than [`PAGE_MIN_HEIGHT`] for the page, where that area
-/// scrolls the two together). Every page gets the same room whatever it holds, and each keeps a
-/// scroll position of its own. Nothing here is wider than the window from 640 pt of app window
+/// scrolls the two together). Every page gets the same room whatever it holds (but for the pinned
+/// preview of Slideshow), and each keeps a scroll position of its own. Nothing here is wider than the window from 640 pt of app window
 /// up: a row's controls wrap ([`row`]) and paths are shortened ([`path_label`]).
+/// On Slideshow the slide preview is pinned between the tab bar and the page (where the room
+/// allows), and comes off that page's room.
 pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_height: f32) {
     ui.set_width((ui.ctx().content_rect().width() - 64.0).clamp(240.0, PAGE_SIZE.x));
     let top = ui.cursor().top();
@@ -86,7 +96,24 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
         register(ui.ctx(), "settings:page", ui.min_rect());
         return;
     }
-    let height = room.min(PAGE_SIZE.y);
+    let mut height = room.min(PAGE_SIZE.y);
+    // The slide preview stays above the page on Slideshow: hovering a template in the Template
+    // Browser previews it there, so it has to stay in view however far down the templates are
+    // scrolled to. With its heading and choice it takes [`PINNED_PREVIEW_SHARE`] of the room
+    // (at least the least tall slide); where that leaves less than [`PAGE_MIN_HEIGHT`] for the
+    // page, it scrolls with the page instead (as in the short window above).
+    let mut pinned = false;
+    if tab == "slideshow" {
+        let slide_h = (height * PINNED_PREVIEW_SHARE - PREVIEW_CHROME).max(super::slide_layout::PREVIEW_MIN_H);
+        if height - (slide_h + PREVIEW_CHROME) >= PAGE_MIN_HEIGHT {
+            let before = ui.cursor().top();
+            super::slide_layout::preview(app, ui, &Tokens::get(ui.ctx()), slide_h);
+            ui.add_space(2.0);
+            ui.separator();
+            height = (height - (ui.cursor().top() - before)).max(PAGE_MIN_HEIGHT);
+            pinned = true;
+        }
+    }
     // A page that goes on below shows its scroll handle all the time: without it, a page a line
     // or two too long looks cut off, not scrollable.
     ui.spacing_mut().scroll.dormant_handle_opacity = 0.6;
@@ -97,7 +124,11 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
         .auto_shrink([false, false])
         .show(ui, |ui| {
             ui.add_space(2.0);
-            body(app, ui, tab.as_str());
+            if pinned {
+                slideshow_tab(app, ui, &Tokens::get(ui.ctx()), false);
+            } else {
+                body(app, ui, tab.as_str());
+            }
             // (what the page took: wider than the room for it would mean a control is cut off)
             register(ui.ctx(), "settings:page", ui.min_rect());
         });
@@ -868,10 +899,13 @@ fn duration_slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &s
 }
 
 /// The Slideshow tab: the slide preview, then the settings, in one column the width of the page
-/// (the page scrolls; a column beside the preview would be wider than the window).
-fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    super::slide_layout::preview(app, ui, t);
-    ui.add_space(6.0);
+/// (the page scrolls; a column beside the preview would be wider than the window). Without
+/// `with_preview` the preview is left out: [`window`] has pinned it above the page.
+fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, with_preview: bool) {
+    if with_preview {
+        super::slide_layout::preview(app, ui, t, f32::INFINITY);
+        ui.add_space(6.0);
+    }
     super::slide_templates::section(app, ui, t);
     ui.add_space(6.0);
     playback_section(app, ui, t);
