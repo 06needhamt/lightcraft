@@ -39,18 +39,86 @@ enum Handle {
 
 struct Item {
     handle: Handle,
+    /// The submenu the item sits in, to swap the item when its accelerator has to go (macOS).
+    parent: Submenu,
     cmd: String,
     params: Value,
     shortcut: Option<String>,
+    /// The accelerator the item's shortcut maps to.
     accel: Option<Accelerator>,
+    /// The accelerator the native item has now: `accel`, or `None` while it yields.
+    current: Option<Accelerator>,
     label: String,
     enabled: bool,
     checked: Option<bool>,
+    /// Whether the item may be replaced to drop its key. Not in the Help menu: a swap there left
+    /// the old row and added a second one (muda 0.21, macOS 27), so those keys stay.
+    swappable: bool,
+}
+
+impl Item {
+    fn native_label(&self) -> String {
+        lightcraft_ui_egui::menubar::display_item_label(&self.cmd, &self.params, &self.label).replace('&', "&&")
+    }
+
+    /// Puts `want` on the native item. muda's `set_accelerator(None)` does nothing on macOS (the
+    /// old key equivalent stays and the menu still takes the key), so there the item is replaced
+    /// by an identical one without an accelerator, at the same position and with the same id,
+    /// text, enabled and checked state. Only done when the accelerator changes, never per frame.
+    fn set_accelerator(&mut self, want: Option<Accelerator>) {
+        if self.current == want {
+            return;
+        }
+        self.current = want;
+        if cfg!(target_os = "macos") && want.is_none() && self.swappable && self.replace_without_accelerator() {
+            return;
+        }
+        let _ = match &self.handle {
+            Handle::Plain(h) => h.set_accelerator(want),
+            Handle::Check(h) => h.set_accelerator(want),
+        };
+    }
+
+    fn replace_without_accelerator(&mut self) -> bool {
+        let (id, old): (_, &dyn muda::IsMenuItem) = match &self.handle {
+            Handle::Plain(h) => (h.id().clone(), h),
+            Handle::Check(h) => (h.id().clone(), h),
+        };
+        let Some(position) = self.parent.items().iter().position(|k| *k.id() == id) else { return false };
+        let new = match &self.handle {
+            Handle::Plain(_) => Handle::Plain(MenuItem::with_id(id, self.native_label(), self.enabled, None)),
+            Handle::Check(h) => Handle::Check(CheckMenuItem::with_id(id, self.native_label(), self.enabled, h.is_checked(), None)),
+        };
+        if self.parent.remove(old).is_err() {
+            return false;
+        }
+        let new_ref: &dyn muda::IsMenuItem = match &new {
+            Handle::Plain(h) => h,
+            Handle::Check(h) => h,
+        };
+        if self.parent.insert(new_ref, position).is_err() {
+            // the old item is already gone: an item at the end beats a missing one
+            let _ = self.parent.append(new_ref);
+        }
+        self.handle = new;
+        true
+    }
+}
+
+/// The accelerator a native item has: none while a shortcut is being recorded, and none for the
+/// keys a focused text field needs.
+fn wanted_accelerator(accel: Option<Accelerator>, sc: &str, text_focus: bool, capturing: bool) -> Option<Accelerator> {
+    if capturing || (text_focus && yields_to_text(sc)) { None } else { accel }
 }
 
 pub struct NativeMenu {
     menu: Menu,
     items: HashMap<String, Item>,
+    /// Settings… and Quit in the application submenu: ordinary items, so they give up ⌘, and ⌘Q
+    /// to the shortcut recorder like the rest. (The system's own items there and in File/Window,
+    /// such as Hide ⌘H, Close Window ⌘W and Minimize ⌘M, are muda predefined items whose key
+    /// cannot be changed or swapped.)
+    app_items: Vec<Item>,
     rx: Receiver<String>,
     /// Structure of the installed menu (ids, kinds, submenu names); a change rebuilds it.
     structure: String,
@@ -216,7 +284,15 @@ impl NativeMenu {
             let _ = tx.send(e.id.0);
             repaint.request_repaint();
         }));
-        let mut m = NativeMenu { menu: Menu::new(), items: HashMap::new(), rx, structure: String::new(), text_focus: false, capturing: false };
+        let mut m = NativeMenu {
+            menu: Menu::new(),
+            items: HashMap::new(),
+            app_items: Vec::new(),
+            rx,
+            structure: String::new(),
+            text_focus: false,
+            capturing: false,
+        };
         m.rebuild(app);
         app.native_menu = true;
         m
@@ -227,6 +303,7 @@ impl NativeMenu {
         self.structure = structure_of(&bar);
         self.menu = Menu::new();
         self.items.clear();
+        self.app_items.clear();
 
         // the application menu
         let app_menu = Submenu::new("LightCraft", true);
@@ -246,6 +323,22 @@ impl NativeMenu {
             &PredefinedMenuItem::separator(),
             &quit,
         ]);
+        for (handle, cmd, shortcut, text) in [(&settings, SETTINGS, SETTINGS_KEY, "Settings…"), (&quit, QUIT, "Cmd+Q", "Quit LightCraft")] {
+            let accel = accelerator(shortcut);
+            self.app_items.push(Item {
+                handle: Handle::Plain(handle.clone()),
+                parent: app_menu.clone(),
+                swappable: true,
+                cmd: cmd.to_string(),
+                params: Value::Null,
+                shortcut: Some(shortcut.to_string()),
+                accel,
+                current: accel,
+                label: text.to_string(),
+                enabled: true,
+                checked: None,
+            });
+        }
         let _ = self.menu.append(&app_menu);
 
         for (title, nodes) in &bar {
@@ -264,7 +357,9 @@ impl NativeMenu {
                 .cloned()
                 .collect();
             let nodes = tidy_separators(nodes);
-            self.append_nodes(&sub, &nodes);
+            // Swapping an item in the Help menu leaves the old row in place and adds a second one
+            // (measured on macOS 27 with muda 0.21): the Help menu is not addressed row for row.
+            self.append_nodes(&sub, &nodes, title != "Help");
             if title == "File" {
                 // ⌘W, the system's own item
                 let _ = sub.append_items(&[
@@ -290,7 +385,8 @@ impl NativeMenu {
         self.publish_shortcuts(app);
     }
 
-    fn append_nodes(&mut self, sub: &Submenu, nodes: &[MenuNode]) {
+    /// `swappable`: whether its items may be replaced to drop their key (see `Item::swappable`).
+    fn append_nodes(&mut self, sub: &Submenu, nodes: &[MenuNode], swappable: bool) {
         for n in nodes {
             match n {
                 MenuNode::Separator => {
@@ -298,7 +394,7 @@ impl NativeMenu {
                 }
                 MenuNode::Submenu { label, children } => {
                     let s = Submenu::new(label_text(label), true);
-                    self.append_nodes(&s, children);
+                    self.append_nodes(&s, children, swappable);
                     let _ = sub.append(&s);
                 }
                 MenuNode::Item { id, params, label, shortcut, enabled, checked } => {
@@ -334,10 +430,13 @@ impl NativeMenu {
                         key,
                         Item {
                             handle,
+                            parent: sub.clone(),
+                            swappable,
                             cmd: id.clone(),
                             params: params.clone(),
                             shortcut: shortcut.clone(),
                             accel,
+                            current: accel,
                             label: label.clone(),
                             enabled: *enabled,
                             checked: *checked,
@@ -421,16 +520,13 @@ impl NativeMenu {
         if focus != self.text_focus || capturing != self.capturing {
             self.text_focus = focus;
             self.capturing = capturing;
-            for it in self.items.values() {
+            for it in self.items.values_mut().chain(self.app_items.iter_mut()) {
                 let Some(sc) = it.shortcut.as_deref() else { continue };
                 if it.accel.is_none() {
                     continue;
                 }
-                let accel = if capturing || (focus && yields_to_text(sc)) { None } else { it.accel };
-                let _ = match &it.handle {
-                    Handle::Plain(h) => h.set_accelerator(accel),
-                    Handle::Check(h) => h.set_accelerator(accel),
-                };
+                let want = wanted_accelerator(it.accel, sc, focus, capturing);
+                it.set_accelerator(want);
             }
             self.publish_shortcuts(app);
         }
@@ -461,6 +557,25 @@ mod tests {
         assert_eq!(label_text("Settings…"), "設定…");
         assert_eq!(label_text("Quit LightCraft"), "結束 LightCraft");
         set_language(Locale::En);
+    }
+
+    #[test]
+    fn accelerators_yield_to_text_focus_and_shortcut_recording() {
+        let g = accelerator("G");
+        let cmd_s = accelerator("Cmd+S");
+        assert_eq!(wanted_accelerator(g, "G", false, false), g);
+        assert_eq!(wanted_accelerator(g, "G", true, false), None, "typing a G in a field");
+        assert_eq!(wanted_accelerator(cmd_s, "Cmd+S", true, false), cmd_s, "⌘S still saves while typing");
+        assert_eq!(wanted_accelerator(cmd_s, "Cmd+S", false, true), None, "the editor records the key");
+        assert_eq!(wanted_accelerator(cmd_s, "Cmd+S", true, true), None, "recording wins over typing");
+        // the application menu's Settings… and Quit are tracked like the other items
+        for sc in [SETTINGS_KEY, "Cmd+Q"] {
+            let a = accelerator(sc);
+            assert!(a.is_some());
+            assert_eq!(wanted_accelerator(a, sc, true, false), a, "{sc} stays while typing");
+            assert_eq!(wanted_accelerator(a, sc, false, true), None, "{sc} goes while recording");
+        }
+        assert_eq!(wanted_accelerator(None, "Escape", false, false), None, "no accelerator stays none");
     }
 
     #[test]
