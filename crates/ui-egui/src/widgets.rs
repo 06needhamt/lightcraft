@@ -10,9 +10,18 @@ use crate::theme::Tokens;
 
 /// Standard dropdown chevrons, including settings, import/export and rule editors.
 pub fn combo_box(id: impl egui::AsIdSalt) -> egui::ComboBox {
-    egui::ComboBox::from_id_salt(id).icon(|ui, rect, visuals, _| {
-        paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(16.0, 16.0)), Icon::ChevronDown, visuals.fg_stroke.color);
-    })
+    egui::ComboBox::from_id_salt(id)
+        .icon(|ui, rect, visuals, _| {
+            paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(16.0, 16.0)), Icon::ChevronDown, visuals.fg_stroke.color);
+        })
+        .popup_style(list_style.into())
+}
+
+/// A dropdown's list and its submenus: items without the resting border of a button, as egui's
+/// own menus draw them. An unhovered item gives up its border's width of padding, so with one it
+/// grew 2 points when hovered, and the longest name of a list sized to it wrapped (#2354).
+fn list_style(style: &mut egui::Style) {
+    style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
 }
 
 /// A native button with a vector arrow beside its text; egui reserves the icon's space.
