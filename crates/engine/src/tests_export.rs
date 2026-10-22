@@ -674,6 +674,32 @@ fn remove_location_refuses_a_psd_that_embeds_gps() {
 }
 
 #[test]
+fn remove_location_refuses_a_psd_with_unreadable_resources() {
+    let dir = temp_dir("export-noloc-psd-malformed");
+    let gps = lightcraft_meta::Metadata { gps: Some(lightcraft_meta::Gps { latitude: 45.0, longitude: 7.0, altitude: None }), ..Default::default() };
+    let path = dir.join("Geo.psd");
+    let valid_bytes = synthetic_psd_with_metadata(&gps);
+    assert_eq!(lightcraft_meta::extract(&valid_bytes).gps, gps.gps, "the fixture embeds EXIF GPS before corruption");
+    let mut bytes = valid_bytes;
+    let colour_length = usize::try_from(u32::from_be_bytes(bytes[26..30].try_into().unwrap())).unwrap();
+    let resource_length_at = 30 + colour_length;
+    let resource_length = usize::try_from(u32::from_be_bytes(bytes[resource_length_at..resource_length_at + 4].try_into().unwrap())).unwrap();
+    let resource_start = resource_length_at + 4;
+    let resource_end = resource_start + resource_length;
+    bytes.splice(resource_end..resource_end, *b"BAD!");
+    bytes[resource_length_at..resource_length_at + 4].copy_from_slice(&u32::try_from(resource_length + 4).unwrap().to_be_bytes());
+
+    assert!(lightcraft_meta::extract(&bytes).gps.is_none(), "the malformed trailing resource reproduces the metadata gap");
+    std::fs::write(&path, bytes).unwrap();
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    let err = export_photo(&mut session, id, &ExportOptions::from_json(&json!({"format": "original", "removeLocation": true})), 1).err().unwrap();
+    assert!(err.contains("can't verify location metadata") && err.contains("malformed PSD/PSB"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn hdr_png_export_is_16_bit_pq_rec2020() {
     let mut s = Session::with_demo();
     let id = sunset(&mut s);

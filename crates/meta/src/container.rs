@@ -75,6 +75,12 @@ pub fn embedded(bytes: &[u8]) -> Embedded {
     }
 }
 
+/// Locate metadata blocks while preserving PSD/PSB resource-structure errors for callers that
+/// must establish whether embedded GPS is absent. Other containers keep their best-effort walk.
+pub(crate) fn try_embedded(bytes: &[u8]) -> Result<Embedded, crate::ExtractError> {
+    if bytes.starts_with(b"8BPS") { crate::psd::parse(bytes).ok_or(crate::ExtractError::MalformedPsd) } else { Ok(embedded(bytes)) }
+}
+
 const XMP_SIG: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 const XMP_EXT_SIG: &[u8] = b"http://ns.adobe.com/xmp/extension/\0";
 

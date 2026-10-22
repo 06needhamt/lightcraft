@@ -30,7 +30,7 @@ pub(crate) fn embedded(bytes: &[u8]) -> Embedded {
     parse(bytes).unwrap_or_default()
 }
 
-fn parse(bytes: &[u8]) -> Option<Embedded> {
+pub(crate) fn parse(bytes: &[u8]) -> Option<Embedded> {
     let mut reader = Reader { bytes, offset: 0 };
     if reader.take(4)? != b"8BPS" || !matches!(reader.u16()?, 1 | 2) {
         return None;

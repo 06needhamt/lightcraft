@@ -282,7 +282,17 @@ impl Metadata {
 /// Read everything we understand from a whole file (JPEG, PNG, WebP, TIFF-based incl. DNG/raw).
 /// Precedence: EXIF, then IPTC fills gaps, then XMP overrides user fields and fills the rest.
 pub fn extract(bytes: &[u8]) -> Metadata {
-    let e = embedded(bytes);
+    extract_embedded(embedded(bytes))
+}
+
+/// Read metadata while reporting malformed PSD/PSB resource sections instead of treating them as empty.
+/// Other container formats retain [`extract`]'s best-effort behavior.
+pub fn try_extract(bytes: &[u8]) -> Result<Metadata, ExtractError> {
+    let e = container::try_embedded(bytes)?;
+    Ok(extract_embedded(e))
+}
+
+fn extract_embedded(e: Embedded) -> Metadata {
     let mut m = e.exif.as_deref().map(read_exif).unwrap_or_default();
     if let Some(i) = e.iptc.as_deref() {
         m.fill_missing(&parse_iptc(i));
@@ -293,6 +303,23 @@ pub fn extract(bytes: &[u8]) -> Metadata {
     }
     m
 }
+
+/// A container-level error reported by [`try_extract`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtractError {
+    /// The PSD/PSB header or image-resource section is malformed.
+    MalformedPsd,
+}
+
+impl std::fmt::Display for ExtractError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MalformedPsd => f.write_str("malformed PSD/PSB header or image-resource section"),
+        }
+    }
+}
+
+impl std::error::Error for ExtractError {}
 
 /// A lens name from its focal and aperture range (Exif LensSpecification, or a Nikon maker note's Lens), written the
 /// way Lightroom shows a lens it has no name for: `50.0 mm f/1.8`, `18.0-135.0 mm f/3.5-5.6`.
