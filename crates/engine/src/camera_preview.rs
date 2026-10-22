@@ -3828,9 +3828,6 @@ mod tests {
         assert!(tone.apply(0.05) < tone.apply(0.2) && tone.apply(0.2) < tone.apply(0.8));
     }
 
-    /// An overcast, nearly colourless scene (under 5% of the pixels coloured, so no colour matrix is
-    /// learnt and the full look is never tried) whose camera renders it two stops brighter than the
-    /// neutral fallback: the partial look is the tone curve (and chroma curve) alone.
     fn near_black_scene() -> (Rgb32f, Rgb32f) {
         let mut sensor = Rgb32f::new(96, 64);
         let mut reference = sensor.clone();
@@ -3935,6 +3932,9 @@ mod tests {
         assert!(fit_dark_tone(&sensor, &reference, &[]).is_none(), "mismatched clip mask");
     }
 
+    /// An overcast, nearly colourless scene (under 5% of the pixels coloured, so no colour matrix is
+    /// learnt and the full look is never tried) whose camera renders it two stops brighter than the
+    /// neutral fallback: the partial look is the tone curve (and chroma curve) alone.
     #[test]
     fn partial_look_brightens_a_dull_scene_without_learning_colour() {
         let (w, h) = (96usize, 64usize);
