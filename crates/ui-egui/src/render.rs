@@ -370,7 +370,7 @@ impl Renderer {
             // An edit can still be rendering when Undo restores this embedded-final thumbnail.
             // Retire its full-render identity before it can replace the correct stand-in.
             self.pending.remove(&slot);
-            self.request_ids.remove(&slot);
+            self.requests.remove(&slot);
             self.pool.reprioritize(|s, p| if *s == slot { None } else { Some(p) });
             self.queue.retain(|q| q.slot != slot);
         }
@@ -1177,13 +1177,13 @@ mod thumbnail_tests {
         r.remember_thumb(&p, 384, quick.key, true);
         r.request_quick(slot, quick.clone(), 6); // grid prefetch: 5 + 1
         r.request_quick(Slot::ThumbQuick(PhotoId(2)), other, 9); // filmstrip: 8 + 1
-        let request_id = r.request_ids[&slot];
+        let request_id = r.requests[&slot].id;
         assert!(r.thumb_current(&p, 384, 5));
         assert!(!r.thumb_current(&p, 384, 10));
         r.request_quick(slot, quick.clone(), 11); // visible grid: 10 + 1
         assert!(r.thumb_current(&p, 384, 10));
         r.request_quick(slot, quick.clone(), 11);
-        assert_eq!(r.request_ids[&slot], request_id);
+        assert_eq!(r.requests[&slot].id, request_id);
         assert_eq!(r.pool.queued(), 2);
         r.pool.run_inline(1);
         let done = r.pool.try_recv().unwrap();
@@ -1365,23 +1365,23 @@ mod thumbnail_tests {
         let slot = Slot::ThumbQuick(id);
 
         crate::panels::grid::request_thumb(&mut app, id, 384, 5);
-        let request_id = app.renderer.request_ids[&slot];
+        let request_id = app.renderer.requests[&slot].id;
         assert_eq!(app.renderer.pending[&slot].1, 6);
         assert_eq!(app.renderer.pool.queued(), 1);
         crate::panels::grid::request_thumb(&mut app, id, 384, 10);
         assert_eq!(app.renderer.pending[&slot].1, 11, "the grid must promote its queued stand-in");
-        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.requests[&slot].id, request_id);
         assert_eq!(app.renderer.pool.queued(), 1);
 
         crate::panels::grid::request_thumb(&mut app, id, 384, 5);
         assert_eq!(app.renderer.pending[&slot].1, 6, "the grid must demote its queued stand-in");
-        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.requests[&slot].id, request_id);
         assert_eq!(app.renderer.pool.queued(), 1);
         let built = app.renderer.thumb_jobs_built;
         app.renderer.pool.run_inline(1);
         crate::panels::grid::request_thumb(&mut app, id, 384, 10);
         assert_eq!(app.renderer.pending[&slot].1, 6, "completed work must not be restarted");
-        assert_eq!(app.renderer.request_ids[&slot], request_id);
+        assert_eq!(app.renderer.requests[&slot].id, request_id);
         assert_eq!(app.renderer.pool.queued(), 0);
         app.renderer.poll(&ctx, &mut app.session);
         assert_eq!(app.renderer.textures[&slot].quick, Some(QuickSource::Embedded));
