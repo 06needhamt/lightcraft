@@ -132,6 +132,7 @@ language_table! {
     Ka, "ka", "ქართული", "Geor", include_str!("../locales/ka.json");
     Sv, "sv", "Svenska", "Latn", include_str!("../locales/sv.json");
     Fi, "fi", "Suomi", "Latn", include_str!("../locales/fi.json");
+    Id, "id", "Bahasa Indonesia", "Latn", include_str!("../locales/id.json");
 }
 
 // The settings file stores the BCP-47 code (`"zh-hans"`), never the Rust variant name, so a
@@ -559,6 +560,45 @@ mod tests {
     }
 
     #[test]
+    fn indonesian_switches_persists_formats_dates_and_preserves_values() {
+        use crate::control::{ControlRequest, Outcome};
+        let mut app = crate::LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default());
+        app.run("app.language.indonesian", serde_json::json!({})).unwrap();
+        assert_eq!(app.ui.language, Locale::Id);
+        assert_eq!(Locale::Id.name(), "Bahasa Indonesia");
+        assert_eq!(Locale::Id.script(), "Latn");
+        assert_eq!(crate::menubar::checked(&app, "app.language.indonesian"), Some(true));
+        assert_eq!(tr("Exposure"), "Eksposur");
+        assert_eq!(tr("My Photos"), "Foto saya");
+        assert_eq!(date_group_label("2026-09-20", false), "Minggu, 20/09/2026");
+        assert_eq!(date_group_label("2026-09-20", true), "Minggu, 20");
+        assert_eq!(date_group_label("2026-09", false), "09/2026");
+        assert_eq!(date_group_label("2026", false), "2026");
+        assert_eq!(display_time("2026-09-20T16:04:05"), "Minggu, 20/09/2026 16:04:05");
+        // Indonesian keeps a noun unchanged after a count ("1 foto", "22 foto"), so the English
+        // plural suffix is consumed and never shows.
+        for n in [0, 1, 2, 5, 11, 22] {
+            assert_eq!(tr_format!("Imported {} photo{}", n, if n == 1 { "" } else { "s" }), format!("{n} foto diimpor"));
+        }
+        let name = String::from("Color 1234.56 {title} 日本語");
+        assert_eq!(tr_format!("Added {n} photo{} to “{}”", "s", name, n = 22), format!("22 foto ditambahkan ke “{name}”"));
+        assert_eq!(builtin_label("Warm Glow", false), "Warm Glow");
+        assert_eq!(tr("photo-{title}.jpg"), "photo-{title}.jpg");
+        let saved = serde_json::to_string(&app.ui).unwrap();
+        assert!(saved.contains(r#""language":"id""#));
+        assert_eq!(serde_json::from_str::<crate::state::UiState>(&saved).unwrap().language, Locale::Id);
+        let ctx = egui::Context::default();
+        for tag in ["id", "id-ID", "id_ID.UTF-8", "id-Latn-ID"] {
+            assert_eq!(Locale::parse_tag(tag), Some(Locale::Id));
+            let (request, _) = ControlRequest::new("ui.set", serde_json::json!({"language": tag}));
+            let Outcome::Done(reply) = crate::control::handle(&mut app, &ctx, &request) else { panic!("expected reply") };
+            assert_eq!(reply["ok"], true);
+            assert_eq!(language(), Locale::Id);
+        }
+        set_language(Locale::En);
+    }
+
+    #[test]
     fn sentence_case_keeps_georgian_lowercase() {
         assert_eq!(upper_first("its input is not an image"), "Its input is not an image");
         assert_eq!(upper_first("ფაილი ვერ იკითხება"), "ფაილი ვერ იკითხება");
@@ -870,6 +910,7 @@ mod tests {
             ("app.language.georgian", Locale::Ka),
             ("app.language.swedish", Locale::Sv),
             ("app.language.finnish", Locale::Fi),
+            ("app.language.indonesian", Locale::Id),
         ];
         // One command per language, and every command reachable from the menu table.
         assert_eq!(commands.len(), Locale::ALL.len());

@@ -51,7 +51,7 @@ phase #85, duplicate Local entries #22, black GPU exports on an Intel iGPU #78).
 | UI/UX fidelity | ~85% | ~70% | 32–54 h | [ui-parity.md](ui-parity.md) |
 | File formats (non-raw: images, sidecars, presets, catalogs) | ~85% | ~70% | 30–55 h | [file-format-parity.md](file-format-parity.md) |
 | Hardware | ~50% | ~40% | 40–80 h (+ tethering and printing, counted under Classic modules) | [hardware-parity.md](hardware-parity.md) |
-| Localization (12 key languages) | 7 of 12 present | ~55% (mean of the 12, measured) | 130–210 h for the target's set; +145–255 h for Hindi, Arabic, Indonesian, Vietnamese, Korean | [localization-parity.md](localization-parity.md) |
+| Localization (12 key languages) | 8 of 12 present | ~64% (mean of the 12, measured) | 130–210 h for the target's set; +135–239 h for Hindi, Arabic, Vietnamese, Korean | [localization-parity.md](localization-parity.md) |
 | Performance | ~80% | ~70% | 30–50 h | 24 MP GPU slider 3.9 ms, export 0.3 s (measured, [gpu-pipeline.md](gpu-pipeline.md)); 85k library opens in 1.7–4.7 s; 100k test pending |
 | Stability | — | ~60% | 30–60 h | never-crash lints and guards workspace-wide, crash-tested journal, 2,561 tests; but CI runs tests only on FreeBSD, user reports keep finding bugs in ✅ areas |
 | Platforms | macOS, Windows (x64 / x86 / ARM64), Linux (AppImage, deb, rpm, Flatpak, Nix), FreeBSD, web | ~60% | 25–45 h | macOS is where it is tested; Windows installer UI unverified on Windows (#79); web experimental (CPU only) |
@@ -136,12 +136,12 @@ valued from the model-by-model measurement in [raw-parity.md](raw-parity.md):
 | UI/UX fidelity | 8% | 70% |
 | File formats (non-raw) | 6% | 70% |
 | Hardware | 3% | 40% |
-| Localization | 3% | 55% |
+| Localization | 3% | 64% |
 | Performance | 6% | 70% |
 | Stability | 8% | 60% |
 | Platforms | 4% | 60% |
 | Ecosystem / plug-ins | 2% | 15% |
-| **Weighted sum** | 100% | **61.2% ≈ 61%** (range 56–66%) |
+| **Weighted sum** | 100% | **61.5% ≈ 61%** (range 56–66%) |
 
 Mainstream comes out lower than full: its scope is the raw-develop core, where LightCraft is weakest
 (camera colour, CR3 coverage), and its discounts are multiplicative, while the full sum is lifted by
@@ -300,6 +300,7 @@ P2 items 12–25 h; look tuning, performance, packaging, hardening 25–45 h.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-19 | minor | Localization ~55% → ~64% (mean of the 12 key languages): Indonesian (`id`) catalog, every message but What's New; full target 61.2% → 61.5% (still ~61%) |
 | 2026-10-14 | minor | Localization ~52% → ~55% (mean of the 12 key languages): de, es, fr, ja and uk catalogs filled |
 | 2026-10-12 | minor | UI/UX remaining 34–58 h → 32–54 h (canvas tools by keyboard); headline numbers unchanged |
 | 2026-10-14 | minor | Merge and HDR: merge 100% → 88% (LR-MERGE-HDR ✅ → 🟡 after testing on real 67 MP brackets; gap 29); area percentages unchanged |
