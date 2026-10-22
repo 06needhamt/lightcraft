@@ -663,7 +663,7 @@ impl LightcraftApp {
             // be invisible once the activity stack is gone. Never show success on error.
             let completed = match id {
                 "library.compact" => Some(format!("✓ {}", i18n::tr("Optimize Library"))),
-                "library.clearPreviews" => Some(format!("✓ {}", i18n::tr("Clear Preview Cache"))),
+                "library.clearPreviews" => Some(format!("✓ {}", i18n::tr("Discard Preview Cache"))),
                 "develop.autoSync" => Some(format!("{}: {}", i18n::tr("Auto Sync"), i18n::tr(if self.session.auto_sync { "On" } else { "Off" }))),
                 _ => None,
             };

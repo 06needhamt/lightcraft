@@ -28,6 +28,13 @@
   start…" or "Installing…" now show a small turning arc beside the text, and a thumbnail still being made shows a
   quiet placeholder that fits the theme in the grid, the filmstrip and Compare. Screen readers hear a progress
   indicator with its percentage.
+### Menu names that say what they are
+- Switches in the menus are named for what they show, with the check mark saying whether it is on: Filmstrip ✓,
+  Focus Point ✓, Clipping ✓, Photo Counts ✓, Mask Overlay ✓ instead of Show Focus Point ✓. No two commands share a
+  name any more: View ▸ Detail is now Detail View (the Edit section Detail keeps its name), Window ▸ Edit is Edit
+  Panel, and Compare Before and After is Before/After Side by Side, next to Split and Top/Bottom.
+- The preview cache command has one name, Discard Preview Cache, in File ▸ Previews and in the toast that confirms
+  it. Keyboard shortcuts are unchanged.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

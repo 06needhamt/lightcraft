@@ -272,7 +272,7 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         choices(
             ui,
             "settingsStartup",
-            &[(StartupView::Last, "Last view"), (StartupView::Grid, "Photo Grid"), (StartupView::Detail, "Detail")],
+            &[(StartupView::Last, "Last view"), (StartupView::Grid, "Photo Grid"), (StartupView::Detail, "Detail View")],
             &mut app.ui.settings.startup_view,
         );
     });
@@ -831,7 +831,7 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         t,
         crate::i18n::tr("Grouped: keywords inside the same keyword share a line naming it, and long lists and the suggestions are shortened."),
     );
-    heading(ui, t, crate::i18n::tr("Detail"));
+    heading(ui, t, crate::i18n::tr("Detail View"));
     check(ui, "settings.navigator", &mut app.ui.navigator, "Show the Navigator while zoomed in");
     row(ui, t, crate::i18n::tr("Info overlay"), |ui| {
         use crate::state::InfoOverlay as I;
