@@ -136,6 +136,39 @@ language_table! {
     Vi, "vi", "Tiếng Việt", "Latn", include_str!("../locales/vi.json");
 }
 
+impl Locale {
+    /// Every language in the order the Settings row and Edit ▸ Language list them: English first
+    /// (the source language), then the rest by their own name with accents folded, so Čeština
+    /// sits under C. Names in other scripts follow the Latin ones in code point order: Cyrillic,
+    /// Georgian, then the CJK languages.
+    pub fn for_picker() -> Vec<Self> {
+        let mut rest: Vec<Self> = Self::ALL.iter().copied().filter(|l| *l != Self::En).collect();
+        rest.sort_by_cached_key(|l| name_sort_key(l.name()));
+        std::iter::once(Self::En).chain(rest).collect()
+    }
+}
+
+/// `name` lowercased with the Latin accents that occur in language names folded away, so a
+/// byte-wise sort reads alphabetically. Other scripts are left as they are.
+fn name_sort_key(name: &str) -> String {
+    name.chars()
+        .flat_map(char::to_lowercase)
+        .map(|c| match c {
+            'à'..='å' | 'ā' | 'ă' | 'ą' => 'a',
+            'ç' | 'ć' | 'č' => 'c',
+            'è'..='ë' | 'ē' | 'ě' | 'ę' | 'ế' | 'ệ' => 'e',
+            'ì'..='ï' | 'ī' => 'i',
+            'ñ' | 'ń' | 'ň' => 'n',
+            'ò'..='ö' | 'ø' | 'ő' => 'o',
+            'ś' | 'š' => 's',
+            'ù'..='ü' | 'ū' | 'ů' | 'ű' => 'u',
+            'ý' | 'ÿ' => 'y',
+            'ź' | 'ż' | 'ž' => 'z',
+            c => c,
+        })
+        .collect()
+}
+
 // The settings file stores the BCP-47 code (`"zh-hans"`), never the Rust variant name, so a
 // language can be renamed in code without invalidating anyone's settings.
 impl Serialize for Locale {
@@ -2013,5 +2046,27 @@ mod tests {
             }
         });
         set_language(Locale::En);
+    }
+}
+
+#[cfg(test)]
+mod picker_order_tests {
+    use super::*;
+
+    #[test]
+    fn picker_lists_english_first_then_names_alphabetically() {
+        let order = Locale::for_picker();
+        assert_eq!(order.first(), Some(&Locale::En));
+        assert_eq!(order.len(), Locale::ALL.len());
+        let keys: Vec<String> = order[1..].iter().map(|l| name_sort_key(l.name())).collect();
+        assert!(keys.windows(2).all(|w| w[0] <= w[1]), "{keys:?}");
+        assert_eq!(name_sort_key("Čeština"), "cestina");
+    }
+
+    #[test]
+    fn language_menu_lists_the_picker_order() {
+        let menu: Vec<&str> = crate::menus::LANGUAGE_COMMANDS.iter().map(|c| c.1).collect();
+        let picker: Vec<&str> = Locale::for_picker().into_iter().map(Locale::name).collect();
+        assert_eq!(menu, picker, "Edit ▸ Language and the Settings row list the languages the same way");
     }
 }
