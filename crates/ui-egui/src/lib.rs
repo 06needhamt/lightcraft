@@ -643,6 +643,11 @@ impl LightcraftApp {
             // Keep it hidden after release; O / the overlay eye can show it again.
             self.ui.mask_overlay = false;
         }
+        if r.is_ok() && matches!(id, "mask.add" | "mask.addComponent" | "mask.duplicate" | "mask.select") {
+            // A new or newly picked mask shows its overlay again, as in Lightroom: hidden by a slider
+            // drag above, it stayed hidden while the Overlay menu still named a mode (issue #1800).
+            self.ui.mask_overlay = true;
+        }
         if r.is_ok() {
             // These commands finish synchronously, so their completion would otherwise
             // be invisible once the activity stack is gone. Never show success on error.
@@ -833,6 +838,8 @@ impl LightcraftApp {
             ctx.request_repaint();
         }
         if let Some(mask) = polled.refine {
+            // a new selection from a click or a description: show it, as `run` does for new masks
+            self.ui.mask_overlay = true;
             self.ui.detail_due = Some((now + 0.3, mask));
         }
         if let Some(e) = polled.messages.into_iter().last() {
