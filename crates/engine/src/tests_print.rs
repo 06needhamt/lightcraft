@@ -226,7 +226,7 @@ fn export_pdf_prints_the_current_settings() {
 fn export_pdf_uses_the_japanese_paper_sizes() {
     let mut s = Session::with_demo();
     let id = s.catalog.photos().next().map(|p| p.id.0).unwrap();
-    for (paper, w_pt, h_pt) in [("postcard", 283.46, 419.53), ("l", 252.28, 359.99)] {
+    for (paper, w_pt, h_pt) in [("postcard", 283.46, 419.53), ("はがき", 283.46, 419.53), ("l", 252.28, 359.99)] {
         run(&mut s, "print.set", json!({"layout": {"style": "singleImage", "page": {"paper": paper}}, "job": {"ppi": 254.0}}));
         let path = temp_pdf(paper);
         run(&mut s, "print.exportPdf", json!({"path": path, "ids": [id]}));
