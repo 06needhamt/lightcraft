@@ -142,11 +142,12 @@ pub fn detail_toggle(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, on
 }
 
 /// The bar under the Denoise slider while a photo's picture is made: at most 240 px wide, and
-/// sweeping while the number of tiles is not known yet.
+/// sweeping while the number of tiles is not known yet. The percentage is floored, as the bar's
+/// accessible value is (and the SAM bar's text): 100 % only once done.
 pub(crate) fn detail_bar(ui: &mut egui::Ui, done: u64, total: u64) -> egui::Response {
     let fraction = crate::progress::fraction_of(done, total);
     let text = match fraction {
-        Some(f) => tr_format!("Making the denoised picture… {}%", (f * 100.0).round() as u32),
+        Some(f) => tr_format!("Making the denoised picture… {}%", (f * 100.0).floor() as u32),
         None => tr("Starting…").to_string(),
     };
     crate::progress::Progress::new(fraction).label(text).width(ui.available_width().min(240.0)).widget("denoise:progress").show(ui)

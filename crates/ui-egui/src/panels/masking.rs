@@ -772,9 +772,10 @@ pub(crate) fn sam_download_bar(ui: &mut egui::Ui, done: u64, total: u64, width: 
     crate::progress::Progress::new(fraction).label(label).width(width).widget("maskSamProgress").show(ui)
 }
 
-/// Whether the segmenter has work (loading, analyzing, a request, a detail pass): nothing new starts then.
-fn segmenter_working(analyzing: bool, busy: bool, detail_busy: bool) -> bool {
-    analyzing || busy || detail_busy
+/// Whether the segmenter has work (loading, analyzing, a request, a detail pass running or waiting
+/// to start): nothing new starts then.
+fn segmenter_working(analyzing: bool, busy: bool, detail_busy: bool, detail_due: bool) -> bool {
+    analyzing || busy || detail_busy || detail_due
 }
 
 /// Enter in the Describe field is the Select button: it starts nothing while the segmenter works.
@@ -800,7 +801,7 @@ fn describe_field(app: &mut LightcraftApp, ui: &mut egui::Ui, new_mask: bool) {
     // the (translated) Select button is placed first, at the right; the field takes what is left
     ui.allocate_ui_with_layout(vec2(ui.available_width(), 24.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
         let seg = &app.session.segmenter;
-        let working = segmenter_working(seg.analyzing(), seg.busy(), seg.detail_busy());
+        let working = segmenter_working(seg.analyzing(), seg.busy(), seg.detail_busy(), app.ui.detail_due.is_some());
         if crate::button::Button::new("Select").small().busy(working).widget("button:maskDescribeGo").show(ui).clicked() {
             submit = true;
         }
@@ -924,10 +925,16 @@ mod tests {
 
     #[test]
     fn a_detail_pass_counts_as_the_segmenter_working() {
-        assert!(segmenter_working(false, false, true));
-        assert!(segmenter_working(true, false, false));
-        assert!(segmenter_working(false, true, false));
-        assert!(!segmenter_working(false, false, false));
+        assert!(segmenter_working(false, false, true, false));
+        assert!(segmenter_working(true, false, false, false));
+        assert!(segmenter_working(false, true, false, false));
+        assert!(!segmenter_working(false, false, false, false));
+    }
+
+    #[test]
+    fn a_pending_detail_pass_counts_as_the_segmenter_working() {
+        // a new prompt finishing before it starts would replace its target, and that mask never refines
+        assert!(segmenter_working(false, false, false, true));
     }
 
     #[test]

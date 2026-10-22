@@ -237,3 +237,34 @@ fn the_denoise_bars_keep_their_widths_in_a_wide_container() {
     assert_eq!((detail, settings, unknown), (240.0, 380.0, 240.0));
     assert!(ids.iter().any(|(id, _)| id == "denoise:settingsProgress"));
 }
+
+#[test]
+fn the_denoise_bar_label_and_its_accessible_value_agree() {
+    // 3 of 7 is 42.86 %: the number drawn on the bar is the one announced
+    let (nodes, _, _) = frames(Vec::new(), |ui| {
+        crate::panels::denoise::detail_bar(ui, 3, 7);
+    });
+    let bar = nodes.iter().find(|n| n.role == "ProgressIndicator").unwrap_or_else(|| panic!("{nodes:?}"));
+    let shown: f64 = bar.label.rsplit(' ').next().unwrap().trim_end_matches('%').parse().unwrap();
+    assert_eq!(bar.value, Some(shown), "{bar:?}");
+}
+
+#[test]
+fn an_activity_bar_is_named_after_its_task() {
+    let task = lightcraft_engine::activity::TaskInfo {
+        id: 1,
+        kind: "export",
+        label: "Exporting".into(),
+        done: 3,
+        total: 25,
+        unit: lightcraft_engine::activity::Unit::Count,
+        detail: String::new(),
+        cancellable: true,
+        cancelling: false,
+        age_ms: 600,
+    };
+    let (nodes, _, _) = frames(Vec::new(), |ui| crate::panels::activity::bar(ui, &task, 200.0).rect.width());
+    let bar = nodes.iter().find(|n| n.role == "ProgressIndicator").unwrap_or_else(|| panic!("{nodes:?}"));
+    assert_eq!(bar.label, "Exporting");
+    assert_eq!(bar.value, Some(12.0));
+}

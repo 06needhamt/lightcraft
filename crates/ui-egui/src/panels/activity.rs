@@ -146,8 +146,11 @@ fn row(ui: &mut egui::Ui, t: &Tokens, task: &TaskInfo, width: f32) -> bool {
     clicked
 }
 
-/// The progress bar; while the amount of work isn't known, a segment sweeps across.
-fn bar(ui: &mut egui::Ui, task: &TaskInfo, width: f32) {
+/// The progress bar, named after its task for screen readers; while the amount of work isn't
+/// known, a segment sweeps across.
+pub(crate) fn bar(ui: &mut egui::Ui, task: &TaskInfo, width: f32) -> egui::Response {
     let fraction = (task.total > 0).then(|| (task.done as f64 / task.total as f64) as f32);
-    crate::progress::Progress::new(fraction).width(width).dimmed(task.cancelling).show(ui);
+    let response = crate::progress::Progress::new(fraction).width(width).dimmed(task.cancelling).show(ui);
+    crate::widgets::screen_reader_name(ui.ctx(), response.id, tr(&task.label));
+    response
 }
