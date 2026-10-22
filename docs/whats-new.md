@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-21
+
+### Scrolling past editing sliders
+- Leaving a selected slider disarms its vertical mouse-wheel adjustment (issue #1355), even when the pointer leaves
+  and comes back between two screen updates. Scrolling back over it now scrolls the panel instead of unexpectedly
+  changing the photo. Click or drag the slider again to adjust it with the vertical wheel; keyboard arrow
+  adjustments and an ongoing drag still work. A slider reached with Tab takes the arrow keys but not the wheel:
+  click it to scroll-adjust it. Sideways scrolling still adjusts the slider under the pointer without selecting it
+  first.
+
 ## 2026-10-19
 
 ### Hidden Local locations come back one at a time
