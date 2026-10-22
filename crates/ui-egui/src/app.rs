@@ -65,6 +65,7 @@ impl LightcraftApp {
             drop_pending: vec![],
             copied: None,
             pending_picks: vec![],
+            missing: Default::default(),
             synthetic_mods: egui::Modifiers::NONE,
             synthetic_mods_release: false,
             host_mods: egui::Modifiers::NONE,

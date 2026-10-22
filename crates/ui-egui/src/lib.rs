@@ -22,6 +22,7 @@ pub mod icons;
 pub mod lightroom_import;
 pub mod links;
 pub mod menus;
+mod missing_sweep;
 mod model_setup;
 pub mod panels;
 pub mod pick;
@@ -225,6 +226,9 @@ pub struct LightcraftApp {
     pub copied: Option<String>,
     /// Native file dialogs up for commands (`pick`): each command runs again when its closes.
     pub(crate) pending_picks: Vec<pick::Pending>,
+    /// `library.missing` requests from the control channel and the check that answers them on a
+    /// worker thread ([`missing_sweep`]).
+    pub(crate) missing: missing_sweep::State,
     /// Modifiers announced for synthetic input (held from a button down to its release). This is
     /// only the app's synthetic ownership; the real host state is tracked separately in
     /// `host_mods`, so a canceled synthetic gesture never clears a physically held key.
