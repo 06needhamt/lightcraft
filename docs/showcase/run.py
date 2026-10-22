@@ -5,9 +5,14 @@ from pathlib import Path
 
 
 def _jsonl_path(arg):
-    """Resolve the CLI file argument; require an existing regular file."""
+    """Resolve the CLI file argument; require an existing readable regular file."""
     path = Path(arg).resolve()
     if not path.is_file():
+        sys.exit(f"not a readable file: {arg}")
+    try:
+        with path.open("rb"):
+            pass
+    except OSError:
         sys.exit(f"not a readable file: {arg}")
     return path
 
