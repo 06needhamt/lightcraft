@@ -1,12 +1,12 @@
 # Localization parity
 
-> **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-19 · **Change:** minor (Indonesian and Finnish interface catalogs added; Italian: every interface string translated, native-speaker corrections; previously minor: de, es, fr, ja, uk catalogs filled; re-measured; Italian and Georgian interface catalogs added) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-10-19 · **Change:** minor (Indonesian and Finnish interface catalogs added; Italian: every interface string translated, native-speaker corrections; Vietnamese shipped; previously minor: de, es, fr, ja, uk catalogs filled; re-measured; Italian and Georgian interface catalogs added) · **Target:** Adobe Lightroom Classic 15.5 / Lightroom 9.6
 
 How far each interface language is from `full`. How to add or maintain a language is in
 [localization.md](localization.md); per-language notes are in `localization-<code>.md`
 ([zh-hans](localization-zh-hans.md), [zh-hant](localization-zh-hant.md), [ja](localization-ja.md),
 [pt-br](localization-pt-br.md), [es](localization-es.md), [de](localization-de.md),
-[ru](localization-ru.md), [fi](localization-fi.md), [ka](localization-ka.md), [id](localization-id.md)).
+[ru](localization-ru.md), [fi](localization-fi.md), [ka](localization-ka.md), [id](localization-id.md), [vi](localization-vi.md)).
 
 ## The target
 
@@ -18,12 +18,12 @@ go beyond the target.
 
 ## How the numbers are measured
 
-**Measured** (a Python count over `crates/ui-egui/locales/*.json`, 2026-10-10):
+**Measured** (a Python count over `crates/ui-egui/locales/*.json`, 2026-10-13):
 
-- The denominator is every message any catalog knows: the union of the plain catalogs' keys (2,074
+- The denominator is every message any catalog knows: the union of the plain catalogs' keys (2,222
   English source strings: menus, commands, controls, panels, dialogs, tooltips, presets, What's New
-  lines) plus the 230 messages of the formats catalogs (`*-formats.json`: text with runtime values and
-  date patterns), 2,304 messages in all.
+  lines) plus the 249 messages of the formats catalogs (`*-formats.json`: text with runtime values and
+  date patterns), 2,471 messages in all.
 - A message counts as translated when the catalog has a non-empty value that differs from the English
   key. Some identical values are correct (`ISO`, `OK` in German), so the figure slightly understates
   coverage; on the other hand, strings that never reach a catalog (technical errors raised in lower
@@ -56,7 +56,7 @@ that is promising but is not recorded as review, so the column says `no (communi
 | 9 | Japanese | `ja` | 2,383 / 2,398 (99%; 2026-10-12) | as zh-hans; vertical export watermarks | Jpan via craft-fonts (BIZ UDPGothic / UDMincho); IME through winit | no (community edits) | partial | 2–4 h (native review, lower-layer errors) |
 | 10 | German | `de` | 2,338 / 2,398 (97%; 2026-10-12, the rest are words spelled the same) | as zh-hans; What's New translated line by line | Latin | no (community edits) | partial | 2–4 h (native review, lower-layer errors) |
 | 11 | Korean | `ko` | 0 (0%) | none | **no Korean (Hangul) face**: needs a non-Adobe OFL face in craft-fonts (Noto CJK is allowed only for Chinese) | no | none | 14–22 h |
-| 12 | Vietnamese | `vi` | 0 (0%) | none | Latin with stacked diacritics (Inter covers it; check combining marks) | no | none (target: not shipped) | 10–16 h |
+| 12 | Vietnamese | `vi` | 2,471 / 2,471 (100% key coverage of current union; intentional English like `ISO`/`OK` kept) | menus, panels, dialogs, presets, profiles, dates, formats; lower-layer errors English | Latin with stacked diacritics (Inter) | no (community contribution) | partial (catalog complete; lower-layer errors English) | 1–3 h |
 
 ## Other languages LightCraft ships (4)
 
@@ -97,6 +97,7 @@ Target languages LightCraft lacks: Korean, Dutch, Polish, Swedish, Norwegian Bok
 | 2026-10-19 | minor | Indonesian interface catalog (`id`): every plain and formats message any catalog has, plus 69 command labels; What's New left in English |
 | 2026-10-17 | minor | Finnish interface catalog (`fi`): 2,610 of 3,308 messages (2,313 plain + 297 formats), What's New left in English |
 | 2026-10-15 | trivial | Italian (`it`): 339 interface messages and 60 format strings that were missing or still in English translated (2,628 of 3,278; only What's New left in English); native-speaker corrections: Exposure → *Esposizione*, Sharpening → *Nitidezza*, Preset → *Preset*, blurry → *sfocate* |
+| 2026-10-13 | minor | Remeasured denominator (2,222 plain + 249 formats = 2,471); Vietnamese catalog complete at 2,471/2,471 (status partial: lower-layer errors still English) |
 | 2026-10-12 | minor | Italian interface catalog (`it`): 2,201 of 2,398 messages, What's New left in English |
 | 2026-10-11 | minor | Shared work: the interface decides on error kinds, not English error text (#1046) |
 | 2026-10-12 | minor | Georgian (`ka`) row: every catalog message |
