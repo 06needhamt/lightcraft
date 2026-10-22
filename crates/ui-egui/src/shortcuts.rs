@@ -68,8 +68,10 @@ pub fn shortcut_of<'a>(keymap: &'a Keymap, id: &str) -> Option<&'a str> {
     find_bindable(id).and_then(|b| binding(keymap, id, b.default))
 }
 
-/// Engine commands that intentionally share a key and are disambiguated by context in [`handle`].
-pub const CONTEXTUAL: &[(&str, &str)] = &[("photo.reject", "crop.rotateAspect")];
+/// Engine commands that intentionally share a key and are disambiguated by context in [`handle`]:
+/// the X pair by the Crop panel, A by whether it is open (Visualize Spots everywhere, the aspect
+/// lock under the Crop panel).
+pub const CONTEXTUAL: &[(&str, &str)] = &[("photo.reject", "crop.rotateAspect"), ("view.visualizeSpots", "crop.lockAspect")];
 
 /// Commands other than `id` whose shortcut is the key `sc` (contextual partners excepted).
 pub fn conflicts(keymap: &Keymap, id: &str, sc: &str) -> Vec<&'static str> {
@@ -622,6 +624,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
             if f == "crop.rotateAspect" && app.ui.right != crate::state::RightPanel::Crop {
                 continue;
             }
+            // A is both Visualize Spots and the crop aspect lock: each key only in its own context
+            if f == "view.visualizeSpots" && app.ui.right == crate::state::RightPanel::Crop {
+                continue;
+            }
+            if f == "crop.lockAspect" && app.ui.right != crate::state::RightPanel::Crop {
+                continue;
+            }
             // / refreshes the selected spot's source in the Remove tool (the filmstrip elsewhere)
             if f == "view.filmstrip" && app.ui.right == crate::state::RightPanel::Remove && app.session.active_spot.is_some() {
                 let _ = app.run("spot.refreshSource", json!({}));
@@ -632,12 +641,11 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 let _ = app.run("view.maskOverlayColor", json!({}));
                 continue;
             }
-            // while cropping: O cycles the guides, Shift+O their orientation, A locks the aspect
+            // while cropping: O cycles the guides, Shift+O their orientation
             if app.ui.right == crate::state::RightPanel::Crop {
                 let crop_key = match f.as_str() {
                     "view.maskOverlay" => Some(("view.cropOverlay", json!({}))),
                     "view.cropOverlay" => Some(("view.cropOverlayOrientation", json!({}))),
-                    "view.visualizeSpots" => Some(("crop.aspect", json!({"aspect": "toggle"}))),
                     _ => None,
                 };
                 if let Some((cmd, p)) = crop_key {
@@ -1161,7 +1169,8 @@ mod tests {
         }
         for (i, (k, a)) in ui.iter().enumerate() {
             for (k2, b) in &ui[i + 1..] {
-                assert!(k != k2, "{a} and {b} share a key");
+                let contextual = CONTEXTUAL.iter().any(|(x, y)| (x == a && y == b) || (x == b && y == a));
+                assert!(k != k2 || contextual, "{a} and {b} share a key");
             }
         }
         for (i, (k, a)) in engine.iter().enumerate() {

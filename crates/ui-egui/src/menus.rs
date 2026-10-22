@@ -128,6 +128,9 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     // Overlay and the Remove panel list the modes.
     ("view.toolOverlay", "Cycle Tool Overlay", Some("Shift+H"), ""),
     ("view.visualizeSpots", "Visualize Spots", Some("A"), "View"),
+    // A while the Crop panel is open: the aspect lock as a first-class row. Visualize Spots keeps
+    // the key outside the panel; the two are a contextual pair in shortcuts::handle
+    ("crop.lockAspect", "Lock Aspect Ratio", Some("A"), ""),
     ("view.cropOverlay", "Cycle Crop Overlay", Some("Shift+O"), "View"),
     ("view.cropOverlayOrientation", "Cycle Crop Overlay Orientation", None, "View"),
     ("view.back", "Back to Grid", Some("Escape"), ""),
@@ -1132,6 +1135,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             }
             Ok(Value::Null)
         }
+        // A under the Crop panel: the aspect lock (the panel's button runs the same toggle)
+        "crop.lockAspect" => app.run("crop.aspect", json!({"aspect": "toggle"})),
         "view.cropOverlay" => {
             use crate::state::CropOverlay::*;
             app.ui.crop_overlay = match app.ui.crop_overlay {
