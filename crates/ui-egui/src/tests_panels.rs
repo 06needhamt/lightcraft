@@ -1795,6 +1795,28 @@ fn removing_a_disk_from_the_library_asks_first() {
     assert_eq!(h.app.session.visible().len(), 1, "everything on that disk left the library");
 }
 
+/// A library with a photo in every folder down `deep` and two folders below it, in a window
+/// `size` big, with every level but the last opened. (Every level holds a photo, so it has a row
+/// of its own and starts closed, whether or not the sidebar passes over folders that only lead on.)
+fn deep_folders_app(deep: &str, size: [f32; 2]) -> Headless {
+    let mut paths = vec![format!("{deep}/x/1.jpg"), format!("{deep}/y/2.jpg")];
+    let mut levels = Vec::new();
+    let mut level = String::new();
+    for name in deep.split('/').filter(|n| !n.is_empty()) {
+        level.push('/');
+        level.push_str(name);
+        paths.push(format!("{level}/0.jpg"));
+        levels.push(level.clone());
+    }
+    let paths: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let mut h = folders_app_sized(&paths, size);
+    for level in &levels[..levels.len() - 1] {
+        click(&mut h, &format!("libraryFolderToggle:{level}"));
+    }
+    h.settle(SETTLE);
+    h
+}
+
 /// The x of each folder's chevron down the chain `path` (`/a/b/c` → `/a`, `/a/b`, `/a/b/c`).
 fn chevron_xs(h: &Headless, path: &str) -> Vec<f32> {
     let mut xs: Vec<f32> = Vec::new();
@@ -1814,7 +1836,7 @@ fn chevron_xs(h: &Headless, path: &str) -> Vec<f32> {
 fn a_deep_chain_keeps_its_nesting_and_the_sidebar_scrolls_sideways() {
     let deep = "/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z";
     // (tall enough for the whole chain: Recently Deleted is above it now)
-    let mut h = folders_app_sized(&[&format!("{deep}/x/1.jpg"), &format!("{deep}/y/2.jpg")], [1400.0, 1700.0]);
+    let mut h = deep_folders_app(deep, [1400.0, 1700.0]);
     let xs = chevron_xs(&h, deep);
     let step = crate::panels::left::MIN_INDENT_STEP;
     assert_eq!(crate::panels::left::indent_step(&h.view.ctx), step, "26 levels do not fit the default panel even at the narrowest step");
@@ -1840,7 +1862,7 @@ fn a_deep_chain_keeps_its_nesting_and_the_sidebar_scrolls_sideways() {
 #[test]
 fn a_deep_library_path_narrows_the_indent_instead_of_cutting_the_names() {
     let deep = "/Users/someone/Library/CloudStorage/Nextcloud-cloud.example.com/RAW/Club/2026-09-24 Team/RAW";
-    let mut h = folders_app_sized(&[&format!("{deep}/a/1.jpg"), &format!("{deep}/b/2.jpg")], [1400.0, 1200.0]);
+    let mut h = deep_folders_app(deep, [1400.0, 1200.0]);
     let full = crate::panels::left::INDENT_STEP;
     let narrow = crate::panels::left::indent_step(&h.view.ctx);
     assert!(narrow < full && narrow >= crate::panels::left::MIN_INDENT_STEP, "the step narrows in the default panel: {narrow}");
