@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Edits read from a sidecar are kept in range
+- LightCraft edits read back from an XMP sidecar (Read Metadata from File, or at import) are now checked like presets
+  and pasted settings: sliders and curves are kept in their ranges and the straighten angle within ±45° (issue
+  #2555). A turned crop that reaches far past the photo is trimmed to the photo when it is shown or exported. Before,
+  a damaged or hand-edited sidecar could set a crop that made a full-size export ask for trillions of pixels and
+  close the app. Crops made with the crop tool are unchanged.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
