@@ -1416,6 +1416,7 @@ impl LightcraftApp {
         } else {
             frame_rate::forget(ctx);
         }
+        panels::edit::wheel_pointer_frame_end(ctx);
         ctx.output(|o| {
             for c in &o.commands {
                 if let egui::OutputCommand::CopyText(text) = c {
