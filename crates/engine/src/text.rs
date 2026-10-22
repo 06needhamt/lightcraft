@@ -1,11 +1,12 @@
 //! Text drawing in pure Rust, shared by the export watermark and the slideshow overlays: Inter
-//! SemiBold (bundled) first, then the craft-fonts non-Latin faces as fallbacks ([`faces`]); glyph outlines
+//! SemiBold (bundled) first, then the craft-fonts CJK and Thai faces as fallbacks ([`faces`]); glyph outlines
 //! from `ab_glyph`, vertical CJK cells shaped with `harfrust`. [`TextLayout`] lays a string out
 //! once (lines split at `\n`, kerning within a face) and reports its size, so callers can anchor
 //! it before drawing; drawing hands out per-pixel coverage, and the caller blends.
 //!
-//! Horizontal text has no contextual shaping or bidi reordering. Arabic glyphs remain isolated
-//! and in logical order. Scripts no face covers draw as Inter's missing-glyph box.
+//! Horizontal text has no contextual shaping or bidi reordering; Thai combining marks use
+//! per-character metrics rather than shaped positioning. Arabic faces are not offered. Characters
+//! no face covers draw as Inter's missing-glyph box.
 
 use ab_glyph::{Font, FontRef, Glyph, PxScale, ScaleFont, point};
 
@@ -16,15 +17,16 @@ pub static TEXT_FONT: &[u8] = include_bytes!("../../../assets/fonts/Inter-SemiBo
 pub const MAX_CHARS: usize = 4000;
 
 /// The text faces: Inter first, then the craft-fonts CJK faces (Mincho first, the watermark's
-/// serif look; then any other CJK face), then the UI's other non-Latin fallback faces. Drawn text
-/// has no UI language, so every bundled script is offered. Without craft-fonts that is Inter
-/// alone, and unsupported characters draw as Inter's missing-glyph box.
+/// serif look; then any other CJK face), then Thai faces, preferring Regular. Drawn text has no
+/// UI language, so every CJK script is offered. Other script faces stay out until their layout is
+/// supported. Without craft-fonts that is Inter alone, with missing-glyph boxes for unsupported text.
 pub fn faces(craft: &'static [crate::fonts::CraftFont]) -> Vec<FontRef<'static>> {
     let mut cjk: Vec<_> = crate::fonts::cjk(craft).collect();
     cjk.sort_by_key(|f| !f.is_mincho());
-    let others =
-        crate::fonts::ui_fallback(craft, "Latn", "Regular").into_iter().filter(|f| !f.scripts.iter().any(|s| crate::fonts::is_cjk_script(s)));
-    std::iter::once(TEXT_FONT).chain(cjk.into_iter().chain(others).map(|f| f.bytes)).filter_map(|bytes| FontRef::try_from_slice(bytes).ok()).collect()
+    let thai = crate::fonts::ui_fallback(craft, "Latn", "Regular")
+        .into_iter()
+        .filter(|f| f.covers("Thai") && !f.scripts.iter().any(|s| crate::fonts::is_cjk_script(s)));
+    std::iter::once(TEXT_FONT).chain(cjk.into_iter().chain(thai).map(|f| f.bytes)).filter_map(|bytes| FontRef::try_from_slice(bytes).ok()).collect()
 }
 
 /// Shape a whole grapheme in one cell. CJK uses vertical origins and forms; Latin stays upright.
@@ -249,8 +251,17 @@ mod tests {
     }
 
     #[test]
-    fn bundled_arabic_uses_its_glyphs() {
-        assert_script_glyphs("Arab", "مرحبا");
+    fn bundled_arabic_stays_out_of_export_fallback() {
+        if !CRAFT_FONTS.iter().any(|font| font.covers("Arab")) {
+            lightcraft_testkit::skip!(Fonts, "built without the Arabic face from craft-fonts");
+            return;
+        }
+        // UI names still use their existing Arabic face. Export needs joining and bidi first.
+        assert!(crate::fonts::ui_fallback(CRAFT_FONTS, "Latn", "Regular").iter().any(|font| font.covers("Arab")));
+        for vertical in [false, true] {
+            let layout = TextLayout::new("مرحبا", 40.0, vertical, CRAFT_FONTS).unwrap();
+            assert!(layout.glyphs.iter().all(|(face, glyph, _)| *face == 0 && glyph.id.0 == 0));
+        }
     }
 
     #[test]
