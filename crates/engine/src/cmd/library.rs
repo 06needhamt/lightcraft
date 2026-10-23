@@ -470,6 +470,15 @@ pub fn specs() -> Vec<CommandSpec> {
                 if s.filter.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path)) {
                     s.filter.library_folder = None;
                 }
+                // a filter put aside by Enable Filters must not bring the removed folder back
+                if let Some(f) = s.shelved_filter.as_mut()
+                    && f.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path))
+                {
+                    f.library_folder = None;
+                }
+                if s.shelved_filter.as_ref() == Some(&Filter::default()) {
+                    s.shelved_filter = None;
+                }
                 // the folder being shown is gone: back to everything, as for a deleted album
                 if s.library_folder.as_deref().is_some_and(|c| lightcraft_catalog::query::folder_within(c, path)) {
                     s.library_folder = None;

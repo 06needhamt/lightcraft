@@ -116,3 +116,23 @@ fn a_folder_filter_does_not_come_back_over_the_folder_now_shown() {
     assert_eq!(s.filter.rating, 4);
     assert_eq!(s.filter.library_folder, None);
 }
+
+#[test]
+fn removing_a_folder_while_off_drops_it_from_the_filter_put_aside() {
+    let mut s = session().unwrap();
+    s.execute("library.filter", &json!({"rating": 4, "libraryFolder": "/lightcraft-enable-filters"})).unwrap();
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    s.execute("library.removeFolder", &json!({"path": "/lightcraft-enable-filters"})).unwrap();
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    assert_eq!(s.filter.library_folder, None, "the removed folder is not brought back");
+    assert_eq!(s.filter.rating, 4, "the rest of the filter is");
+}
+
+#[test]
+fn removing_the_only_criterion_put_aside_leaves_filtering_on() {
+    let mut s = session().unwrap();
+    s.execute("library.filter", &json!({"libraryFolder": "/lightcraft-enable-filters"})).unwrap();
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    s.execute("library.removeFolder", &json!({"path": "/lightcraft-enable-filters"})).unwrap();
+    assert!(s.shelved_filter.is_none(), "an empty filter is not left put aside");
+}
