@@ -23,6 +23,10 @@
   Before, the field took the focus back every frame, so only Return and Esc got you out of it. Return still
   confirms and Esc still cancels.
 
+### Foreign XMP metadata survives namespace-prefix collisions
+- Saving a sidecar keeps another application's properties even when its namespace uses prefixes such as `lc`
+  or `xmp`. Those foreign properties no longer become LightCraft settings or ratings when imported.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
