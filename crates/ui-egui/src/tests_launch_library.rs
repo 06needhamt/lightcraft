@@ -844,7 +844,12 @@ fn photos_dropped_on_the_launch_list_go_into_the_library_chosen() {
     let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
     let photo = dir.join("a.png");
     std::fs::write(&photo, png).unwrap();
+    // frames with nothing dropped (the drop code runs every frame) hold nothing and say nothing
+    settle(&mut h);
+    assert!(h.app.ui.toast.is_none(), "{:?}", h.app.ui.toast);
     let ctx = h.view.ctx.clone();
+    assert_eq!(crate::panels::library_problem::hold_dropped(&mut h.app, &ctx, Vec::new()), Some(Vec::new()));
+    assert!(h.app.ui.toast.is_none(), "an empty drop says nothing: {:?}", h.app.ui.toast);
     let photos = vec![photo.to_string_lossy().into_owned()];
     assert!(crate::panels::library_problem::holds_drops(&h.app));
     assert_eq!(crate::panels::library_problem::hold_dropped(&mut h.app, &ctx, photos.clone()), None, "held while no library is open");
