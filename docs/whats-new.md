@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-23
+
+### The histogram stays in view
+- The histogram stays at the top of the Edit panel while its sliders scroll under it (issue #2679). It used to scroll
+  away with them, so it was out of sight while using the sliders further down the panel.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
