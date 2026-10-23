@@ -478,8 +478,9 @@ impl NativeMenu {
         }
         let bar = menu_bar(app);
         if structure_of(&bar) != self.structure {
+            // (no early return: a rebuild installs every accelerator and resets the state they were synced
+            // to, so the sync below runs in this same frame and no key reaches the menu in between)
             self.rebuild(app);
-            return quit;
         }
         fn walk(nodes: &[MenuNode], items: &mut HashMap<String, Item>) {
             for n in nodes {
