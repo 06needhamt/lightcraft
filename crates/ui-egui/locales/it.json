@@ -2364,6 +2364,8 @@
   "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto",
   "A slide stays up for its duration, its fade in included. A fade of 0 cuts.": "Una diapositiva resta visibile per la sua durata, dissolvenza d'ingresso compresa. Con una dissolvenza di 0 il passaggio è netto.",
   "Add a cell": "Aggiungi una cella",
+  "cells": "celle",
+  "cells overlap": "celle sovrapposte",
   "Also the masks of the same name on the other selected photos": "Anche le maschere con lo stesso nome nelle altre foto selezionate",
   "Apply to All Masks": "Applica a tutte le maschere",
   "Choose a group": "Scegli un gruppo",
