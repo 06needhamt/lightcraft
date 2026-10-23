@@ -1,11 +1,35 @@
 # What's new in LightCraft
 
-## 2026-10-22
-
-### Find the grid shortcut in View
-- Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
-  shortcut changes; clicking a menu row still selects that grid (issue #2500).
 ## 2026-10-23
+
+### Tab leaves the name field in New Album, New Smart Album and the name prompts
+- In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
+  keyboard focus when the dialog opens, and Tab now moves on to the check box, Cancel and OK (Shift+Tab goes back).
+  Before, the field took the focus back every frame, so only Return and Esc got you out of it. Return still
+  confirms and Esc still cancels.
+
+### Foreign XMP metadata survives namespace-prefix collisions
+- Saving a sidecar keeps another application's properties even when its namespace uses prefixes such as `lc`
+  or `xmp`. Those foreign properties no longer become LightCraft settings or ratings when imported.
+
+### Find Missing Photos finds the files of a library made on Windows
+- A library made on Windows records its originals with Windows paths. Opened on macOS or Linux, its photos are
+  missing until relinked, and Find Missing Photos found them only by their content, so it missed every photo it had
+  no fingerprint for (such as photos brought in from a Lightroom catalog) or that had been edited since, even in a
+  folder holding every file under the same name. It now matches them by name as it does any other photo: the name
+  after the last `/` or `\`, in any letter case, checked against the size when the library has one. Several files
+  of that name are still reported rather than guessed, and undo puts back the paths as they were.
+
+### Auto straighten leaves straight photos alone
+- Auto straighten (Auto in the crop panel, or a double-click with the Straighten tool) no longer turns a photo by
+  more than 10°, and acts only when at least three lines agree. Before, it often turned photos that were straight:
+  the edges of wooden planks, a branch or a bird's wing were taken for the horizon, sometimes for a 25° turn.
+- When it finds no horizon or vertical lines, it says so instead of doing nothing without a word.
+
+### PSD and PSB metadata stays available
+- LightCraft now imports PSD and PSB files with EXIF and XMP image resources. Capture dates, GPS and descriptive fields
+  stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
+  are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
 
 ### Choose where a Lightroom catalog goes
 - File ▸ Import Lightroom Catalog… now asks first: merge the catalog's photos, collections and edits into the
@@ -38,6 +62,26 @@
 - Photos dropped on the window while the list (or the window of a library that couldn't open) is up wait for the
   library you open and are imported into it, as files given on the command line are; presets dropped then are
   refused with a note, since they belong to a library.
+
+## 2026-10-22
+
+### Reliability
+- Opening a library no longer writes through a link left at the lock's owner note (`catalog.lock.owner`): the link
+  is removed and a new note made in its place, so the file it pointed to is never changed (as for the catalog's
+  temporary files, issue #1502).
+
+### Keys reach text fields and the shortcut editor on macOS
+- While a text field has focus, the native menu now lets go of the keys the field needs (`G`, the digits `0`–`9`,
+  `P`, `U` and the like), and while Keyboard Shortcuts is recording a key it lets go of all of them (⌘, and ⌘Q in
+  the LightCraft menu too), except the system's own items (Hide LightCraft ⌘H, Hide Others ⌥⌘H, Close Window ⌘W
+  and Minimize ⌘M) and the two keys of the Help menu (⌘/ and F1). Before, the menu item kept its key on macOS, so the
+  key could still run the menu command instead of reaching the field or the editor. The keys come back on the menu
+  items when the field loses focus or recording ends; the menu's order, checkmarks and enabled state are unchanged.
+
+### Find the grid shortcut in View
+- Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
+  shortcut changes; clicking a menu row still selects that grid (issue #2500).
+
 
 ## 2026-10-21
 
@@ -131,16 +175,6 @@
 - `photo.setReference` refuses an `id` that is not a photo id (a string, a negative or fractional
   number) instead of pinning the active photo; only an absent or null `id` means the active photo.
 
-## 2026-10-20
-
-### Smart albums check File Path rules faster
-- A smart album rule on File Path (contains, doesn't contain, is, isn't, starts with, ends with, is empty, isn't
-  empty) no longer builds new text for every photo. On a synthetic library of 312,000 photos, a File Path "contains"
-  or "doesn't contain" rule took about 17 ms per pass instead of about 62 ms, around 3.5 times faster, with the same
-  photos matched; about 6 ms of that is only reading the paths. Paths and rule text with letters beyond A–Z are
-  compared as before.
-## 2026-10-21
-
 ### Edit Capture Time leaves a capture time it can't read as it was
 - A capture time that is cut short, has seconds that aren't digits or has text after it (a Lightroom catalog's capture
   time is copied as it is) is no longer shifted into a clean-looking wrong time: Edit Capture Time leaves the photo as
@@ -155,6 +189,14 @@
   use. The names are English in every interface language, so folders don't change when the language does. Rename
   Photos and export file names take them too.
 
+## 2026-10-20
+
+### Smart albums check File Path rules faster
+- A smart album rule on File Path (contains, doesn't contain, is, isn't, starts with, ends with, is empty, isn't
+  empty) no longer builds new text for every photo. On a synthetic library of 312,000 photos, a File Path "contains"
+  or "doesn't contain" rule took about 17 ms per pass instead of about 62 ms, around 3.5 times faster, with the same
+  photos matched; about 6 ms of that is only reading the paths. Paths and rule text with letters beyond A–Z are
+  compared as before.
 ## 2026-10-19
 
 ### AI Denoise on DirectX 12 with NVIDIA GTX 10-series cards
@@ -176,6 +218,13 @@
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
+
+### Rating in a filtered view keeps your place
+- When a filter shows only one-star photos and you take the star off a photo, it leaves the view and the photo after
+  it is now selected, so you carry on from where you were (issue #2312). The same goes for flags and colour labels,
+  in Picks and in smart albums. Before, the photo stayed selected although the grid no longer showed it, and → or
+  Auto Advance jumped back to the first photo of the view. With Auto Advance on, or with Shift+0–5, you land on the
+  photo after it: no photo is skipped.
 
 ## 2026-10-18
 
@@ -248,15 +297,6 @@
   one (issue #1507). LightCraft used to open the library without it, showing an incomplete catalog that the next save
   would write over the stored copy. It now leaves the library unopened, saves nothing and says which file couldn't be
   read; reload the page to try again.
-## 2026-10-19
-
-### Rating in a filtered view keeps your place
-- When a filter shows only one-star photos and you take the star off a photo, it leaves the view and the photo after
-  it is now selected, so you carry on from where you were (issue #2312). The same goes for flags and colour labels,
-  in Picks and in smart albums. Before, the photo stayed selected although the grid no longer showed it, and → or
-  Auto Advance jumped back to the first photo of the view. With Auto Advance on, or with Shift+0–5, you land on the
-  photo after it: no photo is skipped.
-
 ## 2026-10-14
 
 ### Model downloads time out on a name that doesn't resolve
