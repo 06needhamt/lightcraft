@@ -1600,6 +1600,61 @@ fn a_chain_of_single_folders_starts_open() {
     assert!(!has(&h, "source:libfolder:/Users/me/Pictures/2024"), "the branching folder waits to be opened");
 }
 
+/// In a panel too narrow for a deep row, the count gives way: it is drawn after the name, never
+/// over it or over the folder's icon.
+#[test]
+fn a_count_never_covers_the_name_of_a_deep_row() {
+    // fourteen levels, names wider than the room a row keeps for its name
+    let names: Vec<String> = (1..=14).map(|i| format!("level-{i:02}")).collect();
+    let mut paths = Vec::new();
+    let mut dir = String::new();
+    for name in &names {
+        dir.push('/');
+        dir.push_str(name);
+        paths.push(format!("{dir}/1.jpg"));
+    }
+    // (enough photos at the bottom for counts five digits wide all the way up)
+    paths.extend((0..12_000).map(|i| format!("{dir}/more-{i}.jpg")));
+    let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    // (tall enough for every row of the chain to be drawn: rows below the fold are not)
+    let mut h = folders_app_sized(&refs, [1400.0, 1500.0]);
+    let left = widget(&h, "panel:left_panel");
+    drag(&mut h, left.right() - 2.0, -1400.0);
+    assert_eq!(h.app.ui.left_width, crate::state::LEFT_WIDTH.min, "the panel at its narrowest");
+    let mut path = String::new();
+    for name in &names[..names.len() - 1] {
+        path.push('/');
+        path.push_str(name);
+        click(&mut h, &format!("libraryFolderToggle:{path}"));
+    }
+    h.settle(SETTLE);
+    let deep = dir.as_str();
+    let (label, count) = (widget(&h, &format!("label:libfolder:{deep}")), widget(&h, &format!("count:libfolder:{deep}")));
+    assert!(label.width() > 0.0, "the name is shown: {label:?}");
+    assert!(count.left() >= label.right(), "the count comes after the name: {label:?} {count:?}");
+    // a row with room keeps its count at the panel's visible edge
+    let panel = widget(&h, "panel:left_panel");
+    assert!(widget(&h, "count:all").right() <= panel.right());
+    // and no count is cut in two by that edge (5 digits wide here): it is whole, inside or past it
+    let mut past = 0;
+    for (id, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("count:libfolder:")) {
+        assert!(r.right() <= panel.right() || r.left() >= panel.right(), "{id} straddles the edge: {r:?} / {panel:?}");
+        past += usize::from(r.left() >= panel.right());
+    }
+    assert!(past > 0, "the deepest rows' counts are past the edge");
+    // at every width, also where the content is only a little wider than the panel (a count that
+    // gave way used to be held back by the row's own end there, and was cut by the edge)
+    for width in (200..=330).step_by(2) {
+        let r = h.request("ui.set", json!({"leftWidth": width}), T);
+        assert_eq!(r["ok"], true, "{r}");
+        h.settle(SETTLE);
+        let panel = widget(&h, "panel:left_panel");
+        for (id, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("count:libfolder:")) {
+            assert!(r.right() <= panel.right() || r.left() >= panel.right(), "at {width} pt {id} straddles the edge: {r:?} / {panel:?}");
+        }
+    }
+}
+
 /// Removing a folder from the library asks first, then moves its photos to Recently Deleted.
 #[test]
 fn removing_a_folder_from_the_library_asks_first() {
