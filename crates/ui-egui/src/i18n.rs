@@ -1115,6 +1115,8 @@ mod tests {
         assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot");
         let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue], ..both };
         assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot und Blau");
+        let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue, lightcraft_catalog::ColorLabel::Green], ..both };
+        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot und (Blau oder Grün)");
         let filter = lightcraft_catalog::Filter {
             labels: vec![lightcraft_catalog::ColorLabel::Red, lightcraft_catalog::ColorLabel::Blue],
             ..Default::default()

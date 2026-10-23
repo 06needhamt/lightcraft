@@ -45,7 +45,8 @@ pub(crate) fn display_label(chip: &FilterChip, filter: &lightcraft_catalog::Filt
         let name = |label: &lightcraft_catalog::ColorLabel| crate::i18n::color_label(catalog, *label);
         let or = |labels: &[lightcraft_catalog::ColorLabel]| labels.iter().map(name).collect::<Vec<_>>().join(&format!(" {} ", tr("or")));
         let names = if shown.is_empty() {
-            format!("{} {} {}", filter.label.as_ref().map(name).unwrap_or_default(), tr("and"), or(&filter.labels))
+            let plural = if filter.labels.len() > 1 { format!("({})", or(&filter.labels)) } else { or(&filter.labels) };
+            format!("{} {} {plural}", filter.label.as_ref().map(name).unwrap_or_default(), tr("and"))
         } else {
             or(&shown)
         };

@@ -332,7 +332,7 @@ fn filter_label_and_labels_together_chip() {
     // nothing passes both: the chip names both constraints
     s.execute("library.filter", &json!({"label": "red", "labels": ["yellow", "green"]})).unwrap();
     assert_eq!(s.visible_cloned().len(), 0);
-    assert_eq!(chip(&s).label, "Label: Red and Yellow or Green");
+    assert_eq!(chip(&s).label, "Label: Red and (Yellow or Green)");
     s.execute("library.filter", &chip(&s).clear).unwrap();
     assert_eq!((s.filter.label, s.filter.labels.len()), (None, 0));
 }
