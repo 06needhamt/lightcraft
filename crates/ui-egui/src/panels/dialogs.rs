@@ -268,6 +268,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         Dialog::ConfirmDelete { .. } => "Delete Photos",
         Dialog::MovePhotos { .. } => "Move Photos",
         Dialog::LightroomCatalog { .. } => "Lightroom Classic Catalog",
+        Dialog::LightroomDestination { .. } => "Import Lightroom Catalog",
         Dialog::SaveEffect { .. } => "New Effect Preset",
         Dialog::ManageEffects { .. } => "Manage Effect Presets",
         Dialog::DeleteEffects { names } if names.len() == 1 => "Delete Effect Preset",
@@ -322,6 +323,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             Dialog::Print => 1100.0,
             Dialog::FaceModel { .. } => 460.0,
             Dialog::LightroomCatalog { .. } => 440.0,
+            Dialog::LightroomDestination { .. } => 480.0,
             Dialog::ManageEffects { .. } => 560.0,
             _ => 380.0,
         })
@@ -1289,13 +1291,17 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 Dialog::LightroomCatalog { folder, catalog } => {
                     ui.label(crate::i18n::tr("This is a Lightroom catalog, not a LightCraft library. Import it into a LightCraft library instead?"));
                     ui.label(egui::RichText::new(catalog.as_deref().unwrap_or(folder.as_str())).color(t.text_dim));
-                    ui.label(
-                        egui::RichText::new(crate::i18n::tr(
-                            "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now.",
-                        ))
-                        .color(t.text_dim),
-                    );
+                    // (the import then asks where the catalog goes, unless Settings says to merge, #2672)
+                    let asks = app.ui.settings.lightroom_import == crate::state::LightroomImport::Ask
+                        && app.session.library.as_ref().is_some_and(|l| l.on_disk);
+                    let what = if asks {
+                        "The import reads the catalog without changing it. Next, choose whether its photos, edits, keywords and collections join the library open now or go into a new library."
+                    } else {
+                        "The import reads the catalog without changing it and adds its photos, edits, keywords and collections to the library open now."
+                    };
+                    ui.label(egui::RichText::new(crate::i18n::tr(what)).color(t.text_dim));
                 }
+                d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::body(app, ui, d),
                 Dialog::RemoveFolder { name, count, path, disk } => {
                     ui.label(crate::i18n::tr_format!(
                         "Remove “{name}” and its {count} photo{} from the library?",
@@ -1413,6 +1419,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     Dialog::KeywordTag { .. } => "Save",
                     Dialog::RemoveFolder { .. } => "Remove",
                     Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
+                    d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::ok_label(d),
                     Dialog::SynchronizeFolder { .. } if informational => "Close",
                     Dialog::SynchronizeFolder { .. } => "Synchronize",
                     Dialog::SamModel { then: Some(_), .. } if sam_installed => "Continue",
@@ -1557,6 +1564,12 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
             Ok(r) if matches!(dlg, Dialog::CaptureTime { .. }) && r["unreadable"].as_u64().is_some_and(|n| n > 0) => {
                 app.toast(ctx, crate::i18n::tr("Photos whose capture time can't be read were left as they were"));
                 close = true;
+            }
+            // where a Lightroom catalog goes: stays open to be corrected (a folder that isn't
+            // empty), unless the library it names has gone
+            Err(e) if matches!(dlg, Dialog::LightroomDestination { .. }) => {
+                close = !crate::lightroom_destination::keeps_open_on_error(app, &dlg);
+                app.toast(ctx, e);
             }
             Ok(_) if keeps_open(app, &dlg) => {
                 if let Dialog::SamModel { error, .. } = &mut dlg {
@@ -2082,6 +2095,7 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         Dialog::LightroomCatalog { catalog, .. } => {
             app.run("file.importLightroom", catalog.as_ref().map_or_else(|| json!({}), |c| json!({"path": c})))
         }
+        d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::confirm(app, d),
         Dialog::SaveEffect { name, group, fields, amount, brush } => {
             crate::panels::mask_effects::save_confirm(app, name, group, fields, *amount, *brush)
         }

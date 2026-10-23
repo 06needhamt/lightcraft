@@ -303,5 +303,7 @@
   "Drop to import {n} item{}": "Ablegen zum Importieren (Objekte: {n}){:.0}",
   "Drop to import {n} preset{}": "Ablegen zum Importieren von Vorgaben: {n}{:.0}",
   "Could not read {name}: {e}": "{name} konnte nicht gelesen werden: {e}",
-  "Added {n} photo{}": "{n} Foto{} hinzugefügt"
+  "Added {n} photo{}": "{n} Foto{} hinzugefügt",
+  "Where should the Lightroom catalog “{catalog}” go?": "Wohin soll der Lightroom-Katalog „{catalog}“?",
+  "Merge into the open library “{library}” ({count} photo{})": "Mit der geöffneten Bibliothek „{library}“ zusammenführen ({count} Foto{})"
 }

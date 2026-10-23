@@ -303,5 +303,7 @@
   "Drop to import {n} item{}": "ドロップして {n} 件を読み込み{:.0}",
   "Drop to import {n} preset{}": "ドロップして {n} 件のプリセットを読み込み{:.0}",
   "Could not read {name}: {e}": "{name} を読み取れませんでした: {e}",
-  "Added {n} photo{}": "{n}枚を追加しました{:.0}"
+  "Added {n} photo{}": "{n}枚を追加しました{:.0}",
+  "Where should the Lightroom catalog “{catalog}” go?": "Lightroom カタログ「{catalog}」をどこに読み込みますか？",
+  "Merge into the open library “{library}” ({count} photo{})": "開いているライブラリ「{library}」に統合（写真{count}枚）{:.0}"
 }

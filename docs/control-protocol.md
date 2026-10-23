@@ -174,11 +174,28 @@ writes nothing. `app.openLibrary` opening a library ends it.
 folder (it holds a `*.lrcat`), one of its `*.lrdata` / `*.lrcat-data` folders or `Backups/`, the `.lrcat` itself or
 its `-wal` / `-shm` / `.lock` files, it keeps the library open now and returns `{opened: false, lightroomCatalog:
 <the .lrcat found, or null>, path}`; the window shows a dialog whose `button:dialogOk` (Import Lightroom Catalog…, or
-`ui.dialog.confirm`) runs `file.importLightroom` with that catalog (no catalog found: it asks for one) and
-`button:dialogCancel` (`ui.dialog.cancel`) does nothing. A folder that is a LightCraft library (`catalog.snap` / `catalog.log`) always
+`ui.dialog.confirm`) runs `file.importLightroom` with that catalog (no catalog found: it asks for one), which then
+asks where the catalog goes (next section), and `button:dialogCancel` (`ui.dialog.cancel`) does nothing. A folder that is a LightCraft library (`catalog.snap` / `catalog.log`) always
 opens as one. With no library open (the library problem window) it is an error instead. The engine refuses the same
 places (`EngineError::LightroomCatalog`, so `lightcraft-cli --library` and `mcp --library` too). `library.importLightroom
 {status: true}` reports the catalog's `path` after the task ends as well as while it runs.
+
+### Import Lightroom Catalog: where the catalog goes
+
+`file.importLightroom {path?, into?, name?, location?}` (File ▸ Import Lightroom Catalog…, issue #2672). With `into`
+it acts without asking: `"open"` imports into the library open now (`library.importLightroom`); `"new"` creates the
+library `name` (default: the catalog's file name without `.lrcat`, or `Travel 2`… when taken) in the folder
+`location` (a full path; default: the open library's parent folder) under `app.newLibrary`'s rules, opens it and
+imports there, returning the import's start with `library: {path, name, photos}`. A catalog file that isn't there is
+refused before anything is made; so is a new library while an import runs. Without `into`, a library on disk with
+`settings.lightroomImport` `"ask"` (the default) opens a window and returns `{asking: true, path, into}` (`into`: the
+choice it opens with, `"open"` when the library is empty, else `"new"`). Its widgets:
+`radio:lightroomDestination-open`, `radio:lightroomDestination-new`, `field:lightroomLibraryName`,
+`field:lightroomLibraryLocation`, `button:lightroomLibraryChoose` (where there is a folder dialog), `check:lightroomDontAsk` (with Merge only; sets
+`"alwaysMerge"`), `button:dialogOk` / `ui.dialog.confirm` (which stays open on an error such as a folder that isn't
+empty) and `button:dialogCancel`. With `"alwaysMerge"` (`ui.set {"settings": {"lightroomImport": "alwaysMerge"}}`,
+or Settings ▸ General `button:settingsLightroomImport-0|1`), or in a session in memory, it imports into the open
+library without asking.
 
 ## External controllers
 

@@ -303,5 +303,7 @@
   "Drop to import {n} item{}": "松开鼠标以导入 {n} 个项目{:.0}",
   "Drop to import {n} preset{}": "松开鼠标以导入 {n} 个预设{:.0}",
   "Could not read {name}: {e}": "无法读取 {name}：{e}",
-  "Added {n} photo{}": "已添加 {n} 张照片{:.0}"
+  "Added {n} photo{}": "已添加 {n} 张照片{:.0}",
+  "Where should the Lightroom catalog “{catalog}” go?": "Lightroom 目录“{catalog}”要导入到哪里？",
+  "Merge into the open library “{library}” ({count} photo{})": "合并到当前打开的图库“{library}”（{count} 张照片）{:.0}"
 }

@@ -303,5 +303,7 @@
   "Drop to import {n} item{}": "Pusťte pro import (položek: {n}){:.0}",
   "Drop to import {n} preset{}": "Pusťte pro import přednastavení: {n}{:.0}",
   "Could not read {name}: {e}": "Soubor {name} se nepodařilo přečíst: {e}",
-  "Added {n} photo{}": "Přidáno fotografií: {n}{:.0}"
+  "Added {n} photo{}": "Přidáno fotografií: {n}{:.0}",
+  "Where should the Lightroom catalog “{catalog}” go?": "Kam má jít katalog Lightroomu „{catalog}“?",
+  "Merge into the open library “{library}” ({count} photo{})": "Sloučit s otevřenou knihovnou „{library}“ (fotografie: {count}{:.0})"
 }

@@ -303,5 +303,7 @@
   "Drop to import {n} item{}": "Jatuhkan untuk mengimpor {n} item{:.0}",
   "Drop to import {n} preset{}": "Jatuhkan untuk mengimpor {n} preset{:.0}",
   "Drop to review {n} item{} for import": "Jatuhkan untuk meninjau {n} item sebelum impor{:.0}",
-  "Inside: {names}": "Di dalam: {names}"
+  "Inside: {names}": "Di dalam: {names}",
+  "Where should the Lightroom catalog “{catalog}” go?": "Ke mana katalog Lightroom “{catalog}” diimpor?",
+  "Merge into the open library “{library}” ({count} photo{})": "Gabungkan ke pustaka yang terbuka “{library}” ({count} foto{:.0})"
 }

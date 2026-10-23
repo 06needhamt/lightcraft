@@ -468,6 +468,22 @@ pub struct AppSettings {
     /// View ▸ View Options: the lines the loupe's info overlay shows in Info 1 and Info 2.
     #[serde(deserialize_with = "lenient")]
     pub loupe_info: LoupeInfo,
+    /// File ▸ Import Lightroom Catalog…: ask whether the catalog merges into the open library or
+    /// gets a new one, or always merge (issue #2672; the window's "Don't ask again" picks that).
+    #[serde(deserialize_with = "lenient")]
+    pub lightroom_import: LightroomImport,
+}
+
+/// Where File ▸ Import Lightroom Catalog… puts a catalog (Settings ▸ General ▸ Library). Saved as
+/// `"ask"` / `"alwaysMerge"`; anything else in a hand-edited `ui.json` reads as [`Self::Ask`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LightroomImport {
+    /// A window asks each time: merge into the open library, or create a new library for it.
+    #[default]
+    Ask,
+    /// Merge into the open library without asking (how imports worked before the window).
+    AlwaysMerge,
 }
 
 impl Default for AppSettings {
@@ -500,6 +516,7 @@ impl Default for AppSettings {
             focus_point: false,
             zoom_to_focus: true,
             loupe_info: LoupeInfo::default(),
+            lightroom_import: LightroomImport::Ask,
         }
     }
 }
@@ -1275,6 +1292,29 @@ pub enum Dialog {
     LightroomCatalog {
         folder: String,
         catalog: Option<String>,
+    },
+    /// File ▸ Import Lightroom Catalog…: where the catalog at `catalog` goes (issue #2672, see
+    /// [`crate::lightroom_destination`]). Merge into the open library `library` (`photos` in it), or
+    /// (`new_library`) create the library `name` in the folder `location`, switch to it and import
+    /// there. `dont_ask`: merge from now on without asking. `generation`: the library the window
+    /// was opened for (`Session::library_generation`): another one opened meanwhile isn't merged into.
+    LightroomDestination {
+        /// The `.lrcat` file.
+        catalog: String,
+        /// The open library's name (its folder's name).
+        library: String,
+        /// The photos in the open library.
+        photos: usize,
+        /// "Create a new library" is chosen (else "Merge into the open library").
+        new_library: bool,
+        /// The new library's name (prefilled from the catalog's file name).
+        name: String,
+        /// The folder the new library goes in (prefilled with the open library's parent folder).
+        location: String,
+        /// "Don't ask again (always merge into the open library)".
+        dont_ask: bool,
+        /// `Session::library_generation` when the window opened.
+        generation: u64,
     },
     /// Save the selected mask's sliders as a mask effect preset: which sliders (`FIELDS` names,
     /// the colour as `color_sat`), whether it carries Amount and the brush settings.
