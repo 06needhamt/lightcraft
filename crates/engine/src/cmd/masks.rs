@@ -13,6 +13,13 @@ use crate::{Result, Session};
 /// passed its `samples` array straight through, so a few hundred samples on a large render hung.
 const MAX_COLOR_RANGE_SAMPLES: usize = 64;
 
+/// Caps a colour-range shape's sample list at [`MAX_COLOR_RANGE_SAMPLES`] (render cost is pixels x samples).
+fn cap_color_range_samples(shape: &mut MaskShape) {
+    if let MaskShape::ColorRange { samples, .. } = shape {
+        samples.truncate(MAX_COLOR_RANGE_SAMPLES);
+    }
+}
+
 fn shape_from(kind: &str, p: &Value, c: &str) -> Result<MaskShape> {
     Ok(match kind {
         "brush" => MaskShape::Brush { strokes: vec![] },
@@ -391,8 +398,9 @@ pub fn specs() -> Vec<CommandSpec> {
             }
         ),
         cmd!("mask.update", "Update Mask Shape", [], None, "{id?, component?: index (0), shape: MaskShape JSON}", has_active, |s, p| {
-            let shape: MaskShape =
+            let mut shape: MaskShape =
                 serde_json::from_value(p.get("shape").cloned().unwrap_or_default()).map_err(|e| bad("mask.update", e.to_string()))?;
+            cap_color_range_samples(&mut shape);
             let comp = optional_index(p, "component", "mask.update")?.unwrap_or(0);
             let mid = mask_id(p, s.active_mask, "mask.update")?;
             masks_edit(s, "mask.update", "Edit Mask", |masks, _| {
@@ -1150,5 +1158,13 @@ mod tests_color_range {
         let few = shape_from("colorRange", &json!({ "samples": [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]] }), "mask.add").unwrap();
         let MaskShape::ColorRange { samples, .. } = few else { panic!() };
         assert_eq!(samples.len(), 2);
+        // mask.update deserializes the shape directly; it is capped the same way.
+        let mut shape = shape_from("colorRange", &json!({ "samples": [[0.1, 0.2, 0.3]] }), "mask.add").unwrap();
+        if let MaskShape::ColorRange { samples, .. } = &mut shape {
+            samples.resize(1000, samples[0]);
+        }
+        cap_color_range_samples(&mut shape);
+        let MaskShape::ColorRange { samples, .. } = shape else { panic!() };
+        assert_eq!(samples.len(), MAX_COLOR_RANGE_SAMPLES);
     }
 }
