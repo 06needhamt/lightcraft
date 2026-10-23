@@ -1611,6 +1611,11 @@ fn filter_bar_flags_combine() {
     h.request("ui.clickWidget", json!({"id": "filter:none"}), t);
     let f = h.app.session.filter.clone();
     assert_eq!((f.flag, f.flags), (None, vec![Flag::Reject, Flag::None]));
+    // both set through the API: only Picked passes, so only Picked is lit and Unflagged joins it
+    h.app.session.execute("library.filter", &json!({"flag": "pick", "flags": ["pick", "none"]})).unwrap();
+    h.request("ui.clickWidget", json!({"id": "filter:none"}), t);
+    let f = h.app.session.filter.clone();
+    assert_eq!((f.flag, f.flags), (None, vec![Flag::Pick, Flag::None]));
     h.settle(SETTLE);
 }
 
