@@ -64,24 +64,25 @@ impl Item {
     /// Puts `want` on the native item. muda's `set_accelerator(None)` does nothing on macOS (the
     /// old key equivalent stays and the menu still takes the key), so there the item is replaced
     /// by an identical one without an accelerator, at the same position and with the same id,
-    /// text, enabled and checked state. Only done when the accelerator changes, never per frame.
+    /// text, enabled and checked state. Only done when the accelerator changes (and again while a
+    /// native call keeps failing), never per frame otherwise.
     fn set_accelerator(&mut self, want: Option<Accelerator>) {
         if self.current == want {
             return;
         }
         if cfg!(target_os = "macos") && want.is_none() && self.swappable {
             // `current` follows the native item: it changes only when the swap went through, so a
-            // failed swap (the old item, key and all, is still there) is tried again next time
-            if self.replace_without_accelerator() {
-                self.current = want;
-            }
+            // failed swap (the old item, key and all, is still there) is tried again
+            let done = self.replace_without_accelerator();
+            self.current = settled(self.current, want, done);
             return;
         }
-        self.current = want;
-        let _ = match &self.handle {
+        let done = match &self.handle {
             Handle::Plain(h) => h.set_accelerator(want),
             Handle::Check(h) => h.set_accelerator(want),
-        };
+        }
+        .is_ok();
+        self.current = settled(self.current, want, done);
     }
 
     /// Replaces the native item by one without an accelerator. `self.handle` changes only when the
@@ -106,6 +107,18 @@ impl Item {
         self.handle = new;
         true
     }
+}
+
+/// The accelerator the native item has after trying to put `want` on it: `want` when the native
+/// call worked, else what it had, so the caller sees the mismatch and tries again.
+fn settled(had: Option<Accelerator>, want: Option<Accelerator>, native_call_worked: bool) -> Option<Accelerator> {
+    if native_call_worked { want } else { had }
+}
+
+/// Whether the per-frame accelerator sync has to run: the focus or recording state changed, or an
+/// earlier sync left an item whose native accelerator is not the wanted one (a failed swap).
+fn sync_needed(focus: bool, capturing: bool, synced_focus: bool, synced_capturing: bool, pending: bool) -> bool {
+    focus != synced_focus || capturing != synced_capturing || pending
 }
 
 /// The three submenu calls a swap needs, so the failure paths can be tested without a main-thread
@@ -165,6 +178,8 @@ pub struct NativeMenu {
     /// The keyboard shortcuts editor is recording a key: every accelerator is off so the key
     /// press reaches it.
     capturing: bool,
+    /// An item's native accelerator is not the wanted one (its swap or accelerator call failed): sync again next frame.
+    accelerators_pending: bool,
 }
 
 /// `Cmd+Shift+Z` → a muda accelerator (`None` for keys we leave to egui, e.g. Escape).
@@ -331,6 +346,7 @@ impl NativeMenu {
             structure: String::new(),
             text_focus: false,
             capturing: false,
+            accelerators_pending: false,
         };
         m.rebuild(app);
         app.native_menu = true;
@@ -421,6 +437,7 @@ impl NativeMenu {
         self.menu.init_for_nsapp();
         self.text_focus = false;
         self.capturing = false;
+        self.accelerators_pending = false;
         self.publish_shortcuts(app);
     }
 
@@ -557,9 +574,10 @@ impl NativeMenu {
 
         let focus = ctx.egui_wants_keyboard_input();
         let capturing = app.recording_shortcut.is_some();
-        if focus != self.text_focus || capturing != self.capturing {
+        if sync_needed(focus, capturing, self.text_focus, self.capturing, self.accelerators_pending) {
             self.text_focus = focus;
             self.capturing = capturing;
+            let mut pending = false;
             for it in self.items.values_mut().chain(self.app_items.iter_mut()) {
                 let Some(sc) = it.shortcut.as_deref() else { continue };
                 if it.accel.is_none() {
@@ -567,7 +585,9 @@ impl NativeMenu {
                 }
                 let want = wanted_accelerator(it.accel, sc, focus, capturing);
                 it.set_accelerator(want);
+                pending |= it.current != want;
             }
+            self.accelerators_pending = pending;
             self.publish_shortcuts(app);
         }
         quit
@@ -627,6 +647,8 @@ mod tests {
         /// The new item (9) cannot be inserted / appended.
         reject_new_insert: bool,
         reject_new_append: bool,
+        /// The old item (2) cannot be inserted back.
+        reject_old_insert: bool,
     }
     impl SwapTarget for Fake {
         type Row = u32;
@@ -638,7 +660,7 @@ mod tests {
             true
         }
         fn insert(&self, row: &u32, position: usize) -> bool {
-            if self.reject_new_insert && *row == 9 {
+            if (self.reject_new_insert && *row == 9) || (self.reject_old_insert && *row == 2) {
                 return false;
             }
             self.rows.borrow_mut().insert(position, *row);
@@ -669,6 +691,23 @@ mod tests {
             (false, vec![1, 2, 3]),
             "neither works: the old item is back where it was"
         );
+        assert_eq!(
+            swap(Fake { reject_new_insert: true, reject_new_append: true, reject_old_insert: true, ..Default::default() }),
+            (false, vec![1, 3, 2]),
+            "the old item cannot go back in place either: it is appended"
+        );
+    }
+
+    #[test]
+    fn a_failed_native_call_is_retried_while_the_state_holds() {
+        let g = accelerator("G");
+        assert_eq!(settled(g, None, true), None, "the swap worked");
+        assert_eq!(settled(g, None, false), g, "it failed: the native item still has its key");
+        assert_eq!(settled(None, g, false), None, "restoring a key failed");
+        assert!(!sync_needed(true, false, true, false, false), "nothing changed");
+        assert!(sync_needed(true, false, false, false, false), "focus changed");
+        assert!(sync_needed(false, true, false, false, false), "recording changed");
+        assert!(sync_needed(true, false, true, false, true), "a swap failed last time: try again with the state unchanged");
     }
 
     #[test]
