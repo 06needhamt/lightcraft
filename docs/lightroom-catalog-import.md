@@ -6,10 +6,12 @@ and a C SQLite runtime are not required. The source database is read-only, inclu
 
 File → Open Library… given a Lightroom catalog folder (or an `.lrdata` / `.lrcat-data` folder, or the `.lrcat`)
 doesn't make a LightCraft library there: it offers this import instead, with the catalog found
-(`crates/engine/src/lightroom_folder.rs`, issue #891), and then asks where the catalog goes as described next.
+(`crates/engine/src/lightroom_folder.rs`, issue #891), and then asks where the catalog goes as described next
+(unless the question is turned off, below).
 `lightcraft-cli --library` refuses those places too.
 
-**Where the catalog goes.** Before the import starts, the desktop app asks where the catalog goes (issue #2672):
+**Where the catalog goes.** Before the import starts, the desktop app asks where the catalog goes (issue #2672),
+unless Settings says to always merge (*Turning the question off*, below):
 
 - **Merge into the open library "<name>" (N photos)**: the catalog's photos, collections and edits join the ones
   already in the library open now (the library's name is its folder's name).

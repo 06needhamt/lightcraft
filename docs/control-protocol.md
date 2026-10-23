@@ -203,7 +203,7 @@ folder (it holds a `*.lrcat`), one of its `*.lrdata` / `*.lrcat-data` folders or
 its `-wal` / `-shm` / `.lock` files, it keeps the library open now and returns `{opened: false, lightroomCatalog:
 <the .lrcat found, or null>, path}`; the window shows a dialog whose `button:dialogOk` (Import Lightroom Catalog…, or
 `ui.dialog.confirm`) runs `file.importLightroom` with that catalog (no catalog found: it asks for one), which then
-asks where the catalog goes (next section), and `button:dialogCancel` (`ui.dialog.cancel`) does nothing. A folder that is a LightCraft library (`catalog.snap` / `catalog.log`) always
+asks where the catalog goes when `settings.lightroomImport` is `"ask"` (next section), and `button:dialogCancel` (`ui.dialog.cancel`) does nothing. A folder that is a LightCraft library (`catalog.snap` / `catalog.log`) always
 opens as one. With no library open (the library problem window) it is an error instead. The engine refuses the same
 places (`EngineError::LightroomCatalog`, so `lightcraft-cli --library` and `mcp --library` too). `library.importLightroom
 {status: true}` reports the catalog's `path` after the task ends as well as while it runs.
