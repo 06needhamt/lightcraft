@@ -1251,6 +1251,43 @@ fn find_similar_filters_to_look_alikes() {
 }
 
 #[test]
+fn find_similar_with_no_hits_shows_no_photos() {
+    let mut s = demo();
+    let r = s.execute("library.findSimilar", &json!({"similarity": 1.5})).unwrap();
+    assert_eq!(r["photos"].as_array().map(Vec::len), Some(0));
+    assert_eq!(s.visible_cloned().len(), 0, "an empty Find Similar result must show no photos, not the whole library");
+    s.execute("library.clearFilter", &json!({})).unwrap();
+    assert_eq!(s.visible_cloned().len(), s.catalog.len(), "Clear Filters brings everything back");
+}
+
+#[test]
+fn find_similar_of_a_flat_photo_shows_an_empty_view_and_counts_zero() {
+    let mut s = demo();
+    let photo = s.catalog.photos().next().unwrap().clone();
+    // a flat photo's signature is all zeros: it is not similar even to itself
+    s.signatures.insert(crate::media::content_key(&photo), [0.0; 64]);
+    let r = s.execute("library.findSimilar", &json!({"id": photo.id.0})).unwrap();
+    assert_eq!(r["photos"].as_array().map(Vec::len), Some(0));
+    assert_eq!(s.visible_cloned().len(), 0, "no matches show nothing, not the whole library");
+    assert_eq!(s.catalog.count(&s.filter), 0);
+    let chips = crate::filter_chips(&s.filter, &s.catalog);
+    assert_eq!(chips.iter().map(|c| c.label.as_str()).collect::<Vec<_>>(), ["Only 0 photos"]);
+    s.execute("library.filter", &chips[0].clear).unwrap();
+    assert_eq!(s.filter, Default::default(), "the chip clears the empty state");
+    assert_eq!(s.visible_cloned().len(), s.catalog.len());
+}
+
+#[test]
+fn find_similar_values_stay_within_zero_and_one() {
+    let mut s = demo();
+    let id = s.catalog.photos().next().unwrap().id;
+    let r = s.execute("library.findSimilar", &json!({"id": id.0, "similarity": -1.0})).unwrap();
+    let sims: Vec<f64> = r["photos"].as_array().unwrap().iter().map(|h| h["similarity"].as_f64().unwrap()).collect();
+    assert_eq!(sims.len(), s.catalog.len());
+    assert!(sims.iter().all(|v| (0.0..=1.0).contains(v)), "{sims:?}");
+}
+
+#[test]
 fn quick_develop_adds_to_each_photo() {
     use lightcraft_catalog::PhotoId;
     let mut s = demo();
