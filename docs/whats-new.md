@@ -7,6 +7,14 @@
   is removed and a new note made in its place, so the file it pointed to is never changed (as for the catalog's
   temporary files, issue #1502).
 
+### Keys reach text fields and the shortcut editor on macOS
+- While a text field has focus, the native menu now lets go of the keys the field needs (`G`, the digits `0`–`9`,
+  `P`, `U` and the like), and while Keyboard Shortcuts is recording a key it lets go of all of them (⌘, and ⌘Q in
+  the LightCraft menu too), except the system's own items (Hide LightCraft ⌘H, Hide Others ⌥⌘H, Close Window ⌘W
+  and Minimize ⌘M) and the two keys of the Help menu (⌘/ and F1). Before, the menu item kept its key on macOS, so the
+  key could still run the menu command instead of reaching the field or the editor. The keys come back on the menu
+  items when the field loses focus or recording ends; the menu's order, checkmarks and enabled state are unchanged.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
