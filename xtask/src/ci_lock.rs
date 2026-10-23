@@ -56,13 +56,20 @@ fn owner_path(lock: &Path) -> PathBuf {
     lock.with_extension("lock.owner")
 }
 
+/// What to do when the lock itself can't be set up (read-only home, sandbox, network mount).
+const LOCK_HINT: &str = "set LIGHTCRAFT_CI_LOCK=off to run without the lock, or LIGHTCRAFT_CI_LOCK=<dir> to keep it elsewhere";
+
 /// Take the first free slot of `slots` in `dir`, or `None` when all are held.
 pub fn try_acquire(dir: &Path, slots: usize, owner: &str) -> Result<Option<Held>, String> {
-    std::fs::create_dir_all(dir).map_err(|e| format!("ci lock: {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("ci lock: {}: {e} ({LOCK_HINT})", dir.display()))?;
     for slot in 0..slots.max(1) {
         let path = slot_path(dir, slot);
-        let file =
-            OpenOptions::new().create(true).truncate(false).write(true).open(&path).map_err(|e| format!("ci lock: {}: {e}", path.display()))?;
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .map_err(|e| format!("ci lock: {}: {e} ({LOCK_HINT})", path.display()))?;
         match file.try_lock() {
             Ok(()) => {
                 // a sidecar file, not the lock file: Windows locks are mandatory, so others couldn't read it
@@ -71,7 +78,7 @@ pub fn try_acquire(dir: &Path, slots: usize, owner: &str) -> Result<Option<Held>
                 return Ok(Some(Held { _file: file, owner: owner_file }));
             }
             Err(TryLockError::WouldBlock) => continue,
-            Err(TryLockError::Error(e)) => return Err(format!("ci lock: {}: {e}", path.display())),
+            Err(TryLockError::Error(e)) => return Err(format!("ci lock: {}: {e} ({LOCK_HINT})", path.display())),
         }
     }
     Ok(None)

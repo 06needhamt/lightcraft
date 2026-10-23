@@ -62,7 +62,7 @@ string follows that.
 | 11 | Korean | `ko` | 0 (0%) | none | **no Korean (Hangul) face**: needs a non-Adobe OFL face in craft-fonts (Noto CJK is allowed only for Chinese) | no | none | 14–22 h |
 | 12 | Vietnamese | `vi` | 2,471 / 2,471 (100% key coverage of current union; intentional English like `ISO`/`OK` kept) | menus, panels, dialogs, presets, profiles, dates, formats; lower-layer errors English | Latin with stacked diacritics (Inter) | no (community contribution) | partial (catalog complete; lower-layer errors English) | 1–3 h |
 
-## Other languages LightCraft ships (4)
+## Other languages LightCraft ships (7)
 
 | Language | Code | UI strings translated | Script | Native review | Status | To `full` |
 |---|---|---:|---|---|---|---:|
@@ -74,7 +74,7 @@ string follows that.
 | Finnish | `fi` | 2,610 / 3,308 (79%, measured 2026-10-17: 2,313 plain + 297 formats; the rest is What's New) | Latin (Inter) | yes (written with an agent; native-speaker review by @roopeg) | partial (lower-layer errors English) | 3–5 h |
 | Polish | `pl` | 2,159 messages + 291 formats; every format message translated (2026-10-15) | Latin (Inter) | no (AI-drafted; follow-up by a native speaker) | partial (lower-layer errors English) | 2–4 h (full native review) |
 
-Target languages LightCraft lacks: Korean, Dutch, Swedish, Norwegian Bokmål, Thai
+Target languages LightCraft lacks: Korean, Dutch, Norwegian Bokmål, Thai
 (Thai needs shaping and line breaking without spaces). Each Latin-script one is ~10–16 h; Thai
 ~20–35 h on top of the shaping work.
 
@@ -91,9 +91,9 @@ Target languages LightCraft lacks: Korean, Dutch, Swedish, Norwegian Bokmål, Th
 
 ## Totals
 
-- Bring the 10 shipped non-English catalogs to `full`: ~55–90 h (incl. the shared work).
+- Bring the shipped non-English catalogs to `full` (17 on 2026-10-23; the estimate was made for 10): ~55–90 h (incl. the shared work).
 - Add the 5 missing key languages: ~145–255 h, most of it RTL and complex shaping in egui.
-- Reach the target's 16 languages: + ~50–85 h (Dutch, Polish, Swedish, Norwegian, Thai).
+- Reach the target's 16 languages: + ~30–55 h (Dutch, Norwegian, Thai; Polish and Swedish ship).
 
 ## Revision history
 
