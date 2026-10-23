@@ -166,6 +166,18 @@ pub enum StartupView {
     Detail,
 }
 
+/// What the desktop app opens at launch (Settings ▸ General ▸ At launch; issue #1290). `--library`
+/// and `LIGHTCRAFT_LIBRARY` come first either way.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LaunchLibrary {
+    /// The library open when the app last quit (holding Alt/Option as the window appears asks once).
+    #[default]
+    Last,
+    /// A window lists the recent libraries to choose from.
+    Ask,
+}
+
 /// When grid cells show their rating / flag / edited badges.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -407,6 +419,15 @@ pub struct AppSettings {
     /// Libraries opened recently, newest first (File ▸ Open Recent Library; at most
     /// [`RECENT_LIBRARIES`]).
     pub recent_libraries: Vec<String>,
+    /// When each recent library was last opened (path → the session clock's ISO 8601 time), for
+    /// the launch window. A separate key so files from earlier versions, and earlier versions
+    /// reading this one, keep their list (issue #1290).
+    #[serde(rename = "recentLibrariesOpened", deserialize_with = "lenient")]
+    pub recent_opened: std::collections::BTreeMap<String, String>,
+    /// Open the last library at launch, or ask (a value this version doesn't know reads as the
+    /// default).
+    #[serde(deserialize_with = "lenient")]
+    pub at_launch: LaunchLibrary,
     pub startup_view: StartupView,
     /// Ask before moving photos to Recently Deleted. Saved under a new key: earlier versions saved
     /// `confirmDelete: false` by default (#1239).
@@ -491,6 +512,8 @@ impl Default for AppSettings {
         AppSettings {
             library_path: String::new(),
             recent_libraries: Vec::new(),
+            recent_opened: Default::default(),
+            at_launch: LaunchLibrary::Last,
             startup_view: StartupView::Last,
             confirm_delete: true,
             ask_before_move: true,

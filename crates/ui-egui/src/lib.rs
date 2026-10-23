@@ -130,6 +130,8 @@ mod tests_keywording;
 #[cfg(test)]
 mod tests_labels;
 #[cfg(test)]
+mod tests_launch_library;
+#[cfg(test)]
 mod tests_layout_image;
 #[cfg(test)]
 mod tests_library_problem;
@@ -513,6 +515,9 @@ pub struct LightcraftApp {
     /// The library failed to open at launch: the blocking window, then the temporary-session
     /// banner (issue #100). Cleared once a library opens.
     pub library_problem: Option<panels::library_problem::LibraryProblem>,
+    /// Alt/Option held as the window first appears offers the recent libraries once (issue
+    /// #1290); the desktop host arms it when nothing chose the library already.
+    pub alt_asks_for_library: bool,
     /// The activity stack shows every task, not just the first few ("+N more" was clicked).
     pub activity_expanded: bool,
 }
@@ -595,6 +600,7 @@ impl LightcraftApp {
             screen_profile: None,
             screen_profile_read: None,
             library_problem: None,
+            alt_asks_for_library: false,
             activity_expanded: false,
             model_setup: Default::default(),
         }
@@ -1110,7 +1116,7 @@ impl LightcraftApp {
     pub fn logic(&mut self, ctx: &egui::Context) {
         i18n::set_language(self.ui.language);
         let t0 = now_ms();
-        panels::library_problem::logic(self);
+        panels::library_problem::logic(self, ctx);
         self.logic_inner(ctx);
         self.perf.logic_ms = now_ms() - t0;
     }
@@ -1496,6 +1502,10 @@ impl LightcraftApp {
         if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
             let path = l.dir.to_string_lossy().into_owned();
             panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
+            // when, for the launch window (issue #1290); only the listed libraries keep a time
+            let settings = &mut self.ui.settings;
+            settings.recent_opened.insert(path, (self.session.clock)());
+            settings.recent_opened.retain(|p, _| settings.recent_libraries.contains(p));
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.window_title()));
     }

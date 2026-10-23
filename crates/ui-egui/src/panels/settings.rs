@@ -268,6 +268,19 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
             hint(ui, t, crate::i18n::tr("not available here"));
         }
     });
+    // where libraries are folders to choose from (not in the browser, which keeps one)
+    if app.services.pick_folder.is_some() {
+        use crate::state::LaunchLibrary;
+        row(ui, t, crate::i18n::tr("At launch"), |ui| {
+            choices(
+                ui,
+                "settingsAtLaunch",
+                &[(LaunchLibrary::Last, "Open the last library"), (LaunchLibrary::Ask, "Ask me")],
+                &mut app.ui.settings.at_launch,
+            );
+        });
+        hint(ui, t, crate::i18n::tr("Ask me lists your recent libraries at launch. Holding Alt (Option on a Mac) as the window appears asks once."));
+    }
     // File ▸ Import Lightroom Catalog… (#2672): the window that asks where a catalog goes, or not
     ui.label(RichText::new(crate::i18n::tr("When importing a Lightroom catalog")).color(t.text_label));
     row(ui, t, "", |ui| {
@@ -1441,25 +1454,45 @@ pub(crate) fn free_name(location: &std::path::Path, base: &str) -> std::path::Pa
     (2..1000u32).map(|i| location.join(format!("{base} {i}"))).find(|p| !p.exists()).unwrap_or(first)
 }
 
-/// `app.recentLibraries {clear?: bool}`: the recently opened libraries, newest first, as
-/// `[{path, name, exists, open}]` (`exists: false`: moved or on a disconnected drive). `clear`
-/// forgets them all.
+/// `app.recentLibraries {remove?: path, clear?: bool}`: the recently opened libraries, newest
+/// first, as `[{path, name, exists, open, lastOpened}]` (`exists: false`: moved or on a
+/// disconnected drive; `lastOpened`: ISO 8601 time, `null` when not known). `remove` forgets that
+/// one entry (an error if the list doesn't hold it) and `clear` forgets them all; neither touches
+/// anything on disk (issue #1290).
 pub fn recent_libraries(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    match p.get("remove") {
+        None | Some(Value::Null) => {}
+        Some(Value::String(path)) => {
+            if !forget_library(&mut app.ui.settings, path) {
+                return Err(format!("app.recentLibraries: {path:?} is not in the recent libraries"));
+            }
+        }
+        Some(_) => return Err("app.recentLibraries: remove must be a library path (a string)".into()),
+    }
     if p.get("clear").and_then(Value::as_bool) == Some(true) {
         app.ui.settings.recent_libraries.clear();
+        app.ui.settings.recent_opened.clear();
     }
     let open = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone());
-    let list: Vec<Value> = app
-        .ui
-        .settings
+    let settings = &app.ui.settings;
+    let list: Vec<Value> = settings
         .recent_libraries
         .iter()
         .map(|r| {
             let d = std::path::Path::new(r);
-            json!({"path": r, "name": library_name(d), "exists": d.is_dir(), "open": open.as_deref() == Some(d)})
+            json!({"path": r, "name": library_name(d), "exists": d.is_dir(), "open": open.as_deref() == Some(d), "lastOpened": settings.recent_opened.get(r)})
         })
         .collect();
     Ok(Value::Array(list))
+}
+
+/// Forget `path` in File ▸ Open Recent Library (and when it was opened); the library itself is
+/// left where it is. False if the list didn't hold it.
+pub fn forget_library(settings: &mut crate::state::AppSettings, path: &str) -> bool {
+    let before = settings.recent_libraries.len();
+    settings.recent_libraries.retain(|r| r != path);
+    settings.recent_opened.remove(path);
+    settings.recent_libraries.len() != before
 }
 
 // ---------------------------------------------------------------------------- Display profile
