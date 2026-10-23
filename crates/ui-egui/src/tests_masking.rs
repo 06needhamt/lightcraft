@@ -1880,6 +1880,14 @@ fn a_brush_stroke_is_not_tinted_while_the_mask_overlay_is_hidden() {
     }
     pointer(&mut h, json!([{"kind": "up", "x": 0.85, "y": 0.75}]));
     assert_eq!(develop(&h).masks.len(), 1, "every stroke went into the one mask");
+
+    // a hidden mask isn't in the all-masks overlay: nor is the stroke being painted into it
+    let id = develop(&h).masks[0].id;
+    exec(&mut h, "mask.visible", json!({"id": id, "visible": false}));
+    let (photo, held) = hold_fast_stroke(&mut h, 0.9);
+    let t = tinted(&photo, &held);
+    assert!(t.is_empty(), "the all-masks overlay tints a stroke into a hidden mask: {} of 74 points, first {:?}", t.len(), t.first());
+    pointer(&mut h, json!([{"kind": "up", "x": 0.85, "y": 0.9}]));
 }
 
 #[test]
