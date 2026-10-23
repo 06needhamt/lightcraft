@@ -380,12 +380,47 @@ fn merge_is_refused_when_another_library_was_opened_meanwhile() {
     let other = f.root.join("Other");
     let dialog = h.app.ui.dialog.take();
     h.app.run("app.openLibrary", json!({"path": other.to_string_lossy()})).unwrap();
+    let stale = dialog.clone();
     h.app.ui.dialog = dialog;
     h.step();
     click(&mut h, "button:dialogOk");
     assert!(h.app.ui.dialog.is_none(), "the window closes: the library it named is gone");
-    let toast = h.app.ui.toast.clone().map(|t| t.0).unwrap_or_default();
-    assert!(toast.contains("nothing was imported"), "{toast}");
+    // confirm's own error, not the last toast: another notice (the library switch's, on macOS)
+    // can replace the toast before it is read
+    let stale = stale.unwrap();
+    let err = crate::lightroom_destination::confirm(&mut h.app, &stale).unwrap_err();
+    assert!(err.contains("nothing was imported"), "{err}");
     assert!(h.app.lightroom.is_none() && h.app.lightroom_last.is_none());
     assert_eq!(open_dir(&h), Some(other));
+}
+
+/// The same for *Create a new library* (CodeRabbit on #2685): a window left over from before a
+/// library switch makes no library and imports nothing.
+#[test]
+fn a_new_library_is_refused_when_another_library_was_opened_meanwhile() {
+    let f = Fixture::new("stale-new");
+    let mut h = f.app(false);
+    h.app.run("file.importLightroom", json!({"path": f.lrcat()})).unwrap();
+    h.step();
+    click(&mut h, "radio:lightroomDestination-new");
+    let other = f.root.join("Other");
+    let dialog = h.app.ui.dialog.take();
+    let target = match &dialog {
+        Some(crate::state::Dialog::LightroomDestination { name, location, .. }) => std::path::Path::new(location).join(name),
+        _ => panic!("the destination window is up"),
+    };
+    h.app.run("app.openLibrary", json!({"path": other.to_string_lossy()})).unwrap();
+    let stale = dialog.clone();
+    h.app.ui.dialog = dialog;
+    h.step();
+    click(&mut h, "button:dialogOk");
+    assert!(h.app.ui.dialog.is_none(), "the window closes: the library it named is gone");
+    // confirm's own error, not the last toast: another notice (the library switch's, on macOS)
+    // can replace the toast before it is read
+    let stale = stale.unwrap();
+    let err = crate::lightroom_destination::confirm(&mut h.app, &stale).unwrap_err();
+    assert!(err.contains("nothing was imported"), "{err}");
+    assert!(h.app.lightroom.is_none() && h.app.lightroom_last.is_none());
+    assert_eq!(open_dir(&h), Some(other));
+    assert!(!target.exists(), "no library was made at {}", target.display());
 }

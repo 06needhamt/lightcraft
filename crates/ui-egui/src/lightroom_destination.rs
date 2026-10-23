@@ -188,12 +188,13 @@ fn params(catalog: &str, new_library: bool, name: &str, location: &str) -> Value
 
 /// The window's confirm button: import as chosen. "Don't ask again" is kept once a merge has
 /// started (it only applies to merging). Another library opened while the window was up (by an
-/// agent, the control channel) is not merged into.
+/// agent, the control channel) makes the window stale for both choices: nothing is merged into
+/// it, and no new library is made from defaults that described the library it replaced.
 pub fn confirm(app: &mut LightcraftApp, dialog: &Dialog) -> Result<Value, String> {
     let Dialog::LightroomDestination { catalog, new_library, name, location, dont_ask, generation, .. } = dialog else {
         return Err("not the Lightroom catalog destination window".into());
     };
-    if !*new_library && *generation != app.session.library_generation() {
+    if *generation != app.session.library_generation() {
         return Err(crate::i18n::tr("Another library was opened since this window appeared: nothing was imported").to_string());
     }
     let r = app.run("file.importLightroom", params(catalog, *new_library, name, location))?;
