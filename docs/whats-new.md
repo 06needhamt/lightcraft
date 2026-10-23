@@ -35,6 +35,12 @@
   after the last `/` or `\`, in any letter case, checked against the size when the library has one. Several files
   of that name are still reported rather than guessed, and undo puts back the paths as they were.
 
+### Auto straighten leaves straight photos alone
+- Auto straighten (Auto in the crop panel, or a double-click with the Straighten tool) no longer turns a photo by
+  more than 10°, and acts only when at least three lines agree. Before, it often turned photos that were straight:
+  the edges of wooden planks, a branch or a bird's wing were taken for the horizon, sometimes for a 25° turn.
+- When it finds no horizon or vertical lines, it says so instead of doing nothing without a word.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

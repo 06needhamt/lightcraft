@@ -818,6 +818,18 @@ impl LightcraftApp {
         self.toast_for(ctx, text, TOAST_SECONDS);
     }
 
+    /// Auto straighten (the crop panel's Auto, a double-click with the Straighten tool), saying so
+    /// when it finds nothing to level by instead of leaving the photo as it is without a word.
+    pub fn auto_straighten(&mut self, ctx: &egui::Context) {
+        match self.run("crop.autoStraighten", serde_json::json!({})) {
+            Ok(r) if r.get("changed").and_then(Value::as_bool) == Some(false) => {
+                self.toast(ctx, crate::i18n::tr("No horizon or vertical lines to level by"));
+            }
+            Ok(_) => {}
+            Err(e) => self.toast(ctx, e),
+        }
+    }
+
     /// A toast that stays `secs` seconds (messages that say where to look or what to do next).
     pub fn toast_for(&mut self, ctx: &egui::Context, text: impl Into<String>, secs: f64) {
         let t = ctx.input(|i| i.time);

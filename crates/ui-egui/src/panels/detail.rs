@@ -3058,7 +3058,7 @@ mod preview_geometry_tests {
 fn straighten_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, held: bool) {
     ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
     if !held && resp.double_clicked() {
-        let _ = app.run("crop.autoStraighten", json!({}));
+        app.auto_straighten(ui.ctx());
         app.ui.tool.clear();
         app.gesture = None;
         return;
