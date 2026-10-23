@@ -2361,5 +2361,6 @@
   "The library's catalog can't be read:": "Le catalogue de la bibliothèque ne peut pas être lu :",
   "Not answering yet: the drive may be asleep or offline": "Pas encore de réponse : le disque est peut-être en veille ou hors ligne",
   "This library couldn't be checked": "Impossible de vérifier cette bibliothèque",
-  "Checking recent libraries": "Vérification des bibliothèques récentes"
+  "Checking recent libraries": "Vérification des bibliothèques récentes",
+  "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte"
 }

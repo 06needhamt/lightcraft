@@ -165,7 +165,9 @@ catalog, a missing drive), the session starts empty and in memory — never with
 to do: `ui.inspect` → `libraryProblem` is `{path, error, temporarySession, pendingImport}` (else `null`); its buttons
 are `button:libraryRetry`, `button:libraryChoose`, `button:libraryTemporary` (Continue Without Saving) and
 `button:libraryQuit`. A temporary session shows a banner (`indicator:temporarySession`, `button:libraryReopen`) and
-writes nothing. `app.openLibrary` opening a library ends it.
+writes nothing. `app.openLibrary` opening a library ends it. `pendingImport` counts the files waiting for a
+library: those given on the command line, and photos dropped on the window while it (or the launch list below) is
+up; they are imported into the library that opens, or into the temporary session.
 
 ### Choosing the library at launch
 

@@ -1259,6 +1259,7 @@ impl LightcraftApp {
                 let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
             }
             // read and added on a worker thread (dropped folders can be large, or on a slow drive)
+            let photos = panels::library_problem::hold_dropped(self, ctx, photos).unwrap_or_default();
             if !photos.is_empty() {
                 if self.lightroom.is_some() {
                     self.toast(ctx, "Finish Lightroom catalog import before adding photos");
