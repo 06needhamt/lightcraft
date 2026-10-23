@@ -291,7 +291,7 @@
   "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})": "{what} merge added at {mp}, the largest a panorama can be (its full size is {full})",
   "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has": "{what} merge added at {mp}: its full size, {full}, needs more memory than this computer has",
   "“{to}” is already a person. Combining them makes one person; Undo separates them again.": "“{to}” is already a person. Combining them makes one person; Undo separates them again.",
-  "…and {more} more": "…და კიდევ {more}",
+  "…and {more} more": "…and {more} more",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Color space: Rec. 2020 {curve} (HDR AVIF)",
   "{n} selected photos · {pages} pages": "{n} selected photos · {pages} pages",
   "Already in “{}”": "Already in “{}”",
