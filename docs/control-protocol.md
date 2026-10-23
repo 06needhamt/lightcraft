@@ -173,7 +173,9 @@ With Settings ▸ General ▸ At launch set to Ask me (`ui.set {"settings": {"at
 default, opens the last library), or Alt/Option held during the first 2 s after the window appears, the desktop app
 shows a window listing the recent libraries (issue #1290). `--library` and `LIGHTCRAFT_LIBRARY` skip it, and so does
 `--memory`; `lightcraft-cli` never shows it. `ui.inspect` → `libraryProblem.chooser` is `{libraries: [{path,
-lastOpened, available, reason}], selected, libraryOpen}` (else `null`; `libraryOpen: true` when it was opened over
+lastOpened, available, reason}], selected, libraryOpen}` (`available` is checked read-only: the folder and its catalog
+file are looked at, never locked or written, so a library another program has open shows as available and Open
+reports who has it in `libraryProblem.error`) (else `null`; `libraryOpen: true` when it was opened over
 the last library with Alt). Each row is the widget `libraryRecent:<index>`; the buttons are `button:libraryOpen`,
 `button:libraryOpenAnother` (the folder dialog of `app.openLibrary`), `button:libraryNew` (`app.newLibrary`),
 `button:libraryForget` (Remove from List) and `button:libraryQuit`; `ui.key` ArrowUp / ArrowDown move the selection,

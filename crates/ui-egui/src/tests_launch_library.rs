@@ -84,44 +84,96 @@ fn the_list_checks_each_library_and_selects_the_last_one() {
     let (a, b, held_path) = (make_library(&a), make_library(&b), make_library(&held));
     std::fs::create_dir_all(&plain).unwrap();
     std::fs::write(plain.join("notes.txt"), b"not a library").unwrap();
-    let gone = dir.join("Gone").to_string_lossy().into_owned();
-    let plain = plain.to_string_lossy().into_owned();
+    let file = dir.join("a-file.txt");
+    std::fs::write(&file, b"a file").unwrap();
+    let (gone, plain, file) =
+        (dir.join("Gone").to_string_lossy().into_owned(), plain.to_string_lossy().into_owned(), file.to_string_lossy().into_owned());
+    // another program has it open: listing doesn't take locks, so it is found when opened
     let lock = lightcraft_catalog::LibraryLock::acquire(Path::new(&held_path), "another LightCraft").unwrap();
-    let session = lightcraft_engine::Session::new().with_fs();
 
     let mut settings = AppSettings {
-        recent_libraries: vec![gone.clone(), held_path.clone(), a.clone(), plain.clone(), b.clone()],
+        recent_libraries: vec![gone.clone(), held_path.clone(), a.clone(), plain.clone(), file.clone(), b.clone()],
         library_path: b.clone(),
         ..AppSettings::default()
     };
     settings.recent_opened.insert(b.clone(), "2026-10-20T08:30:00".into());
-    let p = LibraryProblem::choose(&session, &settings);
+    let p = LibraryProblem::choose(&settings);
     assert!(!p.saves_nothing(), "the launch list is not a temporary session: removals are saved");
     let c = p.chooser.as_ref().unwrap();
     let why: Vec<Option<&str>> = c.libraries.iter().map(|l| l.unavailable.as_deref()).collect();
     assert!(why[0].unwrap().contains("Not found"), "{why:?}");
-    assert!(why[1].unwrap().contains("already open in another LightCraft"), "{why:?}");
+    assert_eq!(why[1], None, "a lock is not probed: {why:?}");
     assert_eq!(why[2], None);
     assert!(why[3].unwrap().contains("no LightCraft library"), "{why:?}");
-    assert_eq!(why[4], None);
-    assert_eq!(c.selected, Some(4), "the last library opened");
-    assert_eq!(c.libraries[4].opened.as_deref(), Some("2026-10-20T08:30:00"));
+    assert!(why[4].unwrap().contains("not a library folder"), "{why:?}");
+    assert_eq!(why[5], None);
+    assert_eq!(c.selected, Some(5), "the last library opened");
+    assert_eq!(c.libraries[5].opened.as_deref(), Some("2026-10-20T08:30:00"));
     assert_eq!(c.libraries[2].opened, None, "no time known");
     let json = p.to_json();
-    assert_eq!(json["chooser"]["libraries"][1]["available"], false);
-    assert_eq!(json["chooser"]["selected"], 4);
+    assert_eq!(json["chooser"]["libraries"][0]["available"], false);
+    assert_eq!(json["chooser"]["selected"], 5);
 
     // the last library can't be opened: the first one that can is selected
-    settings.library_path = held_path.clone();
-    assert_eq!(LibraryProblem::choose(&session, &settings).chooser.unwrap().selected, Some(2));
+    settings.library_path = plain.clone();
+    assert_eq!(LibraryProblem::choose(&settings).chooser.unwrap().selected, Some(1));
     // none can: the first row, Open greyed out
-    settings.recent_libraries = vec![gone.clone()];
-    assert_eq!(LibraryProblem::choose(&session, &settings).chooser.unwrap().selected, Some(0));
+    settings.recent_libraries = vec![gone.clone(), file.clone()];
+    assert_eq!(LibraryProblem::choose(&settings).chooser.unwrap().selected, Some(0));
     // an empty list selects nothing
     settings.recent_libraries.clear();
-    let c = LibraryProblem::choose(&session, &settings).chooser.unwrap();
+    let c = LibraryProblem::choose(&settings).chooser.unwrap();
     assert!(c.libraries.is_empty() && c.selected.is_none());
     assert!(LibraryProblem::new("/x", "e").saves_nothing(), "the failed-library window still saves nothing");
+    drop(lock);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Every file under `dir`: relative path → (contents, modification time).
+fn snapshot(dir: &Path) -> std::collections::BTreeMap<PathBuf, (Vec<u8>, std::time::SystemTime)> {
+    let mut out = std::collections::BTreeMap::new();
+    let mut todo = vec![dir.to_path_buf()];
+    while let Some(d) = todo.pop() {
+        for e in std::fs::read_dir(&d).unwrap() {
+            let p = e.unwrap().path();
+            let m = std::fs::metadata(&p).unwrap();
+            if m.is_dir() {
+                todo.push(p.clone());
+            }
+            let bytes = if m.is_file() { std::fs::read(&p).unwrap() } else { Vec::new() };
+            out.insert(p.strip_prefix(dir).unwrap().to_path_buf(), (bytes, m.modified().unwrap()));
+        }
+    }
+    out
+}
+
+/// Listing the recent libraries (and drawing the window) writes nothing into any of them: no
+/// lock file, no owner file, nothing modified — free, held by another program or not a library.
+#[test]
+fn listing_the_libraries_leaves_every_folder_byte_identical() {
+    let dir = temp("readonly");
+    let (free, fresh, held) = (dir.join("Free"), dir.join("Fresh"), dir.join("Held"));
+    let (free, held_path) = (make_library(&free), make_library(&held));
+    // a library whose lock files were never made (copied over from elsewhere, say)
+    let fresh_path = make_library(&fresh);
+    for f in [lightcraft_catalog::lock::LOCK, lightcraft_catalog::lock::OWNER] {
+        let _ = std::fs::remove_file(fresh.join(f));
+    }
+    std::fs::create_dir_all(dir.join("Plain")).unwrap();
+    let lock = lightcraft_catalog::LibraryLock::acquire(Path::new(&held_path), "another LightCraft").unwrap();
+    let recent = vec![free.clone(), fresh_path.clone(), held_path.clone(), dir.join("Plain").to_string_lossy().into_owned()];
+    let before = snapshot(&dir);
+    // (mtime granularity: a write in the same instant would still change contents or add files)
+    let settings = AppSettings { recent_libraries: recent.clone(), library_path: free.clone(), ..AppSettings::default() };
+    let p = LibraryProblem::choose(&settings);
+    assert_eq!(snapshot(&dir), before, "checking the rows must not create or change any file");
+    assert!(p.chooser.as_ref().unwrap().libraries.iter().take(3).all(|l| l.unavailable.is_none()));
+    let mut h = asking(recent, &free, None);
+    settle(&mut h);
+    assert!(has(&h, "libraryRecent:2"));
+    drop(h);
+    assert_eq!(snapshot(&dir), before, "listing must not create or change any file");
+    assert!(!fresh.join(lightcraft_catalog::lock::LOCK).exists() && !fresh.join(lightcraft_catalog::lock::OWNER).exists());
     drop(lock);
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -145,7 +197,7 @@ fn asking(recent: Vec<String>, last: &str, picked: Option<String>) -> Headless {
     if let Some(p) = picked {
         app.services.pick_folder = Some(Box::new(move || Some(p.clone())));
     }
-    app.library_problem = Some(LibraryProblem::choose(&app.session, &app.ui.settings));
+    app.library_problem = Some(LibraryProblem::choose(&app.ui.settings));
     let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
     settle(&mut h);
     h
@@ -206,7 +258,7 @@ fn return_opens_the_selected_library_and_a_failure_says_why() {
     settle(&mut h);
     assert!(h.app.session.library.is_none());
     let p = h.app.library_problem.as_ref().unwrap();
-    assert!(p.error.contains("already open"), "{}", p.error);
+    assert!(p.error.contains("already open in another LightCraft"), "who has it: {}", p.error);
     assert!(p.chooser.as_ref().unwrap().libraries[1].unavailable.is_some(), "greyed out now");
     drop(lock);
     // ↑ to Alpha, Return: it opens

@@ -982,7 +982,7 @@ fn main() -> eframe::Result {
                 }
                 // the recent libraries to choose from (issue #1290), each checked now
                 if launch == Launch::Ask {
-                    problem = Some(LibraryProblem::choose(&app.session, &app.ui.settings));
+                    problem = Some(LibraryProblem::choose(&app.ui.settings));
                 }
                 app.alt_asks_for_library = matches!(launch, Launch::Open { alt_asks: true, .. });
                 lightcraft_ui_egui::i18n::set_language(app.ui.language);
@@ -1177,7 +1177,7 @@ mod tests {
         let path = d.join("ui.json");
         let mut app = LightcraftApp::new(s, Services::default());
         app.ui.settings.recent_libraries = vec!["/gone/a".into(), "/gone/b".into()];
-        app.library_problem = Some(LibraryProblem::choose(&app.session, &app.ui.settings));
+        app.library_problem = Some(LibraryProblem::choose(&app.ui.settings));
         let mut w = PrefsWriter { path: Some(path.clone()), ..Default::default() };
         app.ui.settings.recent_libraries.remove(0);
         w.save(&app).unwrap();

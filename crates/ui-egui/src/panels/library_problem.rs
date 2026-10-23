@@ -98,21 +98,17 @@ impl LibraryProblem {
         LibraryProblem { path: path.into(), error: error.into(), can_retry: true, ..Default::default() }
     }
 
-    /// The window listing the recent libraries, each checked now: one that is gone, isn't a
-    /// LightCraft library any more, or can't be opened (another program has it, unreadable) is
-    /// greyed out with the reason. The last library opened is selected, or else the first one
+    /// The window listing the recent libraries, each checked now without writing anything
+    /// ([`unavailable`]): one that is gone, isn't a LightCraft library any more or can't be read
+    /// is greyed out with the reason. The last library opened is selected, or else the first one
     /// that can be opened.
-    pub fn choose(session: &lightcraft_engine::Session, settings: &AppSettings) -> LibraryProblem {
+    pub fn choose(settings: &AppSettings) -> LibraryProblem {
         // as many as File ▸ Open Recent Library keeps (a hand-edited settings file may hold more)
         let libraries: Vec<RecentLibrary> = settings
             .recent_libraries
             .iter()
             .take(crate::state::RECENT_LIBRARIES)
-            .map(|path| RecentLibrary {
-                path: path.clone(),
-                opened: settings.recent_opened.get(path).cloned(),
-                unavailable: unavailable(session, path),
-            })
+            .map(|path| RecentLibrary { path: path.clone(), opened: settings.recent_opened.get(path).cloned(), unavailable: unavailable(path) })
             .collect();
         let can = |l: &RecentLibrary| l.unavailable.is_none();
         let selected = libraries
@@ -143,19 +139,32 @@ impl LibraryProblem {
     }
 }
 
-/// Why the library at `path` can't be opened now (`None`: it can).
-fn unavailable(session: &lightcraft_engine::Session, path: &str) -> Option<String> {
+/// Why the library at `path` can't be opened (`None`: as far as can be told without opening it).
+///
+/// Read-only: the folder and its catalog file are looked at, never locked or written (the list
+/// may name libraries on other drives, network shares or sleeping disks). A library another
+/// program has open is therefore found when Open is pressed: the open fails and the window says
+/// who has it.
+fn unavailable(path: &str) -> Option<String> {
     let dir = Path::new(path);
     if !dir.exists() {
         return Some(crate::i18n::tr("Not found: moved, renamed or on a disconnected drive").to_string());
     }
-    // a folder that is there, readable and not held by another program
-    if let Err(e) = session.check_library(dir) {
-        return Some(e.to_string());
+    if !dir.is_dir() {
+        return Some(crate::i18n::tr("This is a file, not a library folder").to_string());
+    }
+    if let Err(e) = std::fs::read_dir(dir) {
+        return Some(format!("{} {e}", crate::i18n::tr("This folder can't be read:")));
     }
     // opening would make a new, empty library in it
     if !lightcraft_engine::library::is_library(dir) {
         return Some(crate::i18n::tr("There is no LightCraft library in this folder any more").to_string());
+    }
+    // the catalog the open reads first: the snapshot, else the log alone (opened to read, not read)
+    let snapshot = dir.join(lightcraft_catalog::journal::SNAPSHOT);
+    let catalog = if snapshot.is_file() { snapshot } else { dir.join(lightcraft_catalog::journal::LOG) };
+    if let Err(e) = std::fs::File::open(&catalog) {
+        return Some(format!("{} {e}", crate::i18n::tr("The library's catalog can't be read:")));
     }
     None
 }
@@ -257,7 +266,7 @@ fn alt_at_launch(app: &mut LightcraftApp, ctx: &egui::Context) {
     if crate::panels::settings::can_switch_library(app).is_err() {
         return;
     }
-    let mut p = LibraryProblem::choose(&app.session, &app.ui.settings);
+    let mut p = LibraryProblem::choose(&app.ui.settings);
     if let Some(c) = p.chooser.as_mut() {
         c.over = app.session.library.as_ref().map(|_| app.session.library_generation());
     }

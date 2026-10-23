@@ -2355,5 +2355,8 @@
   "Open now": "Ouverte en ce moment",
   "Last opened": "Ouverte le",
   "Not found: moved, renamed or on a disconnected drive": "Introuvable : déplacée, renommée ou sur un disque déconnecté",
-  "There is no LightCraft library in this folder any more": "Ce dossier ne contient plus de bibliothèque LightCraft"
+  "There is no LightCraft library in this folder any more": "Ce dossier ne contient plus de bibliothèque LightCraft",
+  "This is a file, not a library folder": "C’est un fichier, pas un dossier de bibliothèque",
+  "This folder can't be read:": "Ce dossier ne peut pas être lu :",
+  "The library's catalog can't be read:": "Le catalogue de la bibliothèque ne peut pas être lu :"
 }

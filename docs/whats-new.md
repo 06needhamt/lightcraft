@@ -5,8 +5,10 @@
 ### Choose which library opens at launch
 - Settings ▸ General ▸ **At launch**: *Open the last library* (as before) or *Ask me*. With *Ask me*, LightCraft
   starts with a window listing your recent libraries: each one's name, the folder it is in and when you last opened
-  it. One that is gone (moved, renamed, on a disconnected drive), open in another program or no longer a library is
-  greyed out with the reason. The last library is selected; **Open** (or Return, or a double-click) opens it,
+  it. One that is gone (moved, renamed, on a disconnected drive), can't be read or no longer holds a library is
+  greyed out with the reason. Making the list only looks: it never locks or writes anything in your libraries, so one
+  that another program has open is reported, with who has it, when you press **Open**, and the window stays. The
+  last library is selected; **Open** (or Return, or a double-click) opens it,
   **Open Another…** asks for a folder, **New Library…** makes one, **Quit** (or Esc) quits. ↑ and ↓ move through
   the list.
 - Holding Alt (Option on a Mac) as the window appears shows the same list once, over the library that opened: open
