@@ -35,6 +35,8 @@ def _out_path(arg):
     path = Path(arg).resolve()
     if not path.parent.is_dir():
         sys.exit(f"output directory does not exist: {arg}")
+    if path.exists() and not path.is_file():
+        sys.exit(f"output path is not a regular file: {arg}")
     return str(path)
 
 WL = np.arange(380, 781, 5)
