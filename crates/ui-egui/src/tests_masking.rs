@@ -1120,6 +1120,29 @@ fn edit_in_external_editor_opens_the_copy() {
     h.settle(SETTLE);
 }
 
+/// An editor that won't open the copy: the copy is in the library already, so the command succeeds
+/// with `failed` set and a toast saying why, instead of an error a script would retry (and make
+/// another copy each time).
+#[test]
+fn edit_in_reports_an_editor_that_wont_open_without_failing() {
+    let dir = std::env::temp_dir().join(format!("lc-ui-ext-fail-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let services = Services { png: None, open_with: Some(Box::new(|_: &str, _: &str| Err("the editor quit".into()))), ..Default::default() };
+    let app = LightcraftApp::new(lightcraft_engine::Session::with_demo().with_fs(), services);
+    let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    h.app.ui.settings.external_editor = "PhotoCraft".into();
+    let n = h.app.session.catalog.len();
+    let r = h.request("engine.execute", json!({"command": "photo.editInExternal", "params": {"dir": dir.to_string_lossy()}}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["result"]["failed"], "the editor quit", "{r}");
+    assert_eq!(h.app.session.catalog.len(), n + 1, "the copy stays in the library");
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(toast.contains("the editor quit"), "{toast}");
+    let _ = std::fs::remove_dir_all(&dir);
+    h.settle(SETTLE);
+}
+
 /// Edit in PhotoCraft: a PSD copy (what PhotoCraft saves back to), handed to "PhotoCraft" for
 /// the host to find; when the host can't find it, no copy is made.
 #[test]
