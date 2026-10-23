@@ -1,5 +1,16 @@
 # What's new in LightCraft
 
+## 2026-10-23
+
+### Choose where a Lightroom catalog goes
+- File ▸ Import Lightroom Catalog… now asks first: merge the catalog's photos, collections and edits into the
+  library open now, or create a new library for them, named after the catalog and placed next to the open library
+  (both can be changed). LightCraft opens the new library, then imports the catalog into it. Cancel does nothing.
+  Open Library… on a Lightroom catalog goes through the same choice.
+- To import as before without the question, choose Settings ▸ General ▸ When importing a Lightroom catalog ▸
+  Always merge into the open library, or tick Don't ask again in the window. Ask where to import it brings the
+  question back.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

@@ -21,6 +21,7 @@ pub mod headless;
 pub mod i18n;
 pub mod icons;
 pub mod import;
+pub mod lightroom_destination;
 pub mod lightroom_import;
 pub mod links;
 pub mod menu_level;
@@ -120,6 +121,8 @@ mod tests_labels;
 mod tests_layout_image;
 #[cfg(test)]
 mod tests_library_problem;
+#[cfg(test)]
+mod tests_lightroom_destination;
 #[cfg(test)]
 mod tests_lights_out;
 #[cfg(test)]

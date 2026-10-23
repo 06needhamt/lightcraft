@@ -3,7 +3,8 @@
 //!
 //! Changes apply immediately (no OK/Cancel). Where they are stored:
 //! - **app settings** ([`crate::state::AppSettings`]: startup view, delete confirmation, GPU,
-//!   preview size, filmstrip/grid badges, last library, monitor profile) and Auto Advance live in
+//!   preview size, filmstrip/grid badges, last library, monitor profile, whether Import Lightroom
+//!   Catalog… asks where a catalog goes) and Auto Advance live in
 //!   the UI state,
 //!   saved by the host in its config folder (`ui.json`);
 //! - **library settings** (import defaults, XMP sidecars, thumbnail cache size, slideshow
@@ -136,6 +137,17 @@ fn general_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
         if !can {
             hint(ui, t, crate::i18n::tr("not available here"));
         }
+    });
+    // File ▸ Import Lightroom Catalog… (#2672): the window that asks where a catalog goes, or not
+    ui.label(RichText::new(crate::i18n::tr("When importing a Lightroom catalog")).color(t.text_label));
+    row(ui, t, "", |ui| {
+        use crate::state::LightroomImport;
+        choices(
+            ui,
+            "settingsLightroomImport",
+            &[(LightroomImport::Ask, "Ask where to import it"), (LightroomImport::AlwaysMerge, "Always merge into the open library")],
+            &mut app.ui.settings.lightroom_import,
+        );
     });
     heading(ui, t, crate::i18n::tr("Startup"));
     row(ui, t, crate::i18n::tr("Open in"), |ui| {
@@ -1284,7 +1296,7 @@ fn valid_library_name(s: &str) -> Result<&str, String> {
 }
 
 /// `base` inside `location`, or `base 2`, `base 3`… if that is taken.
-fn free_name(location: &std::path::Path, base: &str) -> std::path::PathBuf {
+pub(crate) fn free_name(location: &std::path::Path, base: &str) -> std::path::PathBuf {
     let first = location.join(base);
     if !first.exists() {
         return first;

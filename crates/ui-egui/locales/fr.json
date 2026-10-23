@@ -2340,5 +2340,17 @@
   "Checking the GPU…": "Vérification du GPU…",
   "CPU": "Processeur",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modèle de visages n’utilise le GPU que si une vérification montre qu’il donne les mêmes résultats plus vite.",
-  "Checking the GPU for faces": "Vérification du GPU pour les visages"
+  "Checking the GPU for faces": "Vérification du GPU pour les visages",
+  "The library is empty: the catalog's photos, collections and edits become its first.": "La bibliothèque est vide : les photos, collections et retouches du catalogue seront les premières.",
+  "The catalog's photos, collections and edits join the ones already in this library.": "Les photos, collections et retouches du catalogue rejoignent celles déjà présentes dans cette bibliothèque.",
+  "Create a new library": "Créer une nouvelle bibliothèque",
+  "LightCraft opens the new library, then imports the catalog into it. Its folder must be new or empty.": "LightCraft ouvre la nouvelle bibliothèque, puis y importe le catalogue. Son dossier doit être nouveau ou vide.",
+  "Don't ask again (always merge into the open library)": "Ne plus demander (toujours fusionner avec la bibliothèque ouverte)",
+  "To be asked again: Settings → General → When importing a Lightroom catalog.": "Pour que la question revienne : Réglages → Général → À l’importation d’un catalogue Lightroom.",
+  "Create Library and Import": "Créer la bibliothèque et importer",
+  "Another library was opened since this window appeared: nothing was imported": "Une autre bibliothèque a été ouverte depuis l’apparition de cette fenêtre : rien n’a été importé",
+  "When importing a Lightroom catalog": "À l’importation d’un catalogue Lightroom",
+  "Ask where to import it": "Demander où l’importer",
+  "Always merge into the open library": "Toujours fusionner avec la bibliothèque ouverte",
+  "The import reads the catalog without changing it. Next, choose whether its photos, edits, keywords and collections join the library open now or go into a new library.": "L’importation lit le catalogue sans le modifier. Ensuite, choisissez si ses photos, retouches, mots-clés et collections rejoignent la bibliothèque ouverte ou une nouvelle bibliothèque."
 }
