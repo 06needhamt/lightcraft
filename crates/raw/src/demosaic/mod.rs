@@ -291,6 +291,20 @@ mod tests {
     }
 
     #[test]
+    fn a_nan_sample_spreads_no_further_than_the_chosen_candidate_takes_it() {
+        // vertical stripes: the vertical candidate wins outright beside them, and the horizontal one, which reads two
+        // samples to each side, is the only one that sees a NaN two columns away
+        let img = Rgb32f::from_fn(32, 24, |x, _| if (x / 2) % 2 == 0 { [0.2, 0.3, 0.25] } else { [0.7, 0.8, 0.6] });
+        let cfa = Cfa::bayer("RGGB").unwrap();
+        let mut n = mosaic_from_rgb(&img, &cfa);
+        n.data[12 * 32 + 16] = f32::NAN;
+        let out = demosaic(&n, Method::Ahd);
+        let bad = out.data.iter().filter(|p| p.iter().any(|v| !v.is_finite())).count();
+        // the pixels that read the NaN sample themselves, as many as the outright pick gave; the blend made it 33
+        assert!(bad <= 9, "{bad} pixels not finite");
+    }
+
+    #[test]
     fn non_finite_samples_do_not_panic() {
         // regression: NaN samples (a float DNG) gave AHD and PPG NaN bounds for `f32::clamp`, which panics
         let cfa = Cfa::bayer("RGGB").unwrap();

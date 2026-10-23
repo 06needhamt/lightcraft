@@ -159,7 +159,16 @@ fn tile(m: &Mosaic, x0: usize, y0: usize, tw: usize, th: usize) -> Vec<[f32; 3]>
             sv += hv[j] as u32;
         }
         let wh = (0.5 + (sh as f32 - sv as f32) / (2.0 * BLEND)).clamp(0.0, 1.0);
-        out.push([0, 1, 2].map(|c| rh[i][c] * wh + rv[i][c] * (1.0 - wh)));
+        // a candidate taken alone is copied, and one that isn't finite (beside a float raw's NaN sample) is left out,
+        // so the other's value doesn't become 0 · NaN
+        let finite = |p: &[f32; 3]| p.iter().all(|v| v.is_finite());
+        out.push(if wh >= 1.0 || !finite(&rv[i]) {
+            rh[i]
+        } else if wh <= 0.0 || !finite(&rh[i]) {
+            rv[i]
+        } else {
+            [0, 1, 2].map(|c| rh[i][c] * wh + rv[i][c] * (1.0 - wh))
+        });
     }
     out
 }
