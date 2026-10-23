@@ -1537,7 +1537,7 @@ mod tests {
         let saved = crate::i18n::language();
         crate::i18n::set_language(crate::i18n::Locale::Fr);
         for (label, expected) in
-            [("Pick", "Sélectionnée"), ("Reject", "Rejeter"), ("Group into Stack", "Regrouper en pile"), ("HDR Panorama…", "Panorama HDR…")]
+            [("Pick", "Sélectionnée"), ("Reject", "Rejeter"), ("Group into Stack", "Grouper en pile"), ("HDR Panorama…", "Panorama HDR…")]
         {
             assert_eq!(crate::i18n::tr(label), expected);
         }
