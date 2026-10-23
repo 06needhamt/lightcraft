@@ -41,6 +41,11 @@
   the edges of wooden planks, a branch or a bird's wing were taken for the horizon, sometimes for a 25° turn.
 - When it finds no horizon or vertical lines, it says so instead of doing nothing without a word.
 
+### PSD and PSB metadata stays available
+- LightCraft now imports PSD and PSB files with EXIF and XMP image resources. Capture dates, GPS and descriptive fields
+  stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
+  are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
