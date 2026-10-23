@@ -102,17 +102,19 @@ the photo (portrait files are covered) and is carried by DNG export, as RW2's is
 
 ## Which bodies get it
 
-Only bodies listed in `FULL_FRAME_CROP` (`arw_lens_rm6.rs`) get an opcode: today `ILCE-7RM6` (9984 × 6656). The unit and
-the knot spacing are verified on that body alone; the spacing is defined by its full-frame crop, and a body with
-another sensor size or another unit would be warped wrongly. Other bodies get no correction from this conversion; the
-ILCE-7RM4A gets its own, with other conventions (below). To add a body: collect photos of it shot with distortion
+Only bodies on one of two allowlists in `arw_lens_rm6.rs` get an opcode: `FULL_FRAME_CROP` (today `ILCE-7RM6`,
+9984 × 6656) and `APSC_BODIES` (today `ILCE-6700`, below). The unit and the knot spacing are verified per body; a body
+with another sensor size or another unit would be warped wrongly. Other bodies get no correction from this conversion;
+the ILCE-7RM4A gets its own, with other conventions (below). To add a body: collect photos of it shot with distortion
 correction on (several lenses and focal lengths), repeat the camera-JPEG registration below against the uncorrected
-render, confirm the unit, the knot spacing and the zoom rule (or measure the body's own), then add its full-frame
-default crop to the table with a test.
+render, confirm the unit, the knot spacing and the zoom rule (or measure the body's own). Then add a full-frame body's
+default crop to `FULL_FRAME_CROP`, or an APS-C body whose knots span its own crop (as measured for the ILCE-6700) to
+`APSC_BODIES`, with a test; an APS-C body also needs its fit gate checked against the camera JPEG (see *ILCE-6700*).
 
-APS-C bodies are listed in `APSC_BODIES` instead: today `ILCE-6700`. Their knots span the file's own default crop
-(spacing = its half diagonal / (knot count − 1)), the rule that also gives the ILCE-7RM6 its 400 px in full frame (16
-knots) and, within the measurement, in its APS-C mode (11 knots: 392 px, which fits as well as 400 px).
+For bodies in `APSC_BODIES` (today `ILCE-6700`), the knots span the file's own default crop: spacing = its half
+diagonal / (knot count − 1). This crop-based rule applies only to that list. The ILCE-7RM6 keeps its sensor-fixed
+400 px in both modes; in full frame (16 knots) the crop-based rule gives the same 400 px, and in its APS-C mode
+(11 knots) it would give 392 px, which was only an alternative measurement there (it fits as well, above).
 
 ## ILCE-6700
 
