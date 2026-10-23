@@ -135,11 +135,8 @@ fn large_gif_and_bmp_sizes_come_from_the_header() {
     }
 }
 
-/// An RLE8 BMP may end its pixels with an end-of-bitmap code that leaves the rest blank, so a file
-/// of a few dozen bytes is a valid 6 MP picture: it opens, at its declared size.
-#[test]
-fn an_rle_bmp_that_ends_early_still_opens() {
-    let (w, h) = (3_000i32, 2_000i32);
+/// A 64-byte RLE8 BMP declaring `w` × `h` whose pixels are one end-of-bitmap code: all blank.
+fn rle_bmp_ending_at_once(w: i32, h: i32) -> Vec<u8> {
     let mut b = b"BM".to_vec();
     b.extend(64u32.to_le_bytes()); // file size
     b.extend(0u32.to_le_bytes());
@@ -157,10 +154,67 @@ fn an_rle_bmp_that_ends_early_still_opens() {
     b.extend([0, 0, 0, 0, 255, 255, 255, 0]);
     b.extend([0, 1]); // end of bitmap
     assert_eq!(b.len(), 64);
+    b
+}
+
+/// An RLE8 BMP may end its pixels with an end-of-bitmap code that leaves the rest blank, so a file
+/// of a few dozen bytes is a valid picture: up to 4 MP it opens, at its declared size.
+#[test]
+fn an_rle_bmp_that_ends_early_still_opens() {
+    let (w, h) = (2_000i32, 2_000i32);
+    let b = rle_bmp_ending_at_once(w, h);
     let header = read_header(&b).unwrap();
     assert_eq!((header.width, header.height), (w as u32, h as u32));
     let d = decode(&b, DecodeOptions::fit(64, 64)).unwrap();
     assert_eq!((d.source_width, d.source_height), (w as u32, h as u32));
+}
+
+/// A mostly blank canvas still costs its full size to decode, so a tiny RLE BMP can't claim a
+/// gigapixel one: canvases the file's runs can't cover are limited to 4 MP, refused before the
+/// decoder allocates them.
+#[test]
+fn a_tiny_rle_bmp_declaring_a_gigapixel_canvas_is_refused_before_allocating() {
+    for (w, h) in [(2_001, 2_000), (32_000, 32_000)] {
+        let b = rle_bmp_ending_at_once(w, h);
+        let header = read_header(&b);
+        assert!(matches!(&header, Err(Error::Malformed(_, m)) if m.contains("mostly blank")), "{w} × {h}: {header:?}");
+        let decoded = decode(&b, DecodeOptions::default());
+        assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains("mostly blank")), "{w} × {h}: {:?}", decoded.err());
+    }
+}
+
+/// A `sw` × `sh` GIF screen whose first frame is one pixel (black, from a 2-colour palette).
+fn gif_with_one_pixel_frame(sw: u16, sh: u16) -> Vec<u8> {
+    let mut b = b"GIF89a".to_vec();
+    b.extend(sw.to_le_bytes());
+    b.extend(sh.to_le_bytes());
+    b.extend([0x80, 0, 0]); // global colour table of 2 entries
+    b.extend([0, 0, 0, 255, 255, 255]);
+    b.extend([b',', 0, 0, 0, 0, 1, 0, 1, 0, 0]); // a 1 × 1 frame at the origin
+    b.extend([2, 2, 0x44, 0x01, 0]); // LZW: clear, index 0, end
+    b.push(b';');
+    b
+}
+
+/// Density is judged on the first frame's own size, not the screen's: a valid GIF with a small first
+/// frame on a larger screen opens, at the screen's size (up to 4 MP, as for other mostly blank
+/// canvases).
+#[test]
+fn a_gif_with_a_small_first_frame_on_a_larger_screen_opens() {
+    let b = gif_with_one_pixel_frame(2_000, 2_000);
+    let header = read_header(&b).unwrap();
+    assert_eq!((header.width, header.height), (2_000, 2_000));
+    let d = decode(&b, DecodeOptions::fit(64, 64)).unwrap();
+    assert_eq!((d.source_width, d.source_height), (2_000, 2_000));
+}
+
+#[test]
+fn a_gif_whose_one_pixel_frame_sits_on_a_gigapixel_screen_is_refused_before_allocating() {
+    let b = gif_with_one_pixel_frame(32_767, 32_767);
+    let header = read_header(&b);
+    assert!(matches!(&header, Err(Error::Malformed(_, m)) if m.contains("mostly blank")), "{header:?}");
+    let decoded = decode(&b, DecodeOptions::default());
+    assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains("mostly blank")), "{:?}", decoded.err());
 }
 
 /// A GIF's comments and other extensions describe no pixels, so padding a tiny GIF with 100 KB of

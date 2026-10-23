@@ -7,8 +7,9 @@
   now refused with an error when importing or opening it (issue #2553). Before, LightCraft set aside memory for the
   whole picture, several gigabytes, and could close without warning, losing unsaved work. At import, a GIF or BMP
   picture larger than 4 megapixels now has its size read from the header instead of being decoded; smaller ones are
-  still decoded, so a damaged file is caught then. A run-length-encoded BMP that ends early, leaving the rest of the
-  picture blank, still opens.
+  still decoded, so a damaged file is caught then. A picture that is mostly blank (a run-length-encoded BMP that ends
+  early, or a GIF whose first frame is smaller than the picture) still opens up to 4 megapixels; a larger one is
+  refused, because opening it would still set aside memory for the whole picture.
 
 ## 2026-10-21
 
