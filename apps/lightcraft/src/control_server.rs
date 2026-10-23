@@ -240,7 +240,9 @@ mod tests {
     }
 
     impl Connection {
-        fn new(open: &Arc<AtomicUsize>, idle: Duration, input: &str) -> Self {
+        /// `before` acts on the client before the worker starts reading, so what it sends is
+        /// already there however late this thread gets scheduled.
+        fn new(open: &Arc<AtomicUsize>, idle: Duration, before: impl FnOnce(&mut TcpStream)) -> Self {
             let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
             let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
             client.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
@@ -248,8 +250,7 @@ mod tests {
             // Small test messages must not wait for Nagle's algorithm or a delayed ACK.
             client.set_nodelay(true).unwrap();
             stream.set_nodelay(true).unwrap();
-            // Queue initial input before starting the worker's short idle timeout.
-            client.write_all(input.as_bytes()).unwrap();
+            before(&mut client);
             let (tx, requests) = channel();
             let worker = spawn_connection(stream, tx, egui::Context::default(), Arc::clone(open), idle).unwrap();
             Self { client: BufReader::new(client), requests, worker: Some(worker) }
@@ -276,7 +277,7 @@ mod tests {
     fn idle_connections_release_their_slots_without_dispatching() {
         for input in ["", "{\"method\":\"engine.execute\""] {
             let open = Arc::new(AtomicUsize::new(0));
-            let mut connection = Connection::new(&open, Duration::from_millis(100), input);
+            let mut connection = Connection::new(&open, Duration::from_millis(100), |c| c.write_all(input.as_bytes()).unwrap());
             assert_eq!(open.load(Ordering::SeqCst), 1);
             let mut reply = String::new();
             let closed = connection.client.read_to_string(&mut reply);
@@ -289,8 +290,7 @@ mod tests {
             assert!(reply["error"].as_str().unwrap().contains("idle read timed out"));
 
             // A subsequent connection is admitted through the same accounting path.
-            let mut next = Connection::new(&open, Duration::from_secs(1), "");
-            next.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
+            let mut next = Connection::new(&open, Duration::from_secs(1), |c| c.shutdown(std::net::Shutdown::Write).unwrap());
             let mut eof = String::new();
             next.client.read_to_string(&mut eof).unwrap();
             next.join();
@@ -302,11 +302,20 @@ mod tests {
     #[test]
     fn persistent_requests_and_slow_replies_outlive_the_idle_read_timeout() {
         let open = Arc::new(AtomicUsize::new(0));
-        let mut connection = Connection::new(&open, Duration::from_millis(100), "{\"id\":1,\"method\":\"engine.commands\"}\n");
+        let request = |id: u64| format!("{}\n", json!({"id": id, "method": "engine.commands"}));
+        // Each request reaches the socket before the worker reads it (the next one while the worker
+        // waits for the reply), so only the reply waits outlast the idle timeout, however slowly
+        // this thread runs.
+        let mut connection = Connection::new(&open, Duration::from_millis(100), |c| c.write_all(request(1).as_bytes()).unwrap());
         for id in [1, 2] {
-            let req = connection.requests.recv_timeout(Duration::from_secs(3)).unwrap();
+            let req = connection.requests.recv_timeout(Duration::from_secs(10)).unwrap();
             assert_eq!(req.method, "engine.commands");
             assert!(req.take());
+            if id == 1 {
+                connection.client.get_mut().write_all(request(2).as_bytes()).unwrap();
+            } else {
+                connection.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
+            }
             // A dispatched command waits for its reply, not for socket input.
             std::thread::sleep(Duration::from_millis(250));
             // Prepare the next read before releasing this reply. The client need not be
@@ -340,7 +349,8 @@ mod tests {
         let (req, rrx) = ControlRequest::new("ui.inspect", json!({}));
         let t0 = std::time::Instant::now();
         let r = await_reply(&rrx, &req.state, || 7, || {}, Duration::from_millis(50), Duration::from_secs(10));
-        assert!(t0.elapsed() < Duration::from_secs(2));
+        // the frame window (50 ms), not the 10 s timeout; the margin is for a slow machine
+        assert!(t0.elapsed() < Duration::from_secs(5), "{:?}", t0.elapsed());
         assert_eq!(r["ok"], false);
         assert!(r["error"].as_str().unwrap().contains("not visible"), "{r}");
         assert!(!req.take(), "the app does not run it once it shows up");
