@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-23
+
+### Merge previews after a failed one
+- The HDR, Panorama and HDR Panorama dialogs make a new preview each time they open (issue #2708). After a preview
+  had failed once, for example because a photo's file was missing, opening the dialog again with the same options
+  showed neither a preview nor an error until an option was changed.
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

@@ -86,6 +86,8 @@ pub struct MergeTask {
     pub job: MergeJob,
     /// The dialog options it was started with.
     pub options: MergeDialog,
+    /// The photos it merges.
+    pub ids: Vec<PhotoId>,
     pub progress: Arc<Mutex<(f32, String)>>,
     pub cancel: Arc<AtomicBool>,
     rx: Receiver<Result<MergeOutput, String>>,
@@ -102,8 +104,9 @@ pub struct MergeState {
     pub preview: Option<(egui::TextureHandle, [usize; 2], MergeDialog, Value)>,
     pub preview_pixels: Option<Arc<egui::ColorImage>>,
     pub error: Option<String>,
-    /// Options whose preview failed (not retried until they change).
-    pub failed_options: Option<MergeDialog>,
+    /// The photos and options whose preview failed (not retried until either changes or the dialog
+    /// opens again).
+    pub failed_options: Option<(Vec<PhotoId>, MergeDialog)>,
     /// The last finished merge (`{id, path, …}`).
     pub last_result: Option<Value>,
     /// Photos the dialog merges (the selection when it opened).
@@ -143,7 +146,7 @@ fn spawn(app: &LightcraftApp, options: &MergeDialog, ids: &[PhotoId], preview: b
     std::thread::Builder::new().name("photo-merge".into()).spawn(work).map_err(|e| e.to_string())?;
     #[cfg(target_arch = "wasm32")]
     work();
-    Ok(MergeTask { preview, job, options: options.clone(), progress, cancel, rx, guard: None })
+    Ok(MergeTask { preview, job, options: options.clone(), ids: ids.to_vec(), progress, cancel, rx, guard: None })
 }
 
 /// The options of the last merge of kind `command` started (kept in the library preferences), or
@@ -162,6 +165,8 @@ pub fn open(app: &mut LightcraftApp, command: &str) -> Result<Value, String> {
     }
     app.merge.ids = ids;
     app.merge.error = None;
+    // a preview that failed before is tried again, or the dialog would show neither a preview nor its error (#2708)
+    app.merge.failed_options = None;
     app.merge.preview = None;
     app.merge.preview_pixels = None;
     if let Some(t) = app.merge.preview_task.take() {
@@ -253,7 +258,7 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
                     }
                     Err(e) => {
                         app.merge.error = Some(e);
-                        app.merge.failed_options = Some(opts.clone());
+                        app.merge.failed_options = Some((ids, opts.clone()));
                     }
                 }
             }
@@ -285,7 +290,7 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
                 let Some(t) = app.merge.preview_task.take() else { return };
                 if e != "cancelled" {
                     app.merge.error = Some(e);
-                    app.merge.failed_options = Some(t.options);
+                    app.merge.failed_options = Some((t.ids, t.options));
                 }
             }
             Err(_) => ctx.request_repaint_after(std::time::Duration::from_millis(50)),
@@ -362,7 +367,7 @@ fn added_message(what: &str, info: &Value) -> String {
 }
 
 fn last_failed_matches(app: &LightcraftApp, opts: &MergeDialog) -> bool {
-    app.merge.failed_options.as_ref() == Some(opts)
+    app.merge.failed_options.as_ref().is_some_and(|(ids, o)| ids == &app.merge.ids && o == opts)
 }
 
 /// The dialog body (options on the left, preview on the right).
