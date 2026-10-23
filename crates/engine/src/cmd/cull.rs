@@ -115,6 +115,7 @@ fn find_similar(s: &mut Session, p: &Value) -> Result<Value> {
     }
     hits.sort_by(|a, b| b.1.total_cmp(&a.1));
     if p.get("filter").and_then(Value::as_bool).unwrap_or(true) {
+        s.shelved_filter = None;
         s.filter.only = hits.iter().map(|h| h.0).collect();
         // an empty `only` means "no constraint": no hits is its own state that shows no photos
         s.filter.only_none = s.filter.only.is_empty();

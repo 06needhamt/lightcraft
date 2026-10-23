@@ -635,6 +635,10 @@ impl LightcraftApp {
                     .map(|d| d.crop.aspect.map_or(serde_json::json!("free"), |(w, h)| serde_json::json!([w as f64 / 100.0, h as f64 / 100.0])))
             };
         }
+        if r.is_ok() && id == "library.toggleFilters" {
+            // the search field shows the text filter: empty while the filters are off, back with them
+            self.ui.search = self.session.filter.text.clone();
+        }
         if r.is_ok() && id == "library.clearFilter" {
             // the search field shows the text filter: cleared from anywhere (the loupe's pill, the
             // menu), it must not keep a search that no longer applies (issue #1648)
