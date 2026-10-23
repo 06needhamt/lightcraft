@@ -2175,6 +2175,29 @@ mod tests {
         drop(g.acquire(1000));
     }
 
+    /// Issue #2576: work weighed with saturating maths can ask for `usize::MAX` bytes. Adding to
+    /// that overflowed (a panic with the gate's mutex held in a debug build, a wrapped count that
+    /// let everything in for a release one); the count now saturates, and later work waits.
+    #[test]
+    fn work_gate_saturates_instead_of_overflowing() {
+        use crate::memory::WorkGate;
+        let g = Arc::new(WorkGate::new(100));
+        let huge = g.acquire(usize::MAX);
+        let urgent = g.acquire_urgent(1);
+        assert_eq!(g.usage().0, usize::MAX);
+        drop(urgent);
+        let g2 = g.clone();
+        let t = std::thread::spawn(move || {
+            let _b = g2.acquire(1);
+            g2.usage().0
+        });
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(!t.is_finished(), "the second holder waits while the first holds everything");
+        drop(huge);
+        assert_eq!(t.join().unwrap(), 1);
+        assert_eq!(g.usage().0, 0);
+    }
+
     #[test]
     fn levels_cover_sizes_and_large_exports_use_the_original() {
         assert_eq!(SourceLevel::for_size(256), SourceLevel::Thumb);

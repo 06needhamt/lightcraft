@@ -128,19 +128,22 @@ impl WorkGate {
         *self.lock()
     }
 
-    /// Hold `bytes`, waiting until they fit (or nothing else is held).
+    /// Hold `bytes`, waiting until they fit (or nothing else is held). Callers weigh work with
+    /// saturating maths, so `bytes` may be `usize::MAX`: the count saturates there, never overflows
+    /// (issue #2576).
     pub fn acquire(&self, bytes: usize) -> Permit<'_> {
         let mut g = self.lock();
-        while g.0 > 0 && g.0 + bytes > g.1 {
+        while g.0 > 0 && g.0.saturating_add(bytes) > g.1 {
             g = self.cv.wait(g).unwrap_or_else(|e| e.into_inner());
         }
-        g.0 += bytes;
+        g.0 = g.0.saturating_add(bytes);
         Permit { gate: self, bytes }
     }
 
     /// Hold `bytes` without waiting (interactive work): counted, so background work waits for it.
     pub fn acquire_urgent(&self, bytes: usize) -> Permit<'_> {
-        self.lock().0 += bytes;
+        let mut g = self.lock();
+        g.0 = g.0.saturating_add(bytes);
         Permit { gate: self, bytes }
     }
 }
