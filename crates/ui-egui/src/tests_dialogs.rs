@@ -128,6 +128,28 @@ fn a_click_outside_closes_the_dialog_when_settings_allow_it() {
     assert!(h.app.ui.dialog.is_none(), "the next click on the backdrop does");
 }
 
+/// With a dropdown open in the dialog, a click on the backdrop only closes the dropdown, even when
+/// it arrives pressed and released in one frame (the dropdown closes while the dialog is drawn).
+#[test]
+fn a_click_outside_an_open_dropdown_keeps_the_dialog() {
+    let mut h = demo([1400.0, 1000.0], json!({"view": "detail", "right": "edit"}));
+    h.app.ui.settings.close_dialogs_outside = true;
+    h.app.run("dialog.export", json!({})).unwrap();
+    h.step();
+    h.step();
+    let r = h.request("ui.clickWidget", json!({"id": "combo:exportPreset"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert!(egui::Popup::is_any_open(&h.view.ctx), "the preset dropdown is open");
+    let at = egui::pos2(10.0, 990.0);
+    let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    h.events.extend([egui::Event::PointerMoved(at), press(true), press(false)]);
+    h.step();
+    h.step();
+    assert!(!egui::Popup::is_any_open(&h.view.ctx), "the click closes the dropdown");
+    assert!(h.app.ui.dialog.is_some(), "but not the dialog");
+}
+
 #[test]
 fn modal_dialogs_close_background_menus() {
     let mut h = demo([1400.0, 1000.0], json!({"view": "detail", "right": "edit"}));
