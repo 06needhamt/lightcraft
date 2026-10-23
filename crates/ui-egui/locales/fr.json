@@ -2340,5 +2340,20 @@
   "Checking the GPU…": "Vérification du GPU…",
   "CPU": "Processeur",
   "A face model uses the GPU only when a check shows it gives the same results faster.": "Un modèle de visages n’utilise le GPU que si une vérification montre qu’il donne les mêmes résultats plus vite.",
-  "Checking the GPU for faces": "Vérification du GPU pour les visages"
+  "Checking the GPU for faces": "Vérification du GPU pour les visages",
+  "At launch": "Au lancement",
+  "Open the last library": "Ouvrir la dernière bibliothèque",
+  "Ask me": "Me demander",
+  "Ask me lists your recent libraries at launch. Holding Alt (Option on a Mac) as the window appears asks once.": "« Me demander » affiche vos bibliothèques récentes au lancement. Maintenir Alt (Option sur Mac) pendant que la fenêtre apparaît le demande une fois.",
+  "Open a Library": "Ouvrir une bibliothèque",
+  "Choose the library to open.": "Choisissez la bibliothèque à ouvrir.",
+  "No recent libraries. Open one from a folder, or make a new one.": "Aucune bibliothèque récente. Ouvrez-en une depuis un dossier, ou créez-en une nouvelle.",
+  "Remove from List": "Retirer de la liste",
+  "The library itself stays where it is.": "La bibliothèque elle-même reste où elle est.",
+  "Open": "Ouvrir",
+  "Open Another…": "Ouvrir une autre…",
+  "Open now": "Ouverte en ce moment",
+  "Last opened": "Ouverte le",
+  "Not found: moved, renamed or on a disconnected drive": "Introuvable : déplacée, renommée ou sur un disque déconnecté",
+  "There is no LightCraft library in this folder any more": "Ce dossier ne contient plus de bibliothèque LightCraft"
 }

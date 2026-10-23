@@ -1,5 +1,22 @@
 # What's new in LightCraft
 
+## 2026-10-23
+
+### Choose which library opens at launch
+- Settings ▸ General ▸ **At launch**: *Open the last library* (as before) or *Ask me*. With *Ask me*, LightCraft
+  starts with a window listing your recent libraries: each one's name, the folder it is in and when you last opened
+  it. One that is gone (moved, renamed, on a disconnected drive), open in another program or no longer a library is
+  greyed out with the reason. The last library is selected; **Open** (or Return, or a double-click) opens it,
+  **Open Another…** asks for a folder, **New Library…** makes one, **Quit** (or Esc) quits. ↑ and ↓ move through
+  the list.
+- Holding Alt (Option on a Mac) as the window appears shows the same list once, over the library that opened: open
+  another one from it, or press Esc to keep working where you were. On a Mac, an Option key held from before
+  LightCraft starts is only noticed once it changes, so press it as the window appears.
+- `--library` and `LIGHTCRAFT_LIBRARY` still decide the library when given, and `lightcraft-cli` never asks.
+- File ▸ Open Recent Library ▸ **Remove from List** forgets one library, and the launch window's **Remove from
+  List** does the same. Only the entry goes: the library and its photos stay where they are. Agents use
+  `app.recentLibraries {remove: path}`; its list now also says when each library was last opened (`lastOpened`).
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges

@@ -48,6 +48,7 @@ pub fn display_item_label<'a>(id: &str, params: &Value, label: &'a str) -> &'a s
     if matches!(id, "metadata.applyPreset" | "album.addPhotos" | "label.applySet")
         || (id == "app.export" && params.get("preset").is_some())
         || (id == "app.openLibrary" && params.get("path").is_some())
+        || (id == "app.recentLibraries" && params.get("remove").is_some())
     {
         label
     } else {
@@ -631,23 +632,26 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
         "Open Recent Library" => {
             let can = crate::panels::settings::can_switch_library(app).is_ok();
             let open = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone());
-            let mut v: Vec<MenuNode> = app
-                .ui
-                .settings
-                .recent_libraries
+            let recent = &app.ui.settings.recent_libraries;
+            let label = |r: &str| {
+                let d = std::path::Path::new(r);
+                format!("{} — {}", crate::panels::settings::library_name(d), d.parent().map(|p| p.display().to_string()).unwrap_or_default())
+            };
+            let mut v: Vec<MenuNode> = recent
                 .iter()
                 .map(|r| {
                     let d = std::path::Path::new(r);
                     // a missing library (moved, drive disconnected) is shown greyed out
-                    let label =
-                        format!("{} — {}", crate::panels::settings::library_name(d), d.parent().map(|p| p.display().to_string()).unwrap_or_default());
-                    item("app.openLibrary", json!({"path": r}), label, None, can && d.is_dir(), Some(open.as_deref() == Some(d)))
+                    item("app.openLibrary", json!({"path": r}), label(r), None, can && d.is_dir(), Some(open.as_deref() == Some(d)))
                 })
                 .collect();
             if v.is_empty() {
                 v.push(item("app.clearRecentLibraries", Value::Null, "No Recent Libraries", None, false, None));
             } else {
                 v.push(MenuNode::Separator);
+                // one entry at a time, missing ones too: only the list forgets it (issue #1290)
+                let forget = recent.iter().map(|r| item("app.recentLibraries", json!({"remove": r}), label(r), None, true, None)).collect();
+                v.push(MenuNode::Submenu { label: "Remove from List".into(), children: forget });
                 v.push(item("app.clearRecentLibraries", Value::Null, "Clear Recent Libraries", None, true, None));
             }
             v

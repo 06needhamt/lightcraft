@@ -167,6 +167,23 @@ are `button:libraryRetry`, `button:libraryChoose`, `button:libraryTemporary` (Co
 `button:libraryQuit`. A temporary session shows a banner (`indicator:temporarySession`, `button:libraryReopen`) and
 writes nothing. `app.openLibrary` opening a library ends it.
 
+### Choosing the library at launch
+
+With Settings ▸ General ▸ At launch set to Ask me (`ui.set {"settings": {"atLaunch": "ask"}}`; `"last"`, the
+default, opens the last library), or Alt/Option held during the first 2 s after the window appears, the desktop app
+shows a window listing the recent libraries (issue #1290). `--library` and `LIGHTCRAFT_LIBRARY` skip it, and so does
+`--memory`; `lightcraft-cli` never shows it. `ui.inspect` → `libraryProblem.chooser` is `{libraries: [{path,
+lastOpened, available, reason}], selected, libraryOpen}` (else `null`; `libraryOpen: true` when it was opened over
+the last library with Alt). Each row is the widget `libraryRecent:<index>`; the buttons are `button:libraryOpen`,
+`button:libraryOpenAnother` (the folder dialog of `app.openLibrary`), `button:libraryNew` (`app.newLibrary`),
+`button:libraryForget` (Remove from List) and `button:libraryQuit`; `ui.key` ArrowUp / ArrowDown move the selection,
+Enter opens it and Escape quits (over an open library: closes the window and keeps it). `app.openLibrary {path}`
+opening a library ends it. While it shows, the settings are saved as usual (a removal is kept).
+
+`app.recentLibraries` returns `[{path, name, exists, open, lastOpened}]` (`lastOpened`: ISO 8601, `null` when not
+known; kept in `ui.json` → `settings.recentLibrariesOpened`). `{remove: path}` forgets one entry (an error if the list
+doesn't hold it) and `{clear: true}` (or `app.clearRecentLibraries`) all of them; nothing on disk is touched.
+
 ### Open Library on a Lightroom catalog
 
 `app.openLibrary` never makes a LightCraft library inside a Lightroom Classic catalog (issue #891): given the catalog
