@@ -136,3 +136,19 @@ fn removing_the_only_criterion_put_aside_leaves_filtering_on() {
     s.execute("library.removeFolder", &json!({"path": "/lightcraft-enable-filters"})).unwrap();
     assert!(s.shelved_filter.is_none(), "an empty filter is not left put aside");
 }
+
+#[test]
+fn a_keyword_renamed_while_off_is_followed_by_the_filter_put_aside() {
+    let mut s = session().unwrap();
+    let mut photo = Photo::new(PhotoId(5), Source::File { path: "/lightcraft-enable-filters/5.jpg".into() }, "5.jpg", "JPEG", 40, 30, "2026-10-23");
+    photo.meta.keywords = vec!["cat".into()];
+    s.catalog.apply(Op::AddPhoto { photo: Box::new(photo) }).unwrap();
+    s.filter.keyword = Some("cat".into());
+    assert_eq!(s.visible().len(), 1);
+    s.execute("library.toggleFilters", &json!({})).unwrap();
+    s.execute("keyword.rename", &json!({"from": "cat", "to": "dog"})).unwrap();
+    let r = s.execute("library.toggleFilters", &json!({})).unwrap();
+    assert_eq!(r["enabled"], json!(true));
+    assert_eq!(s.filter.keyword.as_deref(), Some("dog"), "the put-aside filter follows the rename");
+    assert_eq!(s.visible().len(), 1);
+}
