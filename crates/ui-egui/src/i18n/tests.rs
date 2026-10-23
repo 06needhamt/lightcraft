@@ -603,6 +603,8 @@ fn german_switches_via_menu_and_control_and_persists() {
     app.run("label.setNames", serde_json::json!({"names": {"red": "Color"}})).unwrap();
     let label = filter_label(&filter, &app.session.catalog);
     assert!(label.contains("Color") && !label.contains(&red) && label.contains(&blue), "{label}");
+    let filter = lightcraft_catalog::Filter { flags: vec![lightcraft_catalog::Flag::Pick, lightcraft_catalog::Flag::None], ..Default::default() };
+    assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt oder keine");
     set_language(Locale::En);
 }
 

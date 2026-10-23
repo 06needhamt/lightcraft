@@ -46,7 +46,7 @@ fn label_names(filter: &lightcraft_catalog::Filter, catalog: &lightcraft_catalog
 fn prefixed_value(prefix: &str, value: &str, filter: &lightcraft_catalog::Filter) -> String {
     use crate::i18n::{date_group_label, tr};
     let date = match prefix {
-        "Flag" | "Type" => return tr(value).to_string(),
+        "Type" => return tr(value).to_string(),
         "Date" => &filter.date,
         "Imported" => &filter.imported,
         _ => return value.to_string(),
@@ -67,6 +67,12 @@ pub(crate) fn display_label(chip: &FilterChip, filter: &lightcraft_catalog::Filt
     }
     if chip.clear.get("label").is_some() {
         return format!("{}: {}", tr("Label"), label_names(filter, catalog));
+    }
+    if chip.clear.get("flags").is_some() {
+        let mut flags = filter.flags.clone();
+        flags.extend(filter.flag.filter(|flag| !flags.contains(flag)));
+        let names = flags.iter().map(|flag| tr(&format!("{flag:?}").to_lowercase()).to_string()).collect::<Vec<_>>();
+        return format!("{}: {}", tr("Flag"), names.join(&format!(" {} ", tr("or"))));
     }
     if chip.clear.get("dateFrom").is_some() || chip.clear.get("dateTo").is_some() {
         return match (&filter.date_from, &filter.date_to) {
