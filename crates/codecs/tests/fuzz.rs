@@ -135,6 +135,53 @@ fn large_gif_and_bmp_sizes_come_from_the_header() {
     }
 }
 
+/// An RLE8 BMP may end its pixels with an end-of-bitmap code that leaves the rest blank, so a file
+/// of a few dozen bytes is a valid 6 MP picture: it opens, at its declared size.
+#[test]
+fn an_rle_bmp_that_ends_early_still_opens() {
+    let (w, h) = (3_000i32, 2_000i32);
+    let mut b = b"BM".to_vec();
+    b.extend(64u32.to_le_bytes()); // file size
+    b.extend(0u32.to_le_bytes());
+    b.extend(62u32.to_le_bytes()); // pixel data offset: 14 + 40 + 2 palette entries
+    b.extend(40u32.to_le_bytes());
+    b.extend(w.to_le_bytes());
+    b.extend(h.to_le_bytes());
+    b.extend(1u16.to_le_bytes());
+    b.extend(8u16.to_le_bytes());
+    b.extend(1u32.to_le_bytes()); // BI_RLE8
+    b.extend(2u32.to_le_bytes()); // pixel data size
+    b.extend([0u8; 8]);
+    b.extend(2u32.to_le_bytes()); // colours used
+    b.extend(0u32.to_le_bytes());
+    b.extend([0, 0, 0, 0, 255, 255, 255, 0]);
+    b.extend([0, 1]); // end of bitmap
+    assert_eq!(b.len(), 64);
+    let header = read_header(&b).unwrap();
+    assert_eq!((header.width, header.height), (w as u32, h as u32));
+    let d = decode(&b, DecodeOptions::fit(64, 64)).unwrap();
+    assert_eq!((d.source_width, d.source_height), (w as u32, h as u32));
+}
+
+/// A GIF's comments and other extensions describe no pixels, so padding a tiny GIF with 100 KB of
+/// comment doesn't let it claim a gigapixel canvas: only the frame's LZW data counts.
+#[test]
+fn a_gif_padded_with_comments_still_cannot_claim_a_gigapixel_canvas() {
+    let mut bytes = tiny_gif(32_767, 32_767);
+    let mut comment = vec![0x21, 0xFE];
+    for _ in 0..400 {
+        comment.push(255);
+        comment.extend([b'x'; 255]);
+    }
+    comment.push(0);
+    bytes.splice(13..13, comment);
+    assert!(bytes.len() > 100_000);
+    let header = read_header(&bytes);
+    assert!(matches!(&header, Err(Error::Malformed(_, m)) if m.contains("can hold")), "{header:?}");
+    let decoded = decode(&bytes, DecodeOptions::default());
+    assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains("can hold")), "{:?}", decoded.err());
+}
+
 #[test]
 fn thumbnail_respects_configured_source_pixel_limit() {
     let image = Rgba8::from_fn(3, 2, |_, _| [40, 80, 120, 255]);

@@ -5,8 +5,10 @@
 ### A damaged GIF or BMP can no longer crash an import
 - A GIF or BMP whose header claims an enormous picture (a file of a few dozen bytes can claim a billion pixels) is
   now refused with an error when importing or opening it (issue #2553). Before, LightCraft set aside memory for the
-  whole picture, several gigabytes, and could close without warning, losing unsaved work. Large GIF and BMP files
-  are also measured from their header at import instead of being decoded.
+  whole picture, several gigabytes, and could close without warning, losing unsaved work. At import, a GIF or BMP
+  picture larger than 4 megapixels now has its size read from the header instead of being decoded; smaller ones are
+  still decoded, so a damaged file is caught then. A run-length-encoded BMP that ends early, leaving the rest of the
+  picture blank, still opens.
 
 ## 2026-10-21
 
