@@ -15,7 +15,7 @@
 - To import as before without the question, choose Settings ▸ General ▸ When importing a Lightroom catalog ▸
   Always merge into the open library, or tick Don't ask again in the window. Ask where to import it brings the
   question back.
-## 2026-10-23
+
 
 ### Choose which library opens at launch
 - Settings ▸ General ▸ **At launch**: *Open the last library* (as before) or *Ask me*. With *Ask me*, LightCraft
