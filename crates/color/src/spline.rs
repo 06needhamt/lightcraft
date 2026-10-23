@@ -110,11 +110,12 @@ impl Lut1 {
     /// `v` is public, so a table shorter than 2 entries is read as constant (1) or the identity (0).
     #[inline]
     pub fn eval(&self, x: f32) -> f32 {
+        let x = x.clamp(0.0, 1.0);
         let n = self.v.len();
         if n < 2 {
             return self.v.first().copied().unwrap_or(x);
         }
-        let f = x.clamp(0.0, 1.0) * (n - 1) as f32;
+        let f = x * (n - 1) as f32;
         let i = (f as usize).min(n - 2);
         let t = f - i as f32;
         self.v[i] + (self.v[i + 1] - self.v[i]) * t
@@ -186,6 +187,8 @@ mod tests {
             assert_eq!(Lut1::from_fn(n, |x| x).v.len(), 2, "{n}");
         }
         assert_eq!(Lut1 { v: vec![] }.eval(0.3), 0.3);
+        assert_eq!(Lut1 { v: vec![] }.eval(-1.0), 0.0, "inputs outside 0..1 clamp, as for any table");
+        assert_eq!(Lut1 { v: vec![] }.eval(2.0), 1.0);
         assert_eq!(Lut1 { v: vec![0.7] }.eval(0.3), 0.7);
     }
 
