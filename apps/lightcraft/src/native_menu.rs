@@ -69,16 +69,23 @@ impl Item {
         if self.current == want {
             return;
         }
-        self.current = want;
-        if cfg!(target_os = "macos") && want.is_none() && self.swappable && self.replace_without_accelerator() {
+        if cfg!(target_os = "macos") && want.is_none() && self.swappable {
+            // `current` follows the native item: it changes only when the swap went through, so a
+            // failed swap (the old item, key and all, is still there) is tried again next time
+            if self.replace_without_accelerator() {
+                self.current = want;
+            }
             return;
         }
+        self.current = want;
         let _ = match &self.handle {
             Handle::Plain(h) => h.set_accelerator(want),
             Handle::Check(h) => h.set_accelerator(want),
         };
     }
 
+    /// Replaces the native item by one without an accelerator. `self.handle` changes only when the
+    /// new item is attached; on failure the old item is still the one in the submenu.
     fn replace_without_accelerator(&mut self) -> bool {
         let (id, old): (_, &dyn muda::IsMenuItem) = match &self.handle {
             Handle::Plain(h) => (h.id().clone(), h),
@@ -89,20 +96,52 @@ impl Item {
             Handle::Plain(_) => Handle::Plain(MenuItem::with_id(id, self.native_label(), self.enabled, None)),
             Handle::Check(h) => Handle::Check(CheckMenuItem::with_id(id, self.native_label(), self.enabled, h.is_checked(), None)),
         };
-        if self.parent.remove(old).is_err() {
-            return false;
-        }
         let new_ref: &dyn muda::IsMenuItem = match &new {
             Handle::Plain(h) => h,
             Handle::Check(h) => h,
         };
-        if self.parent.insert(new_ref, position).is_err() {
-            // the old item is already gone: an item at the end beats a missing one
-            let _ = self.parent.append(new_ref);
+        if !swap_item(&self.parent, old, new_ref, position) {
+            return false;
         }
         self.handle = new;
         true
     }
+}
+
+/// The three submenu calls a swap needs, so the failure paths can be tested without a main-thread
+/// `muda::Menu`.
+trait SwapTarget {
+    type Row: ?Sized;
+    fn remove(&self, row: &Self::Row) -> bool;
+    fn insert(&self, row: &Self::Row, position: usize) -> bool;
+    fn append(&self, row: &Self::Row) -> bool;
+}
+
+impl SwapTarget for Submenu {
+    type Row = dyn muda::IsMenuItem;
+    fn remove(&self, row: &Self::Row) -> bool {
+        Submenu::remove(self, row).is_ok()
+    }
+    fn insert(&self, row: &Self::Row, position: usize) -> bool {
+        Submenu::insert(self, row, position).is_ok()
+    }
+    fn append(&self, row: &Self::Row) -> bool {
+        Submenu::append(self, row).is_ok()
+    }
+}
+
+/// Puts `new` where `old` is. Returns whether `new` is attached; when it is not, `old` is back in
+/// the menu (at its position, else at the end), so the caller keeps `old` as its handle.
+fn swap_item<T: SwapTarget + ?Sized>(target: &T, old: &T::Row, new: &T::Row, position: usize) -> bool {
+    if !target.remove(old) {
+        return false;
+    }
+    // (an item at the end beats a missing one)
+    if target.insert(new, position) || target.append(new) {
+        return true;
+    }
+    let _ = target.insert(old, position) || target.append(old);
+    false
 }
 
 /// The accelerator a native item has: none while a shortcut is being recorded, and none for the
@@ -577,6 +616,59 @@ mod tests {
             assert_eq!(wanted_accelerator(a, sc, false, true), None, "{sc} goes while recording");
         }
         assert_eq!(wanted_accelerator(None, "Escape", false, false), None, "no accelerator stays none");
+    }
+
+    /// A submenu of numbers whose calls can be made to fail, to run `swap_item`'s failure paths.
+    /// Row 2 is the old item and row 9 its replacement.
+    #[derive(Default)]
+    struct Fake {
+        rows: std::cell::RefCell<Vec<u32>>,
+        fail_remove: bool,
+        /// The new item (9) cannot be inserted / appended.
+        reject_new_insert: bool,
+        reject_new_append: bool,
+    }
+    impl SwapTarget for Fake {
+        type Row = u32;
+        fn remove(&self, row: &u32) -> bool {
+            if self.fail_remove {
+                return false;
+            }
+            self.rows.borrow_mut().retain(|x| x != row);
+            true
+        }
+        fn insert(&self, row: &u32, position: usize) -> bool {
+            if self.reject_new_insert && *row == 9 {
+                return false;
+            }
+            self.rows.borrow_mut().insert(position, *row);
+            true
+        }
+        fn append(&self, row: &u32) -> bool {
+            if self.reject_new_append && *row == 9 {
+                return false;
+            }
+            self.rows.borrow_mut().push(*row);
+            true
+        }
+    }
+
+    fn swap(fake: Fake) -> (bool, Vec<u32>) {
+        *fake.rows.borrow_mut() = vec![1, 2, 3];
+        let done = swap_item(&fake, &2, &9, 1);
+        (done, fake.rows.into_inner())
+    }
+
+    #[test]
+    fn a_swap_changes_the_item_only_when_the_new_one_is_attached() {
+        assert_eq!(swap(Fake::default()), (true, vec![1, 9, 3]), "in place");
+        assert_eq!(swap(Fake { fail_remove: true, ..Default::default() }), (false, vec![1, 2, 3]), "remove fails: the old item stays");
+        assert_eq!(swap(Fake { reject_new_insert: true, ..Default::default() }), (true, vec![1, 3, 9]), "insert fails: the new item goes last");
+        assert_eq!(
+            swap(Fake { reject_new_insert: true, reject_new_append: true, ..Default::default() }),
+            (false, vec![1, 2, 3]),
+            "neither works: the old item is back where it was"
+        );
     }
 
     #[test]
