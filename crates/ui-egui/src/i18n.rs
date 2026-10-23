@@ -865,6 +865,16 @@ mod tests {
         }
     }
 
+    /// The flag chip ("Flag: pick") translates the lowercase flag value; a catalog without it shows English.
+    #[test]
+    fn every_translation_names_the_pick_and_reject_flags_on_the_chip() {
+        for language in Locale::ALL.iter().filter(|language| **language != Locale::En) {
+            for key in ["pick", "reject"] {
+                assert!(language.catalog().contains_key(key), "{} lacks {key:?}", language.code());
+            }
+        }
+    }
+
     /// The language menu covers every language, and a language's own command selects it.
     #[test]
     fn language_commands_cover_every_language() {
