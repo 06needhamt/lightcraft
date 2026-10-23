@@ -296,6 +296,21 @@ fn radial_body_drag_keeps_resize_and_rotation_handles() {
 }
 
 #[test]
+fn mask_overlay_color_refuses_anything_but_six_hex_digits() {
+    let mut h = detail("panel.masking");
+    exec(&mut h, "view.maskOverlayColor", json!({"color": "#2870f0"}));
+    for bad in ["#+f+f+f", "+12345", "#-0-0-0", "##ffffff"] {
+        let r = h.request("engine.execute", json!({"command": "view.maskOverlayColor", "params": {"color": bad}}), T);
+        assert_eq!(r["ok"], false, "{bad:?} is not a colour: {r}");
+        assert_eq!(h.app.ui.mask_overlay_color, [0x28, 0x70, 0xf0], "{bad:?} leaves the overlay colour alone");
+    }
+    exec(&mut h, "view.maskOverlayColor", json!({"color": "e63228"}));
+    assert_eq!(h.app.ui.mask_overlay_color, [0xe6, 0x32, 0x28]);
+    exec(&mut h, "view.maskOverlayColor", json!({"color": [10, 20, 30]}));
+    assert_eq!(h.app.ui.mask_overlay_color, [10, 20, 30]);
+}
+
+#[test]
 fn mask_overlay_keys_and_pins() {
     use lightcraft_pipeline::{MaskView, Overlay};
     let mut h = detail("panel.masking");
