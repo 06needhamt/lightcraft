@@ -35,18 +35,55 @@ impl AppliedPreset {
     }
 
     fn is_current(&self, session: &lightcraft_engine::Session) -> bool {
-        self.selected == session.selection.ids
-            && self.active == session.active()
-            && self.commits == session.commits()
+        self.selected == session.selection.ids && self.active == session.active() && !self.is_stale(session)
+    }
+
+    /// A later edit, undo or redo (on any photo) owns the undo step: the slider may never replace it.
+    fn is_stale(&self, session: &lightcraft_engine::Session) -> bool {
+        !(self.commits == session.commits()
             && session.interaction.is_none()
             && session.redo.is_empty()
             && session
                 .undo
                 .last()
-                .is_some_and(|entry| session.presets.iter().any(|preset| preset.id == self.id && entry.label == format!("Preset: {}", preset.name)))
+                .is_some_and(|entry| session.presets.iter().any(|preset| preset.id == self.id && entry.label == format!("Preset: {}", preset.name))))
     }
 }
 
+/// The preset each photo was given, with its settings right after: the panel marks it while the
+/// photo still has exactly those settings, so it is still marked on coming back to the photo
+/// (issue #2392) and drops once the photo is edited further.
+#[derive(Clone, Default)]
+struct AppliedByPhoto(std::collections::HashMap<lightcraft_catalog::PhotoId, (String, Arc<lightcraft_develop::DevelopSettings>)>);
+
+impl AppliedByPhoto {
+    const ID: &'static str = "preset-applied-by-photo";
+
+    /// Remember `preset` on the photos `preset.apply` just changed (the selection, else the active
+    /// photo; an active photo outside the selection wasn't changed and isn't marked).
+    fn remember(ctx: &egui::Context, session: &lightcraft_engine::Session, preset: &str) {
+        let id = egui::Id::new(Self::ID);
+        let mut map: Self = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
+        for photo in session.selected() {
+            if let Some(d) = session.develop_of(photo) {
+                map.0.insert(photo, (preset.to_string(), d));
+            }
+        }
+        ctx.data_mut(|d| d.insert_temp(id, map));
+    }
+
+    /// The preset to mark for `photo`: the one it was given, while its settings are unchanged since.
+    fn of(ctx: &egui::Context, session: &lightcraft_engine::Session, photo: Option<lightcraft_catalog::PhotoId>) -> Option<String> {
+        let photo = photo?;
+        let map: Self = ctx.data(|d| d.get_temp(egui::Id::new(Self::ID)))?;
+        let (preset, then) = map.0.get(&photo)?;
+        let now = session.develop_of(photo)?;
+        (Arc::ptr_eq(then, &now) || **then == *now).then(|| preset.clone())
+    }
+}
+
+/// The Presets panel: the Favorites section of starred presets on top (issue #1999), then the
+/// groups of built-in and user presets, each row applying its preset on click.
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider)).show(ui, |ui| {
@@ -106,6 +143,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             {
                 // Only replace the most recent preset; never undo intervening edits.
                 if app.run("preset.apply", json!({"id": &last.id, "amount": v})).is_ok() {
+                    AppliedByPhoto::remember(ui.ctx(), &app.session, &last.id);
                     ui.data_mut(|d| d.insert_temp(amt_id, AppliedPreset::new(&app.session, last.id, v)));
                 } else {
                     let _ = app.run("edit.redo", json!({}));
@@ -113,10 +151,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 }
             }
             divider(ui);
-        } else {
+        } else if last.is_some_and(|last| last.is_stale(&app.session)) {
+            // kept across a switch to another photo and back (the slider returns with it); gone once
+            // a later edit, undo or redo owns the step
             ui.data_mut(|d| d.remove::<AppliedPreset>(amt_id));
         }
         let active = app.session.active();
+        let marked = AppliedByPhoto::of(ui.ctx(), &app.session, active);
         let current = active.and_then(|id| app.session.develop_of(id)).map(|d| (*d).clone());
         let thumbs = app.ui.preset_thumbs && active.is_some();
         let row_h = if thumbs { 54.0 } else { 26.0 };
@@ -152,7 +193,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     ui.data_mut(|d| d.insert_temp(open_id, !open));
                 }
                 if !favorites {
-                    resp.context_menu(|ui| {
+                    crate::widgets::context_menu(&resp, |ui| {
                         if ui.button(crate::i18n::tr("Export Group…")).clicked() {
                             let _ = app.run("file.exportPresets", json!({"group": g}));
                         }
@@ -172,8 +213,9 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     crate::widgets::announce(&resp, name.clone());
                     // a starred preset is listed twice: in Favorites and in its group
                     register(ui.ctx(), if favorites { format!("presetFavorite:{pid}") } else { format!("preset:{pid}") }, r);
-                    let is_last = last.as_ref().is_some_and(|l| l.id == pid);
+                    let is_last = marked.as_deref() == Some(pid.as_str());
                     if is_last {
+                        register(ui.ctx(), "presetApplied", r);
                         ui.painter().rect_filled(r, 0.0, t.tool_active);
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, 0.0, t.hover.gamma_multiply(0.7));
@@ -205,12 +247,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                         }
                     }
                     if resp.clicked() && app.run("preset.apply", json!({"id": pid, "amount": 100})).is_ok() {
+                        AppliedByPhoto::remember(ui.ctx(), &app.session, &pid);
                         ui.data_mut(|d| d.insert_temp(amt_id, AppliedPreset::new(&app.session, pid.clone(), 100.0)));
                         ui.data_mut(|d| d.remove::<(lightcraft_catalog::PhotoId, Preset, String)>(egui::Id::new("last-preset-hover")));
                         app.toast(ui.ctx(), crate::i18n::tr_format!("Preset: {name}", name = name));
                     }
                     let (builtin, group) = (pr.builtin, pr.group.clone());
-                    resp.context_menu(|ui| {
+                    crate::widgets::context_menu(&resp, |ui| {
                         if ui.button(crate::i18n::tr(if fav { "Remove from Favorites" } else { "Add to Favorites" })).clicked() {
                             let _ = app.run("preset.favorite", json!({"id": pid}));
                         }

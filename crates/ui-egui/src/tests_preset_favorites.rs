@@ -4,6 +4,7 @@
 use crate::{LightcraftApp, Services, headless::Headless};
 use serde_json::json;
 
+/// A headless app on the demo library with the Presets panel open and laid out.
 fn app() -> Headless {
     let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() });
     let mut h = Headless::new(app, [1400.0, 1000.0], 1.0);
@@ -14,6 +15,7 @@ fn app() -> Headless {
     h
 }
 
+/// Where the widget registered as `id` was drawn in the last frame, if it was.
 fn rect(h: &Headless, id: &str) -> Option<egui::Rect> {
     h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r)
 }
@@ -24,6 +26,8 @@ fn first_group(h: &Headless) -> String {
     groups.min_by(|a, b| a.1.top().total_cmp(&b.1.top())).map(|(w, _)| w.clone()).unwrap()
 }
 
+/// Starring two presets makes a Favorites section the first header, listing them in list order
+/// right under it, while each stays in its own group too.
 #[test]
 fn starred_presets_are_listed_in_favorites_on_top() {
     let mut h = app();
