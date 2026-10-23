@@ -25,6 +25,7 @@ mod edit_layout;
 mod empty_library;
 mod error_kinds;
 mod filmstrip;
+mod filmstrip_drag;
 mod focus_point;
 mod folder_drop;
 mod grading;
