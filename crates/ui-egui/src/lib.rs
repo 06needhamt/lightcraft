@@ -1305,6 +1305,8 @@ impl LightcraftApp {
         if drop.photos.is_empty() {
             return;
         }
+        // no library open yet (the launch list, a library that failed to open): they wait for one
+        let Some(photos) = panels::library_problem::hold_dropped(self, ctx, drop.photos) else { return };
         if self.lightroom.is_some() {
             self.toast(ctx, crate::i18n::tr("Finish Lightroom catalog import before adding photos"));
             return;
@@ -1315,9 +1317,9 @@ impl LightcraftApp {
         }
         let started = if self.ui.settings.import_dropped_directly {
             // read and added on a worker thread (dropped folders can be large, or on a slow drive)
-            import::start_paths(self, drop.photos).map(|_| ())
+            import::start_paths(self, photos).map(|_| ())
         } else {
-            import::open(self, drop.photos).map(|_| ())
+            import::open(self, photos).map(|_| ())
         };
         if let Err(e) = started {
             self.toast(ctx, e);

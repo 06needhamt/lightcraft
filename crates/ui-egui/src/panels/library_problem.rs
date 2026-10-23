@@ -426,6 +426,26 @@ enum Choice {
     Keep,
 }
 
+/// Whether dropped photos wait for a library ([`hold_dropped`]): none is open and the window
+/// asking for one is up (not dismissed by Continue Without Saving).
+pub fn holds_drops(app: &LightcraftApp) -> bool {
+    app.session.library.is_none() && app.library_problem.as_ref().is_some_and(|p| !p.dismissed)
+}
+
+/// Photos dropped on the window while no library is open (the launch list, or the window of a
+/// library that failed to open): kept with the command line's files and imported once a library
+/// opens, instead of going into the session the next library replaces. Gives the photos back when
+/// a library is open or Continue Without Saving was chosen.
+pub fn hold_dropped(app: &mut LightcraftApp, ctx: &egui::Context, photos: Vec<String>) -> Option<Vec<String>> {
+    if !holds_drops(app) {
+        return Some(photos);
+    }
+    let problem = app.library_problem.as_mut()?;
+    problem.pending_import.extend(photos);
+    app.toast(ctx, crate::i18n::tr("The photos are imported once a library is open"));
+    None
+}
+
 /// Open `path` (`None`: ask for a folder) through `app.openLibrary`; on success the problem is
 /// over (and command-line files are imported), else it shows the new error.
 fn open(app: &mut LightcraftApp, path: Option<String>) {

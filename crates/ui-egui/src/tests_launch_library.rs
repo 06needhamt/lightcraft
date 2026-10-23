@@ -832,3 +832,32 @@ fn a_failed_open_or_an_unreadable_catalog_doesnt_mark_a_library_missing() {
     assert!(matches!(open_recent(&h.app).first(), Some(MenuNode::Item { enabled: true, .. })));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Photos dropped on the launch list wait for the library chosen (CodeRabbit on #2689): before,
+/// they went into the session the library then replaced, and were gone from view.
+#[test]
+fn photos_dropped_on_the_launch_list_go_into_the_library_chosen() {
+    let dir = temp("drop");
+    let a = make_library(&dir.join("Alpha"));
+    let mut h = asking(vec![a.clone()], &a, None);
+    let img = lightcraft_raster::Rgba8 { width: 8, height: 8, data: vec![[90, 3, 9, 255]; 64] };
+    let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+    let photo = dir.join("a.png");
+    std::fs::write(&photo, png).unwrap();
+    let ctx = h.view.ctx.clone();
+    let photos = vec![photo.to_string_lossy().into_owned()];
+    assert!(crate::panels::library_problem::holds_drops(&h.app));
+    assert_eq!(crate::panels::library_problem::hold_dropped(&mut h.app, &ctx, photos.clone()), None, "held while no library is open");
+    assert_eq!(h.app.library_problem.as_ref().map(|p| p.pending_import.clone()), Some(photos.clone()));
+    assert!(h.app.ui.toast.as_ref().is_some_and(|t| t.0.contains("once a library is open")), "{:?}", h.app.ui.toast);
+    assert_eq!(h.app.session.catalog.len(), 0, "nothing goes into the session the library replaces");
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryOpen"}), T)["ok"], true);
+    settle(&mut h);
+    h.step_until(T, |h| h.app.import.is_none() && h.app.session.catalog.len() == 1);
+    assert_eq!(h.app.session.catalog.len(), 1, "the dropped photo is imported into the library opened");
+    // with a library open, a drop is the usual import
+    assert!(!crate::panels::library_problem::holds_drops(&h.app));
+    assert_eq!(crate::panels::library_problem::hold_dropped(&mut h.app, &ctx, photos.clone()), Some(photos));
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
