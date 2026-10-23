@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-22
+
+### Reliability
+- Opening a library no longer writes through a link left at the lock's owner note (`catalog.lock.owner`): the link
+  is removed and a new note made in its place, so the file it pointed to is never changed (as for the catalog's
+  temporary files, issue #1502).
+
 ## 2026-10-21
 
 ### Sharper resampling in HDR and panorama merges
