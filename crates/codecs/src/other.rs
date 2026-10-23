@@ -65,7 +65,10 @@ fn check_fillable(format: Format, bytes: &[u8], w: u32, h: u32) -> Result<()> {
     // the pixels the file's data can cover
     let covered = match format {
         Format::Gif => {
-            let (fw, fh, len) = gif_first_frame(bytes).unwrap_or((w, h, bytes.len()));
+            // without a frame there is nothing to decode, and nothing to bound the canvas by
+            let Some((fw, fh, len)) = gif_first_frame(bytes) else {
+                return Err(Error::Malformed(format, "no readable first frame".into()));
+            };
             if area(fw, fh) > (len as u64).saturating_mul(2_731) {
                 return Err(unfillable("frame", fw, fh, len));
             }
@@ -169,4 +172,27 @@ pub(crate) fn decode(bytes: &[u8], format: Format, opts: &DecodeOptions) -> Resu
     };
     let raw = Raw { width: w as usize, height: h as usize, model, alpha, premultiplied: false, buf: Buf::U8(buf), bit_depth: 8 };
     finish(format, raw, Meta { icc, ..Default::default() }, (w, h), opts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A GIF whose blocks can't be walked to a first frame (here a comment that runs to the end of the
+    /// file) is refused, instead of the whole file being counted as pixel data for its 400 MP screen.
+    /// The `image` decoder also stops at such a file when it opens it, but the canvas bound doesn't
+    /// rely on the two walks agreeing.
+    #[test]
+    fn a_gif_with_no_readable_first_frame_is_refused() {
+        let mut b = b"GIF89a".to_vec();
+        b.extend(20_000u16.to_le_bytes());
+        b.extend(20_000u16.to_le_bytes());
+        b.extend([0, 0, 0, 0x21, 0xFE]);
+        for _ in 0..600 {
+            b.push(255);
+            b.extend([b'x'; 255]);
+        }
+        let r = check_fillable(Format::Gif, &b, 20_000, 20_000);
+        assert!(matches!(&r, Err(Error::Malformed(_, m)) if m.contains("no readable first frame")), "{r:?}");
+    }
 }
