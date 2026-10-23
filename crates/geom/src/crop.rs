@@ -48,8 +48,8 @@ impl CropGeometry {
     /// agent (issue #2555): the angle within ±45° (not finite: 0), and the rect clipped to the
     /// bounding box of the image turned by that angle, which holds every crop that stays on the
     /// photo, so a real crop is unchanged while one reaching far past the photo can no longer make
-    /// a full-size output of billions of pixels. A rect with nothing left (or not finite) is the
-    /// whole frame.
+    /// a full-size output of billions of pixels. A rect with nothing left (reversed, or not finite)
+    /// is the whole frame.
     pub fn bounded(&self, w: f64, h: f64) -> CropGeometry {
         let angle = if self.angle.is_finite() { self.angle.clamp(-45.0, 45.0) } else { 0.0 };
         let (sin, cos) = angle.to_radians().sin_cos();
@@ -58,7 +58,9 @@ impl CropGeometry {
         let r = self.rect_px(w, h);
         let finite = [r.x0, r.y0, r.x1, r.y1].iter().all(|v| v.is_finite());
         let inside = r.x0 >= bbox.x0 && r.y0 >= bbox.y0 && r.x1 <= bbox.x1 && r.y1 <= bbox.y1;
-        if finite && inside {
+        // a reversed rect (right edge left of its left edge, or bottom above top) has a negative size
+        let ordered = r.x0 <= r.x1 && r.y0 <= r.y1;
+        if finite && inside && ordered {
             // left exactly as stored: a round trip through pixels would change its last bits
             return CropGeometry { rect: self.rect, angle };
         }
@@ -224,6 +226,14 @@ mod tests {
         // a crop entirely off the turned photo has nothing left: the whole frame
         let off = CropGeometry { rect: Rect::new(50.0, 50.0, 60.0, 60.0), angle: 10.0 }.bounded(w, h);
         assert_eq!(off.rect, Rect::UNIT);
+        // a reversed rect inside the photo is the whole frame, never a negative size
+        let reversed = CropGeometry { rect: Rect::new(0.8, 0.2, 0.2, 0.8), angle: 0.0 }.bounded(w, h);
+        assert_eq!(reversed.rect, Rect::UNIT);
+        let flipped = CropGeometry { rect: Rect::new(0.2, 0.8, 0.8, 0.2), angle: 3.0 }.bounded(w, h);
+        assert_eq!(flipped.rect, Rect::UNIT);
+        // a zero-size crop is left as it was
+        let line = CropGeometry { rect: Rect::new(0.5, 0.2, 0.5, 0.8), angle: 0.0 };
+        assert_eq!(line.bounded(w, h), line);
     }
 
     #[test]
