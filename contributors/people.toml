@@ -22,11 +22,6 @@ real_name = "Brandon Thomas"
 display_name = "Brandon Thomas"
 sync_github_name = false
 
-[people.lewandowskit]
-real_name = "Tomasz Lewandowski"
-display_name = "Tomasz Lewandowski"
-sync_github_name = false
-
 [people.rock-meister]
 sync_github_name = true
 
@@ -51,11 +46,6 @@ sync_github_name = true
 display_name = "Netter"
 sync_github_name = false
 
-[people.ternarybits]
-real_name = "Ted Mao"
-display_name = "ternarybits"
-sync_github_name = false
-
 [people.nledford]
 real_name = "Nathaniel Ledford"
 
@@ -68,10 +58,12 @@ sync_github_name = false
 real_name = "Ege Gursel"
 sync_github_name = true
 
+[people.valenfys]
+sync_github_name = true
+
 [people.mahmatias]
 display_name = "Márcio Matias de Andrade"
 sync_github_name = true
 
 [people.ronibalthazar]
-[people.valenfys]
 sync_github_name = true
