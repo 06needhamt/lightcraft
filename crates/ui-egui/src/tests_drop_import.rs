@@ -260,11 +260,18 @@ fn photos_dropped_with_no_library_open_wait_for_one() {
     let dir = Scratch::new("no-library");
     let mut h = app(&dir);
     h.app.library_problem = Some(crate::panels::library_problem::LibraryProblem::new(dir.path("Gone"), "not found"));
-    drop_files(&mut h, &[dir.path("trip/a.png")], true);
+    std::fs::write(dir.path("warm.lcpreset"), "{}").unwrap();
+    drop_files(&mut h, &[dir.path("trip/a.png"), dir.path("warm.lcpreset")], true);
     assert!(said(&h, "once a library is open"), "{:?}", h.painted_text());
+    assert!(said(&h, "drop the presets again") && !said(&h, "1 preset"), "{:?}", h.painted_text());
     drop_files(&mut h, &[], true);
     drop_files(&mut h, &[dir.path("trip/a.png"), dir.path("trip/b.png")], false);
     assert_eq!(h.app.library_problem.as_ref().map(|p| p.pending_import.len()), Some(2));
     assert!(h.app.ui.dialog.is_none() && h.app.import.is_none(), "no review, no import into the temporary session");
     assert_eq!(photos(&h), 0);
+    // a preset belongs to a library: refused, not imported into the session the library replaces
+    h.app.ui.toast = None;
+    drop_files(&mut h, &[dir.path("warm.lcpreset")], false);
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(toast.contains("drop the presets again"), "{toast}");
 }

@@ -36,12 +36,16 @@ fn lines(app: &LightcraftApp, paths: Vec<String>, unknown: bool) -> Vec<String> 
         out.push(crate::i18n::tr("Drop to open the face model").to_string());
     }
     let plural = |n: usize| if n == 1 { "" } else { "s" };
-    if !drop.presets.is_empty() {
+    // no library open yet (desktop: the web build's drops import into its session as before):
+    // photos wait for the library chosen, presets are refused (the drop handler does the same)
+    let waiting = crate::panels::library_problem::holds_drops(app) && !cfg!(target_arch = "wasm32");
+    if !drop.presets.is_empty() && waiting {
+        out.push(crate::i18n::tr("Open a library first, then drop the presets again").to_string());
+    } else if !drop.presets.is_empty() {
         let n = drop.presets.len();
         out.push(crate::i18n::tr_format!("Drop to import {n} preset{}", plural(n), n = n));
     }
-    if !drop.photos.is_empty() && crate::panels::library_problem::holds_drops(app) {
-        // no library open yet: they wait for the one chosen (the drop handler holds them)
+    if !drop.photos.is_empty() && waiting {
         out.push(crate::i18n::tr("The photos are imported once a library is open").to_string());
     } else if !drop.photos.is_empty() && app.lightroom.is_some() && !cfg!(target_arch = "wasm32") {
         // the drop is refused while a Lightroom catalog import owns the catalog

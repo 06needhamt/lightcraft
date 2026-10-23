@@ -2385,5 +2385,6 @@
   "Not answering yet: the drive may be asleep or offline": "Pas encore de réponse : le disque est peut-être en veille ou hors ligne",
   "This library couldn't be checked": "Impossible de vérifier cette bibliothèque",
   "Checking recent libraries": "Vérification des bibliothèques récentes",
-  "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte"
+  "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte",
+  "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages"
 }
