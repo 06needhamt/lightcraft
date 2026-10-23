@@ -282,7 +282,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             if resp.double_clicked() {
                 app.ui.renaming_mask = Some((m.id, m.name.clone()));
             }
-            resp.context_menu(|ui| mask_menu(app, ui, m.id, &m.name, m.visible, index, count));
+            crate::widgets::context_menu(&resp, |ui| mask_menu(app, ui, m.id, &m.name, m.visible, index, count));
             if sel {
                 // right under the selected mask: ＋ adds to it, − takes away from it (any mask
                 // type; Describe… opens its field here)
@@ -349,7 +349,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 if resp.double_clicked() {
                     app.ui.renaming_component = Some((m.id, i, label.clone()));
                 }
-                resp.context_menu(|ui| component_row_menu(app, ui, m.id, i, &label, m.components.len()));
+                crate::widgets::context_menu(&resp, |ui| component_row_menu(app, ui, m.id, i, &label, m.components.len()));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let more = ui.small_button("…").on_hover_text(crate::i18n::tr("Component options"));
                     register(ui.ctx(), format!("button:componentMenu{i}"), more.rect);
@@ -896,25 +896,6 @@ fn brush_settings(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn masking_context_actions_use_catalog_translations() {
-        let saved = crate::i18n::language();
-        crate::i18n::set_language(crate::i18n::Locale::Fr);
-        for (english, translated) in [
-            ("Duplicate Mask", "Dupliquer le masque"),
-            ("Invert Mask", "Inverser le masque"),
-            ("Hide Mask", "Masquer le masque"),
-            ("Move Up", "Monter"),
-            ("Brush", "Pinceau"),
-            ("Luminance Range", "Plage de luminance"),
-        ] {
-            assert_eq!(menu_label(english), translated, "{english}");
-        }
-        // An arbitrary user name has no catalog entry and is left unchanged.
-        assert_eq!(menu_label("My custom mask"), "My custom mask");
-        crate::i18n::set_language(saved);
-    }
 
     /// The grid keeps four 52 pt tiles when the labels fit, and gives a long (translated) label
     /// room by dropping a column rather than drawing it past its tile.

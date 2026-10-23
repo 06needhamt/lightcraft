@@ -43,6 +43,8 @@ Overrides (read once at launch):
 - else `WGPU_BACKEND` (wgpu's own variable, same names) — before #136 only the window honoured it,
   the compute device always used Vulkan + DX12 (+ Metal).
 - `LIGHTCRAFT_GPU=0`: GPU rendering off for the process (the window is unaffected).
+- Both `LIGHTCRAFT_GPU=0` and `LIGHTCRAFT_GPU_BACKEND=off` also keep AI Denoise, the face models
+  and the AI mask model (SAM 3 on Metal) on the CPU.
 
 **DX12 shader compiler (issue #471).** Every instance (window and compute) compiles DX12 shaders with
 FXC (`d3dcompiler_47.dll`, part of Windows; `lightcraft_gpu::backend::backend_options`). wgpu's
@@ -54,6 +56,13 @@ compile error, its indirect-validation pipelines fail, the device is lost, and t
 chooses; with `dxc`, put `dxcompiler.dll` *and* `dxil.dll` (DXC ≥ 1.8.2502) next to `lightcraft.exe`.
 FXC builds the compute kernels somewhat slower than DXC (≈ 9 s vs 7.5 s for the GPU test suite on an
 RTX 4080), off the startup path.
+
+FXC merges stores to neighbouring elements of a storage array into one wider store. NVIDIA's DX12 driver ran
+the 16-byte store it made of a denoise convolution's output wrong on a GTX 1070 (every second pixel's channels
+shifted; DXC and Vulkan were right), so `nn_conv.wgsl` steps those stores by `1 + zero` from its uniform and FXC
+leaves them apart. The transposed convolution's merged store ran right on that card, but it steps the same way.
+`nn::tests::a_layer_stores_every_pixels_channels_where_the_next_reads_them` catches the fault on such a card;
+`a_transposed_convolution_stores_every_pixels_channels_where_the_next_reads_them` checks the other store exactly.
 
 **Off the startup path.** The compute device is created on a background thread once the window is
 up (`gpu::warm_up` from the first frame's settings), and never while GPU rendering is off: with
@@ -220,7 +229,7 @@ passes on as `RenderResult::gpu_fallback`; an export carries it as `Exported::gp
 each file of an `app.export` batch result has `gpuFallback` when its render fell back (issue #675).
 **Reproducing a smaller GPU:** `LIGHTCRAFT_GPU_LIMITS=webgpu` (or `downlevel`) creates the device
 with 128 MiB storage bindings / 256 MiB buffers, `LIGHTCRAFT_GPU_LIMITS=<n>` with n MiB / 2n MiB.
-Tests inject failures with `lightcraft_gpu::inject_fault` (`crates/gpu/tests/fallback.rs`,
+Tests inject failures with `lightcraft_gpu::inject_fault` (`crates/gpu/tests/it/fallback.rs`,
 `export_falls_back_to_the_cpu_when_gpu_work_is_lost`). The fault is thread-local, and so are its
 consequences: a simulated fatal failure stops GPU use on the injecting thread only (`available()`
 false, `unavailable_reason()` set there), until `reset_failures()`, which undoes nothing else — a
@@ -228,7 +237,7 @@ real failure still stops the whole process. Such a test asserts on its own rende
 `last_fallback()`, so it can run beside other tests rendering on the GPU (issue #675).
 
 ## Correctness: CPU oracle and equivalence tests
-`crates/gpu/tests/equivalence.rs` renders the same settings on both and compares 8-bit sRGB:
+`crates/gpu/tests/it/equivalence.rs` renders the same settings on both and compares 8-bit sRGB:
 bounds **mean |Δ| < 0.5 LSB and max |Δ| ≤ 3 LSB** per channel. Measured (Apple M4 Pro, Metal):
 **max 1 LSB, mean ≤ 0.0003 LSB** for every case — 26 settings cases (all tone/colour/effects tools,
 3 vignette styles, grain, curves, grading, B&W, WB, NR, crop/straighten/flip, lens + perspective,
@@ -245,7 +254,7 @@ cut back after the readback. The tests skip (pass with a note) when no adapter e
 non-Apple GPU verified: all 16 tests pass, 135 compared cases. 124 differ by max 1 LSB, 10 are
 bit-identical, and one (the point colour range overlay) has max 2 LSB on 0.0002% of pixels. Worst
 mean 0.0003 LSB. That is the same picture as on Metal, inside the bounds
-(`cargo test -p lightcraft-gpu --release --test equivalence -- --nocapture`).
+(`cargo test -p lightcraft-gpu --release --test it equivalence:: -- --nocapture`).
 
 Remaining differences come from f32 vs f64 coordinate math, fast-math transcendental functions on
 Metal and summation order in the box filters — all far below one 8-bit step.
