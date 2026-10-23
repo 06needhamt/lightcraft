@@ -607,6 +607,8 @@ fn german_switches_via_menu_and_control_and_persists() {
     assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt oder keine");
     let filter = lightcraft_catalog::Filter { flag: Some(lightcraft_catalog::Flag::Pick), ..filter };
     assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt");
+    let filter = lightcraft_catalog::Filter { flags: vec![lightcraft_catalog::Flag::Reject, lightcraft_catalog::Flag::None], ..filter };
+    assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt und (abgelehnt oder keine)");
     set_language(Locale::En);
 }
 
