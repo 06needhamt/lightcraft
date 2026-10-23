@@ -115,7 +115,6 @@
   `photo.setCaptureTime` counts those photos as `unreadable`. Set date & time still repairs such a photo selected on
   its own; with other photos selected it says why it can't move them by the same amount. When the dialog can't make a
   change (a time that isn't a date, a shift past year 9999), it now says why and stays open, instead of closing.
-## 2026-10-21
 
 ### Month names in folder and file name templates
 - Date templates take the month by name: `%B` gives January, `%b` gives Jan. Import ▸ Folders ▸ Custom template…
