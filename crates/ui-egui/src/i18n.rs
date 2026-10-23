@@ -1107,6 +1107,14 @@ mod tests {
             let no = format!(" {}", bool_text_in(Locale::De, false));
             assert!(rules_label(&rules, &catalog).ends_with(&no), "{}", rules_label(&rules, &catalog));
         }
+        let both = lightcraft_catalog::Filter {
+            label: Some(lightcraft_catalog::ColorLabel::Red),
+            labels: vec![lightcraft_catalog::ColorLabel::Blue, lightcraft_catalog::ColorLabel::Red],
+            ..Default::default()
+        };
+        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot");
+        let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue], ..both };
+        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot und Blau");
         let filter = lightcraft_catalog::Filter {
             labels: vec![lightcraft_catalog::ColorLabel::Red, lightcraft_catalog::ColorLabel::Blue],
             ..Default::default()
