@@ -437,7 +437,8 @@ pub fn holds_drops(app: &LightcraftApp) -> bool {
 /// opens, instead of going into the session the next library replaces. Gives the photos back when
 /// a library is open or Continue Without Saving was chosen.
 pub fn hold_dropped(app: &mut LightcraftApp, ctx: &egui::Context, photos: Vec<String>) -> Option<Vec<String>> {
-    if !holds_drops(app) {
+    // called every frame, with nothing dropped most of the time: only a real drop is held (and toasted)
+    if photos.is_empty() || !holds_drops(app) {
         return Some(photos);
     }
     let problem = app.library_problem.as_mut()?;
