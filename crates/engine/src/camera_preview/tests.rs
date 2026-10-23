@@ -72,6 +72,29 @@ fn tone_fit_does_not_step_between_two_pixel_populations() {
     assert_eq!(limit_elasticity(smooth, &[]), Some(smooth));
 }
 
+/// A step at the top of the curve reaches its end: the pinned window and the free end are both under the bound, and
+/// the pixel pairs choose between them.
+#[test]
+fn a_step_at_the_curves_end_is_repaired_from_the_side_the_pixels_support() {
+    let x = |i: usize| 0.01 * 1.15f64.powi(i as i32);
+    let stepped: [[f32; 2]; 32] = std::array::from_fn(|i| [x(i) as f32, (0.3 * x(i) * if i >= 30 { 3.0 } else { 1.0 }) as f32]);
+    let pairs = |gain: f64| -> Vec<(f64, f64)> {
+        (0..4000).map(|j| x(0) * (x(31) / x(0)).powf(f64::from(j) / 3999.0)).map(|x| (x, 0.3 * x * if x >= 0.62 { gain } else { 1.0 })).collect()
+    };
+    // The pixels follow the curve below the step: the end is left free and the top knots drop to the repair slope.
+    let free = limit_elasticity(stepped, &pairs(1.0)).unwrap();
+    assert_eq!(free[..30], stepped[..30], "the curve up to the step is kept");
+    let (u29, v29) = (x(29).ln(), (f64::from(stepped[29][1]) + ELASTICITY_BLACK).ln());
+    for k in 30..32 {
+        let limit = (v29 + TONE_REPAIR_ELASTICITY * (x(k).ln() - u29)).exp() - ELASTICITY_BLACK;
+        assert!(f64::from(free[k][1]) <= limit + 1e-6, "knot {k}: {} over {limit}", free[k][1]);
+    }
+    // The pixels do sit above the step: the window stays pinned to the top knot.
+    let pinned = limit_elasticity(stepped, &pairs(3.0)).unwrap();
+    assert_eq!(pinned[31], stepped[31], "the end the pixels support is kept");
+    assert!(pinned[29][1] > stepped[29][1] && pinned[30][1] < stepped[30][1], "the step is spread over the window");
+}
+
 #[test]
 fn colour_holdouts_stay_out_of_the_wider_tone_training() {
     let (sensor, reference) = steep_toe_scene();
