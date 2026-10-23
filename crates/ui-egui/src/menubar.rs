@@ -641,8 +641,10 @@ pub(crate) fn expanded(app: &LightcraftApp, name: &str) -> Option<Vec<MenuNode>>
                 .iter()
                 .map(|r| {
                     let d = std::path::Path::new(r);
-                    // a missing library (moved, drive disconnected) is shown greyed out
-                    item("app.openLibrary", json!({"path": r}), label(r), None, can && d.is_dir(), Some(open.as_deref() == Some(d)))
+                    // a library a check found missing (moved, drive disconnected) is greyed out; the
+                    // check runs on a worker (`RecentChecks`), never here: the menu is rebuilt every frame
+                    let gone = app.recent_checks.reason(r).is_some();
+                    item("app.openLibrary", json!({"path": r}), label(r), None, can && !gone, Some(open.as_deref() == Some(d)))
                 })
                 .collect();
             if v.is_empty() {

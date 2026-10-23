@@ -7,6 +7,12 @@
 //! is *Ask me*, or when Alt/Option is held as the window first appears (issue #1290): Open, Open
 //! Another…, New Library…, Remove from List and Quit, with the arrow keys, Return and Esc.
 //! [`launch_plan`] decides at launch which of the two the desktop app starts with.
+//!
+//! Whether each recent library can be opened is checked on a worker ([`RecentChecks`]), never on
+//! the UI thread: a library on a network share whose server is gone, or on a disk that has to
+//! spin up, can take seconds to answer. Until its answer comes the list shows the row as
+//! "Checking…" (it can still be opened: opening says why if it can't), and File ▸ Open Recent
+//! Library keeps it enabled; the same answers grey out the menu's entries.
 
 use std::path::{Path, PathBuf};
 
@@ -56,9 +62,13 @@ pub struct RecentLibrary {
     pub path: String,
     /// When it was last opened (ISO 8601), if known.
     pub opened: Option<String>,
-    /// Why it can't be opened (`None`: it can), as checked when the window opened or when
-    /// opening it failed.
+    /// Why it can't be opened (`None`: it can, or it is still being checked), as checked when
+    /// the window opened or when opening it failed.
     pub unavailable: Option<String>,
+    /// Its check hasn't answered yet ([`RecentChecks`]).
+    pub checking: bool,
+    /// Its check has gone on for longer than [`SLOW_AFTER`] (the drive may be asleep or offline).
+    pub slow: bool,
 }
 
 /// The launch window's list of recent libraries (issue #1290).
@@ -68,6 +78,10 @@ pub struct Chooser {
     pub libraries: Vec<RecentLibrary>,
     /// The highlighted row (`None`: the list is empty).
     pub selected: Option<usize>,
+    /// The person moved the highlight: answers arriving later don't move it again.
+    pub touched: bool,
+    /// Its rows' checks were started ([`logic`]).
+    pub asked: bool,
     /// The library open behind the window (Alt/Option held at launch), by
     /// [`lightcraft_engine::Session::library_generation`]: Esc keeps it. `None`: no library is open.
     pub over: Option<u64>,
@@ -102,21 +116,40 @@ impl LibraryProblem {
     /// ([`unavailable`]): one that is gone, isn't a LightCraft library any more or can't be read
     /// is greyed out with the reason. The last library opened is selected, or else the first one
     /// that can be opened.
-    pub fn choose(settings: &AppSettings) -> LibraryProblem {
+    #[cfg(test)]
+    pub(crate) fn choose(settings: &AppSettings) -> LibraryProblem {
+        let mut p = LibraryProblem::choose_later(settings);
+        if let Some(c) = p.chooser.as_mut() {
+            for l in &mut c.libraries {
+                l.unavailable = unavailable(&l.path).map(|u| u.text());
+                l.checking = false;
+            }
+            c.selected = initial_selection(&c.libraries, &settings.library_path);
+            c.asked = true;
+        }
+        p
+    }
+
+    /// [`LibraryProblem::choose`] without looking at any folder: every row is "Checking…" until
+    /// [`logic`] has the answers from a worker ([`RecentChecks`]). The last library opened is
+    /// selected meanwhile (or the first row); once every answer is in, the selection follows the
+    /// same rule as [`LibraryProblem::choose`] unless the person moved it.
+    pub fn choose_later(settings: &AppSettings) -> LibraryProblem {
         // as many as File ▸ Open Recent Library keeps (a hand-edited settings file may hold more)
         let libraries: Vec<RecentLibrary> = settings
             .recent_libraries
             .iter()
             .take(crate::state::RECENT_LIBRARIES)
-            .map(|path| RecentLibrary { path: path.clone(), opened: settings.recent_opened.get(path).cloned(), unavailable: unavailable(path) })
+            .map(|path| RecentLibrary {
+                path: path.clone(),
+                opened: settings.recent_opened.get(path).cloned(),
+                unavailable: None,
+                checking: true,
+                slow: false,
+            })
             .collect();
-        let can = |l: &RecentLibrary| l.unavailable.is_none();
-        let selected = libraries
-            .iter()
-            .position(|l| l.path == settings.library_path && can(l))
-            .or_else(|| libraries.iter().position(can))
-            .or((!libraries.is_empty()).then_some(0));
-        LibraryProblem { chooser: Some(Chooser { libraries, selected, over: None }), ..Default::default() }
+        let selected = libraries.iter().position(|l| l.path == settings.library_path).or((!libraries.is_empty()).then_some(0));
+        LibraryProblem { chooser: Some(Chooser { libraries, selected, over: None, touched: false, asked: false }), ..Default::default() }
     }
 
     /// The session promises to save nothing (the failed-library window or Continue Without
@@ -131,11 +164,199 @@ impl LibraryProblem {
             let libraries: Vec<serde_json::Value> = c
                 .libraries
                 .iter()
-                .map(|l| json!({"path": l.path, "lastOpened": l.opened, "available": l.unavailable.is_none(), "reason": l.unavailable}))
+                .map(|l| json!({"path": l.path, "lastOpened": l.opened, "available": l.unavailable.is_none(), "checking": l.checking, "reason": l.unavailable}))
                 .collect();
             json!({"libraries": libraries, "selected": c.selected, "libraryOpen": c.over.is_some()})
         });
         json!({"path": self.path, "error": self.error, "temporarySession": self.dismissed, "pendingImport": self.pending_import.len(), "chooser": chooser})
+    }
+}
+
+/// The row first selected: the last library opened if it can be opened, else the first one that
+/// can, else the first row.
+fn initial_selection(libraries: &[RecentLibrary], last: &str) -> Option<usize> {
+    let can = |l: &RecentLibrary| l.unavailable.is_none();
+    libraries.iter().position(|l| l.path == last && can(l)).or_else(|| libraries.iter().position(can)).or((!libraries.is_empty()).then_some(0))
+}
+
+/// Why a recent library can't be opened, found on a worker and put into words on the UI thread
+/// (the interface language is per thread).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Unavailable {
+    /// Nothing at that path (moved, renamed, or on a disconnected drive).
+    NotFound,
+    /// A file, not a folder.
+    NotAFolder,
+    /// The folder can't be listed (the system's reason).
+    Unreadable(String),
+    /// The folder holds no LightCraft library any more.
+    NoLibrary,
+    /// The library's catalog file can't be opened (the system's reason).
+    CatalogUnreadable(String),
+    /// The check itself failed (its worker stopped, or couldn't start).
+    CheckFailed(String),
+}
+
+impl Unavailable {
+    /// In the interface language.
+    pub fn text(&self) -> String {
+        match self {
+            Unavailable::NotFound => crate::i18n::tr("Not found: moved, renamed or on a disconnected drive").to_string(),
+            Unavailable::NotAFolder => crate::i18n::tr("This is a file, not a library folder").to_string(),
+            Unavailable::Unreadable(e) => format!("{} {e}", crate::i18n::tr("This folder can't be read:")),
+            Unavailable::NoLibrary => crate::i18n::tr("There is no LightCraft library in this folder any more").to_string(),
+            Unavailable::CatalogUnreadable(e) => format!("{} {e}", crate::i18n::tr("The library's catalog can't be read:")),
+            Unavailable::CheckFailed(e) => e.clone(),
+        }
+    }
+}
+
+/// How long an answer stands before File ▸ Open Recent Library asks again (a drive plugged back
+/// in, a library moved away meanwhile).
+pub const RECHECK_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
+/// How long a row stays "Checking…" before it says the drive isn't answering (it can still be
+/// opened: opening says why if it can't).
+pub const SLOW_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The activity stack's row for a check (English: the stack translates it).
+const CHECK_LABEL: &str = "Checking recent libraries";
+
+/// One path's answer and when it came.
+#[derive(Clone, Debug)]
+struct Answer {
+    why: Option<Unavailable>,
+    at: web_time::Instant,
+}
+
+/// Answers to "can this recent library be opened?", each found on a worker thread of its own (a
+/// library on a network share whose server is gone, or on a sleeping disk, can take seconds or
+/// never answer; the others don't wait for it).
+pub struct RecentChecks {
+    known: std::collections::HashMap<String, Answer>,
+    /// Paths being checked, and since when.
+    pending: std::collections::HashMap<String, web_time::Instant>,
+    /// How one path is checked ([`unavailable`]; tests put a slow one here).
+    check: std::sync::Arc<dyn Fn(&str) -> Option<Unavailable> + Send + Sync>,
+}
+
+impl Default for RecentChecks {
+    /// Nothing known yet, checking with [`unavailable`].
+    fn default() -> Self {
+        RecentChecks { known: Default::default(), pending: Default::default(), check: std::sync::Arc::new(unavailable) }
+    }
+}
+
+impl RecentChecks {
+    /// Why `path` can't be opened, if a check said so (`None`: it can, or it isn't known yet).
+    pub fn reason(&self, path: &str) -> Option<&Unavailable> {
+        self.known.get(path).and_then(|a| a.why.as_ref())
+    }
+
+    /// Whether a check of `path` has answered.
+    pub fn is_known(&self, path: &str) -> bool {
+        self.known.contains_key(path)
+    }
+
+    /// Whether `path` is being checked.
+    pub fn is_checking(&self, path: &str) -> bool {
+        self.pending.contains_key(path)
+    }
+
+    /// Since when `path` has been checked, if it is.
+    fn checking_since(&self, path: &str) -> Option<web_time::Instant> {
+        self.pending.get(path).copied()
+    }
+
+    /// A check is running.
+    pub fn is_running(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
+    /// Check paths with another function (tests).
+    pub fn with_check(check: impl Fn(&str) -> Option<Unavailable> + Send + Sync + 'static) -> RecentChecks {
+        RecentChecks { check: std::sync::Arc::new(check), ..Default::default() }
+    }
+
+    /// `path` was just opened (or made): it can be opened.
+    pub fn opened(&mut self, path: &str) {
+        self.known.insert(path.to_string(), Answer { why: None, at: web_time::Instant::now() });
+    }
+
+    /// Opening `path` failed: what the open said is its answer until the next check.
+    pub fn failed(&mut self, path: &str, error: &str) {
+        self.known.insert(path.to_string(), Answer { why: Some(Unavailable::CheckFailed(error.to_string())), at: web_time::Instant::now() });
+    }
+
+    /// `path` left the list: forget its answer.
+    pub fn forget(&mut self, path: &str) {
+        self.known.remove(path);
+    }
+}
+
+/// Check each of `paths` on a worker of its own (one that is being checked already is left to
+/// finish). The activity stack lists each check while it runs (a quick one doesn't show: rows
+/// appear after half a second); none can be stopped, as a stat that hangs can't be.
+fn start_checks(app: &mut LightcraftApp, paths: Vec<String>) {
+    for path in paths {
+        if app.recent_checks.pending.contains_key(&path) {
+            continue;
+        }
+        let check = app.recent_checks.check.clone();
+        let p = path.clone();
+        let started = crate::tasks::spawn(app, CHECK_LABEL, Some("library"), move || check(&p), {
+            let path = path.clone();
+            move |app, ctx, why| {
+                app.recent_checks.pending.remove(&path);
+                app.recent_checks.known.insert(path, Answer { why, at: web_time::Instant::now() });
+                apply_answers(app);
+                ctx.request_repaint();
+            }
+        });
+        match started {
+            Ok(()) => {
+                app.recent_checks.pending.insert(path, web_time::Instant::now());
+            }
+            // no worker thread: say so on the row, and don't try again every frame
+            Err(e) => {
+                log::warn!("{e}");
+                app.recent_checks.known.insert(path, Answer { why: Some(Unavailable::CheckFailed(e)), at: web_time::Instant::now() });
+                apply_answers(app);
+            }
+        }
+    }
+}
+
+/// Checks whose worker stopped without answering (it panicked: `tasks::poll` already said so)
+/// end as failed, so the row and the menu don't wait for them forever.
+fn reap_checks(app: &mut LightcraftApp) {
+    // (every check has the same label: when none is listed any more, the ones still pending died)
+    if app.recent_checks.pending.is_empty() || app.tasks.is_running(CHECK_LABEL) {
+        return;
+    }
+    let dead: Vec<String> = app.recent_checks.pending.keys().cloned().collect();
+    for path in dead {
+        app.recent_checks.pending.remove(&path);
+        let why = Unavailable::CheckFailed(crate::i18n::tr("This library couldn't be checked").to_string());
+        app.recent_checks.known.insert(path, Answer { why: Some(why), at: web_time::Instant::now() });
+    }
+    apply_answers(app);
+}
+
+/// Put the answers in into the launch list; once none is missing, select as
+/// [`LibraryProblem::choose`] does unless the person moved the highlight.
+fn apply_answers(app: &mut LightcraftApp) {
+    let last = app.ui.settings.library_path.clone();
+    let checks = &app.recent_checks;
+    let Some(c) = app.library_problem.as_mut().and_then(|p| p.chooser.as_mut()) else { return };
+    let checking_before = c.libraries.iter().any(|l| l.checking);
+    for l in &mut c.libraries {
+        if l.checking && !checks.is_checking(&l.path) && checks.is_known(&l.path) {
+            l.unavailable = checks.reason(&l.path).map(Unavailable::text);
+            l.checking = false;
+        }
+    }
+    if checking_before && !c.libraries.iter().any(|l| l.checking) && !c.touched {
+        c.selected = initial_selection(&c.libraries, &last);
     }
 }
 
@@ -144,27 +365,27 @@ impl LibraryProblem {
 /// Read-only: the folder and its catalog file are looked at, never locked or written (the list
 /// may name libraries on other drives, network shares or sleeping disks). A library another
 /// program has open is therefore found when Open is pressed: the open fails and the window says
-/// who has it.
-fn unavailable(path: &str) -> Option<String> {
+/// who has it. Runs on a worker: the reason is put into words on the UI thread.
+fn unavailable(path: &str) -> Option<Unavailable> {
     let dir = Path::new(path);
     if !dir.exists() {
-        return Some(crate::i18n::tr("Not found: moved, renamed or on a disconnected drive").to_string());
+        return Some(Unavailable::NotFound);
     }
     if !dir.is_dir() {
-        return Some(crate::i18n::tr("This is a file, not a library folder").to_string());
+        return Some(Unavailable::NotAFolder);
     }
     if let Err(e) = std::fs::read_dir(dir) {
-        return Some(format!("{} {e}", crate::i18n::tr("This folder can't be read:")));
+        return Some(Unavailable::Unreadable(e.to_string()));
     }
     // opening would make a new, empty library in it
     if !lightcraft_engine::library::is_library(dir) {
-        return Some(crate::i18n::tr("There is no LightCraft library in this folder any more").to_string());
+        return Some(Unavailable::NoLibrary);
     }
     // the catalog the open reads first: the snapshot, else the log alone (opened to read, not read)
     let snapshot = dir.join(lightcraft_catalog::journal::SNAPSHOT);
     let catalog = if snapshot.is_file() { snapshot } else { dir.join(lightcraft_catalog::journal::LOG) };
     if let Err(e) = std::fs::File::open(&catalog) {
-        return Some(format!("{} {e}", crate::i18n::tr("The library's catalog can't be read:")));
+        return Some(Unavailable::CatalogUnreadable(e.to_string()));
     }
     None
 }
@@ -207,6 +428,9 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
         Err(e) => {
             // a failed switch reopens the library that was open behind the launch list
             let generation = app.session.library.as_ref().map(|_| app.session.library_generation());
+            if let Some(path) = path.as_deref() {
+                app.recent_checks.failed(path, &e);
+            }
             if let Some(p) = app.library_problem.as_mut() {
                 if let Some(c) = p.chooser.as_mut() {
                     if c.over.is_some() {
@@ -214,6 +438,7 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
                     }
                     if let Some(l) = c.libraries.iter_mut().find(|l| path.as_deref() == Some(l.path.as_str())) {
                         l.unavailable = Some(e.clone());
+                        l.checking = false;
                     }
                 }
                 if let Some(path) = path {
@@ -244,6 +469,41 @@ pub fn logic(app: &mut LightcraftApp, ctx: &egui::Context) {
         }
     }
     alt_at_launch(app, ctx);
+    reap_checks(app);
+    // the launch list asks for fresh answers once
+    let listed: Option<Vec<String>> =
+        app.library_problem.as_mut().and_then(|p| p.chooser.as_mut()).and_then(|c| {
+            (!std::mem::replace(&mut c.asked, true)).then(|| c.libraries.iter().filter(|l| l.checking).map(|l| l.path.clone()).collect())
+        });
+    if let Some(listed) = listed {
+        for path in &listed {
+            if !app.recent_checks.is_checking(path) {
+                app.recent_checks.forget(path);
+            }
+        }
+        start_checks(app, listed);
+        apply_answers(app);
+    }
+    // File ▸ Open Recent Library: paths never checked, or not for a while
+    let stale: Vec<String> = app
+        .ui
+        .settings
+        .recent_libraries
+        .iter()
+        .filter(|p| !app.recent_checks.is_checking(p) && app.recent_checks.known.get(*p).is_none_or(|a| a.at.elapsed() > RECHECK_AFTER))
+        .cloned()
+        .collect();
+    start_checks(app, stale);
+    if app.recent_checks.is_running() {
+        // rows still checking say so once it takes long
+        let checks = &app.recent_checks;
+        if let Some(c) = app.library_problem.as_mut().and_then(|p| p.chooser.as_mut()) {
+            for l in c.libraries.iter_mut().filter(|l| l.checking) {
+                l.slow = checks.checking_since(&l.path).is_some_and(|t| t.elapsed() > SLOW_AFTER);
+            }
+        }
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    }
     chooser_keys(app, ctx);
 }
 
@@ -266,7 +526,7 @@ fn alt_at_launch(app: &mut LightcraftApp, ctx: &egui::Context) {
     if crate::panels::settings::can_switch_library(app).is_err() {
         return;
     }
-    let mut p = LibraryProblem::choose(&app.ui.settings);
+    let mut p = LibraryProblem::choose_later(&app.ui.settings);
     if let Some(c) = p.chooser.as_mut() {
         c.over = app.session.library.as_ref().map(|_| app.session.library_generation());
     }
@@ -314,6 +574,7 @@ fn select(app: &mut LightcraftApp, at: usize) {
         && at < c.libraries.len()
     {
         c.selected = Some(at);
+        c.touched = true;
     }
 }
 
@@ -410,6 +671,7 @@ fn act(app: &mut LightcraftApp, choice: Choice) {
         Choice::Remove => {
             let Some((library, _)) = chosen else { return };
             crate::panels::settings::forget_library(&mut app.ui.settings, &library.path);
+            app.recent_checks.forget(&library.path);
             if let Some(c) = app.library_problem.as_mut().and_then(|p| p.chooser.as_mut()) {
                 c.libraries.retain(|l| l.path != library.path);
                 c.selected = c.selected.map(|s| s.min(c.libraries.len().saturating_sub(1))).filter(|_| !c.libraries.is_empty());
@@ -549,6 +811,10 @@ fn recent_row(ui: &mut egui::Ui, t: &Tokens, i: usize, library: &RecentLibrary, 
         ui.add(egui::Label::new(RichText::new(parent).size(11.0).color(dim)).truncate().selectable(false));
         if let Some(why) = &library.unavailable {
             ui.add(egui::Label::new(RichText::new(why).size(11.0).color(t.caution)).wrap().selectable(false));
+        } else if library.checking {
+            let text =
+                if library.slow { crate::i18n::tr("Not answering yet: the drive may be asleep or offline") } else { crate::i18n::tr("Checking…") };
+            ui.add(egui::Label::new(RichText::new(text).size(11.0).color(dim)).wrap().selectable(false));
         }
     });
     let r = ui.interact(inner.response.rect, egui::Id::new(("library-recent", i)), egui::Sense::click());

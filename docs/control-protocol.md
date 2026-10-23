@@ -173,17 +173,24 @@ With Settings ▸ General ▸ At launch set to Ask me (`ui.set {"settings": {"at
 default, opens the last library), or Alt/Option held during the first 2 s after the window appears, the desktop app
 shows a window listing the recent libraries (issue #1290). `--library` and `LIGHTCRAFT_LIBRARY` skip it, and so does
 `--memory`; `lightcraft-cli` never shows it. `ui.inspect` → `libraryProblem.chooser` is `{libraries: [{path,
-lastOpened, available, reason}], selected, libraryOpen}` (`available` is checked read-only: the folder and its catalog
-file are looked at, never locked or written, so a library another program has open shows as available and Open
-reports who has it in `libraryProblem.error`) (else `null`; `libraryOpen: true` when it was opened over
-the last library with Alt). Each row is the widget `libraryRecent:<index>`; the buttons are `button:libraryOpen`,
+lastOpened, available, checking, reason}], selected, libraryOpen}` (else `null`; `libraryOpen: true` when it was opened
+over the last library with Alt). Each library is checked read-only on a worker thread of its own, never on the UI
+thread (the folder and its catalog file are looked at, never locked or written, so a library another program has
+open shows as available and Open reports who has it in `libraryProblem.error`). `checking: true` until its check
+answers (the row says *Checking…*, then that the drive isn't answering after 5 s); `available` is `false` only
+once a check found a `reason`, so a row still checking can be opened. The selection starts on the last library and
+moves to the first one that can be opened once every check has answered, unless it was moved meanwhile. Each row is the widget `libraryRecent:<index>`; the buttons are `button:libraryOpen`,
 `button:libraryOpenAnother` (the folder dialog of `app.openLibrary`), `button:libraryNew` (`app.newLibrary`),
 `button:libraryForget` (Remove from List) and `button:libraryQuit`; `ui.key` ArrowUp / ArrowDown move the selection,
 Enter opens it and Escape quits (over an open library: closes the window and keeps it). `app.openLibrary {path}`
 opening a library ends it. While it shows, the settings are saved as usual (a removal is kept).
 
-`app.recentLibraries` returns `[{path, name, exists, open, lastOpened}]` (`lastOpened`: ISO 8601, `null` when not
-known; kept in `ui.json` → `settings.recentLibrariesOpened`). `{remove: path}` forgets one entry (an error if the list
+`app.recentLibraries` returns `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
+background check found (`false`: moved, on a disconnected drive or no longer a library; `null`: not checked yet) and
+`checking` whether one is running: the command never looks at a folder itself. Recent libraries are checked in the
+background when the app starts, again after 30 s, and when the launch window opens; File ▸ Open Recent Library
+greys out only an entry a check found missing. `lastOpened`: ISO 8601, `null` when not known; kept in `ui.json` →
+`settings.recentLibrariesOpened`. `{remove: path}` forgets one entry (an error if the list
 doesn't hold it) and `{clear: true}` (or `app.clearRecentLibraries`) all of them; nothing on disk is touched.
 
 ### Open Library on a Lightroom catalog
