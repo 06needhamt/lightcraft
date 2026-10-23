@@ -318,13 +318,6 @@ mod tests {
             }
             // A dispatched command waits for its reply, not for socket input.
             std::thread::sleep(Duration::from_millis(250));
-            // Prepare the next read before releasing this reply. The client need not be
-            // scheduled again within the worker's short idle timeout.
-            if id == 1 {
-                writeln!(connection.client.get_mut(), "{}", json!({"id": 2, "method": "engine.commands"})).unwrap();
-            } else {
-                connection.client.get_mut().shutdown(std::net::Shutdown::Write).unwrap();
-            }
             req.reply.send(json!({"ok": true, "result": id})).unwrap();
             if id == 2 {
                 // The worker must reach EOF even before the client reads its final reply.

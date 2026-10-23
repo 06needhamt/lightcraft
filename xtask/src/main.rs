@@ -246,8 +246,8 @@ fn doctests() -> (Command, String) {
 
 /// `ci --quick`'s tests: build every workspace test target, then run only the test binaries of
 /// `packages`. Building with `-p` instead would resolve features per selection: different
-/// artifacts from `ci`'s and a warm worktree's (`cargo xtask warm`) workspace builds, so it would
-/// recompile ~130 crates. Doc tests are left to the full `ci`.
+/// artifacts from `ci`'s workspace build, so it would recompile ~130 crates. Doc tests are left to
+/// the full `ci`.
 fn test_selected(root: &Path, packages: &std::collections::BTreeSet<String>, skip_log: &Path) -> Result<(), String> {
     let manifests: std::collections::BTreeMap<String, String> = metadata()?["packages"]
         .as_array()
