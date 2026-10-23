@@ -20,6 +20,9 @@
 - File ▸ Open Recent Library ▸ **Remove from List** forgets one library, and the launch window's **Remove from
   List** does the same. Only the entry goes: the library and its photos stay where they are. Agents use
   `app.recentLibraries {remove: path}`; its list now also says when each library was last opened (`lastOpened`).
+- Photos dropped on the window while the list (or the window of a library that couldn't open) is up wait for the
+  library you open and are imported into it, as files given on the command line are; presets dropped then are
+  refused with a note, since they belong to a library.
 
 ## 2026-10-21
 

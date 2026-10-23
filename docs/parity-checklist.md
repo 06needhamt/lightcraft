@@ -798,7 +798,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-23 | minor | LRC-LIB-CATALOG-SWITCH, LR-PREF-GENERAL: Settings ▸ General ▸ At launch (Open the last library / Ask me) with a launch window listing the recent libraries, Alt/Option at launch asks once, File ▸ Open Recent Library ▸ Remove from List and `app.recentLibraries {remove}` (issue #1290); status and counts unchanged (✅) |
+| 2026-10-23 | minor | LRC-LIB-CATALOG-SWITCH, LR-PREF-GENERAL: Settings ▸ General ▸ At launch (Open the last library / Ask me) with a launch window listing the recent libraries, Alt/Option at launch asks once, File ▸ Open Recent Library ▸ Remove from List and `app.recentLibraries {remove}` (issue #1290); photos dropped while no library is open wait for the one opened (presets are refused then); status and counts unchanged (✅) |
 | 2026-10-21 | patch | LR-IMP-ADD-DIALOG: reconcile #2362 with current main; deleted-album guard and hierarchical picker retained; counts unchanged |
 | 2026-10-20 | minor | LR-IMP-ADD-DIALOG: #2362 gives the import review the shared hierarchy/search album picker while retaining None/New album and existing destination IDs; status and feature counts unchanged |
 | 2026-10-21 | patch | KEY-SLIDER-NUDGE: vertical wheel nudges need a click or drag in the slider's row; leaving it (even between two frames) or Tab focus alone does not arm them (issue #1355); status unchanged |

@@ -167,7 +167,8 @@ are `button:libraryRetry`, `button:libraryChoose`, `button:libraryTemporary` (Co
 `button:libraryQuit`. A temporary session shows a banner (`indicator:temporarySession`, `button:libraryReopen`) and
 writes nothing. `app.openLibrary` opening a library ends it. `pendingImport` counts the files waiting for a
 library: those given on the command line, and photos dropped on the window while it (or the launch list below) is
-up; they are imported into the library that opens, or into the temporary session.
+up (desktop app); they are imported into the library that opens, or into the temporary session. Presets dropped
+then are refused with a toast.
 
 ### Choosing the library at launch
 

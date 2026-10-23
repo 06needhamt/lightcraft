@@ -1256,7 +1256,12 @@ impl LightcraftApp {
             }
             let (presets, photos) = split_presets(dropped);
             if !presets.is_empty() {
-                let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
+                // presets live in a library: with none open they would go with the session it replaces
+                if panels::library_problem::holds_drops(self) {
+                    self.toast(ctx, crate::i18n::tr("Open a library first, then drop the presets again"));
+                } else {
+                    let _ = self.run("file.importPresets", serde_json::json!({"paths": presets}));
+                }
             }
             // read and added on a worker thread (dropped folders can be large, or on a slow drive)
             let photos = panels::library_problem::hold_dropped(self, ctx, photos).unwrap_or_default();
