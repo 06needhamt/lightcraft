@@ -8,7 +8,7 @@
   it. One that is gone (moved, renamed, on a disconnected drive), can't be read or no longer holds a library is
   greyed out with the reason. Each one is checked in the background, showing *Checking…* until it answers (and that
   the drive isn't answering after 5 s), so the list never waits on a network share that is offline or a disk that
-  has to wake up; File ▸ Open Recent Library uses the same answers. Making the list only looks: it never locks or writes anything in your libraries, so one
+  has to wake up; File ▸ Open Recent Library uses the same answers (it greys out only libraries that are gone). Making the list only looks: it never locks or writes anything in your libraries, so one
   that another program has open is reported, with who has it, when you press **Open**, and the window stays. The
   last library is selected; **Open** (or Return, or a double-click) opens it,
   **Open Another…** asks for a folder, **New Library…** makes one, **Quit** (or Esc) quits. ↑ and ↓ move through

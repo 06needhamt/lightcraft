@@ -186,10 +186,12 @@ Enter opens it and Escape quits (over an open library: closes the window and kee
 opening a library ends it. While it shows, the settings are saved as usual (a removal is kept).
 
 `app.recentLibraries` returns `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
-background check found (`false`: moved, on a disconnected drive or no longer a library; `null`: not checked yet) and
-`checking` whether one is running: the command never looks at a folder itself. Recent libraries are checked in the
+background check found (`false`: moved, on a disconnected drive, a folder that can't be listed or no longer a
+library; `null`: not checked yet, or the check couldn't tell, e.g. an unreadable catalog) and `checking` whether one
+is running: the command never looks at a folder itself. A failed open never marks a library missing (another program
+may have it). Recent libraries are checked in the
 background when the app starts, again after 30 s, and when the launch window opens; File ▸ Open Recent Library
-greys out only an entry a check found missing. `lastOpened`: ISO 8601, `null` when not known; kept in `ui.json` →
+greys out only an entry a check found missing (an unreadable catalog or a failed open doesn't grey it out). `lastOpened`: ISO 8601, `null` when not known; kept in `ui.json` →
 `settings.recentLibrariesOpened`. `{remove: path}` forgets one entry (an error if the list
 doesn't hold it) and `{clear: true}` (or `app.clearRecentLibraries`) all of them; nothing on disk is touched.
 

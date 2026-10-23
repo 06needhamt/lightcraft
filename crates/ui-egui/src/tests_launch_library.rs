@@ -775,7 +775,11 @@ fn opening_a_library_clears_an_old_missing_answer() {
     let a = make_library(&dir.join("A"));
     let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
     app.ui.settings.recent_libraries = vec![a.clone()];
-    app.recent_checks.failed(&a, "the drive was disconnected");
+    app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(|_| Some(crate::panels::library_problem::Unavailable::NotFound));
+    let ctx = egui::Context::default();
+    crate::panels::library_problem::logic(&mut app, &ctx);
+    assert!(crate::tasks::wait(&mut app, &ctx, T), "checked");
+    assert_eq!(app.recent_checks.exists(&a), Some(false), "found missing (the drive was disconnected)");
     let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
     h.app.run("app.openLibrary", json!({"path": a})).unwrap();
     for _ in 0..4 {
@@ -783,5 +787,48 @@ fn opening_a_library_clears_an_old_missing_answer() {
     }
     assert!(matches!(open_recent(&h.app).first(), Some(MenuNode::Item { enabled: true, .. })), "{:?}", open_recent(&h.app));
     assert_eq!(h.app.recent_checks.reason(&a), None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Review of #2701: a library that fails to open from the launch window because another program
+/// has it is there all the same. The row shows the open's error, but the menu keeps it enabled and
+/// `app.recentLibraries` says it exists; an unreadable catalog doesn't say the library is gone
+/// either (`exists: null`).
+#[test]
+fn a_failed_open_or_an_unreadable_catalog_doesnt_mark_a_library_missing() {
+    use crate::menubar::MenuNode;
+    let dir = temp("held");
+    let held = make_library(&dir.join("Held"));
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![held.clone()];
+    app.ui.settings.library_path = held.clone();
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let answered =
+        |h: &Headless| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| c.libraries.iter().all(|l| !l.checking));
+    assert!(h.step_until(T, answered));
+    assert_eq!(h.app.recent_checks.exists(&held), Some(true));
+    // another program has it: Open from the launch window fails
+    let lock = lightcraft_catalog::LibraryLock::acquire(Path::new(&held), "another LightCraft").unwrap();
+    settle(&mut h);
+    let r = h.request("ui.clickWidget", json!({"id": "button:libraryOpen"}), T);
+    assert_eq!(r["ok"], true, "{r} {:?}", h.app.widgets.iter().map(|(w, _)| w.clone()).filter(|w| w.contains("library")).collect::<Vec<_>>());
+    settle(&mut h);
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert!(c.libraries[0].unavailable.is_some(), "the row shows why it didn't open: {c:?}");
+    assert!(h.step_until(T, |h| !h.app.recent_checks.is_running() && h.app.recent_checks.is_known(&held)), "checked again");
+    assert_eq!(h.app.recent_checks.exists(&held), Some(true), "a failed open doesn't mark it missing");
+    let list = h.app.run("app.recentLibraries", json!({})).unwrap();
+    assert_eq!(list[0]["exists"], true, "{list}");
+    assert!(matches!(open_recent(&h.app).first(), Some(MenuNode::Item { enabled: true, .. })), "{:?}", open_recent(&h.app));
+    drop(lock);
+
+    // an unreadable catalog: not known to be gone
+    h.app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(|_| {
+        Some(crate::panels::library_problem::Unavailable::CatalogUnreadable("denied".into()))
+    });
+    assert!(h.step_until(T, |h| h.app.recent_checks.is_known(&held) && !h.app.recent_checks.is_running()));
+    assert_eq!(h.app.run("app.recentLibraries", json!({})).unwrap()[0]["exists"], serde_json::Value::Null);
+    assert!(matches!(open_recent(&h.app).first(), Some(MenuNode::Item { enabled: true, .. })));
     let _ = std::fs::remove_dir_all(&dir);
 }

@@ -198,6 +198,13 @@ pub enum Unavailable {
 }
 
 impl Unavailable {
+    /// The folder isn't a library that is there to open (gone, a file, not a library any more, or
+    /// unlistable): what greys out File ▸ Open Recent Library and makes `app.recentLibraries` say
+    /// `exists: false`. An unreadable catalog or a check that failed doesn't say the library is gone.
+    pub fn is_missing(&self) -> bool {
+        matches!(self, Unavailable::NotFound | Unavailable::NotAFolder | Unavailable::NoLibrary | Unavailable::Unreadable(_))
+    }
+
     /// In the interface language.
     pub fn text(&self) -> String {
         match self {
@@ -252,6 +259,16 @@ impl RecentChecks {
         self.known.get(path).and_then(|a| a.why.as_ref())
     }
 
+    /// Whether the library at `path` is there: `Some(false)` when a check found it missing
+    /// ([`Unavailable::is_missing`]), `Some(true)` when one found it, `None` when no check could tell.
+    pub fn exists(&self, path: &str) -> Option<bool> {
+        match self.known.get(path)?.why.as_ref() {
+            None => Some(true),
+            Some(why) if why.is_missing() => Some(false),
+            Some(_) => None,
+        }
+    }
+
     /// Whether a check of `path` has answered.
     pub fn is_known(&self, path: &str) -> bool {
         self.known.contains_key(path)
@@ -282,9 +299,11 @@ impl RecentChecks {
         self.known.insert(path.to_string(), Answer { why: None, at: web_time::Instant::now() });
     }
 
-    /// Opening `path` failed: what the open said is its answer until the next check.
-    pub fn failed(&mut self, path: &str, error: &str) {
-        self.known.insert(path.to_string(), Answer { why: Some(Unavailable::CheckFailed(error.to_string())), at: web_time::Instant::now() });
+    /// Opening `path` from the launch window failed. That says nothing about whether it is there
+    /// (another program may have it open): its answer is dropped, so it is checked again on the next
+    /// frame. The launch list keeps the open's error on that row for as long as it shows.
+    pub fn failed(&mut self, path: &str) {
+        self.known.remove(path);
     }
 
     /// `path` left the list: forget its answer.
@@ -429,7 +448,7 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
             // a failed switch reopens the library that was open behind the launch list
             let generation = app.session.library.as_ref().map(|_| app.session.library_generation());
             if let Some(path) = path.as_deref() {
-                app.recent_checks.failed(path, &e);
+                app.recent_checks.failed(path);
             }
             if let Some(p) = app.library_problem.as_mut() {
                 if let Some(c) = p.chooser.as_mut() {
