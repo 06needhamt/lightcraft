@@ -2381,5 +2381,8 @@
   "There is no LightCraft library in this folder any more": "Ce dossier ne contient plus de bibliothèque LightCraft",
   "This is a file, not a library folder": "C’est un fichier, pas un dossier de bibliothèque",
   "This folder can't be read:": "Ce dossier ne peut pas être lu :",
-  "The library's catalog can't be read:": "Le catalogue de la bibliothèque ne peut pas être lu :"
+  "The library's catalog can't be read:": "Le catalogue de la bibliothèque ne peut pas être lu :",
+  "Not answering yet: the drive may be asleep or offline": "Pas encore de réponse : le disque est peut-être en veille ou hors ligne",
+  "This library couldn't be checked": "Impossible de vérifier cette bibliothèque",
+  "Checking recent libraries": "Vérification des bibliothèques récentes"
 }

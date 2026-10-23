@@ -1455,8 +1455,11 @@ pub(crate) fn free_name(location: &std::path::Path, base: &str) -> std::path::Pa
 }
 
 /// `app.recentLibraries {remove?: path, clear?: bool}`: the recently opened libraries, newest
-/// first, as `[{path, name, exists, open, lastOpened}]` (`exists: false`: moved or on a
-/// disconnected drive; `lastOpened`: ISO 8601 time, `null` when not known). `remove` forgets that
+/// first, as `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
+/// background check found (`false`: moved, on a disconnected drive or no longer a library;
+/// `null`: not checked yet, `checking` then says whether a check is running): the command never
+/// looks at a folder itself, as one on an offline network share can take seconds to answer.
+/// `lastOpened`: ISO 8601 time, `null` when not known. `remove` forgets that
 /// one entry (an error if the list doesn't hold it) and `clear` forgets them all; neither touches
 /// anything on disk (issue #1290).
 pub fn recent_libraries(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
@@ -1466,21 +1469,25 @@ pub fn recent_libraries(app: &mut LightcraftApp, p: &Value) -> Result<Value, Str
             if !forget_library(&mut app.ui.settings, path) {
                 return Err(format!("app.recentLibraries: {path:?} is not in the recent libraries"));
             }
+            app.recent_checks.forget(path);
         }
         Some(_) => return Err("app.recentLibraries: remove must be a library path (a string)".into()),
     }
     if p.get("clear").and_then(Value::as_bool) == Some(true) {
-        app.ui.settings.recent_libraries.clear();
+        for path in std::mem::take(&mut app.ui.settings.recent_libraries) {
+            app.recent_checks.forget(&path);
+        }
         app.ui.settings.recent_opened.clear();
     }
     let open = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.clone());
-    let settings = &app.ui.settings;
+    let (settings, checks) = (&app.ui.settings, &app.recent_checks);
     let list: Vec<Value> = settings
         .recent_libraries
         .iter()
         .map(|r| {
             let d = std::path::Path::new(r);
-            json!({"path": r, "name": library_name(d), "exists": d.is_dir(), "open": open.as_deref() == Some(d), "lastOpened": settings.recent_opened.get(r)})
+            let exists = checks.is_known(r).then(|| checks.reason(r).is_none());
+            json!({"path": r, "name": library_name(d), "exists": exists, "checking": checks.is_checking(r), "open": open.as_deref() == Some(d), "lastOpened": settings.recent_opened.get(r)})
         })
         .collect();
     Ok(Value::Array(list))

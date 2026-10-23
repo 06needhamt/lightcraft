@@ -417,7 +417,8 @@ fn open_recent_library_and_the_command_remove_one_entry() {
 
     // the command: the open library can be forgotten too (it stays open), and nothing is deleted
     let list = app.run("app.recentLibraries", json!({"remove": first})).unwrap();
-    assert_eq!(list, json!([{"path": "/elsewhere/third", "name": "third", "exists": false, "open": false, "lastOpened": null}]));
+    // (no frame ran: nothing checked yet, so `exists` is not known; the command never looks itself)
+    assert_eq!(list, json!([{"path": "/elsewhere/third", "name": "third", "exists": null, "checking": false, "open": false, "lastOpened": null}]));
     assert!(app.session.library.is_some() && lightcraft_engine::library::is_library(&dir.join("first")));
     let e = app.run("app.recentLibraries", json!({"remove": first})).unwrap_err();
     assert!(e.contains("not in the recent libraries"), "{e}");
@@ -573,4 +574,214 @@ fn alt_is_only_watched_while_the_window_first_appears_and_when_armed() {
     frame(&mut app, &ctx, 0.2, true);
     assert!(app.library_problem.as_ref().is_some_and(|p| p.chooser.is_some()));
     assert!(!app.alt_asks_for_library);
+}
+
+/// A check that waits until the test lets it go (a network share whose server is gone), then
+/// answers like the real one for a missing folder. `release` lets every waiting check go.
+fn slow_checks() -> (
+    crate::panels::library_problem::RecentChecks,
+    std::sync::Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) {
+    let gate = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (g, n) = (gate.clone(), calls.clone());
+    let checks = crate::panels::library_problem::RecentChecks::with_check(move |p| {
+        n.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let (lock, cv) = &*g;
+        let open = lock.lock().unwrap();
+        // (bounded: a test that forgets to release still ends)
+        let _unused = cv.wait_timeout_while(open, Duration::from_secs(10), |open| !*open).unwrap();
+        (!Path::new(p).exists()).then_some(crate::panels::library_problem::Unavailable::NotFound)
+    });
+    (checks, gate, calls)
+}
+
+/// Let every check waiting in [`slow_checks`] answer.
+fn release(gate: &std::sync::Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>) {
+    let (lock, cv) = &**gate;
+    *lock.lock().unwrap() = true;
+    cv.notify_all();
+}
+
+/// Review of #2701: the launch list never waits on a folder. Its rows show "Checking…" while a
+/// worker looks (the activity stack lists it), the window keeps drawing frames meanwhile, and the
+/// answers grey out a missing library and move the selection to one that can be opened.
+#[test]
+fn a_slow_check_never_holds_the_launch_window() {
+    let dir = temp("slow");
+    let a = make_library(&dir.join("A"));
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![gone.clone(), a.clone()];
+    app.ui.settings.library_path = gone.clone();
+    let (checks, gate, _) = slow_checks();
+    app.recent_checks = checks;
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let t0 = std::time::Instant::now();
+    settle(&mut h);
+    assert!(t0.elapsed() < Duration::from_secs(5), "frames went on while the check waited: {:?}", t0.elapsed());
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert!(c.libraries.iter().all(|l| l.checking && l.unavailable.is_none()), "{c:?}");
+    assert_eq!(c.selected, Some(0), "the last library opened, until the answers say otherwise");
+    assert!(h.painted_text().iter().any(|t| t == "Checking…"), "{:?}", h.painted_text());
+    assert!(h.app.session.activity.list().iter().any(|t| t.label == "Checking recent libraries"), "the activity stack lists the check");
+
+    release(&gate);
+    let done =
+        h.step_until(T, |h| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| c.libraries.iter().all(|l| !l.checking)));
+    assert!(done, "the answers came back");
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert!(c.libraries[0].unavailable.as_deref().is_some_and(|w| w.contains("Not found")), "{c:?}");
+    assert_eq!(c.libraries[1].unavailable, None);
+    assert_eq!(c.selected, Some(1), "the first library that can be opened, once known");
+    assert!(h.app.session.activity.list().iter().all(|t| t.label != "Checking recent libraries"), "the row goes with the check");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Answers that arrive after the person moved the highlight leave it where they put it.
+#[test]
+fn late_answers_keep_the_row_the_person_chose() {
+    let dir = temp("touched");
+    let a = make_library(&dir.join("A"));
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![a.clone(), gone.clone()];
+    app.ui.settings.library_path = a.clone();
+    let (checks, gate, _) = slow_checks();
+    app.recent_checks = checks;
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    settle(&mut h);
+    h.request("ui.key", json!({"key": "ArrowDown"}), T);
+    settle(&mut h);
+    release(&gate);
+    h.step_until(T, |h| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| c.libraries.iter().all(|l| !l.checking)));
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert_eq!(c.selected, Some(1), "still the row moved to, though it can't be opened");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// File ▸ Open Recent Library is rebuilt every frame: it never looks at a folder itself. A
+/// library is greyed out only once a worker found it missing, and each path is checked once.
+#[test]
+fn the_recent_menu_takes_its_answers_from_a_worker() {
+    use crate::menubar::MenuNode;
+    let dir = temp("menu-worker");
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![gone.clone()];
+    let (checks, gate, calls) = slow_checks();
+    app.recent_checks = checks;
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let enabled = |h: &Headless| match open_recent(&h.app).first() {
+        Some(MenuNode::Item { enabled, .. }) => *enabled,
+        other => panic!("{other:?}"),
+    };
+    for _ in 0..30 {
+        h.step();
+        assert!(enabled(&h), "not known yet: kept enabled (opening says why if it can't)");
+    }
+    release(&gate);
+    assert!(h.step_until(T, |h| !h.app.recent_checks.is_running() && h.app.recent_checks.is_known(&gone)), "answered");
+    for _ in 0..30 {
+        h.step();
+    }
+    assert!(!enabled(&h), "found missing: greyed out");
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1, "checked once, not every frame");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The reasons are put into words on the UI thread, in the interface language (the worker that
+/// found them has none of its own).
+#[test]
+fn the_reasons_are_in_the_interface_language() {
+    let dir = temp("lang");
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.language = crate::i18n::Locale::Fr;
+    app.ui.settings.recent_libraries = vec![gone.clone()];
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    assert!(
+        h.step_until(T, |h| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| c.libraries.iter().all(|l| !l.checking)))
+    );
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    let why = c.libraries[0].unavailable.clone().unwrap_or_default();
+    let english = "Not found: moved, renamed or on a disconnected drive";
+    crate::i18n::set_language(crate::i18n::Locale::Fr);
+    assert_eq!(why, crate::i18n::tr(english), "translated on the UI thread");
+    assert_ne!(why, english, "the French catalog has this reason");
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// One drive that never answers doesn't hold the others: each path has its own worker, and the
+/// row that waits says the drive isn't answering once it takes long.
+#[test]
+fn one_hung_drive_doesnt_hold_the_other_libraries() {
+    let dir = temp("hung");
+    let a = make_library(&dir.join("A"));
+    let hung = dir.join("Hung").to_string_lossy().into_owned();
+    let gate = std::sync::Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+    let g = gate.clone();
+    let h_path = hung.clone();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(move |p| {
+        if p == h_path {
+            let (lock, cv) = &*g;
+            let open = lock.lock().unwrap();
+            let _unused = cv.wait_timeout_while(open, Duration::from_secs(10), |open| !*open).unwrap();
+        }
+        None
+    });
+    app.ui.settings.recent_libraries = vec![hung.clone(), a.clone()];
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let a_done = h.step_until(T, |h| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| !c.libraries[1].checking));
+    assert!(a_done, "the reachable library answered while the other one hangs");
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert!(c.libraries[0].checking, "the hung one is still checking");
+    release(&gate);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A check whose worker dies (a panic) ends as "couldn't be checked" instead of leaving the row,
+/// and every later check, waiting forever.
+#[test]
+fn a_check_that_dies_doesnt_leave_the_list_waiting() {
+    let dir = temp("dies");
+    let a = make_library(&dir.join("A"));
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(|_| panic!("a check that dies"));
+    app.ui.settings.recent_libraries = vec![a.clone()];
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let done = h.step_until(T, |h| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| !c.libraries[0].checking));
+    assert!(done, "the row stopped waiting");
+    assert!(!h.app.recent_checks.is_running(), "no check is left running");
+    let c = h.app.library_problem.as_ref().and_then(|p| p.chooser.clone()).unwrap();
+    assert!(c.libraries[0].unavailable.as_deref().is_some_and(|w| w.contains("couldn't be checked")), "{c:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A library found missing comes back once it is opened again (a drive plugged back in): the
+/// menu no longer greys it out.
+#[test]
+fn opening_a_library_clears_an_old_missing_answer() {
+    use crate::menubar::MenuNode;
+    let dir = temp("back");
+    let a = make_library(&dir.join("A"));
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![a.clone()];
+    app.recent_checks.failed(&a, "the drive was disconnected");
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    h.app.run("app.openLibrary", json!({"path": a})).unwrap();
+    for _ in 0..4 {
+        h.step();
+    }
+    assert!(matches!(open_recent(&h.app).first(), Some(MenuNode::Item { enabled: true, .. })), "{:?}", open_recent(&h.app));
+    assert_eq!(h.app.recent_checks.reason(&a), None);
+    let _ = std::fs::remove_dir_all(&dir);
 }

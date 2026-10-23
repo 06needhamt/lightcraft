@@ -518,6 +518,9 @@ pub struct LightcraftApp {
     /// Alt/Option held as the window first appears offers the recent libraries once (issue
     /// #1290); the desktop host arms it when nothing chose the library already.
     pub alt_asks_for_library: bool,
+    /// Whether each recent library can be opened, answered by a worker (issue #1290): the launch
+    /// list and File ▸ Open Recent Library never look at a folder on the UI thread.
+    pub recent_checks: panels::library_problem::RecentChecks,
     /// The activity stack shows every task, not just the first few ("+N more" was clicked).
     pub activity_expanded: bool,
 }
@@ -601,6 +604,7 @@ impl LightcraftApp {
             screen_profile_read: None,
             library_problem: None,
             alt_asks_for_library: false,
+            recent_checks: Default::default(),
             activity_expanded: false,
             model_setup: Default::default(),
         }
@@ -1502,6 +1506,8 @@ impl LightcraftApp {
         if let Some(l) = self.session.library.as_ref().filter(|l| l.on_disk) {
             let path = l.dir.to_string_lossy().into_owned();
             panels::settings::remember_library(&mut self.ui.settings.recent_libraries, &path);
+            // it is open: whatever an earlier check said about it is over
+            self.recent_checks.opened(&path);
             // when, for the launch window (issue #1290); only the listed libraries keep a time
             let settings = &mut self.ui.settings;
             settings.recent_opened.insert(path, (self.session.clock)());
