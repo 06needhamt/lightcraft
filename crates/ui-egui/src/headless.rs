@@ -3078,6 +3078,47 @@ mod tests {
         assert_eq!((title(&h, 0), title(&h, 1), title(&h, 2)), ("Same!".into(), "Same!".into(), "Other".into()));
     }
 
+    /// An Info field saves to the photos selected when its edit started, also when the selection
+    /// changes while the field is being edited.
+    #[test]
+    fn info_field_saves_to_the_photos_selected_when_the_edit_started() {
+        // (tall enough for the GPS field to show without scrolling)
+        let mut h = demo([1300.0, 1800.0]);
+        let t = Duration::from_secs(10);
+        let ask = |h: &mut Headless, method: &str, params: serde_json::Value| {
+            let r = h.request(method, params.clone(), t);
+            assert_eq!(r["ok"], true, "{method} {params}: {r}");
+            h.step();
+            h.step();
+        };
+        let exec = |h: &mut Headless, command: &str, params: serde_json::Value| {
+            ask(h, "engine.execute", json!({"command": command, "params": params}));
+        };
+        let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(4).map(|p| p.0).collect();
+        let meta = |h: &Headless, i: usize| h.app.session.catalog.photo(lightcraft_catalog::PhotoId(ids[i])).unwrap().meta.clone();
+        exec(&mut h, "photo.setMeta", json!({"ids": ids, "title": "Same", "gps": ""}));
+        h.request("ui.set", json!({"view": "detail", "right": "info"}), t);
+        exec(&mut h, "library.select", json!({"ids": [ids[0], ids[1]], "active": ids[0]}));
+        h.settle(SETTLE);
+        ask(&mut h, "ui.clickWidget", json!({"id": "field:title"}));
+        ask(&mut h, "ui.key", json!({"key": "End"}));
+        ask(&mut h, "ui.text", json!({"text": "!"}));
+        exec(&mut h, "library.select", json!({"ids": [ids[2]]}));
+        ask(&mut h, "ui.key", json!({"key": "Tab"}));
+        h.settle(SETTLE);
+        assert_eq!((meta(&h, 0).title, meta(&h, 1).title, meta(&h, 2).title), ("Same!".into(), "Same!".into(), "Same".into()));
+        // GPS too (the new selection is two photos as well, so the panel keeps its layout)
+        exec(&mut h, "library.select", json!({"ids": [ids[0], ids[1]], "active": ids[0]}));
+        h.settle(SETTLE);
+        ask(&mut h, "ui.clickWidget", json!({"id": "field:gps"}));
+        ask(&mut h, "ui.text", json!({"text": "41.15, -8.61"}));
+        exec(&mut h, "library.select", json!({"ids": [ids[2], ids[3]], "active": ids[2]}));
+        ask(&mut h, "ui.key", json!({"key": "Tab"}));
+        h.settle(SETTLE);
+        let gps: Vec<bool> = (0..4).map(|i| meta(&h, i).gps.is_some()).collect();
+        assert_eq!(gps, [true, true, false, false]);
+    }
+
     /// Local: a folder's photos show without joining the library; the breadcrumb, Include
     /// subfolders and Add to My Photos work from the grid header.
     #[test]

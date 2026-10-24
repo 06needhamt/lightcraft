@@ -756,7 +756,7 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let gps = if gps_mixed { String::new() } else { m.gps.map(|(la, lo)| format!("{la:.6}, {lo:.6}")).unwrap_or_default() };
         let gid = egui::Id::new("info-gps");
         ui.label(egui::RichText::new("GPS").size(11.5).color(t.text_dim));
-        let mut edit: FieldEdit = ui.data(|d| d.get_temp(gid)).unwrap_or_else(|| FieldEdit::new(&gps, gps_mixed));
+        let mut edit: FieldEdit = ui.data(|d| d.get_temp(gid)).unwrap_or_else(|| FieldEdit::new(&gps, gps_mixed, &selected));
         let hint = crate::i18n::tr(if gps_mixed { MIXED } else { "latitude, longitude" });
         let r = ui.add(egui::TextEdit::singleline(&mut edit.text).hint_text(hint).desired_width(f32::INFINITY));
         crate::widgets::screen_reader_name(ui.ctx(), r.id, "GPS");
@@ -770,7 +770,7 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let text = edit.text.trim();
         if r.lost_focus()
             && (text != edit.start || edit.clears())
-            && let Err(e) = app.run("photo.setMeta", json!({"gps": text}))
+            && let Err(e) = app.run("photo.setMeta", json!({"ids": edit.ids, "gps": text}))
         {
             app.toast(ui.ctx(), e);
         }
@@ -915,11 +915,14 @@ const MIXED: &str = "Mixed";
 
 /// An Info panel field's edit under way, kept in egui memory between frames. A field saves when
 /// its text is not the text the edit started from, so a field left as it was saves nothing, even
-/// when what the panel shows changed during the edit.
+/// when what the panel shows changed during the edit. It saves to the photos selected when the
+/// edit started, also when the selection changed since.
 #[derive(Clone)]
 struct FieldEdit {
     text: String,
     start: String,
+    /// The selected photos when the edit started (`photo.setMeta` `ids`).
+    ids: Vec<u64>,
     /// The field said Mixed when the edit started.
     mixed: bool,
     /// Something was typed or deleted since.
@@ -927,8 +930,9 @@ struct FieldEdit {
 }
 
 impl FieldEdit {
-    fn new(value: &str, mixed: bool) -> Self {
-        FieldEdit { text: value.to_string(), start: value.to_string(), mixed, typed: false }
+    fn new(value: &str, mixed: bool, selected: &[PhotoId]) -> Self {
+        let ids = selected.iter().map(|id| id.0).collect();
+        FieldEdit { text: value.to_string(), start: value.to_string(), ids, mixed, typed: false }
     }
 
     /// A Mixed field that was typed in and left empty: it clears the field on every selected photo.
@@ -1053,7 +1057,7 @@ fn meta_field(app: &mut LightcraftApp, ui: &mut egui::Ui, label: &str, key: &str
     ui.label(egui::RichText::new(crate::i18n::tr(label)).size(11.5).color(t.text_dim));
     let id = egui::Id::new(("info-field", key));
     let value = if mixed { "" } else { value };
-    let mut edit: FieldEdit = ui.data(|d| d.get_temp(id)).unwrap_or_else(|| FieldEdit::new(value, mixed));
+    let mut edit: FieldEdit = ui.data(|d| d.get_temp(id)).unwrap_or_else(|| FieldEdit::new(value, mixed, &app.session.selected()));
     let widget = format!("field:{key}");
     let field = if lines > 1 {
         crate::text_field::TextField::multiline(&widget, &mut edit.text).rows(lines)
@@ -1071,7 +1075,7 @@ fn meta_field(app: &mut LightcraftApp, ui: &mut egui::Ui, label: &str, key: &str
     }
     // Return (one line) or leaving saves; Esc gives the edit up
     if r.committed() && (edit.text != edit.start || edit.clears()) {
-        let _ = app.run("photo.setMeta", json!({key: edit.text}));
+        let _ = app.run("photo.setMeta", json!({"ids": edit.ids, key: edit.text}));
     }
     ui.add_space(6.0);
 }
