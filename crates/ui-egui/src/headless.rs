@@ -13,7 +13,6 @@
 //!   is occluded.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
@@ -156,7 +155,20 @@ impl HeadlessView {
                 self.clipboard.clone_from(text);
             }
         }
-        let commands = out.viewport_output.remove(&ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
+        let mut commands = out.viewport_output.remove(&ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
+        // 0.37: `ViewportCommand::Screenshot` carries a one-shot callback. A headless host answers
+        // it here, after the pass it was issued in, exactly once.
+        let mut shots = Vec::new();
+        commands.retain(|command| match command {
+            ViewportCommand::Screenshot(callback) => {
+                shots.push(callback.clone());
+                false
+            }
+            _ => true,
+        });
+        for callback in shots {
+            callback.complete(std::sync::Arc::new(self.paint(&std::collections::HashMap::new())));
+        }
         // what a desktop host does with a cut, copy or paste request (egui-winit): the event, next frame
         for c in &commands {
             match c {
@@ -314,6 +326,8 @@ impl Headless {
         raw.viewports.entry(ViewportId::ROOT).or_default().maximized = Some(self.window_maximized);
         raw.max_texture_side = (self.reported_texture_side != Some(self.max_texture_side)).then_some(self.max_texture_side);
         self.reported_texture_side = Some(self.max_texture_side);
+        // A headless run's timers follow its simulated clock, not the host's wall clock.
+        self.app.set_simulated_clock(Some(self.time));
         self.app.raw_input_hook(&mut raw);
         let app = &mut self.app;
         let mut cursor = egui::CursorIcon::Default;
@@ -326,11 +340,10 @@ impl Headless {
         self.time += FRAME_DT;
         self.frames += 1;
         for c in commands {
+            // `ViewportCommand::Screenshot` never reaches here: `HeadlessView::run` answers the
+            // one-shot callback after the pass it was issued in, so there is exactly one reply.
             match c {
-                ViewportCommand::Screenshot(user_data) => {
-                    let image = Arc::new(self.paint());
-                    self.events.push(egui::Event::Screenshot { viewport_id: ViewportId::ROOT, user_data, image });
-                }
+                ViewportCommand::Screenshot(_) => {}
                 ViewportCommand::InnerSize(size) => {
                     // Viewport commands use current egui points, which include UI zoom.
                     if let Ok(native_size) = resized_viewport([size.x, size.y], self.pixels_per_point, self.view.ctx.zoom_factor()) {
@@ -362,6 +375,7 @@ impl Headless {
             || self.app.session.denoise_busy()
             || !self.app.tasks.is_empty()
             || !self.app.synthetic.is_empty()
+            || !self.app.pending_gestures.is_empty()
             || !self.events.is_empty()
     }
 
@@ -597,6 +611,7 @@ mod tests {
     }
 
     use super::*;
+    use std::sync::Arc;
 
     /// The pretend host has a clipboard, as a desktop does: text the UI copies lands in it, and a
     /// cut, copy or paste request (from a context menu) comes back as that event on the next frame.
@@ -849,7 +864,7 @@ mod tests {
         let (Some(a), Some(b)) = (thumbs.first().cloned(), thumbs.get(1).cloned()) else { panic!("two grid photos: {thumbs:?}") };
         let popup = |w: &str| {
             let id: u64 = w.trim_start_matches("thumb:").parse().expect("a photo id");
-            egui::Id::new(("cell", id)).with("popup")
+            egui::Id::unique(("cell", id)).with("popup")
         };
         assert!(!egui::Popup::is_any_open(&h.view.ctx));
         let r = h.request("ui.clickWidget", json!({"id": a, "button": "right"}), t);
@@ -1522,7 +1537,7 @@ mod tests {
         assert_eq!(names(&h), vec![Some("Jane Doe".into()), None, None, None, None, None, Some("John Roe".into())]);
         // With no target A cannot name a face, even on this page.
         h.request("ui.move", json!({"x": 1, "y": 1}), t);
-        h.view.ctx.memory_mut(|m| m.surrender_focus(egui::Id::new(("more-face-above", ids[2].0, 0_usize))));
+        h.view.ctx.memory_mut(|m| m.surrender_focus(egui::Id::unique(("more-face-above", ids[2].0, 0_usize))));
         set_page(&mut h);
         h.request("ui.key", json!({"key": "a"}), t);
         h.step();
@@ -1550,7 +1565,7 @@ mod tests {
         h.request("ui.move", json!({"x": 1, "y": 1}), t);
         set_page(&mut h);
         // Keyboard focus on the candidate makes the same batch action available without hovering it.
-        h.view.ctx.memory_mut(|m| m.request_focus(egui::Id::new(("more-face", ids[2].0, 0_usize))));
+        h.view.ctx.memory_mut(|m| m.request_focus(egui::Id::unique(("more-face", ids[2].0, 0_usize))));
         h.request("ui.key", json!({"key": "a"}), t);
         h.step();
         assert_eq!(
@@ -2830,6 +2845,25 @@ mod tests {
         assert!(!h.app.ui.visualize_spots);
     }
 
+    /// Bring a right-panel field into the visible panel before clicking it. The Info panel is a
+    /// scroll area: 0.37's roomier text rows push the place fields below a 1000-point window, and a
+    /// click at an off-screen rect would leave the previous field focused.
+    fn click_field_in_view(h: &mut Headless, key: &str, timeout: Duration) {
+        let id = format!("field:{key}");
+        let panel = h.app.widgets.iter().find(|(w, _)| w == "panel:right_panel").map(|(_, r)| *r).expect("the right panel is laid out");
+        let rect = h.app.widgets.iter().find(|(w, _)| *w == id).map(|(_, r)| *r).expect("the field is laid out");
+        if !panel.contains(rect.center()) {
+            let dy = (panel.center().y - rect.center().y).clamp(-4000.0, 4000.0);
+            assert_eq!(h.request("ui.move", json!({"x": panel.center().x, "y": panel.center().y}), timeout)["ok"], true);
+            assert_eq!(h.request("ui.scroll", json!({"dy": dy}), timeout)["ok"], true);
+            h.settle(timeout);
+        }
+        let rect = h.app.widgets.iter().find(|(w, _)| *w == id).map(|(_, r)| *r).expect("the field is laid out");
+        assert!(panel.contains(rect.center()), "the field must be scrolled into view before clicking: {rect:?} in {panel:?}");
+        let r = h.request("ui.clickWidget", json!({"id": id}), timeout);
+        assert_eq!(r["ok"], true, "{r}");
+    }
+
     /// Info panel: typing into a field survives frames and is saved when it loses focus; the new
     /// accessibility and place fields reach the photo.
     #[test]
@@ -2839,8 +2873,7 @@ mod tests {
         h.request("ui.set", json!({"view": "detail", "right": "info"}), t);
         h.settle(SETTLE);
         for (key, text) in [("altText", "A lake at dawn"), ("usageTerms", "Editorial use only"), ("city", "Zermatt")] {
-            let r = h.request("ui.clickWidget", json!({"id": format!("field:{key}")}), t);
-            assert_eq!(r["ok"], true, "{r}");
+            click_field_in_view(&mut h, key, t);
             h.request("ui.key", json!({"key": "A", "cmd": true}), t);
             h.request("ui.text", json!({"text": text}), t);
             h.step();
@@ -4247,7 +4280,7 @@ mod tests {
         // Paint the edited template before locating the Tags button in the resized dialog.
         assert!(h.settle(SETTLE), "Copy dialog layout should settle before locating Tags");
         // the cursor sits after "Trip-"
-        let id = egui::Id::new("import-rename");
+        let id = egui::Id::unique("import-rename");
         let mut st = egui::text_edit::TextEditState::default();
         st.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(5))));
         st.store(&h.view.ctx, id);
@@ -4284,7 +4317,7 @@ mod tests {
             let r = h.request("ui.clickWidget", json!({"id": format!("button:aboutTab-{tab}")}), t);
             assert_eq!(r["ok"], true, "{tab}: {r}");
             h.step();
-            let shown = h.view.ctx.data_mut(|d| d.get_temp::<u8>(egui::Id::new("about_tab")));
+            let shown = h.view.ctx.data_mut(|d| d.get_temp::<u8>(egui::Id::unique("about_tab")));
             assert_eq!(shown.map(usize::from), Some(i), "{tab}");
         }
         h.request("ui.clickWidget", json!({"id": "button:aboutTab-contributors"}), t);
@@ -4713,6 +4746,7 @@ mod tests {
                     unit: egui::MouseWheelUnit::Point,
                     delta: egui::vec2(10.0, -10.0),
                     phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
                     modifiers: egui::Modifiers::NONE,
                 }),
                 None,
@@ -4791,7 +4825,13 @@ mod tests {
         ] {
             h.request("ui.set", json!({"zoom": "fit", "pan": [0.5, 0.5]}), t);
             h.request("ui.hoverWidget", json!({"id": "canvas:image"}), t);
-            h.app.synthetic.push(egui::Event::MouseWheel { unit, delta: egui::vec2(0.0, y), phase: egui::TouchPhase::Move, modifiers });
+            h.app.synthetic.push(egui::Event::MouseWheel {
+                unit,
+                delta: egui::vec2(0.0, y),
+                phase: egui::TouchPhase::Move,
+                source: egui::MouseWheelSource::Unknown,
+                modifiers,
+            });
             for _ in 0..10 {
                 h.step();
             }

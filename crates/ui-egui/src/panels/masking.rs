@@ -264,7 +264,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             if ui.rect_contains_pointer(r) || !m.visible {
                 let er = Rect::from_center_size(pos2(r.right() - 16.0, r.center().y), vec2(22.0, 22.0));
                 register(ui.ctx(), format!("maskVisible:{}", m.id), er);
-                let eye = ui.interact(er, egui::Id::new(("maskVisible", m.id)), Sense::click());
+                let eye = ui.interact(er, egui::Id::unique(("maskVisible", m.id)), Sense::click());
                 crate::widgets::announce_selected(&eye, crate::i18n::tr("Show mask"), m.visible);
                 paint(
                     ui.painter(),

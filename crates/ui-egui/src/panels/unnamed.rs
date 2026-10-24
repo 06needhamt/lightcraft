@@ -228,12 +228,12 @@ pub fn tile(app: &mut LightcraftApp, ui: &mut egui::Ui, list: &Unnamed, i: usize
     let t = Tokens::get(ui.ctx());
     let key = (f.photo, f.index);
     let selected = app.ui.unnamed_selected.contains(&key);
-    let resp = ui.interact(r, egui::Id::new(("unnamed-face", f.photo, f.index)), Sense::click());
+    let resp = ui.interact(r, egui::Id::unique(("unnamed-face", f.photo, f.index)), Sense::click());
     crate::widgets::announce_selected(&resp, crate::i18n::tr("Unnamed face"), selected);
     register(ui.ctx(), format!("unnamed-face:{}:{}", f.photo, f.index), r);
     // a suggested name along the bottom: a click accepts it for this face (added after the tile, so it wins there)
     let strip = Rect::from_min_max(pos2(r.left(), r.bottom() - 20.0), r.right_bottom());
-    let accept = f.suggestion.as_ref().map(|_| ui.interact(strip, egui::Id::new(("unnamed-accept", f.photo, f.index)), Sense::click()));
+    let accept = f.suggestion.as_ref().map(|_| ui.interact(strip, egui::Id::unique(("unnamed-accept", f.photo, f.index)), Sense::click()));
     if let Some(a) = &accept {
         register(ui.ctx(), format!("unnamed-accept:{}:{}", f.photo, f.index), a.rect);
     }

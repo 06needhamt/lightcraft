@@ -13,13 +13,13 @@ use crate::widgets::{icon_button, register};
 fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, bar: Rect, search_rect: Rect) {
     use crate::titlebar::{Gesture, WindowState, command_for};
     register(ui.ctx(), "region:titlebar", bar);
-    let handle = egui::Id::new("titlebar-handle");
+    let handle = egui::Id::unique("titlebar-handle");
     let resp = ui.interact(bar, handle, Sense::click_and_drag());
     crate::widgets::announce(&resp, crate::i18n::tr("Title bar"));
     // a press that began on a button or the search field is theirs: dragging off it must not move the window
     // (while pressing, egui hovers every widget under the pointer; once the drag starts, only the dragged one)
     let ctx = ui.ctx().clone();
-    let memo = egui::Id::new("titlebar-press-on-widget");
+    let memo = egui::Id::unique("titlebar-press-on-widget");
     if resp.is_pointer_button_down_on() && ctx.input(|i| i.pointer.primary_pressed()) {
         let hovered = ctx.interaction_snapshot(|s| s.hovered.clone());
         let on_widget =
@@ -133,7 +133,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             // filter icon right of the search field
             let fr = Rect::from_center_size(pos2(sr.right() + 22.0, sr.center().y), vec2(28.0, 28.0));
-            let fresp = ui.interact(fr, egui::Id::new("filter-btn"), Sense::click());
+            let fresp = ui.interact(fr, egui::Id::unique("filter-btn"), Sense::click());
             crate::widgets::announce(&fresp, crate::i18n::tr("Filters"));
             register(ui.ctx(), "icon:filter", fr);
             let filtering = app.session.filter != Default::default() || app.ui.filter_bar;
@@ -192,7 +192,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 ("bell", Icon::Bell, "Activity", "panel.activity"),
             ] {
                 let r = Rect::from_center_size(pos2(x, full.center().y), vec2(28.0, 28.0));
-                let resp = ui.interact(r, egui::Id::new(("top", id)), Sense::click()).on_hover_text(crate::i18n::tr(tip));
+                let resp = ui.interact(r, egui::Id::unique(("top", id)), Sense::click()).on_hover_text(crate::i18n::tr(tip));
                 crate::widgets::announce(&resp, crate::i18n::tr(tip));
                 register(ui.ctx(), format!("icon:{id}"), r);
                 let warn = id == "cloud" && unsaved.is_some();
@@ -223,7 +223,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             let (icon, mode) = appearance_icon(app.ui.settings.appearance_mode);
             let r = Rect::from_center_size(pos2(x, full.center().y), vec2(28.0, 28.0));
             let tip = format!("{}: {}", crate::i18n::tr("Appearance Mode"), crate::i18n::tr(mode));
-            let resp = ui.interact(r, egui::Id::new(("top", "appearance")), Sense::click()).on_hover_text(tip.clone());
+            let resp = ui.interact(r, egui::Id::unique(("top", "appearance")), Sense::click()).on_hover_text(tip.clone());
             crate::widgets::announce(&resp, tip.clone());
             register(ui.ctx(), "icon:appearance", r);
             paint(ui.painter(), r.shrink(5.0), icon, if resp.hovered() { t.text } else { t.icon });

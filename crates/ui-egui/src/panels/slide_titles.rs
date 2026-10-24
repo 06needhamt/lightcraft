@@ -20,7 +20,7 @@ use crate::widgets::register;
 
 /// Where the preview's choice lives (egui memory): `None` = the photo's slide.
 fn preview_key() -> egui::Id {
-    egui::Id::new("settingsSlideshowPreviewShows")
+    egui::Id::unique("settingsSlideshowPreviewShows")
 }
 
 /// What the Settings preview shows: a title screen, or (`None`) the active photo's slide.
@@ -89,7 +89,7 @@ fn colour(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, t: Title, key: &
 
 /// The screen's text field (`field:{id}`), saved when the edit ends.
 fn text(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, t: Title, value: &str) {
-    let mem = egui::Id::new(("slideshow-title-field", id));
+    let mem = egui::Id::unique(("slideshow-title-field", id));
     let mut s: String = ui.data(|d| d.get_temp(mem)).unwrap_or_else(|| value.to_string());
     let widget = format!("field:{id}");
     let r = TextField::singleline(&widget, &mut s).hint(crate::i18n::tr("Title text")).width(ui.available_width().clamp(80.0, 260.0)).show(ui);

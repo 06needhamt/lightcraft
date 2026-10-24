@@ -322,7 +322,7 @@ impl<'a> Button<'a> {
         // stable across frames and moves: its widget id (with its salt) when it has one, else its
         // place in the ui (moved on, so the next button in the same ui gets another)
         let id = match &self.widget {
-            Some(w) => ui.id().with(("lc-button", w.as_str(), self.id_salt)),
+            Some(w) => ui.scope_id().with(("lc-button", w.as_str(), self.id_salt)),
             None => {
                 let id = ui.auto_id_with(("lc-button", self.text.or(self.name), self.id_salt));
                 ui.skip_ahead_auto_ids(1);
@@ -333,7 +333,7 @@ impl<'a> Button<'a> {
         let enabled = self.enabled && ui.is_enabled();
         let resp = ui.interact(rect, id, if enabled { Sense::click() } else { Sense::hover() });
         let words = crate::i18n::tr(self.name.or(self.text).unwrap_or_default()).to_string();
-        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, words.clone()));
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, words.clone()));
         if let Some(w) = &self.widget {
             crate::widgets::register(ui.ctx(), w.clone(), rect);
         }

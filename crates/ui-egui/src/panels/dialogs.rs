@@ -28,7 +28,7 @@ pub(crate) fn rename_preview(
     let mut h = std::collections::hash_map::DefaultHasher::new();
     (template, start, app.session.catalog.revision, &ids).hash(&mut h);
     let key = h.finish();
-    let id = egui::Id::new("rename-preview-rows");
+    let id = egui::Id::unique("rename-preview-rows");
     let read = |rows: &Rows| rows.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
     if let Some((k, rows)) = ctx.data(|d| d.get_temp::<(u64, Rows)>(id))
         && k == key
@@ -82,7 +82,7 @@ fn watermark_preview(
     (id, app.session.catalog.revision, px).hash(&mut h);
     let key = h.finish();
     let ctx = ui.ctx().clone();
-    let (base_id, shown_id) = (egui::Id::new("export-wm-preview-base"), egui::Id::new("export-wm-preview-shown"));
+    let (base_id, shown_id) = (egui::Id::unique("export-wm-preview-base"), egui::Id::unique("export-wm-preview-shown"));
     let base = match ctx.data(|d| d.get_temp::<(u64, Base)>(base_id)) {
         Some((k, base)) if k == key => base,
         _ => {
@@ -174,7 +174,7 @@ pub const WHATS_NEW: &str = include_str!("../../../../docs/whats-new.md");
 /// The import review and Settings keep window ids of their own, so the size each is given
 /// doesn't carry over to the other dialogs.
 fn window_id(dialog: &Dialog) -> egui::Id {
-    egui::Id::new(match dialog {
+    egui::Id::unique(match dialog {
         Dialog::Import { .. } => "lightcraft-import-dialog",
         Dialog::Print => "lightcraft-print-dialog",
         Dialog::Settings { .. } => "lightcraft-settings-dialog",
@@ -205,7 +205,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     let screen = ctx.content_rect();
     // The backdrop is an area below the dialog window (a bare `Middle` layer painter would be
     // painted after every area — i.e. over the dialog too).
-    egui::Area::new(egui::Id::new("dialog-dim")).order(egui::Order::Middle).fixed_pos(screen.min).interactable(false).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("dialog-dim")).order(egui::Order::Middle).fixed_pos(screen.min).interactable(false).show(ctx, |ui| {
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(140));
     });
     let mut close = false;
@@ -570,7 +570,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 Dialog::Rename { template, start } => {
                     let n = app.session.selected().len();
                     ui.label(egui::RichText::new(crate::i18n::tr_format!("{n} photo{}", if n == 1 { "" } else { "s" }, n = n)).color(t.text_dim));
-                    let template_id = egui::Id::new("rename-template");
+                    let template_id = egui::Id::unique("rename-template");
                     let tags_open = field(ui, "Template", |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         let w = crate::import::tag_field_width(ui);
@@ -725,10 +725,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     let n = app.session.selected().len();
                     ui.label(crate::i18n::tr_format!("{n} selected photos · {pages} pages", n = n, pages = n.div_ceil(options.columns * options.rows)));
                     field(ui, "Paper", |ui| {
-                        crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
+                        let c = crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
                             ui.selectable_value(&mut options.paper, "a4".into(), "A4");
                             ui.selectable_value(&mut options.paper, "letter".into(), crate::i18n::tr("Letter"));
                         });
+                        crate::widgets::name_combo(&c.response, crate::i18n::tr("Paper"));
                     });
                     ui.checkbox(&mut options.landscape, crate::i18n::tr("Landscape"));
                     field(ui, "Columns", |ui| { ui.add(egui::DragValue::new(&mut options.columns).range(1..=8)); });
@@ -756,6 +757,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                                 }
                             }
                         });
+                        crate::widgets::name_combo(&c.response, crate::i18n::tr("Preset"));
                         crate::widgets::register(ui.ctx(), "combo:exportPreset", c.response.rect);
                         if let Some(name) = chosen
                             && let Ok(params) = app.session.export_params(&json!({"preset": name}))
@@ -913,11 +915,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                     }
                     if let Some(wm) = &mut opts.watermark {
                         // text, or a graphic (a logo with transparency)
-                        let mut graphic = !wm.image.is_empty() || ui.data(|d| d.get_temp::<bool>(egui::Id::new("wm-graphic"))).unwrap_or(false);
+                        let mut graphic = !wm.image.is_empty() || ui.data(|d| d.get_temp::<bool>(egui::Id::unique("wm-graphic"))).unwrap_or(false);
                         let before = graphic;
                         choices(ui, "Style", "exportWmStyle", &[(false, "Text"), (true, "Graphic")], &mut graphic);
                         if graphic != before {
-                            ui.data_mut(|d| d.insert_temp(egui::Id::new("wm-graphic"), graphic));
+                            ui.data_mut(|d| d.insert_temp(egui::Id::unique("wm-graphic"), graphic));
                             if !graphic {
                                 wm.image.clear();
                             }
@@ -989,7 +991,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                         use lightcraft_engine::export::DngCompression as Z;
                         choices(ui, "Compression", "exportDngCompression", &[(Z::Lossless, "Lossless"), (Z::Deflate, "ZIP"), (Z::Uncompressed, "None"), (Z::Lossy, "Lossy")], &mut opts.dng_compression);
                     }
-                    let naming_id = egui::Id::new("export-naming");
+                    let naming_id = egui::Id::unique("export-naming");
                     let tags_open = field(ui, "File name", |ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         let w = crate::import::tag_field_width(ui);
@@ -1268,7 +1270,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
                 }
                 Dialog::About => {
                     ui.set_min_width(680.0);
-                    let tab_id = egui::Id::new("about_tab");
+                    let tab_id = egui::Id::unique("about_tab");
                     let mut tab = ui.data_mut(|d| d.get_temp::<u8>(tab_id)).unwrap_or(0);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
@@ -1526,11 +1528,11 @@ const DIALOG_MIN_BODY: f32 = 80.0;
 const DIALOG_MIN_LIST: f32 = 120.0;
 
 fn list_shrink_id() -> egui::Id {
-    egui::Id::new("dialog-list-shrink")
+    egui::Id::unique("dialog-list-shrink")
 }
 
 fn list_applied_id() -> egui::Id {
-    egui::Id::new("dialog-list-applied")
+    egui::Id::unique("dialog-list-applied")
 }
 
 /// The height for a list in a dialog that scrolls on its own (What's New, All Metadata, the
@@ -2039,6 +2041,7 @@ fn export_size(ui: &mut egui::Ui, full: &mut bool, r: &mut lightcraft_engine::ex
                     ui.selectable_value(&mut r.mode, m, crate::i18n::tr(l));
                 }
             });
+            crate::widgets::name_combo(&c.response, crate::i18n::tr("Resize"));
             crate::widgets::register(ui.ctx(), "combo:exportResizeMode", c.response.rect);
             if r.mode != before {
                 // a sensible value for the new unit
@@ -2261,7 +2264,7 @@ fn dialog_field(ui: &mut egui::Ui, widget: &str, text: &mut String, hint: &str) 
 /// The dialog part `key` is drawn this frame but wasn't the frame before: the dialog has just
 /// opened (to give its first field the focus once).
 fn just_opened(ui: &egui::Ui, key: &str) -> bool {
-    let id = egui::Id::new(("dialog-shown", key));
+    let id = egui::Id::unique(("dialog-shown", key));
     let pass = ui.ctx().cumulative_pass_nr();
     let last: Option<u64> = ui.data_mut(|d| d.get_temp(id));
     ui.data_mut(|d| d.insert_temp(id, pass));

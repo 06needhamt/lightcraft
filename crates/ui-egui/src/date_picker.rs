@@ -239,7 +239,7 @@ impl<'a> DatePicker<'a> {
         let DatePicker { id, value, precisions, min, max, today } = self;
         let mut button = crate::widgets::icon_button(ui, &format!("datePicker:{id}"), Icon::Calendar, vec2(24.0, 22.0), false, true, "Pick a date");
         register(ui.ctx(), format!("datePicker:{id}"), button.rect);
-        let state = egui::Id::new(("datePicker", id.as_str()));
+        let state = egui::Id::unique(("datePicker", id.as_str()));
         if button.clicked() {
             // open on the value (or today), at its precision when it is one of those offered
             let at = value.or(today).unwrap_or(PickedDate::year(2026));
@@ -267,7 +267,7 @@ impl<'a> DatePicker<'a> {
             }
             ui.horizontal(|ui| {
                 let prev = crate::widgets::arrow_button(ui, "", Icon::ChevronLeft, true);
-                prev.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), crate::i18n::tr("Previous page")));
+                prev.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), crate::i18n::tr("Previous page")));
                 register(ui.ctx(), format!("datePickerPrev:{id}"), prev.rect);
                 let title = match view.precision {
                     Precision::Day => crate::i18n::date_group_label(&format!("{:04}-{:02}", view.year, view.month), false),
@@ -280,7 +280,7 @@ impl<'a> DatePicker<'a> {
                 ui.label(RichText::new(title).strong());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let next = crate::widgets::arrow_button(ui, "", Icon::ChevronRight, false);
-                    next.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), crate::i18n::tr("Next page")));
+                    next.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), crate::i18n::tr("Next page")));
                     register(ui.ctx(), format!("datePickerNext:{id}"), next.rect);
                     if next.clicked() {
                         view = step(view, true);

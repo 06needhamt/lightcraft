@@ -62,7 +62,7 @@ impl AppliedByPhoto {
     /// Remember `preset` on the photos `preset.apply` just changed (the selection, else the active
     /// photo; an active photo outside the selection wasn't changed and isn't marked).
     fn remember(ctx: &egui::Context, session: &lightcraft_engine::Session, preset: &str) {
-        let id = egui::Id::new(Self::ID);
+        let id = egui::Id::unique(Self::ID);
         let mut map: Self = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
         for photo in session.selected() {
             if let Some(d) = session.develop_of(photo) {
@@ -75,7 +75,7 @@ impl AppliedByPhoto {
     /// The preset to mark for `photo`: the one it was given, while its settings are unchanged since.
     fn of(ctx: &egui::Context, session: &lightcraft_engine::Session, photo: Option<lightcraft_catalog::PhotoId>) -> Option<String> {
         let photo = photo?;
-        let map: Self = ctx.data(|d| d.get_temp(egui::Id::new(Self::ID)))?;
+        let map: Self = ctx.data(|d| d.get_temp(egui::Id::unique(Self::ID)))?;
         let (preset, then) = map.0.get(&photo)?;
         let now = session.develop_of(photo)?;
         (Arc::ptr_eq(then, &now) || **then == *now).then(|| preset.clone())
@@ -121,7 +121,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         });
         divider(ui);
         // amount slider (applies to the last applied preset)
-        let amt_id = egui::Id::new("preset-amount");
+        let amt_id = egui::Id::unique("preset-amount");
         let last: Option<AppliedPreset> = ui.data(|d| d.get_temp(amt_id));
         if let Some(last) = last.clone().filter(|last| last.is_current(&app.session)) {
             let spec = ControlSpec {
@@ -167,7 +167,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             let visible = ui.clip_rect().expand(row_h);
             for grp in groups.iter() {
                 let (g, builtin) = (grp.name.clone(), grp.builtin);
-                let open_id = egui::Id::new(("preset-group", &g));
+                let open_id = egui::Id::unique(("preset-group", &g));
                 let open: bool = ui.data(|d| d.get_temp(open_id)).unwrap_or(true);
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
                 crate::widgets::announce(&resp, g.to_string());
@@ -236,13 +236,13 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                         let label = crate::i18n::tr_format!("Preset: {name}", name = name);
                         app.hover_preview = Some(HoverPreview { label: label.clone(), settings: s });
                         if let Some(id) = active {
-                            ui.data_mut(|d| d.insert_temp(egui::Id::new("last-preset-hover"), (id, pr.clone(), label)));
+                            ui.data_mut(|d| d.insert_temp(egui::Id::unique("last-preset-hover"), (id, pr.clone(), label)));
                         }
                     }
                     if resp.clicked() && app.run("preset.apply", json!({"id": pid, "amount": 100})).is_ok() {
                         AppliedByPhoto::remember(ui.ctx(), &app.session, &pid);
                         ui.data_mut(|d| d.insert_temp(amt_id, AppliedPreset::new(&app.session, pid.clone(), 100.0)));
-                        ui.data_mut(|d| d.remove::<(lightcraft_catalog::PhotoId, Preset, String)>(egui::Id::new("last-preset-hover")));
+                        ui.data_mut(|d| d.remove::<(lightcraft_catalog::PhotoId, Preset, String)>(egui::Id::unique("last-preset-hover")));
                         app.toast(ui.ctx(), crate::i18n::tr_format!("Preset: {name}", name = name));
                     }
                     let (builtin, group) = (pr.builtin, pr.group.clone());
@@ -296,7 +296,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             }
             ui.add_space(30.0);
         });
-        let last_hover_id = egui::Id::new("last-preset-hover");
+        let last_hover_id = egui::Id::unique("last-preset-hover");
         let pointer_in_scroll = ui.ctx().input(|i| i.pointer.hover_pos()).is_some_and(|pos| scroll.inner_rect.contains(pos));
         if pointer_in_scroll {
             if app.hover_preview.is_none()
@@ -327,7 +327,7 @@ struct Group {
 /// The presets by group (groups sorted by name, presets in list order), rebuilt only when the
 /// list changed (its generation).
 fn grouped(ctx: &egui::Context, presets: &PresetList) -> Arc<Vec<Group>> {
-    let id = egui::Id::new("presets-grouped");
+    let id = egui::Id::unique("presets-grouped");
     if let Some((generation, groups)) = ctx.data(|d| d.get_temp::<(u64, Arc<Vec<Group>>)>(id))
         && generation == presets.generation()
     {
@@ -349,7 +349,7 @@ fn grouped(ctx: &egui::Context, presets: &PresetList) -> Arc<Vec<Group>> {
 /// wherever the group changes. Only the rows in view are built (10 000+ presets made an open
 /// picker take seconds a frame). Returns the id of the preset clicked.
 pub fn picker_rows(ui: &mut egui::Ui, salt: &str, presets: &PresetList, selected: Option<&str>) -> Option<String> {
-    let id = egui::Id::new("preset-picker-rows");
+    let id = egui::Id::unique("preset-picker-rows");
     let rows = match ui.ctx().data(|d| d.get_temp::<(u64, Arc<Vec<PickRow>>)>(id)) {
         Some((generation, rows)) if generation == presets.generation() => rows,
         _ => {

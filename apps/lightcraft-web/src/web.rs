@@ -225,6 +225,9 @@ fn services(originals: Originals, backend: Option<Backend>, files: Files, frozen
         pick_slideshow_templates: None,
         save_slideshow_template: None,
         write: Some(Box::new(download)),
+        // the browser download path has no meaningful create-new file write; the control channel
+        // (and therefore screenshot paths) is not available on the web
+        write_new: None,
         // downloads happen on the main thread: exports run in the foreground on the web
         write_shared: None,
         png: Some(Box::new(|img: &lightcraft_raster::Rgba8| {
@@ -267,7 +270,7 @@ async fn flush(files: Files, backend: Backend, dir: String, flushing: Rc<Cell<bo
                 log::error!("saving {} failed: {e}", op.name());
                 files.failed(&ops[i..]);
                 files.set_error(Some(e));
-                failed_at.set(perf_now());
+                failed_at.set(lightcraft_ui_egui::monotonic_ms());
                 break 'outer;
             }
         }
@@ -488,7 +491,7 @@ impl WebApp {
         }
         log::info!("lightcraft: {n} render workers");
         CTX.with(|c| *c.borrow_mut() = Some(cc.egui_ctx.clone()));
-        let origin = lightcraft_ui_egui::now_ms() - perf_now();
+        let origin = lightcraft_ui_egui::monotonic_ms();
         WebApp {
             app,
             originals,
@@ -506,13 +509,15 @@ impl WebApp {
         }
     }
 
+    /// Consume the drops the raw-input hook queued once (never re-read `raw.dropped_files` in a
+    /// hidden logic tick), and add originals whose bytes have arrived.
     fn import_dropped(&mut self, ctx: &egui::Context) {
-        let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        let dropped = self.app.take_dropped_files();
         for f in dropped {
             let (originals, backend, ctx) = (self.originals.clone(), self.backend.clone(), ctx.clone());
             wasm_bindgen_futures::spawn_local(async move {
-                let name = f.path().to_string_lossy().to_string();
-                match f.bytes_async().await {
+                let name = egui::DroppedFile::path(f.as_ref()).to_string_lossy().to_string();
+                match egui::DroppedFile::bytes_async(f.as_ref()).await {
                     Ok(bytes) => store_file(originals, backend, name, bytes, ctx).await,
                     Err(e) => log::warn!("reading dropped {name}: {e}"),
                 }
@@ -563,7 +568,7 @@ impl WebApp {
         if self.frozen.get() {
             return;
         }
-        let now = perf_now();
+        let now = lightcraft_ui_egui::monotonic_ms();
         if now - self.last_save >= SAVE_EVERY_MS {
             self.last_save = now;
             self.app.session.save_view();
@@ -652,11 +657,10 @@ impl WebApp {
 impl eframe::App for WebApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         for text in safety::take_notices() {
-            let now = ctx.input(|i| i.time);
+            let now = self.app.tick_now();
             self.app.ui.toast = Some((text, now + NOTICE_SECS, None));
         }
         self.run_inbox();
-        self.import_dropped(ctx);
         self.load_originals(ctx);
         if let Some(w) = &self.workers {
             // `library.preferences ▸ cacheMb` is read by the session; the worker index prunes on
@@ -665,19 +669,6 @@ impl eframe::App for WebApp {
         }
         self.app.logic(ctx);
         self.save();
-        if let Some(b) = self.bench.as_mut()
-            && let Some(report) = b.step(&mut self.app)
-        {
-            log::info!("lightcraft-bench {report}");
-            if let Some((alive, ready, remote, inline)) = self.workers.as_ref().map(Workers::stats) {
-                log::info!("lightcraft-workers {{\"alive\":{alive},\"ready\":{ready},\"remote_jobs\":{remote},\"inline_jobs\":{inline}}}");
-            }
-            set_status(&format!("bench: {report}"));
-            self.bench = None;
-        }
-        if self.bench.is_some() {
-            ctx.request_repaint();
-        }
     }
 
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
@@ -685,7 +676,26 @@ impl eframe::App for WebApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Drops are the UI phase's: a hidden `logic`/`run_logic` tick must not import them twice.
+        let ctx = ui.ctx().clone();
+        self.import_dropped(&ctx);
         self.app.ui(ui);
+        // The benchmark is a UI-phase step: a second layout pass or a hidden tick must not count a frame.
+        if ui.ctx().current_pass_index() == 0 {
+            if let Some(b) = self.bench.as_mut()
+                && let Some(report) = b.step(&mut self.app)
+            {
+                log::info!("lightcraft-bench {report}");
+                if let Some((alive, ready, remote, inline)) = self.workers.as_ref().map(Workers::stats) {
+                    log::info!("lightcraft-workers {{\"alive\":{alive},\"ready\":{ready},\"remote_jobs\":{remote},\"inline_jobs\":{inline}}}");
+                }
+                set_status(&format!("bench: {report}"));
+                self.bench = None;
+            }
+            if self.bench.is_some() {
+                ctx.request_repaint();
+            }
+        }
         if !self.first_frame_logged && !self.app.widgets.is_empty() {
             self.first_frame_logged = true;
             log::info!("lightcraft first UI frame at {:.0} ms after navigation start", perf_now());

@@ -382,6 +382,7 @@ fn settings(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens, pu: &mut PrintUi, 
                 }
             }
         });
+        crate::widgets::name_combo(&c.response, crate::i18n::tr("Paper"));
         register(ui.ctx(), "combo:printPaper", c.response.rect);
     });
     if l.page.paper.eq_ignore_ascii_case("custom") {
@@ -483,6 +484,7 @@ fn print_job_color(app: &mut LightcraftApp, ui: &mut Ui, t: &Tokens, color: &Pri
                 pick |= r.clicked();
             }
         });
+        crate::widgets::name_combo(&c.response, crate::i18n::tr("Profile"));
         register(ui.ctx(), "combo:printProfile", c.response.rect);
     });
     if pick && let Some(path) = app.services.pick_display_profile.as_mut().and_then(|pick| pick().into_iter().next()) {
@@ -677,7 +679,7 @@ fn package_cells(
         let photo = if st.layout.style == Style::CustomPackage { c.photo.map(PhotoId).or(first) } else { first };
         let rect = sheet.rect(&c.rect);
         paint_cell(app, painter, t, st, rect, photo, sheet, &c.rect);
-        let resp = ui.interact(rect, egui::Id::new(("print-cell", c.id)), Sense::click_and_drag());
+        let resp = ui.interact(rect, egui::Id::unique(("print-cell", c.id)), Sense::click_and_drag());
         register(&ctx, format!("print:cell:{}", c.id), rect);
         if resp.clicked() || resp.drag_started() {
             pu.selected = Some(c.id);
@@ -719,7 +721,7 @@ fn package_cells(
     painter.rect_stroke(rect, 0.0, Stroke::new(2.0, t.accent), StrokeKind::Outside);
     let handle = Rect::from_center_size(rect.right_bottom(), Vec2::splat(HANDLE));
     painter.rect_filled(handle, 2.0, t.accent);
-    let resp = ui.interact(handle, egui::Id::new(("print-resize", sel.id)), Sense::drag());
+    let resp = ui.interact(handle, egui::Id::unique(("print-resize", sel.id)), Sense::drag());
     register(&ctx, format!("print:resize:{}", sel.id), handle);
     if resp.drag_started() {
         pu.drag = Some(Drag { cell: sel.id, origin: sel.rect, resize: true, press: press_origin(ui, &resp), total: Vec2::ZERO });

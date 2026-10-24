@@ -19,7 +19,7 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
     capture(app, ui.ctx());
     ui.set_min_width(560.0);
-    let (search_id, all_id) = (egui::Id::new(SEARCH), egui::Id::new(SHOW_ALL));
+    let (search_id, all_id) = (egui::Id::unique(SEARCH), egui::Id::unique(SHOW_ALL));
     let mut search: String = ui.data(|d| d.get_temp(search_id)).unwrap_or_default();
     let mut show_all: bool = ui.data(|d| d.get_temp(all_id)).unwrap_or(false);
     ui.horizontal(|ui| {

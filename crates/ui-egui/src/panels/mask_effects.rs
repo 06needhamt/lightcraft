@@ -123,7 +123,7 @@ struct MenuState {
 }
 
 fn state_id() -> egui::Id {
-    egui::Id::new("maskEffectMenuState")
+    egui::Id::unique("maskEffectMenuState")
 }
 
 /// The effects the menu lists for `query`: (section heading, effect name, its row widget id).

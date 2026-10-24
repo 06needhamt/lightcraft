@@ -23,7 +23,7 @@ use crate::widgets::register;
 const USER_LIST_H: f32 = 180.0;
 
 fn hovered_key() -> egui::Id {
-    egui::Id::new("settingsSlideshowTemplateHovered")
+    egui::Id::unique("settingsSlideshowTemplateHovered")
 }
 
 /// The template the pointer is over in the browser (its id), which the preview shows.
@@ -43,7 +43,7 @@ enum Pending {
 }
 
 fn pending_key() -> egui::Id {
-    egui::Id::new("settingsSlideshowTemplatePending")
+    egui::Id::unique("settingsSlideshowTemplatePending")
 }
 
 fn pending(ctx: &egui::Context) -> Option<Pending> {
@@ -228,7 +228,7 @@ pub fn section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     // save the current settings as a new template
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        let mem = egui::Id::new("settingsSlideshowTemplateNewName");
+        let mem = egui::Id::unique("settingsSlideshowTemplateNewName");
         let mut name: String = ui.data(|d| d.get_temp(mem)).unwrap_or_default();
         let r = TextField::singleline("field:slideshowTemplateName", &mut name).hint(crate::i18n::tr("New template name")).width(180.0).show(ui);
         let save = crate::widgets::text_button(ui, "slideshowTemplateSave", "Save as Template", false).clicked()

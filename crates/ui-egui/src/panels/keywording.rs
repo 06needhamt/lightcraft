@@ -87,17 +87,17 @@ fn chip(ui: &mut egui::Ui, path: &str, name: &str, partial: bool, cross: bool, r
     // the row places it; its name and × answer under ids of their own keyword, so an open menu
     // stays with its keyword when the chips change
     let (rect, _) = ui.allocate_exact_size(vec2(w, 22.0), Sense::hover());
-    let id = egui::Id::new(("keyword-chip", path.to_lowercase(), cross));
+    let id = egui::Id::unique(("keyword-chip", path.to_lowercase(), cross));
     let body = Rect::from_min_max(rect.min, pos2(rect.right() - cross_w, rect.bottom()));
     let full = path.replace('|', " › ");
     let resp = ui.interact(body, id, Sense::click());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &full));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &full));
     // the ×: the whole end of the chip, so that it is hard to miss and easy to tell from the name
     let x = cross.then(|| {
         let xr = Rect::from_min_max(pos2(rect.right() - cross_w, rect.top()), rect.max);
         let xresp = ui.interact(xr, id.with("remove"), Sense::click());
         let said = crate::i18n::tr_format!("Remove “{name}”", name = full);
-        xresp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &said));
+        xresp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &said));
         xresp
     });
     let p = ui.painter();
@@ -273,7 +273,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group], sel
                 let measure = |s: &str| ui.painter().layout_no_wrap(s.to_string(), small.clone(), t.text_label).size().x;
                 let shown = chip_label(&group.parent, false, avail, measure);
                 let full = group.parent.replace('|', " › ");
-                resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &full));
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &full));
                 ui.painter().text(r.left_center(), Align2::LEFT_CENTER, &shown, small.clone(), t.text_label);
                 // (cut short, it says its whole name on hover, as a chip does)
                 if shown != full {
@@ -434,7 +434,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
     let lit = at.and_then(|k| offers.keywords.iter().position(|x| x == k));
     let first = lit.map_or(0, |a| a.saturating_add(1).saturating_sub(count)).min(offers.keywords.len().saturating_sub(count));
     let listed = offers.keywords.iter().skip(first).take(count);
-    let area = egui::Area::new(egui::Id::new("keyword-offers")).order(egui::Order::Foreground).constrain(true);
+    let area = egui::Area::new(egui::Id::unique("keyword-offers")).order(egui::Order::Foreground).constrain(true);
     let area = if over {
         area.pivot(Align2::LEFT_BOTTOM).fixed_pos(below.left_top() - vec2(0.0, 2.0))
     } else {
@@ -448,7 +448,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
             let line = |ui: &mut egui::Ui, id: egui::Id, name: &str, place: &str, said: &str, lit: bool| {
                 let (r, resp) = ui.allocate_exact_size(vec2(width, 24.0), Sense::hover());
                 let resp = ui.interact(r, id, Sense::click()).union(resp);
-                resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, lit, said));
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, lit, said));
                 if lit || resp.hovered() {
                     ui.painter().rect_filled(r, 4.0, if lit { t.pressed } else { t.hover });
                 }
@@ -469,7 +469,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 let (place, name) = k.rsplit_once(SEP).unwrap_or(("", k));
                 let whole = k.replace(SEP, " › ");
                 let lit = at == Some(k.as_str());
-                let r = line(ui, egui::Id::new(("keyword-offer", k.to_lowercase())), name, place, &whole, lit);
+                let r = line(ui, egui::Id::unique(("keyword-offer", k.to_lowercase())), name, place, &whole, lit);
                 register(ui.ctx(), format!("kwComplete:{k}"), r.rect);
                 if lit {
                     register(ui.ctx(), format!("kwCompleteAt:{k}"), r.rect);
@@ -497,7 +497,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                     )
                 };
                 // (its place is said in words: not a path to cut from the front)
-                let r = line(ui, egui::Id::new("keyword-offer-create"), name, "", &said, false);
+                let r = line(ui, egui::Id::unique("keyword-offer-create"), name, "", &said, false);
                 let small = t.font(11.5);
                 ui.painter().text(pos2(r.rect.right() - 8.0, r.rect.center().y), Align2::RIGHT_CENTER, place, small, t.text_label);
                 register(ui.ctx(), "kwCompleteCreate", r.rect);

@@ -90,7 +90,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     let t = Tokens::get(ctx);
     let screen = ctx.content_rect();
-    egui::Area::new(egui::Id::new("library-problem-dim")).order(egui::Order::Middle).fixed_pos(screen.min).interactable(true).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("library-problem-dim")).order(egui::Order::Middle).fixed_pos(screen.min).interactable(true).show(ctx, |ui| {
         // swallows clicks: nothing behind the window can be used meanwhile
         ui.allocate_rect(screen, egui::Sense::click_and_drag());
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(160));
@@ -98,7 +98,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     let mut choice = None;
     let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(18, 14));
     egui::Window::new(crate::i18n::tr("Your library couldn't be opened"))
-        .id(egui::Id::new("library-problem"))
+        .id(egui::Id::unique("library-problem"))
         .order(egui::Order::Foreground)
         .collapsible(false)
         .resizable(false)

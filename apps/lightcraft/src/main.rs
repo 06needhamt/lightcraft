@@ -405,12 +405,20 @@ impl PrefsWriter {
     fn tick(&mut self, app: &mut LightcraftApp, ctx: &egui::Context) {
         // (asked for before the input is read: the context is not asked from inside its own lock)
         let zoom = ctx.zoom_factor();
-        let (now, seen) = ctx.input(|i| (i.time, lightcraft_ui_egui::window_place::Seen::of(i.viewport(), i.content_rect(), zoom)));
+        // The monotonic app clock: `i.time` stands still while the window is hidden.
+        let now = app.tick_now();
+        let (hidden, seen) = ctx.input(|i| {
+            let hidden = i.viewport().visible() == Some(false);
+            (hidden, lightcraft_ui_egui::window_place::Seen::of(i.viewport(), i.content_rect(), zoom))
+        });
         // how the window is, to open like that next time (written with the settings below). What
-        // the settings hold is checked first: a script may have set it (`ui.set`)
+        // the settings hold is checked first: a script may have set it (`ui.set`). A hidden
+        // `run_logic` pass has no fresh content rect: keep the last known placement.
         let remembered = app.ui.window.and_then(lightcraft_ui_egui::window_place::WindowPlace::checked);
         let at = self.window_since.get_or_insert_with(std::time::Instant::now).elapsed().as_secs_f64();
-        app.ui.window = self.window.note(remembered, &seen, at);
+        if !hidden {
+            app.ui.window = self.window.note(remembered, &seen, at);
+        }
         if let Some(wait) = self.window.waits(at) {
             // (a size is only remembered once the window has rested at it: look again then, though
             // nothing else asks for a frame)
@@ -707,6 +715,7 @@ fn services(cc: &eframe::CreationContext<'_>, log_file: Option<&std::path::Path>
         // atomic (temp file + sync + rename): a failed write never leaves a truncated file
         write_shared: Some(std::sync::Arc::new(lightcraft_engine::export::write_file)),
         write: Some(Box::new(lightcraft_engine::export::write_file)),
+        write_new: Some(Box::new(lightcraft_engine::export::write_file_new)),
         png: Some(Box::new(|img: &lightcraft_raster::Rgba8| {
             lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(img), &lightcraft_codecs::EncodeMeta::default()).unwrap_or_default()
         })),

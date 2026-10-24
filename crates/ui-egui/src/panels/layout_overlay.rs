@@ -112,7 +112,7 @@ pub fn draw(app: &LightcraftApp, p: &egui::Painter, photo: Rect) {
         return;
     }
     let ctx = p.ctx().clone();
-    let id = egui::Id::new("loupe-layout-image");
+    let id = egui::Id::unique("loupe-layout-image");
     let file = (path.to_string(), li.revision);
     let mut cache = match ctx.data(|d| d.get_temp::<Cache>(id)) {
         Some(c) if c.file == file => c,

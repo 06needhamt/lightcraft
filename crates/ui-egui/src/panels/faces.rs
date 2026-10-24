@@ -21,7 +21,7 @@ use crate::widgets::register;
 /// machine once they have been idle for a few seconds, or while another app has the keyboard but this window is still
 /// on screen; most of it while they are looking at the scan's progress.
 fn scan_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64) -> (&'static str, bool) {
-    let (focused, minimized) = ctx.input(|i| (i.focused, i.raw.viewports.get(&i.raw.viewport_id).and_then(|v| v.minimized).unwrap_or(false)));
+    let (focused, minimized) = ctx.input(|i| (i.raw.focused, i.viewport().minimized.unwrap_or(false)));
     let watching =
         matches!(&app.ui.dialog, Some(crate::state::Dialog::Settings { tab }) if tab == "faces") || app.ui.view == crate::state::ViewMode::People;
     (pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, watching), focused && !minimized)
@@ -30,7 +30,7 @@ fn scan_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64) -> (&'static st
 /// The pace for other background work that reads the library's files (the focus-point reader): the face scan's, without
 /// the "watching" speed-up.
 pub(crate) fn background_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64) -> &'static str {
-    let (focused, minimized) = ctx.input(|i| (i.focused, i.raw.viewports.get(&i.raw.viewport_id).and_then(|v| v.minimized).unwrap_or(false)));
+    let (focused, minimized) = ctx.input(|i| (i.raw.focused, i.viewport().minimized.unwrap_or(false)));
     pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, false)
 }
 
@@ -58,12 +58,12 @@ fn pace_for(focused: bool, minimized: bool, worked: f64, moved: f64, watching: b
 const REFRESH_SECS: f64 = 1.5;
 
 fn list_id() -> egui::Id {
-    egui::Id::new("faces-model-list")
+    egui::Id::unique("faces-model-list")
 }
 
 /// The engine's model list, re-read at most every [`REFRESH_SECS`], or at once after an action changed it.
 fn models(app: &mut LightcraftApp, ctx: &egui::Context) -> Value {
-    let now = ctx.input(|i| i.time);
+    let now = app.tick_now();
     let epoch = app.caches.faces_epoch;
     if let Some((e, at, v)) = ctx.data(|d| d.get_temp::<(u64, f64, Value)>(list_id()))
         && e == epoch
@@ -642,7 +642,7 @@ pub fn name_editor(
     let t = Tokens::get(ctx);
     let mut outcome = Editor::Open;
     let opening = edit.fresh;
-    let shown = egui::Area::new(egui::Id::new("face-name-editor")).order(egui::Order::Foreground).fixed_pos(at).constrain(true).show(ctx, |ui| {
+    let shown = egui::Area::new(egui::Id::unique("face-name-editor")).order(egui::Order::Foreground).fixed_pos(at).constrain(true).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_min_width(230.0);
             let r = ui.add(egui::TextEdit::singleline(&mut edit.text).hint_text("Name").desired_width(220.0));
@@ -700,9 +700,15 @@ pub fn name_editor(
 
 /// Called every frame: keeps the background face indexer going while recognition is on, and notes whether it is
 /// running, how many faces it has done and how many photos are left (the loupe's suggestions depend on it).
+/// `pump_background` plus the UI-input half; the app's own phases keep them apart.
 pub fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
-    watch_downloads(app, ctx);
-    let now = ctx.input(|i| i.time);
+    let now = app.tick_now();
+    pump_ui_input(app, ctx, now);
+    pump_background(app, ctx, now);
+}
+
+/// Fresh pointer/key activity (UI phase only).
+pub fn pump_ui_input(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
     let (working, moving) = ctx.input(|i| {
         let key_or_scroll = i.events.iter().any(|e| matches!(e, egui::Event::Key { .. } | egui::Event::Text(_) | egui::Event::MouseWheel { .. }));
         (i.pointer.any_down() || key_or_scroll, i.pointer.is_moving())
@@ -713,6 +719,11 @@ pub fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
     if moving || working {
         app.caches.last_move = now;
     }
+}
+
+/// Worker results and pacing on monotonic deadlines; safe while hidden.
+pub fn pump_background(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
+    watch_downloads(app, ctx);
     if now < app.caches.faces_next_pump {
         return;
     }

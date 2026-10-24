@@ -118,7 +118,7 @@ fn abandoned(app: &mut LightcraftApp) -> bool {
     !v["downloads"].as_array().into_iter().flatten().any(|d| matches!(d["state"].as_str(), Some("running" | "done" | "installing" | "installed")))
 }
 
-pub(crate) fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
+pub(crate) fn pump(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
     if app.model_setup.denoise.is_none() {
         return;
     }
@@ -132,7 +132,6 @@ pub(crate) fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
         ctx.request_repaint_after(std::time::Duration::from_millis(250));
         return;
     }
-    let now = ctx.input(|i| i.time);
     if now < app.model_setup.next_check {
         return;
     }

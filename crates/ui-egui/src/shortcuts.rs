@@ -332,11 +332,10 @@ fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
             [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::Enter, Key::Space].iter().any(|key| input.key_pressed(*key))
         });
     }
-    let chrome = app
-        .ui
-        .docking
-        .as_ref()
-        .is_some_and(|workspace| craft_ui::docking::DockArea::new(egui::Id::new("lightcraft-docking")).chrome_has_focus(ctx, &workspace.layout));
+    let chrome =
+        app.ui.docking.as_ref().is_some_and(|workspace| {
+            craft_ui::docking::DockArea::new(egui::Id::unique("lightcraft-docking")).chrome_has_focus(ctx, &workspace.layout)
+        });
     if !chrome {
         return true;
     }
@@ -1246,7 +1245,7 @@ mod tests {
                     },
                     |ui| {
                         let ctx = ui.ctx();
-                        egui::Popup::open_id(ctx, egui::Id::new("issue1771-menu"));
+                        egui::Popup::open_id(ctx, egui::Id::unique("issue1771-menu"));
                         assert!(egui::Popup::is_any_open(ctx));
                         super::super::handle(&mut h.app, ctx);
                     },

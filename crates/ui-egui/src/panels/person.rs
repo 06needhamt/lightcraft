@@ -129,7 +129,8 @@ pub(crate) fn handle_bulk_key(app: &mut LightcraftApp, ctx: &egui::Context) -> b
         .or_else(|| {
             page.more.iter().filter(|f| !app.ui.dismissed_faces.contains(&(f.photo, f.index))).find(|f| {
                 ctx.memory(|m| {
-                    m.has_focus(egui::Id::new(("more-face", f.photo, f.index))) || m.has_focus(egui::Id::new(("more-face-above", f.photo, f.index)))
+                    m.has_focus(egui::Id::unique(("more-face", f.photo, f.index)))
+                        || m.has_focus(egui::Id::unique(("more-face-above", f.photo, f.index)))
                 })
             })
         });
@@ -291,14 +292,14 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, name: &str) {
 fn tile(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect, f: &Face, ppp: f32, more: bool, name: &str, above_count: usize) -> Hit {
     let t = Tokens::get(ui.ctx());
     let salt = if more { "more-face" } else { "person-face" };
-    let resp = ui.interact(r, egui::Id::new((salt, f.photo, f.index)), Sense::click());
+    let resp = ui.interact(r, egui::Id::unique((salt, f.photo, f.index)), Sense::click());
     crate::widgets::announce(&resp, name.to_string());
     register(ui.ctx(), format!("{salt}:{}:{}", f.photo, f.index), r);
     // the × is added after the tile, so it wins where they overlap
     let x_rect = Rect::from_min_size(pos2(r.right() - 24.0, r.top() + 4.0), vec2(20.0, 20.0));
-    let x_resp = more.then(|| ui.interact(x_rect, egui::Id::new(("more-face-x", f.photo, f.index)), Sense::click()));
+    let x_resp = more.then(|| ui.interact(x_rect, egui::Id::unique(("more-face-x", f.photo, f.index)), Sense::click()));
     let above_rect = Rect::from_min_size(pos2(r.left() + 4.0, r.top() + 4.0), vec2(24.0, 20.0));
-    let above_resp = more.then(|| ui.interact(above_rect, egui::Id::new(("more-face-above", f.photo, f.index)), Sense::click()));
+    let above_resp = more.then(|| ui.interact(above_rect, egui::Id::unique(("more-face-above", f.photo, f.index)), Sense::click()));
     if more {
         register(ui.ctx(), format!("more-face-above:{}:{}", f.photo, f.index), above_rect);
     }

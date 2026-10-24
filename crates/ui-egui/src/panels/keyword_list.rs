@@ -42,7 +42,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     if !open {
         return;
     }
-    let fid = egui::Id::new("keyword-list-filter");
+    let fid = egui::Id::unique("keyword-list-filter");
     let mut filter: String = ui.data(|d| d.get_temp(fid)).unwrap_or_default();
     ui.horizontal(|ui| {
         ui.add_space(24.0);
@@ -130,11 +130,14 @@ pub fn drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
     let name = keyword.rsplit('|').next().unwrap_or(&keyword).to_string();
-    egui::Area::new(egui::Id::new("drag-keyword")).order(egui::Order::Tooltip).interactable(false).fixed_pos(at + vec2(14.0, 10.0)).show(ctx, |ui| {
-        egui::Frame::NONE.fill(t.accent).corner_radius(10.0).inner_margin(egui::Margin::symmetric(9, 3)).show(ui, |ui| {
-            ui.label(egui::RichText::new(name).color(Color32::WHITE).font(t.semibold(12.0)));
-        });
-    });
+    egui::Area::new(egui::Id::unique("drag-keyword")).order(egui::Order::Tooltip).interactable(false).fixed_pos(at + vec2(14.0, 10.0)).show(
+        ctx,
+        |ui| {
+            egui::Frame::NONE.fill(t.accent).corner_radius(10.0).inner_margin(egui::Margin::symmetric(9, 3)).show(ui, |ui| {
+                ui.label(egui::RichText::new(name).color(Color32::WHITE).font(t.semibold(12.0)));
+            });
+        },
+    );
 }
 
 /// Drop the dragged `keyword` inside `parent` (`None`: the top level). Where one of its name is
@@ -185,7 +188,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     if r.has_children {
         let c = pos2(x + 6.0, cy);
         let tri = Rect::from_center_size(c, vec2(16.0, 16.0));
-        let tr = ui.interact(tri, egui::Id::new(("keyword-list-tri", r.path.to_lowercase())), Sense::click());
+        let tr = ui.interact(tri, egui::Id::unique(("keyword-list-tri", r.path.to_lowercase())), Sense::click());
         crate::widgets::announce(&tr, crate::i18n::tr(if r.open { "Collapse" } else { "Expand" }));
         register(ui.ctx(), format!("keywordRowToggle:{}", r.path), tri);
         // while a filter opens the levels the triangle does nothing: it doesn't light up either
@@ -206,7 +209,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     let on = !selection.is_empty();
     // (it senses drags too, so a press there that moves doesn't pick the keyword up)
     let sense = if on { Sense::click_and_drag() } else { Sense::hover() };
-    let tb = ui.interact(boxr.expand(3.0), egui::Id::new(("keyword-list-tick", r.path.to_lowercase())), sense);
+    let tb = ui.interact(boxr.expand(3.0), egui::Id::unique(("keyword-list-tick", r.path.to_lowercase())), sense);
     crate::widgets::announce(&tb, format!("{} {}", crate::i18n::tr("Keyword"), r.path));
     register(ui.ctx(), format!("keywordCheck:{}", r.path), boxr);
     let edge = if on { t.text_label } else { t.text_dim.gamma_multiply(0.5) };
@@ -243,7 +246,7 @@ fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, r: &Row, selection: &[PhotoId
     register(ui.ctx(), format!("keywordCount:{}", r.path), count_rect);
     ui.painter().galley(count_rect.min, count, t.text_dim);
     let arrow = Rect::from_center_size(pos2(count_rect.left() - 12.0, cy), vec2(16.0, 16.0));
-    let ar = ui.interact(arrow, egui::Id::new(("keyword-list-show", r.path.to_lowercase())), Sense::click());
+    let ar = ui.interact(arrow, egui::Id::unique(("keyword-list-show", r.path.to_lowercase())), Sense::click());
     crate::widgets::announce(&ar, crate::i18n::tr("Show photos"));
     register(ui.ctx(), format!("keywordShow:{}", r.path), arrow);
     if resp.hovered() || ar.hovered() {

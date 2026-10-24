@@ -156,7 +156,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 fn card(app: &mut LightcraftApp, ui: &mut egui::Ui, person: &Person, r: Rect, edge: f32, ppp: f32, selected: bool) {
     let t = Tokens::get(ui.ctx());
     let face = Rect::from_min_size(r.min, vec2(edge, edge));
-    let resp = ui.interact(r, egui::Id::new(("person-card", &person.name)), Sense::click());
+    let resp = ui.interact(r, egui::Id::unique(("person-card", &person.name)), Sense::click());
     crate::widgets::announce(&resp, person.name.clone());
     register(ui.ctx(), format!("person:{}", person.name), r);
     let view = app.session.face_view(person.photo, person.face);

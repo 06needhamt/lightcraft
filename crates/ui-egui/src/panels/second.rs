@@ -12,10 +12,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
     let vid = egui::ViewportId::from_hash_of("lightcraft-second-window");
     let builder = egui::ViewportBuilder::default().with_title("LightCraft — Second Window").with_inner_size([960.0, 640.0]);
-    ctx.show_viewport_immediate(vid, builder, |ctx, class| {
+    ctx.show_viewport_immediate(vid, builder, |ui, class| {
+        // 0.37 passes the viewport's root `Ui` (not a `Context`). Do not enter `root_ui` from it.
         // (without native windows — web, headless — egui wraps this in a floating window)
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ctx, |ui| body(app, ui));
-        if class != egui::ViewportClass::EmbeddedWindow && ctx.input(|i| i.viewport().close_requested()) {
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| body(app, ui));
+        if class != egui::ViewportClass::EmbeddedWindow && ui.ctx().input(|i| i.viewport().close_requested()) {
             app.ui.second_window = false;
         }
     });

@@ -65,7 +65,7 @@ pub struct TextField<'a> {
 
 /// The egui id of the field registered as `widget`, to give it the focus (⌘F to search).
 pub fn id(widget: &str) -> egui::Id {
-    egui::Id::new("lc-text-field").with(widget)
+    egui::Id::unique("lc-text-field").with(widget)
 }
 
 /// Whether the field had an unfinished edit on the immediately preceding egui pass.
@@ -210,7 +210,7 @@ impl<'a> TextField<'a> {
             edit = edit.text_color(color);
         }
         if let Some(align) = self.align {
-            edit = edit.horizontal_align(align);
+            edit = edit.align(egui::Align2([align, egui::Align::Min]));
         }
         if let Some(margin) = self.margin {
             edit = edit.margin(margin);

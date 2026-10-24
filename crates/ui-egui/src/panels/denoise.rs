@@ -41,9 +41,16 @@ pub struct Ui {
 
 /// Called every frame: keeps the engine's denoise work going and asks for a redraw when a photo's picture appears (the
 /// loupe and the thumbnails then render from it) or while one is being made (the progress).
+/// `pump_background` plus the UI-input half, for hosts/tests that have no phase split (the app's
+/// own `logic` and `ui_pass` keep them apart so a hidden tick never paces work from stale input).
 pub fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
-    watch_downloads(app, ctx);
-    let now = ctx.input(|i| i.time);
+    let now = app.tick_now();
+    pump_ui_input(app, ctx, now);
+    pump_background(app, ctx, now);
+}
+
+/// The input-reading half: fresh pointer/key activity and its timestamp. UI phase only.
+pub fn pump_ui_input(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
     let (working, moving) = ctx.input(|i| {
         let keys = i.events.iter().any(|e| matches!(e, egui::Event::Key { .. } | egui::Event::Text(_) | egui::Event::MouseWheel { .. }));
         (i.pointer.any_down() || keys, i.pointer.is_moving())
@@ -54,6 +61,11 @@ pub fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
     if moving || working {
         app.caches.last_move = now;
     }
+}
+
+/// Worker results and pacing on monotonic deadlines; safe in `logic`, including while hidden.
+pub fn pump_background(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
+    watch_downloads(app, ctx);
     if now < app.caches.denoise.next_pump {
         return;
     }
@@ -85,8 +97,8 @@ pub fn pump(app: &mut LightcraftApp, ctx: &egui::Context) {
 }
 
 /// The engine's model list, re-read at most every [`REFRESH_SECS`], or at once after an action changed it.
-fn models(app: &mut LightcraftApp, ctx: &egui::Context) -> Value {
-    let now = ctx.input(|i| i.time);
+fn models(app: &mut LightcraftApp, _ctx: &egui::Context) -> Value {
+    let now = app.tick_now();
     let epoch = app.caches.denoise.epoch;
     if let Some((e, at, v)) = &app.caches.denoise.list
         && *e == epoch
@@ -165,7 +177,7 @@ pub fn detail_status(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, am
         PhotoState::Idle => {
             if amount > 0.0 && app.session.denoise_auto() {
                 // the pump has not met this photo yet: let it come round soon instead of waiting out its pause
-                let now = ui.ctx().input(|i| i.time);
+                let now = app.tick_now();
                 app.caches.denoise.next_pump = app.caches.denoise.next_pump.min(now + 0.05);
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
                 egui::Frame::NONE.inner_margin(pad).show(ui, |ui| note(ui, "Waiting to start…", t.text_dim));
@@ -371,11 +383,12 @@ fn work_section(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, list: &V
         ui.label(RichText::new(crate::i18n::tr("Limit")).color(t.text_label));
         let current = list["cacheGb"].as_u64().unwrap_or(20) as u32;
         let mut choice = current;
-        crate::widgets::combo_box("denoise-cache-limit").selected_text(tr_format!("{size} GB", size = current)).show_ui(ui, |ui| {
+        let combo = crate::widgets::combo_box("denoise-cache-limit").selected_text(tr_format!("{size} GB", size = current)).show_ui(ui, |ui| {
             for gb in CACHE_LIMITS {
                 ui.selectable_value(&mut choice, gb, tr_format!("{size} GB", size = gb));
             }
         });
+        crate::widgets::name_combo(&combo.response, tr("Cache limit"));
         if choice != current {
             let _ = app.run("denoise.settings", json!({"cacheGb": choice}));
             app.caches.denoise.epoch += 1;
@@ -574,7 +587,7 @@ fn count(n: u64, one: &str, many: &str) -> String {
 }
 
 pub(super) fn window_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64, watching: bool) -> &'static str {
-    let (focused, minimized) = ctx.input(|i| (i.focused, i.raw.viewports.get(&i.raw.viewport_id).and_then(|v| v.minimized).unwrap_or(false)));
+    let (focused, minimized) = ctx.input(|i| (i.raw.focused, i.viewport().minimized.unwrap_or(false)));
     pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, watching)
 }
 

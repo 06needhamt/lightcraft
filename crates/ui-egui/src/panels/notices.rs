@@ -92,14 +92,14 @@ enum Choice {
 fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&str, &str, Choice)]) -> Option<usize> {
     let t = Tokens::get(ctx);
     let screen = ctx.content_rect();
-    egui::Area::new(egui::Id::new((id, "dim"))).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique((id, "dim"))).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
         ui.allocate_rect(screen, egui::Sense::click_and_drag());
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(140));
     });
     let mut chosen = None;
     let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(18, 14));
     egui::Window::new(crate::i18n::tr(title))
-        .id(egui::Id::new(id))
+        .id(egui::Id::unique(id))
         .order(egui::Order::Foreground)
         .collapsible(false)
         .resizable(false)

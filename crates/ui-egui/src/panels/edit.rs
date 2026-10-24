@@ -595,7 +595,7 @@ fn preview_histogram(app: &LightcraftApp, id: PhotoId) -> Option<lightcraft_rast
 /// the SDR layout and back while a slider moves. Every render with HDR bins replaces the one kept for the photo, so
 /// the histogram still follows the edit live; an SDR edit shows what it gets.
 fn steady_hdr_histogram(ctx: &egui::Context, id: PhotoId, hdr_edit: bool, hist: Option<Histogram>) -> Option<Histogram> {
-    let key = egui::Id::new(("hdrHistogram", id));
+    let key = egui::Id::unique(("hdrHistogram", id));
     match hist {
         Some(h) if h.hdr.is_some() => {
             ctx.data_mut(|d| d.insert_temp(key, h.clone()));
@@ -656,7 +656,7 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         p.text(pos2((x0 + plot.right()) / 2.0, y), Align2::CENTER_CENTER, crate::i18n::tr("HDR"), t.font(12.5), t.text_label);
         let info = Rect::from_center_size(pos2(plot.right() - 16.0, y), vec2(14.0, 14.0));
         paint(p, info, Icon::Info, t.text_label);
-        ui.interact(info, egui::Id::new("hdrHistogramInfo"), Sense::hover()).on_hover_text(crate::i18n::tr(
+        ui.interact(info, egui::Id::unique("hdrHistogramInfo"), Sense::hover()).on_hover_text(crate::i18n::tr(
             "Left: the standard (SDR) range up to SDR white. Right: the HDR range, one band per stop above SDR white (the orange line: the HDR headroom). With Visualize HDR range on, the bands take its colours.",
         ));
     }
@@ -730,9 +730,9 @@ fn histogram(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ("highlights", plot.right() - inset, "Highlight clipping", clipping.map(|(_, hi)| hi > 0.003)),
     ] {
         let rect = Rect::from_center_size(pos2(x, plot.top() + 14.0), vec2(24.0, 22.0));
-        let response = ui.interact(rect, ui.id().with(("histogram-clipping", name)), Sense::click());
+        let response = ui.interact(rect, ui.scope_id().with(("histogram-clipping", name)), Sense::click());
         register(ui.ctx(), format!("histogram:{name}"), rect);
-        response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), app.ui.show_clipping, crate::i18n::tr(label)));
+        response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), app.ui.show_clipping, crate::i18n::tr(label)));
         clicked |= response.clicked();
         let active = app.ui.show_clipping;
         // Keep the hit target comfortable, with a smaller box and clear space to the plot edges.
@@ -829,7 +829,7 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
             let device = app.ui.proof_profile.as_ref().map(|(_, n)| n.clone());
             let shown = device.clone().unwrap_or_else(|| cur.label().to_string());
             let mut pick = false;
-            crate::widgets::combo_box("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
+            let combo = crate::widgets::combo_box("proof-space").width(170.0).selected_text(shown).show_ui(ui, |ui| {
                 for s in OutputSpace::ALL {
                     if ui.selectable_label(device.is_none() && cur == s, s.label()).clicked() {
                         let _ = app.run("view.softProof", json!({"space": s}));
@@ -842,6 +842,7 @@ fn soft_proofing(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                     pick = true;
                 }
             });
+            crate::widgets::name_combo(&combo.response, crate::i18n::tr("Profile"));
             if pick
                 && let Some(path) = app.services.pick_display_profile.as_mut().and_then(|pick| pick().into_iter().next())
                 && let Err(e) = app.run("view.softProof", json!({"profile": path}))
@@ -981,7 +982,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
     let side = (w - 48.0).max(80.0);
     let (outer, _) = ui.allocate_exact_size(vec2(w, side + 12.0), Sense::hover());
     let r = Rect::from_min_size(pos2(outer.left() + 24.0, outer.top() + 6.0), vec2(side, side));
-    let resp = ui.interact(r, egui::Id::new(("curve", &ch)), Sense::click_and_drag());
+    let resp = ui.interact(r, egui::Id::unique(("curve", &ch)), Sense::click_and_drag());
     crate::widgets::announce(&resp, crate::i18n::tr("Tone Curve"));
     register(ui.ctx(), "curve", r);
     crate::widgets::context_menu(&resp, |ui| curve_reset_menu(app, ui, &ch));
@@ -1058,7 +1059,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
     p.add(egui::Shape::line(line, Stroke::new(2.0, color)));
     // interaction: drag a point (both axes, between its neighbours; ⌥ = fine), drag empty space to add and
     // drag a new point, click empty space to add, double-click a point to delete it
-    let drag_id = egui::Id::new(("curve-drag", &ch));
+    let drag_id = egui::Id::unique(("curve-drag", &ch));
     // the point being dragged (stored as `Option<usize>` so a stale value can be cleared)
     let mut dragging: Option<usize> = ui.data(|dd| dd.get_temp::<Option<usize>>(drag_id)).flatten();
     let nearest = |q: Pos2| pts.iter().enumerate().map(|(i, p)| (i, to_screen(p.x, p.y).distance(q))).min_by(|a, b| a.1.total_cmp(&b.1));
@@ -1526,7 +1527,7 @@ fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings
     // the corners (eye, readout) count as the wheel for hovering
     let zone = r.expand(10.0);
     let hovering = ui.rect_contains_pointer(zone);
-    let resp = ui.interact(r, egui::Id::new(("wheel", key)), Sense::click_and_drag());
+    let resp = ui.interact(r, egui::Id::unique(("wheel", key)), Sense::click_and_drag());
     crate::widgets::announce(&resp, format!("{} {key}", crate::i18n::tr("Color wheel")));
     let resp = resp.on_hover_text(crate::i18n::tr(
         "Drag to set hue and saturation. Hold Shift to keep the hue, Cmd/Ctrl to keep the saturation, Alt/Option to fine-adjust. Double-click to reset.",
@@ -1550,7 +1551,7 @@ fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings
     // Modifiers (as in Lightroom): Shift keeps the hue, Cmd/Ctrl keeps the saturation, Alt moves
     // the puck a tenth as far as the pointer. Pressing or releasing one mid-drag re-grabs the
     // puck as it is at that moment.
-    let grab_id = egui::Id::new(("wheelGrab", key));
+    let grab_id = egui::Id::unique(("wheelGrab", key));
     let mods = ui.input(|i| WheelMods::from_modifiers(i.modifiers));
     let grab = match resp.interact_pointer_pos() {
         Some(q) if resp.dragged() || resp.clicked() => {
@@ -1616,7 +1617,7 @@ fn grading_wheel(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &DevelopSettings
     // the eye: on top of the wheel, shown while hovering or while the wheel is hidden
     if hovering || hidden {
         let eye = Rect::from_center_size(r.left_bottom() + vec2(2.0, -2.0), vec2(16.0, 16.0));
-        let er = ui.interact(eye, egui::Id::new(("wheelEye", key)), Sense::click());
+        let er = ui.interact(eye, egui::Id::unique(("wheelEye", key)), Sense::click());
         crate::widgets::announce(&er, crate::i18n::tr("Show / hide"));
         register(ui.ctx(), format!("wheelEye:{key}"), eye);
         paint(ui.painter(), eye, if hidden { Icon::EyeOff } else { Icon::Eye }, if hidden { t.text_disabled } else { t.icon });
@@ -1797,7 +1798,7 @@ fn quick_develop(app: &mut LightcraftApp, ui: &mut egui::Ui, n: usize) {
                     let r = crate::widgets::arrow_button(ui, "", icon, false);
                     r.widget_info(|| {
                         egui::WidgetInfo::labeled(
-                            egui::WidgetType::Button,
+                            egui::Role::Button,
                             ui.is_enabled(),
                             crate::i18n::tr_format!("{label} {d:+} on every selected photo", d = d, label = crate::i18n::tr(label)),
                         )

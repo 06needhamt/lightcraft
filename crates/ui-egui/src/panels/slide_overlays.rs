@@ -71,7 +71,7 @@ fn toggle(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, value: bool, lab
 
 /// A one-line text field (`field:{id}`), saved when the edit ends.
 fn text(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, value: &str, hint: &str, wrap: &dyn Fn(&str) -> Value) {
-    let mem = egui::Id::new(("slideshow-overlay-field", id));
+    let mem = egui::Id::unique(("slideshow-overlay-field", id));
     let mut s: String = ui.data(|d| d.get_temp(mem)).unwrap_or_else(|| value.to_string());
     let widget = format!("field:{id}");
     let r = TextField::singleline(&widget, &mut s).hint(crate::i18n::tr(hint)).width(ui.available_width().clamp(80.0, 260.0)).show(ui);
@@ -147,7 +147,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let p = s.identity_plate.clone();
     let plate = |v: Value| json!({ "identityPlate": v });
     if toggle(app, ui, "slideshowPlate", p.enabled, "Identity plate", &|v| plate(json!({"enabled": v}))) {
-        let mem = egui::Id::new("slideshow-plate-graphic");
+        let mem = egui::Id::unique("slideshow-plate-graphic");
         let mut graphic = !p.image.is_empty() || ui.data(|d| d.get_temp::<bool>(mem)).unwrap_or(false);
         let before = graphic;
         row(ui, t, "Style", |ui| choices(ui, "slideshowPlateStyle", &[(false, "Text"), (true, "Image")], &mut graphic));

@@ -206,7 +206,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let overlay_key = if overlays.any() { overlays.pixel_key() ^ shown.rotate_left(5) } else { 0 };
     let key = s.pixel_key() ^ id.0.rotate_left(17) ^ ((pw as u64) << 32 | ph as u64) ^ overlay_key.rotate_left(29);
     let now = ui.input(|i| i.time);
-    let mem = egui::Id::new("settingsSlideshowPreviewKey");
+    let mem = egui::Id::unique("settingsSlideshowPreviewKey");
     let (last, since) = ui.ctx().data(|d| d.get_temp::<(u64, f64)>(mem)).unwrap_or((0, f64::NEG_INFINITY));
     let current = app.renderer.textures.get(&Slot::SlidePreview).filter(|tex| tex.photo == id);
     if last != key {
@@ -256,7 +256,7 @@ fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: R
     let compose = std::sync::Arc::new(lightcraft_engine::slide_title::TitleCompose::new(&look.titles, &look.overlays, title, pw, ph));
     let key = compose.key();
     let now = ui.input(|i| i.time);
-    let mem = egui::Id::new("settingsSlideshowTitlePreviewKey");
+    let mem = egui::Id::unique("settingsSlideshowTitlePreviewKey");
     let (last, since) = ui.ctx().data(|d| d.get_temp::<(u64, f64)>(mem)).unwrap_or((0, f64::NEG_INFINITY));
     if last != key {
         ui.ctx().data_mut(|d| d.insert_temp(mem, (key, now)));

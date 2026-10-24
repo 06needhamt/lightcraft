@@ -10,7 +10,7 @@
 //! - `ui.move/click/drag {x, y, …}`: raw pointer input in screen points
 //! - `ui.pointer {events: [{kind: down|drag|up, x, y}], space: "image"}`: gestures in normalized
 //!   image coordinates (brush strokes, crop handles…) — mapped to screen and injected as real input
-//! - `ui.key {key, shift?, alt?, cmd?}` / `ui.text {text}` / `ui.scroll {dx, dy}`
+//! - `ui.key {key, shift?, alt?, cmd?}` / `ui.text {text}` / `ui.scroll {dx, dy, source?, unit?, phase?}`
 //! - `ui.set {view?, panel?, filmstrip?, leftPanel?, zoom?, …}` / `ui.dialog.confirm|cancel`
 //! - `ui.screenshot {path?, headless?}` (headless: CPU-rendered, no compositor needed), `ui.resize {width, height}`, `ui.render {id?, size?, path?}`, `app.quit`
 
@@ -59,7 +59,17 @@ impl ControlRequest {
 
 pub enum Outcome {
     Done(Value),
-    Screenshot { path: Option<String>, headless: bool },
+    /// A capture was admitted: `target` pins the destination identity until the write.
+    Screenshot {
+        target: Option<lightcraft_engine::originals::WriteTarget>,
+        headless: bool,
+    },
+    /// A synthetic-input request that must wait for a fresh layout and for its last event to be
+    /// consumed before it is answered (see `LightcraftApp::admit_gesture`).
+    Gesture {
+        method: String,
+        params: Value,
+    },
 }
 
 fn ok(v: Value) -> Outcome {
@@ -217,128 +227,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                 app.widgets.iter().filter(|(id, _)| id.contains(filter)).map(|(id, r)| json!({"id": id, "rect": rect_json(*r)})).collect(),
             ))
         }
-        "ui.clickWidget" | "ui.dragWidget" | "ui.hoverWidget" => {
-            let Some(id) = s("id") else { return err("missing `id`") };
-            let Some(r) = widget_rect(app, id) else { return err(format!("no widget `{id}` on screen (see ui.widgets)")) };
-            let m = modifiers(p);
-            // optional relative position inside the widget (0..1)
-            let at = egui::pos2(r.left() + r.width() * f("fx").unwrap_or(0.5) as f32, r.top() + r.height() * f("fy").unwrap_or(0.5) as f32);
-            if req.method == "ui.hoverWidget" {
-                app.synthetic.push(egui::Event::PointerMoved(at));
-            } else if req.method == "ui.clickWidget" {
-                let n = p.get("count").and_then(Value::as_u64).unwrap_or(1);
-                let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
-                app.synthetic.push(egui::Event::PointerMoved(at));
-                for _ in 0..n {
-                    app.synthetic.push(egui::Event::PointerButton { pos: at, button, pressed: true, modifiers: m });
-                    app.synthetic.push(egui::Event::PointerButton { pos: at, button, pressed: false, modifiers: m });
-                }
-            } else {
-                let to = egui::pos2(
-                    f("toX").map(|v| v as f32).unwrap_or(at.x + f("dx").unwrap_or(0.0) as f32),
-                    f("toY").map(|v| v as f32).unwrap_or(at.y + f("dy").unwrap_or(0.0) as f32),
-                );
-                push_drag(app, at, to, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
-            }
-            ctx.request_repaint();
-            ok(json!({"rect": rect_json(r)}))
+        "ui.clickWidget" | "ui.dragWidget" | "ui.hoverWidget" | "ui.move" | "ui.click" | "ui.drag" | "ui.pointer" | "ui.key" | "ui.text"
+        | "ui.clipboard" | "ui.scroll" => {
+            // Geometry and input events are resolved only after a fresh completed layout; the
+            // reply waits until the UI has consumed the last event (plan §4.5).
+            Outcome::Gesture { method: req.method.clone(), params: req.params.clone() }
         }
-        "ui.move" => {
-            app.synthetic.push(egui::Event::PointerMoved(egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32)));
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        "ui.click" | "ui.drag" => {
-            let a = egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32);
-            let m = modifiers(p);
-            let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
-            if req.method == "ui.drag" {
-                let b = egui::pos2(f("toX").unwrap_or(0.0) as f32, f("toY").unwrap_or(0.0) as f32);
-                push_drag(app, a, b, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
-            } else {
-                app.synthetic.push(egui::Event::PointerMoved(a));
-                for _ in 0..p.get("count").and_then(Value::as_u64).unwrap_or(1) {
-                    app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: true, modifiers: m });
-                    app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: false, modifiers: m });
-                }
-            }
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        "ui.pointer" => {
-            // events in normalized image coordinates of the displayed photo frame
-            let Some(img) = app.image_rect else { return err("no image on screen (switch to Detail view)") };
-            let Some(events) = p.get("events").and_then(Value::as_array) else { return err("missing `events`") };
-            let m = modifiers(p);
-            for e in events {
-                let x = e.get("x").and_then(Value::as_f64).unwrap_or(0.5) as f32;
-                let y = e.get("y").and_then(Value::as_f64).unwrap_or(0.5) as f32;
-                let pos = egui::pos2(img.left() + x * img.width(), img.top() + y * img.height());
-                match e.get("kind").and_then(Value::as_str).unwrap_or("move") {
-                    "down" => {
-                        app.synthetic.push(egui::Event::PointerMoved(pos));
-                        app.synthetic.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m });
-                    }
-                    "up" => {
-                        app.synthetic.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m })
-                    }
-                    _ => app.synthetic.push(egui::Event::PointerMoved(pos)),
-                }
-            }
-            ctx.request_repaint();
-            ok(json!({"events": events.len()}))
-        }
-        "ui.key" => {
-            let Some(k) = s("key").and_then(key_from) else { return err("unknown or missing `key`") };
-            let m = modifiers(p);
-            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
-            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: false, repeat: false, modifiers: m });
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        "ui.text" => {
-            app.synthetic.push(egui::Event::Text(s("text").unwrap_or("").to_string()));
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        // what the system does for ⌘X / ⌘C / ⌘V in a text field: paste `text`, or (without it)
-        // what the system clipboard holds
-        "ui.clipboard" => {
-            // outside a text field ⌘C / ⌘V are the app's shortcuts (and the macOS menu bar's):
-            // agents run those as commands (`develop.copy`, `develop.paste`)
-            if !ctx.text_edit_focused() {
-                return err("ui.clipboard: no text field has the focus (click one first)");
-            }
-            match s("action") {
-                Some("cut") => app.synthetic.push(egui::Event::Cut),
-                Some("copy") => app.synthetic.push(egui::Event::Copy),
-                Some("paste") => match s("text") {
-                    Some(text) => app.synthetic.push(egui::Event::Paste(text.to_string())),
-                    None => ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste),
-                },
-                _ => return err("ui.clipboard: `action` is cut, copy or paste"),
-            }
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        "ui.scroll" => {
-            app.synthetic.push(egui::Event::MouseWheel {
-                unit: egui::MouseWheelUnit::Point,
-                delta: egui::vec2(f("dx").unwrap_or(0.0) as f32, f("dy").unwrap_or(0.0) as f32),
-                phase: egui::TouchPhase::Move,
-                modifiers: modifiers(p),
-            });
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
-        "ui.zoom" => {
-            let Some(factor) = f("factor").map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0) else {
-                return err("ui.zoom: factor must be a finite positive number (1 = unchanged)");
-            };
-            app.synthetic.push(egui::Event::Zoom(factor));
-            ctx.request_repaint();
-            ok(Value::Null)
-        }
+        "ui.zoom" => Outcome::Gesture { method: req.method.clone(), params: req.params.clone() },
         "ui.set" => {
             // an arrangement of the sidebar is checked, not made whole as a settings file's is
             let sidebar = match p.get("sidebar").map(crate::sidebar::SidebarLayout::parse).transpose() {
@@ -430,12 +325,18 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
             _ => err("ui.zoomFactor: factor must be a number from 0.5 to 3"),
         },
         "ui.screenshot" => {
-            // never over a photo's original
-            if let Some(Err(e)) = s("path").map(|path| app.session.check_write_target(path)) {
-                return err(e);
-            }
+            // Never over a photo's original, and pin the destination identity now: the write
+            // revalidates it after the (possibly lengthy) capture and never replaces a path that
+            // was absent at admission but appeared meanwhile.
+            let target = match s("path") {
+                Some(path) => match app.session.pin_write_target(path) {
+                    Ok(t) => Some(t),
+                    Err(e) => return err(e),
+                },
+                None => None,
+            };
             ctx.request_repaint();
-            Outcome::Screenshot { path: s("path").map(str::to_string), headless: p.get("headless").and_then(Value::as_bool).unwrap_or(false) }
+            Outcome::Screenshot { target, headless: p.get("headless").and_then(Value::as_bool).unwrap_or(false) }
         }
         "ui.render" => {
             let id = match p.get("id").filter(|v| !v.is_null()) {
@@ -562,22 +463,195 @@ pub fn export_active(app: &mut LightcraftApp, p: &Value) -> Result<Value, String
     Ok(out)
 }
 
-pub fn save_screenshot(app: &mut LightcraftApp, image: &egui::ColorImage, path: Option<&str>) -> Value {
+/// Resolve one queued synthetic-input control request against the **current** layout.
+///
+/// Called by the app only after a completed UI pass newer than admission (plan §4.5). Widget rects
+/// and the image rect therefore come from that pass; nothing is retargeted. A successful return
+/// has pushed the events onto `app.synthetic`; the app answers the request once the UI consumed
+/// them.
+pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, method: &str, p: &Value) -> Result<Value, String> {
+    let s = |k: &str| p.get(k).and_then(Value::as_str);
+    let f = |k: &str| p.get(k).and_then(Value::as_f64);
+    match method {
+        "ui.clickWidget" | "ui.dragWidget" | "ui.hoverWidget" => {
+            let Some(id) = s("id") else { return Err("missing `id`".into()) };
+            let Some(r) = widget_rect(app, id) else { return Err(format!("no widget `{id}` on screen (see ui.widgets)")) };
+            let m = modifiers(p);
+            let at = egui::pos2(r.left() + r.width() * f("fx").unwrap_or(0.5) as f32, r.top() + r.height() * f("fy").unwrap_or(0.5) as f32);
+            if method == "ui.hoverWidget" {
+                app.synthetic.push(egui::Event::PointerMoved(at));
+            } else if method == "ui.clickWidget" {
+                let n = p.get("count").and_then(Value::as_u64).unwrap_or(1);
+                let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
+                app.synthetic.push(egui::Event::PointerMoved(at));
+                for _ in 0..n {
+                    app.synthetic.push(egui::Event::PointerButton { pos: at, button, pressed: true, modifiers: m });
+                    app.synthetic.push(egui::Event::PointerButton { pos: at, button, pressed: false, modifiers: m });
+                }
+            } else {
+                let to = egui::pos2(
+                    f("toX").map(|v| v as f32).unwrap_or(at.x + f("dx").unwrap_or(0.0) as f32),
+                    f("toY").map(|v| v as f32).unwrap_or(at.y + f("dy").unwrap_or(0.0) as f32),
+                );
+                push_drag(app, at, to, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
+            }
+            ctx.request_repaint();
+            Ok(json!({"rect": rect_json(r)}))
+        }
+        "ui.move" => {
+            app.synthetic.push(egui::Event::PointerMoved(egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32)));
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.click" | "ui.drag" => {
+            let a = egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32);
+            let m = modifiers(p);
+            let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
+            if method == "ui.drag" {
+                let b = egui::pos2(f("toX").unwrap_or(0.0) as f32, f("toY").unwrap_or(0.0) as f32);
+                push_drag(app, a, b, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
+            } else {
+                app.synthetic.push(egui::Event::PointerMoved(a));
+                for _ in 0..p.get("count").and_then(Value::as_u64).unwrap_or(1) {
+                    app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: true, modifiers: m });
+                    app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: false, modifiers: m });
+                }
+            }
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.pointer" => {
+            let Some(img) = app.image_rect else { return Err("no image on screen (switch to Detail view)".into()) };
+            let Some(events) = p.get("events").and_then(Value::as_array) else { return Err("missing `events`".into()) };
+            let m = modifiers(p);
+            for e in events {
+                let x = e.get("x").and_then(Value::as_f64).unwrap_or(0.5) as f32;
+                let y = e.get("y").and_then(Value::as_f64).unwrap_or(0.5) as f32;
+                let pos = egui::pos2(img.left() + x * img.width(), img.top() + y * img.height());
+                match e.get("kind").and_then(Value::as_str).unwrap_or("move") {
+                    "down" => {
+                        app.synthetic.push(egui::Event::PointerMoved(pos));
+                        app.synthetic.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: m });
+                    }
+                    "up" => {
+                        app.synthetic.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: m })
+                    }
+                    _ => app.synthetic.push(egui::Event::PointerMoved(pos)),
+                }
+            }
+            ctx.request_repaint();
+            Ok(json!({"events": events.len()}))
+        }
+        "ui.key" => {
+            let Some(k) = s("key").and_then(key_from) else { return Err("unknown or missing `key`".into()) };
+            let m = modifiers(p);
+            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
+            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: false, repeat: false, modifiers: m });
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.text" => {
+            app.synthetic.push(egui::Event::Text(s("text").unwrap_or("").to_string()));
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.clipboard" => {
+            if !ctx.text_edit_focused() {
+                return Err("ui.clipboard: no text field has the focus (click one first)".into());
+            }
+            match s("action") {
+                Some("cut") => app.synthetic.push(egui::Event::Cut),
+                Some("copy") => app.synthetic.push(egui::Event::Copy),
+                Some("paste") => match s("text") {
+                    Some(text) => app.synthetic.push(egui::Event::Paste(text.to_string())),
+                    None => ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste),
+                },
+                _ => return Err("ui.clipboard: `action` is cut, copy or paste".into()),
+            }
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.scroll" => {
+            // Omitted keys keep the pre-0.37 request meaning; all other values are validated
+            // before anything is queued.
+            let source = match s("source") {
+                None | Some("unknown") => egui::MouseWheelSource::Unknown,
+                Some("wheel") => egui::MouseWheelSource::Wheel,
+                Some("trackpad") => egui::MouseWheelSource::Trackpad,
+                Some("momentum") => egui::MouseWheelSource::Momentum,
+                Some(other) => return Err(format!("ui.scroll: `source` is wheel, trackpad, momentum or unknown, not {other:?}")),
+            };
+            let unit = match s("unit") {
+                None | Some("point") => egui::MouseWheelUnit::Point,
+                Some("line") => egui::MouseWheelUnit::Line,
+                Some("page") => egui::MouseWheelUnit::Page,
+                Some(other) => return Err(format!("ui.scroll: `unit` is point, line or page, not {other:?}")),
+            };
+            let phase = match s("phase") {
+                None | Some("move") => egui::TouchPhase::Move,
+                Some("start") => egui::TouchPhase::Start,
+                Some("end") => egui::TouchPhase::End,
+                Some("cancel") => egui::TouchPhase::Cancel,
+                Some(other) => return Err(format!("ui.scroll: `phase` is start, move, end or cancel, not {other:?}")),
+            };
+            app.synthetic.push(egui::Event::MouseWheel {
+                unit,
+                delta: egui::vec2(f("dx").unwrap_or(0.0) as f32, f("dy").unwrap_or(0.0) as f32),
+                phase,
+                source,
+                modifiers: modifiers(p),
+            });
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        "ui.zoom" => {
+            let Some(factor) = f("factor").map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0) else {
+                return Err("ui.zoom: factor must be a finite positive number (1 = unchanged)".into());
+            };
+            app.synthetic.push(egui::Event::Zoom(factor));
+            ctx.request_repaint();
+            Ok(Value::Null)
+        }
+        other => Err(format!("not a synthetic-input gesture: `{other}`")),
+    }
+}
+
+pub fn save_screenshot(app: &mut LightcraftApp, image: &egui::ColorImage, target: Option<&lightcraft_engine::originals::WriteTarget>) -> Value {
     let [w, h] = image.size;
-    let Some(path) = path else {
+    let Some(target) = target else {
         return json!({"ok": true, "result": {"width": w, "height": h}});
     };
-    let rgba: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
-    let Some(img) = lightcraft_raster::Rgba8::from_bytes(w, h, &rgba) else {
+    // Re-check the pinned destination immediately before encoding/writing. This is the point the
+    // asynchronous renderer callback and the CPU fallback share.
+    if let Err(error) = app.session.revalidate_write_target(target) {
+        return json!({"ok": false, "error": error});
+    }
+    // Rgba8's buffer is the only extra full-image allocation while encoding (the PNG bytes are
+    // the second transient; see MAX_SHOT_WORKING_SET_BYTES in `lib.rs`). Building it straight from
+    // the `Color32` pixels avoids the former flat `Vec<u8>` copy of the same image.
+    let Some(img) = lightcraft_raster::Rgba8::from_pixels(w, h, image.pixels.iter().map(|c| c.to_array())) else {
         return json!({"ok": false, "error": "bad screenshot buffer"});
     };
     let Some(png) = app.services.png.as_ref() else { return json!({"ok": false, "error": "no encoder"}) };
     let bytes = png(&img);
-    match app.services.write.as_mut() {
-        Some(wr) => match wr(path, &bytes) {
+    let path = target.path();
+    if target.was_absent() {
+        // Publish a complete temp file with create-new semantics: a file that appeared after the
+        // revalidation above is never replaced. Without this writer the capture fails closed.
+        let Some(writer) = app.services.write_new.as_mut() else {
+            return json!({"ok": false, "error": format!("{path}: no create-new writer configured for a new screenshot path")});
+        };
+        match writer(path, &bytes) {
             Ok(()) => json!({"ok": true, "result": {"path": path, "width": w, "height": h}}),
             Err(e) => json!({"ok": false, "error": e}),
-        },
-        None => json!({"ok": false, "error": "no writer configured"}),
+        }
+    } else {
+        match app.services.write.as_mut() {
+            Some(wr) => match wr(path, &bytes) {
+                Ok(()) => json!({"ok": true, "result": {"path": path, "width": w, "height": h}}),
+                Err(e) => json!({"ok": false, "error": e}),
+            },
+            None => json!({"ok": false, "error": "no writer configured"}),
+        }
     }
 }

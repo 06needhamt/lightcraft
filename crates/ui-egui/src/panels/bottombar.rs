@@ -146,7 +146,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
         return;
     }
     let copy_r = Rect::from_min_size(pos2(pill.right() + 10.0, pill.top()), vec2(copy_width, 30.0));
-    let cresp = ui.interact(copy_r, egui::Id::new("copy-settings"), Sense::click());
+    let cresp = ui.interact(copy_r, egui::Id::unique("copy-settings"), Sense::click());
     crate::widgets::announce(&cresp, label.to_string());
     register(ui.ctx(), "button:copySettings", copy_r);
     ui.painter().rect_filled(copy_r, 15.0, if cresp.hovered() { t.hover } else { t.canvas });
@@ -157,7 +157,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
         app.toast(ui.ctx(), crate::i18n::tr(msg));
     }
     let gear_r = Rect::from_min_size(pos2(copy_r.right() + 4.0, pill.top()), vec2(30.0, 30.0));
-    let gresp = ui.interact(gear_r, egui::Id::new("copy-gear"), Sense::click());
+    let gresp = ui.interact(gear_r, egui::Id::unique("copy-gear"), Sense::click());
     crate::widgets::announce(&gresp, crate::i18n::tr("Copy Settings…"));
     register(ui.ctx(), "icon:copyGear", gear_r);
     ui.painter().rect_filled(gear_r, 15.0, if gresp.hovered() { t.hover } else { t.canvas });
@@ -368,7 +368,8 @@ mod visual_regressions {
                     harness.run_steps(4);
                     let stem = format!("lightcraft-bottom-{view:?}-{width}-{scale}x");
                     harness.render().unwrap().save(directory.join(format!("{stem}.png"))).unwrap();
-                    let panel = egui::containers::panel::PanelState::load(&harness.ctx, egui::Id::new("bottom_bar")).unwrap().outer_rect;
+                    let panel_id = harness.ctx.viewport_id().root_ui_id().with("bottom_bar");
+                    let panel = egui::containers::panel::PanelState::load(&harness.ctx, panel_id).unwrap().outer_rect;
                     let controls: serde_json::Map<String, serde_json::Value> = crate::widgets::take_registry(&harness.ctx)
                         .into_iter()
                         .map(|(id, r)| (id, json!([r.left(), r.top(), r.width(), r.height()])))

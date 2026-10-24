@@ -985,7 +985,7 @@ pub fn show_in_window(app: &mut LightcraftApp, ui: &mut egui::Ui, max_width: f32
 /// Returns the menu whose title was just clicked right after a hover opened it.
 fn switch_open_title(ctx: &egui::Context, titles: &[egui::Response]) -> Option<egui::Id> {
     let popup = egui::Popup::default_response_id;
-    let key = egui::Id::new("lc-menubar-hover-opened");
+    let key = egui::Id::unique("lc-menubar-hover-opened");
     let open = titles.iter().position(|r| egui::Popup::is_id_open(ctx, popup(r)));
     // the menu a hover opened, until it closes or is clicked
     let mut confirmed = None;

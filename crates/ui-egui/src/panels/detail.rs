@@ -211,7 +211,7 @@ pub(crate) fn navigate_gesture(app: &mut LightcraftApp, ui: &mut egui::Ui, resp:
         ui.input(|i| (i.zoom_delta(), i.translation_delta(), i.multi_touch().map(|t| t.center_pos).or(i.pointer.hover_pos())));
     // A notched mouse wheel (line/page units, no modifier) zooms around the pointer, through egui's smoothed wheel
     // delta like Ctrl+wheel (so it glides instead of jumping); trackpads report points and still pan.
-    let wheel_id = egui::Id::new("loupe-wheel-zoom");
+    let wheel_id = egui::Id::unique("loupe-wheel-zoom");
     if ui.input(|i| wheel_notches(&i.events)) != 0.0 {
         ui.data_mut(|d| d.insert_temp(wheel_id, true));
     }
@@ -330,7 +330,7 @@ pub(crate) fn draw_focus_point(p: &egui::Painter, img: Rect, photo: &lightcraft_
 /// Ease the loupe rect toward `target` while a click-zoom animation runs; otherwise follow it exactly.
 fn animated_rect(ctx: &egui::Context, anim: &mut bool, target: Rect) -> Rect {
     let t = if *anim { 0.22 } else { 0.0 };
-    let id = egui::Id::new("loupe_anim");
+    let id = egui::Id::unique("loupe_anim");
     let v = |k: &str, x: f32| ctx.animate_value_with_time(id.with(k), x, t);
     let (c, s) = (target.center(), target.size());
     let r = Rect::from_center_size(pos2(v("cx", c.x), v("cy", c.y)), vec2(v("w", s.x), v("h", s.y)));
@@ -524,7 +524,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // another crop): a texture's whole-pixel size is a little off the exact aspect, and the crop
     // tool's overlays need the frame's own geometry.
     let display_aspect = visible_texture_aspect.filter(|a| !crop_tool && (a / aspect - 1.0).abs() > 0.02).unwrap_or(aspect);
-    let resp = ui.interact(canvas, egui::Id::new("loupe"), Sense::click_and_drag());
+    let resp = ui.interact(canvas, egui::Id::unique("loupe"), Sense::click_and_drag());
     crate::widgets::announce(&resp, crate::i18n::tr("Photo"));
     let mut target_rect = fit_rect(main_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan);
     let mut img_rect = animated_rect(ui.ctx(), &mut app.ui.zoom_anim, target_rect);
@@ -935,7 +935,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         && whole.iter().chain(windows.iter().map(|(v, _)| &v.slot)).any(|s| app.renderer.is_pending(*s) && !app.renderer.retrying(*s));
     let keys =
         [Slot::Main, Slot::Before, Slot::Region, Slot::RegionBefore].map(|s| app.renderer.textures.get(&s).filter(|t| t.photo == id).map(|t| t.key));
-    let rendering = ui.ctx().data_mut(|d| rendering_overdue(d.get_temp_mut_or(egui::Id::new("loupe-rendering"), None), keys, coming, now));
+    let rendering = ui.ctx().data_mut(|d| rendering_overdue(d.get_temp_mut_or(egui::Id::unique("loupe-rendering"), None), keys, coming, now));
     // the render failed while a stand-in is up: what is on screen is all there will be (also while
     // a library change retries it)
     let failed = (!rendering
@@ -1080,7 +1080,7 @@ fn region_overlay(
     let clip = p.clip_rect();
     let pointer = ui.input(|i| i.pointer.hover_pos());
     // the box being dragged: (region index, its box so far)
-    let drag_key = egui::Id::new("region-drag");
+    let drag_key = egui::Id::unique("region-drag");
     let live: Option<(usize, lightcraft_geom::Rect)> = ui.data(|d| d.get_temp(drag_key));
     let mut edit = None;
     for (index, r) in photo.meta.regions.iter().enumerate() {
@@ -1093,7 +1093,7 @@ fn region_overlay(
         if dragging.is_some() || (live.is_none() && pointer.is_some_and(|h| rect.expand(8.0).contains(h))) {
             for (h, (fx, fy, cursor)) in REGION_HANDLES.iter().enumerate() {
                 let c = pos2(rect.left() + fx * rect.width(), rect.top() + fy * rect.height());
-                let resp = ui.interact(Rect::from_center_size(c, vec2(14.0, 14.0)), egui::Id::new(("region-handle", index, h)), Sense::drag());
+                let resp = ui.interact(Rect::from_center_size(c, vec2(14.0, 14.0)), egui::Id::unique(("region-handle", index, h)), Sense::drag());
                 crate::widgets::announce(&resp, crate::i18n::tr("Resize region"));
                 if resp.hovered() || resp.dragged() {
                     ui.ctx().set_cursor_icon(*cursor);
@@ -1138,7 +1138,7 @@ fn region_overlay(
         }
         if dragging.is_none() && live.is_none() && pointer.is_some_and(|h| rect.expand(3.0).contains(h)) {
             let xr = Rect::from_center_size(pos2(rect.right() - 13.0, rect.top() + 13.0), vec2(16.0, 16.0));
-            let resp = ui.interact(xr, egui::Id::new(("region-x", index)), Sense::click());
+            let resp = ui.interact(xr, egui::Id::unique(("region-x", index)), Sense::click());
             crate::widgets::announce(&resp, crate::i18n::tr("Remove region"));
             register(ui.ctx(), format!("regionRemove:{index}"), xr);
             let fill = Color32::from_black_alpha(if resp.hovered() { 235 } else { 190 });
@@ -1188,7 +1188,7 @@ fn region_overlay(
         p.galley(label.min + pad, g, text_color);
         if is_face && live.is_none() {
             // a click on the label opens the name box, filled with the name or the guess
-            let resp = ui.interact(label, egui::Id::new(("region-label", index)), Sense::click());
+            let resp = ui.interact(label, egui::Id::unique(("region-label", index)), Sense::click());
             crate::widgets::announce(&resp, crate::i18n::tr("Click to name this face"));
             register(ui.ctx(), format!("regionLabel:{index}"), label);
             if resp.on_hover_text(crate::i18n::tr("Click to name this face")).clicked() {
@@ -1235,7 +1235,7 @@ fn filter_pill(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect) {
     let inset = FILTER_PILL_INSET;
     let w = (g.size().x + 40.0).min((canvas.width() - 2.0 * inset).max(60.0));
     let r = Rect::from_min_size(canvas.min + vec2(inset, inset), vec2(w, FILTER_PILL_HEIGHT));
-    let resp = ui.interact(r, egui::Id::new("loupe-filter-pill"), Sense::click());
+    let resp = ui.interact(r, egui::Id::unique("loupe-filter-pill"), Sense::click());
     crate::widgets::announce(&resp, crate::i18n::tr("Filters"));
     register(ui.ctx(), "loupe:filters", r);
     p.rect_filled(r, 10.0, Color32::from_black_alpha(if resp.hovered() { 225 } else { 185 }));
@@ -1263,7 +1263,7 @@ fn preview_only_pill(ui: &mut egui::Ui, canvas: Rect, reason: &str) {
     crate::icons::paint(&p, Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(15.0, 15.0)), crate::icons::Icon::Info, t.caution);
     p.galley(pos2(r.left() + 29.0, r.center().y - g.size().y / 2.0), g, Color32::WHITE);
     register(ui.ctx(), "notice:previewOnly:loupe", r);
-    ui.interact(r, egui::Id::new("preview-only-pill"), Sense::hover()).on_hover_text(crate::widgets::preview_only_explanation(reason));
+    ui.interact(r, egui::Id::unique("preview-only-pill"), Sense::hover()).on_hover_text(crate::widgets::preview_only_explanation(reason));
 }
 
 /// One line of the info overlay for `photo`; `None` when the field is None or the photo has
@@ -1334,7 +1334,7 @@ fn navigator(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect, img: Rect
     p.rect_stroke(view, 0.0, Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
     p.rect_stroke(view.expand(1.5), 0.0, Stroke::new(1.0, Color32::from_black_alpha(160)), StrokeKind::Outside);
     register(ui.ctx(), "canvas:navigator", frame);
-    let resp = ui.interact(frame.expand(5.0), egui::Id::new("navigator"), Sense::click_and_drag());
+    let resp = ui.interact(frame.expand(5.0), egui::Id::unique("navigator"), Sense::click_and_drag());
     crate::widgets::announce(&resp, crate::i18n::tr("Navigator"));
     if (resp.clicked() || resp.dragged())
         && let Some(q) = resp.interact_pointer_pos()
@@ -1416,8 +1416,8 @@ pub(crate) fn failed_pill(
     let offline = matches!(&photo.source, lightcraft_catalog::Source::File { path } if app.session.media.availability.is_offline(path));
     let text = crate::i18n::tr(if offline { "Original offline · no smart preview" } else { "This photo can't be opened" });
     let r = loupe_pill(ui, canvas, over, navigator, id, text, true);
-    let resp = ui.interact(r, egui::Id::new(("render-failed", id)), Sense::hover()).on_hover_text(error);
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, format!("{text}: {error}")));
+    let resp = ui.interact(r, egui::Id::unique(("render-failed", id)), Sense::hover()).on_hover_text(error);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("{text}: {error}")));
 }
 
 fn quick_name(q: lightcraft_engine::media::QuickSource) -> &'static str {
@@ -1847,7 +1847,7 @@ pub(crate) fn readout_rect(at: Pos2, size: egui::Vec2, bounds: Rect) -> Rect {
 
 /// On top of everything (the tooltip layer), so neither the photo nor a panel covers it.
 fn top_painter(ui: &egui::Ui, name: &'static str) -> egui::Painter {
-    ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new(name)))
+    ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique(name)))
 }
 
 /// The rotation pointer: a curved double arrow on a dark disc, so it reads over any photo,
@@ -2359,7 +2359,7 @@ fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Respons
             match app.run_typed("mask.objectPoint", json!({"x": n.x, "y": n.y, "exclude": exclude})) {
                 Ok(_) => {
                     if let Some(mid) = app.session.active_mask {
-                        app.ui.detail_due = Some((ui.input(|i| i.time) + 1.0, mid));
+                        app.ui.detail_due = Some((app.tick_now() + 1.0, mid));
                     }
                 }
                 Err(e) => app.ai_error(ui.ctx(), e, Some(("object", "new"))),
@@ -2709,7 +2709,7 @@ fn spot_keys(app: &mut LightcraftApp, ui: &mut egui::Ui, map: &CanvasMap, d: &De
         }
     }
     // where a new spot goes: the photo's centre at first, then wherever the arrows took it
-    let key = egui::Id::new("lc-spot-placement");
+    let key = egui::Id::unique("lc-spot-placement");
     let place: (f64, f64) = ui.data(|m| m.get_temp(key)).unwrap_or((0.5, 0.5));
     let q = map.screen(Point::new(place.0, place.1));
     let keys = crate::canvas_keys::handle(
@@ -2826,10 +2826,10 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
     // a vertical mouse wheel scrolls the strip sideways (horizontal trackpad scrolls still work)
     child.style_mut().always_scroll_the_only_direction = true;
     // only a new active photo (or the strip appearing) scrolls it; see `grid::follow_active`
-    let follow = super::grid::follow_active(child.ctx(), egui::Id::new("film-follow-active"), active, app.session.source);
+    let follow = super::grid::follow_active(child.ctx(), egui::Id::unique("film-follow-active"), active, app.session.source);
     // a wheel notch scrolls a third of its width; see `grid::wheel_step`
     register(ui.ctx(), "filmstrip", child.max_rect());
-    let wheel = super::grid::wheel_step(&child, egui::Id::new("film-wheel"), child.max_rect(), child.max_rect().width(), true);
+    let wheel = super::grid::wheel_step(&child, egui::Id::unique("film-wheel"), child.max_rect(), child.max_rect().width(), true);
     egui::ScrollArea::horizontal().id_salt("filmstrip").auto_shrink([false, false]).show_viewport(&mut child, |ui, vp| {
         if wheel != egui::Vec2::ZERO {
             ui.scroll_with_delta_animation(wheel, egui::style::ScrollAnimation::none());
@@ -2846,7 +2846,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             if !local.intersects(vp.expand2(vec2(cell_w * 4.0, 0.0))) {
                 continue;
             }
-            let resp = ui.interact(cr, egui::Id::new(("film", id.0)), Sense::click());
+            let resp = ui.interact(cr, egui::Id::unique(("film", id.0)), Sense::click());
             crate::widgets::announce(&resp, app.session.catalog.photo(*id).map(|p| p.file_name.clone()).unwrap_or_default());
             register(ui.ctx(), format!("film:{}", id.0), cr);
             let state = app.session.selection.state_of(*id);
@@ -2892,7 +2892,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                     let g = p.layout_no_wrap(text, t.semibold(9.5), Color32::WHITE);
                     let br = Rect::from_min_size(fr.min + vec2(3.0, 3.0), vec2(g.size().x + 22.0, 15.0));
                     // like the grid's badge: a click expands / collapses the stack
-                    let badge = ui.interact(br, egui::Id::new(("film-stack-badge", id.0)), Sense::click()).on_hover_text(if collapsed {
+                    let badge = ui.interact(br, egui::Id::unique(("film-stack-badge", id.0)), Sense::click()).on_hover_text(if collapsed {
                         "Stack — click to expand"
                     } else {
                         "Stack — click to collapse"
@@ -3289,7 +3289,7 @@ mod wheel_zoom_tests {
     use super::*;
 
     fn wheel(unit: egui::MouseWheelUnit, y: f32, modifiers: egui::Modifiers) -> egui::Event {
-        egui::Event::MouseWheel { unit, delta: egui::vec2(0.0, y), phase: egui::TouchPhase::Move, modifiers }
+        egui::Event::MouseWheel { unit, delta: egui::vec2(0.0, y), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Unknown, modifiers }
     }
 
     #[test]
