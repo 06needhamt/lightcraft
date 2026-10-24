@@ -2,6 +2,11 @@
 
 ## 2026-10-24
 
+### The Slideshow settings page stays put while the preview renders
+- In Settings ▸ Slideshow, the line under the slide preview ("The selected photo as a slide…") now shows from the first
+  frame instead of only once the preview has finished rendering. Before, it appeared with the render, pushing the page
+  below it down by a line, so a click made in that moment could land beside the control you aimed at.
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for
