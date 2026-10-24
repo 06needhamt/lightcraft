@@ -179,7 +179,7 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
         }
         comp::LOSSY_JPEG => {
             // lossy DNG: each chunk is a baseline (DCT) JPEG of 8-bit samples
-            let (px, jw, jh, jc) = lossy_jpeg(src, cpp)?;
+            let (px, jw, jh, jc) = lossy_jpeg(src, cpp, MAX_JPEG_SAMPLES)?;
             let mut v = vec![0u16; n];
             for y in 0..ch.min(jh) {
                 for x in 0..cw.min(jw) {
@@ -197,7 +197,23 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
             // the gate caps at MAX_SAMPLES (≤ 2^30), so the `usize` cast below is lossless on 32-bit targets too
             let inflate_len =
                 crate::checked_pixel_count(row_bytes, ch as u64).ok_or_else(|| RawError::Corrupt("bad TIFF chunk dimensions".into()))?;
+            // Deflate compresses at most about 1:1032, so a source this far under half of its
+            // nominal length cannot reconstruct the chunk: refused before the nominal buffer is
+            // inflated and predicted, which padding-only work would make gigabytes.
+            if (src.len() as u64).saturating_mul(2048) < inflate_len {
+                return Err(RawError::Corrupt(format!("a deflated chunk of {inflate_len} bytes is packed into only {} bytes", src.len())));
+            }
             let raw = inflate(src, inflate_len as usize)?;
+            // The stream has to reach the last row inside the image (edge strips may stop there);
+            // it is laid out in nominal rows, so shorter is a truncated chunk, not a picture.
+            let last = if float { vw as u64 * cpp as u64 * bytes_per as u64 } else { (vw as u64 * cpp as u64 * bits as u64).div_ceil(8) };
+            let visible = row_bytes.saturating_mul(vh.saturating_sub(1) as u64).saturating_add(last);
+            if (raw.len() as u64) < visible {
+                return Err(RawError::Corrupt(format!(
+                    "a deflated chunk holds {} bytes, fewer than the {visible} bytes its in-image samples span",
+                    raw.len()
+                )));
+            }
             unpack_chunk(&raw, order, packing, cw, ch, cpp, bits, float, info.predictor)
         }
         comp::JPEG_XL => jxl_chunk(src, cw, ch, vw, vh, cpp, bits, float),
@@ -228,19 +244,31 @@ fn jxl_chunk_check(src: &[u8], cw: usize, ch: usize, vw: usize, vh: usize, cpp: 
     jxl_chunk(src, cw, ch, vw, vh, cpp, bits, float).map(|_| ())
 }
 
+/// The most samples a tiled JPEG chunk or a white-balance preview may decode to: far more than
+/// any real lossy tile or preview carries, and small enough that a JPEG header alone cannot size
+/// a multi-gigabyte allocation.
+pub(crate) const MAX_JPEG_SAMPLES: usize = 1 << 26;
+
 /// Decode one baseline JPEG chunk to 8-bit samples: (samples, width, height, channels).
-pub(crate) fn lossy_jpeg(src: &[u8], cpp: usize) -> Result<(Vec<u8>, usize, usize, usize)> {
+pub(crate) fn lossy_jpeg(src: &[u8], cpp: usize, max_samples: usize) -> Result<(Vec<u8>, usize, usize, usize)> {
     use zune_core::bytestream::ZCursor;
     use zune_core::colorspace::ColorSpace;
     use zune_core::options::DecoderOptions;
     let cs = if cpp == 1 { ColorSpace::Luma } else { ColorSpace::RGB };
     let opts = DecoderOptions::default().set_max_width(1 << 16).set_max_height(1 << 16).set_strict_mode(false).jpeg_set_out_colorspace(cs);
     let mut d = zune_jpeg::JpegDecoder::new_with_options(ZCursor::new(src), opts);
-    let px = d.decode().map_err(|e| RawError::Corrupt(format!("lossy JPEG tile: {e}")))?;
+    // The header is read first: the JPEG's own dimensions, not the enclosing tile's, size every
+    // allocation `decode` makes, and they may claim billions of pixels.
+    d.decode_headers().map_err(|e| RawError::Corrupt(format!("lossy JPEG tile: {e}")))?;
     let info = d.info().ok_or_else(|| RawError::Corrupt("lossy JPEG tile without a header".into()))?;
     let (w, h) = (info.width as usize, info.height as usize);
     let c = if cpp == 1 { 1 } else { 3 };
-    if w == 0 || h == 0 || px.len() < w * h * c {
+    let out = w as u64 * h as u64 * c as u64;
+    if w == 0 || h == 0 || out > max_samples as u64 {
+        return Err(RawError::Corrupt(format!("a lossy JPEG of {w} × {h} × {c} would exceed the {max_samples} output samples allowed")));
+    }
+    let px = d.decode().map_err(|e| RawError::Corrupt(format!("lossy JPEG tile: {e}")))?;
+    if px.len() < w * h * c {
         return Err(RawError::Corrupt("lossy JPEG tile: short output".into()));
     }
     Ok((px, w, h, c))
@@ -470,5 +498,58 @@ mod lossy_tests {
         assert_eq!(decode(8, 8), Ok(RawData::U16(vec![300; 8 * 8])));
         // half of the visible rows are missing
         assert!(decode(8, 4).is_err());
+    }
+
+    /// A lossy JPEG whose header alone claims more samples than any real tile or preview (here
+    /// 40000 × 40000 × 3) is refused from the header, before the decoder allocates its output
+    /// from the JPEG's own dimensions.
+    #[test]
+    fn an_oversized_lossy_jpeg_header_is_refused_before_decoding() {
+        let mut j = vec![0xff, 0xd8]; // SOI
+        // SOF0: precision 8, 40000 (0x9c40) x 40000, three components
+        j.extend([0xff, 0xc0, 0x00, 0x11, 0x08, 0x9c, 0x40, 0x9c, 0x40, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
+        // SOS with three components so header parsing completes normally, then EOI
+        j.extend([0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00, 0x00, 0x3f, 0x00, 0x00, 0xff, 0xd9]);
+        let e = lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).unwrap_err();
+        assert!(matches!(e, RawError::Corrupt(_)), "{e:?}");
+        // a header inside the budget passes the check (and then fails to decode only for lack of data)
+        j[12..14].copy_from_slice(&1024u16.to_be_bytes());
+        j[14..16].copy_from_slice(&1024u16.to_be_bytes());
+        assert!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).is_ok() || matches!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES), Err(RawError::Corrupt(_))));
+    }
+
+    /// A deflated tile is refused when its packed bytes are too few for deflate to have produced
+    /// the nominal chunk, or when the stream stops short of the rows inside the image; a fully
+    /// covered flat tile still decodes.
+    #[test]
+    fn a_short_or_undercovering_deflated_tile_is_refused() {
+        let info = |byte_counts: u64| ImageInfo {
+            width: 512,
+            height: 512,
+            bits_per_sample: vec![16],
+            samples_per_pixel: 1,
+            compression: comp::ADOBE_DEFLATE,
+            photometric: 32803,
+            planar: 1,
+            predictor: 1,
+            sample_format: 1,
+            new_subfile_type: 0,
+            layout: Layout::Tiles { tile_width: 512, tile_height: 512 },
+            offsets: vec![0],
+            byte_counts: vec![byte_counts],
+        };
+        // a complete flat tile: 512 KiB of zeros compresses to a few hundred bytes (well within
+        // deflate's packing bound) and inflates to every nominal byte the tile claims
+        let zlib = miniz_oxide::deflate::compress_to_vec_zlib(&vec![0u8; 512 * 512 * 2], 6);
+        assert_eq!(read_image(&zlib, &info(zlib.len() as u64), ByteOrder::Little, Packing::Msb), Ok(RawData::U16(vec![0; 512 * 512])));
+        // the same 1 KiB packed, but the stream claims a whole tile: a few hundred bytes cannot
+        // reconstruct 512 KiB from a decoder that compresses no further than about 1:1032
+        let zlib = miniz_oxide::deflate::compress_to_vec_zlib(&vec![0u8; 1024], 6);
+        assert!(matches!(read_image(&zlib, &info(512 * 512 * 2), ByteOrder::Little, Packing::Msb), Err(RawError::Corrupt(_))), "{zlib:?}");
+        // 500 KiB of zeros compress to a stream within the packing bound and inflating to more
+        // bytes than the in-image samples span, but 24 KiB short of the whole nominal tile:
+        // refused as truncated rather than filled with the predictor's padding
+        let zlib = miniz_oxide::deflate::compress_to_vec_zlib(&vec![0u8; 500 * 1000], 6);
+        assert!(matches!(read_image(&zlib, &info(zlib.len() as u64), ByteOrder::Little, Packing::Msb), Err(RawError::Corrupt(_))));
     }
 }
