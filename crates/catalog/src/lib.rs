@@ -348,6 +348,8 @@ struct Changes {
     /// outside (a library just loaded takes a range of its own, so that nothing kept from another library is
     /// taken for this one's): nothing is known of how the catalog got to where it is.
     seen: u64,
+    /// A batch that failed could not be rolled back whole: what it changed stays, so what it noted must too.
+    torn: bool,
 }
 
 impl PartialEq for Changes {
@@ -610,13 +612,37 @@ impl Catalog {
         self.albums.get_mut(&id).ok_or(CatalogError::NoAlbum(id))
     }
 
-    /// Apply an op; returns its inverse. On error nothing changes.
+    /// Apply an op; returns its inverse. On error nothing changes, and nothing is remembered of the op in what the
+    /// latest ops touched; only a batch that could not be rolled back whole is remembered as "anything may have
+    /// changed".
     pub fn apply(&mut self, op: Op) -> Result<Op> {
         if self.changes.seen != self.revision {
             // the revision was set from outside: what is remembered is of another past
             self.changes = Changes { floor: self.revision, seen: self.revision, ..Default::default() };
         }
-        let inv = self.apply_inner(op)?;
+        let broad = self.changes.broad;
+        self.changes.torn = false;
+        let inv = match self.apply_inner(op) {
+            Ok(inv) => inv,
+            Err(e) => {
+                let made = self.revision.saturating_add(1);
+                if self.changes.torn {
+                    // (a batch the rollback of which failed changed something and says not what: anything may
+                    // have changed, as after an op of a wider reach)
+                    self.changes.torn = false;
+                    self.changes.broad = made;
+                } else {
+                    // (everything the failed op, or the rollback of a batch, noted was made for the revision it
+                    // would have made: nothing earlier has that one. A note the cap already dropped stays
+                    // dropped, which only says less than is known, as the cap does.)
+                    while self.changes.touched.back().is_some_and(|(r, _, _)| *r == made) {
+                        self.changes.touched.pop_back();
+                    }
+                    self.changes.broad = broad;
+                }
+                return Err(e);
+            }
+        };
         self.revision += 1;
         self.changes.seen = self.revision;
         Ok(inv)
@@ -962,7 +988,9 @@ impl Catalog {
                         Err(e) => {
                             // roll back what was applied
                             for inv in inverses.into_iter().rev() {
-                                let _ = self.apply_inner(inv);
+                                if self.apply_inner(inv).is_err() {
+                                    self.changes.torn = true;
+                                }
                             }
                             return Err(e);
                         }
