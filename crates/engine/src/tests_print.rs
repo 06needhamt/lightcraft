@@ -14,6 +14,24 @@ fn fails(s: &mut Session, id: &str, p: Value) -> String {
     s.execute(id, &p).expect_err(&format!("{id} {p} should fail")).to_string()
 }
 
+/// A scratch folder that goes away with the test, however it ends.
+struct Scratch(std::path::PathBuf);
+
+impl Scratch {
+    fn new(tag: &str) -> Scratch {
+        let dir = std::env::temp_dir().join(format!("lightcraft-print-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        Scratch(dir)
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 fn package(s: &mut Session) {
     run(s, "print.set", json!({"layout": {"style": "customPackage", "page": {"paper": "letter"}}}));
 }
@@ -304,8 +322,8 @@ fn templates_export_to_a_file_and_import_from_one() {
         s.open_library_in(stores, false).unwrap();
         s
     };
-    let dir = std::env::temp_dir().join(format!("lightcraft-print-templates-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let scratch = Scratch::new("templates");
+    let dir = &scratch.0;
     let mut s = open(&files);
     run(&mut s, "print.set", json!({"layout": {"style": "contactSheet", "grid": {"columns": 3, "rows": 4}}, "page": {"background": [5, 6, 7]}}));
     run(&mut s, "print.template.save", json!({"name": "Proofs"}));
@@ -362,7 +380,6 @@ fn templates_export_to_a_file_and_import_from_one() {
         run(&mut s, "print.template.save", json!({"name": format!("T{n}")}));
     }
     assert!(fails(&mut s, "print.template.import", json!({"path": file.to_string_lossy()})).contains("at most"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A library whose `prefs.json` can't be read, so saving the preferences fails.
@@ -399,9 +416,8 @@ fn template_changes_that_cant_be_saved_are_undone() {
     s.print_templates.push(crate::print::template::PrintTemplate::new("Proofs", &s.print).unwrap());
     let names = |s: &Session| s.print_templates.iter().map(|t| (t.name.clone(), t.settings.clone())).collect::<Vec<_>>();
     let kept = names(&s);
-    let dir = std::env::temp_dir().join(format!("lightcraft-print-unsaved-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let file = dir.join("proofs.lcprint");
+    let scratch = Scratch::new("unsaved");
+    let file = scratch.0.join("proofs.lcprint");
     run(&mut s, "print.template.export", json!({"name": "Proofs", "path": file.to_string_lossy()}));
 
     run(&mut s, "print.set", json!({"layout": {"style": "contactSheet"}}));
@@ -414,7 +430,6 @@ fn template_changes_that_cant_be_saved_are_undone() {
         assert!(fails(&mut s, id, p.clone()).contains("prefs.json"), "{id} {p}");
         assert_eq!(names(&s), kept, "{id} {p}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
