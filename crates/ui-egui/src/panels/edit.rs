@@ -6,6 +6,7 @@ use egui::{Align2, Color32, Pos2, Rect, RichText, Sense, Stroke, pos2, vec2};
 use lightcraft_catalog::PhotoId;
 use lightcraft_develop::{ControlSpec, DevelopSettings, Section, Track, WbMode, controls};
 use lightcraft_geom::Point;
+use lightcraft_pipeline::{PARAM_AMOUNTS, ParametricCurve};
 use lightcraft_raster::Histogram;
 use serde_json::{Value, json};
 
@@ -937,6 +938,115 @@ fn draw_curve_histogram(p: &egui::Painter, r: Rect, h: &lightcraft_raster::Histo
     p.add(mesh);
 }
 
+/// Segments the graph's curve line is drawn with.
+pub(crate) const CURVE_SAMPLES: i32 = 96;
+
+/// Close a graph drag's `develop` interaction, as one undo step.
+///
+/// It is closed when the drag ends *or* the pointer comes up without egui reporting `drag_stopped`
+/// for this widget (released outside the window, over a popup, or on a frame the widget does not
+/// run). A dangling interaction would make every later edit a silent preview — Undo would then
+/// appear to do nothing at all. Returns whether the drag is over, so the caller clears its state.
+fn commit_interaction(app: &mut LightcraftApp, ui: &egui::Ui, dragging: bool, stopped: bool) -> bool {
+    let released = ui.input(|i| i.pointer.any_released()) || !ui.input(|i| i.pointer.primary_down());
+    if !dragging || !(stopped || released) {
+        return false;
+    }
+    let _ = app.run("develop.endInteraction", json!({}));
+    true
+}
+
+/// How close (screen points) to the curve a press counts as grabbing it.
+const PARAM_GRAB: f32 = 14.0;
+
+/// The parametric curve's own drag: the graph shows the curve and nothing else, and dragging the
+/// line bends the region the pointer is over, with that region's slider following on the same frame.
+///
+/// The whole gesture runs inside one `develop` interaction, so it is one undo step (Ctrl+Z takes the
+/// gesture back, not the last frame of it), and every write goes through `develop.set`, so the
+/// slider, the curve and what is drawn are the same state rather than three things kept in step.
+fn param_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect, resp: &egui::Response, d: &DevelopSettings) {
+    if r.width() <= 1.0 || r.height() <= 1.0 {
+        return;
+    }
+    let t = Tokens::get(ui.ctx());
+    let model = ParametricCurve::new(&d.curve);
+    let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
+    let from_screen_x = |q: Pos2| ((q.x - r.left()) / r.width()).clamp(0.0, 1.0) as f64;
+    // the graph x of a point, and how far it is from the drawn curve (in screen points)
+    let near_curve = |q: Pos2| {
+        let x = from_screen_x(q);
+        to_screen(x, model.at(x)).distance(q)
+    };
+    let drag_id = egui::Id::new("curve-param-drag");
+    let cursor_id = egui::Id::new("curve-param-cursor");
+    // (region, x, initial_amount, start_y): the region being dragged, the graph x the drag is anchored
+    // at, the region's starting amount, and the starting screen Y position.
+    let mut dragged: Option<(usize, f64, f64, f32)> = ui.data(|dd| dd.get_temp::<Option<(usize, f64, f64, f32)>>(drag_id)).flatten();
+    let hovered = dragged.is_none() && resp.hover_pos().is_some_and(|q| near_curve(q) <= PARAM_GRAB);
+    let mut set: Option<(&'static str, f64)> = None;
+    // the press, not where the pointer is once the drag threshold has passed: a press slightly off
+    // the line is still a grab, and the pointer has usually left that spot by the time it starts
+    let press = ui.input(|i| i.pointer.press_origin()).or(resp.interact_pointer_pos());
+    if resp.drag_started()
+        && let Some(q) = press
+        && near_curve(q) <= PARAM_GRAB
+    {
+        let x = from_screen_x(q);
+        let _ = app.run("develop.beginInteraction", json!({"label": "Parametric Curve"}));
+        let region = model.region_at(x);
+        let initial_amount = model.amounts.get(region).copied().unwrap_or(0.0);
+        let start_pos = to_screen(x, model.at(x));
+        dragged = Some((region, x, initial_amount, start_pos.y));
+        ui.data_mut(|dd| dd.insert_temp(cursor_id, start_pos));
+    }
+    if let Some((region, x, initial_amount, start_y)) = dragged
+        && resp.dragged()
+    {
+        // Follow the pointer's motion from where the curve was grabbed, so the press itself moves
+        // nothing and the line tracks the hand. ⌥ = a tenth of the motion, as the point curve does.
+        let alt = ui.input(|i| i.modifiers.alt);
+        let dd = ui.input(|i| i.pointer.delta());
+        let step = if alt { vec2(dd.x * 0.1, dd.y * 0.1) } else { vec2(dd.x, dd.y) };
+        let cursor = ui.data(|d| d.get_temp::<Pos2>(cursor_id)).unwrap_or(pos2(0.0, start_y)) + step;
+        ui.data_mut(|d| d.insert_temp(cursor_id, cursor));
+        let delta_y = start_y - cursor.y;
+        let delta_level = (delta_y / r.height()) as f64;
+        let per_unit = model.level_per_unit(region, x);
+        let new_amount =
+            if per_unit.abs() > f64::EPSILON { (initial_amount + delta_level / per_unit).clamp(-100.0, 100.0).round() } else { initial_amount };
+        if let Some(&id) = PARAM_AMOUNTS.get(region) {
+            set = Some((id, new_amount));
+        }
+    }
+    if let Some((id, v)) = set {
+        let _ = app.run("develop.set", json!({"control": id, "value": v}));
+    }
+    let dropped = resp.drag_stopped();
+    if commit_interaction(app, ui, dragged.is_some(), dropped) {
+        dragged = None;
+        ui.data_mut(|d| {
+            d.remove::<Pos2>(cursor_id);
+            d.remove::<Option<(usize, f64, f64, f32)>>(drag_id);
+        });
+    }
+    ui.data_mut(|dd| dd.insert_temp(drag_id, dragged));
+    if dragged.is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    } else if hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
+    }
+    // the region under the pointer (or the one in hand), named as its slider below reads it
+    let shown = dragged.map(|(region, ..)| region).or_else(|| hovered.then(|| resp.hover_pos()).flatten().map(|q| model.region_at(from_screen_x(q))));
+    if let Some(region) = shown
+        && let Some(&id) = PARAM_AMOUNTS.get(region)
+        && let Some(v) = set.and_then(|(s_id, v)| (s_id == id).then_some(v)).or_else(|| controls::get(d, id))
+    {
+        let name = controls::find(id).map_or("", |s| s.label);
+        ui.painter().text(r.left_top() + vec2(6.0, 4.0), Align2::LEFT_TOP, format!("{name} {v:.0}"), t.font(11.0), t.text_dim);
+    }
+}
+
 fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &DevelopSettings) {
     let t = Tokens::get(ui.ctx());
     // channel selector
@@ -1013,29 +1123,17 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
     let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
     let from_screen = |q: Pos2| (((q.x - r.left()) / r.width()).clamp(0.0, 1.0) as f64, ((r.bottom() - q.y) / r.height()).clamp(0.0, 1.0) as f64);
     if ch == "parametric" {
-        // draw the effective parametric curve by sampling the pipeline's region curve approximation
+        // The Effective curve: the model the renderer builds from the four region sliders, sampled
+        // here and rebuilt every frame. The graph holds no state of its own, so a slider moved by
+        // hand, a Reset or an Undo redraws it from the settings in the same frame it changes.
         let c = &d.curve;
-        let regions = [
-            (0.0, c.split_shadows / 100.0, c.shadows),
-            (c.split_shadows / 100.0, c.split_mid / 100.0, c.darks),
-            (c.split_mid / 100.0, c.split_highlights / 100.0, c.lights),
-            (c.split_highlights / 100.0, 1.0, c.highlights),
-        ];
-        let pts: Vec<Pos2> = (0..=64)
-            .map(|i| {
-                let x = i as f64 / 64.0;
-                let mut dd = 0.0;
-                for (a, b, amt) in regions {
-                    let (ctr, half) = ((a + b) / 2.0, (b - a) * 0.75 + 0.05);
-                    let tt = ((x - ctr) / half).clamp(-1.0, 1.0);
-                    dd += amt / 100.0 * 0.22 * (0.5 + 0.5 * (tt * std::f64::consts::PI).cos());
-                }
-                to_screen(x, (x + dd * 4.0 * x * (1.0 - x)).clamp(0.0, 1.0))
-            })
-            .collect();
+        let model = ParametricCurve::new(c);
+        let pts: Vec<Pos2> =
+            (0..=CURVE_SAMPLES).map(|i| to_screen(i as f64 / CURVE_SAMPLES as f64, model.at(i as f64 / CURVE_SAMPLES as f64))).collect();
         p.add(egui::Shape::line(pts, Stroke::new(2.0, Color32::from_gray(220))));
+        param_drag(app, ui, r, &resp, d);
         curve_footer(app, ui, d);
-        for c in ["curve.highlights", "curve.lights", "curve.darks", "curve.shadows"] {
+        for &c in PARAM_AMOUNTS.iter().rev() {
             control(app, ui, d, c, true);
         }
         control(app, ui, d, "curve.refineSaturation", true);
@@ -1167,9 +1265,11 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
         let arr: Vec<[f64; 2]> = v.iter().map(|p| [p.x, p.y]).collect();
         let _ = app.run("develop.curve", json!({"channel": ch, "points": arr}));
     }
-    if resp.drag_stopped() {
+    // the drag is over when egui says so, or when the pointer comes up without it saying so (a
+    // release outside the window would otherwise leave the interaction open, and every later edit a
+    // silent preview that Undo cannot take back)
+    if commit_interaction(app, ui, dragging.is_some(), resp.drag_stopped()) {
         dragging = None;
-        let _ = app.run("develop.endInteraction", json!({}));
     }
     ui.data_mut(|dd| dd.insert_temp(drag_id, dragging));
     curve_footer(app, ui, d);
