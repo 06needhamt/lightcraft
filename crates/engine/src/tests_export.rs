@@ -682,8 +682,31 @@ fn remove_location_refuses_original_with_embedded_place_names() {
         };
         assert_eq!(place_name, Some(value), "{name} fixture should be parsed");
         let error = export_photo(&mut session, photo_id, &options, 1).err().expect("embedded place name should refuse Original export");
-        assert!(error.contains("place names") && error.contains("export as JPEG"), "{name}: {error}");
+        assert!(error.contains("place names") && error.contains("export as JPEG or TIFF"), "{name}: {error}");
     }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_refuses_original_with_unreadable_non_psd_xmp() {
+    let dir = temp_dir("export-noloc-malformed-xmp");
+    let path = dir.join("Unreadable.jpg");
+    let pixels = [96u8; 12];
+    let image = lightcraft_codecs::EncodeImage::new(2, 2, 3, lightcraft_codecs::Samples::U8(&pixels));
+    let xmp = "<x:xmpmeta><broken";
+    let encoded = lightcraft_codecs::EncodeMeta { xmp: Some(xmp), ..Default::default() };
+    let bytes = lightcraft_codecs::encode_jpeg(&image, 90, lightcraft_codecs::ChromaSubsampling::S444, &encoded).unwrap();
+    assert!(lightcraft_meta::parse_xmp(xmp).is_err(), "fixture XMP should be malformed");
+    let metadata = lightcraft_meta::try_extract(&bytes).unwrap();
+    assert!(metadata.gps.is_none() && metadata.city.is_none(), "best-effort extraction omits malformed XMP");
+    std::fs::write(&path, bytes).unwrap();
+
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [path.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    let options = ExportOptions { format: ExportFormat::Original, remove_location: true, ..Default::default() };
+    let error = export_photo(&mut session, id, &options, 1).err().expect("unreadable XMP must not pass location removal");
+    assert!(error.contains("can't verify location metadata") && error.contains("malformed embedded XMP"), "{error}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
