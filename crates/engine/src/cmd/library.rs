@@ -232,11 +232,12 @@ fn change_flag(s: &mut Session, p: &Value, label: &str, step: impl Fn(Flag) -> F
 /// keep showing the photo they rate.
 fn cull(s: &mut Session, p: &Value, edit: impl FnOnce(&mut Session) -> Result<Value>) -> Result<Value> {
     let named = [p.get("ids"), p.get("id")].into_iter().any(|t| t.is_some_and(|t| !t.is_null()));
-    // the selection may move on: an open drag ends first, as its own undo step
+    // the view as it was, then an open drag ends first, as its own undo step (the selection may
+    // move on; the drag itself can take the photo out of the view)
+    let before = (!named).then(|| s.visible_shared().1);
     if !named {
         s.end_interaction()?;
     }
-    let before = (!named).then(|| s.visible_shared().1);
     let active = s.selection.active;
     let v = edit(s)?;
     if let Some(before) = before
