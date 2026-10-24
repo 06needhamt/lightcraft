@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-25
+
+### `>=` and `<=` work in the search box
+- Fielded search tokens now take inclusive comparisons: `rating:>=3`, `iso:<=400`, `f:>=2.8`, `focal:<=50`. Before,
+  the `=` was read as part of the number, so such a search quietly showed no photos at all.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
