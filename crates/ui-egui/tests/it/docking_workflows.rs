@@ -116,6 +116,29 @@ fn dragging_a_group_by_its_bar_moves_the_whole_group() {
     assert_eq!(h.state().ui.right, RightPanel::Edit);
 }
 
+/// LightCraft's side panels live in frames; a drop at the window's edge makes no dock column.
+#[test]
+fn an_edge_drop_does_not_create_a_dock() {
+    for at_right in [false, true] {
+        let mut h = harness(None, 1400.0, 1.0);
+        let library = h.state().widgets.iter().find(|(id, _)| id == "panel:left_panel").unwrap().1;
+        let tools = h.state().widgets.iter().find(|(id, _)| id == "panel:right_panel").unwrap().1;
+        let x = if at_right { tools.right() - 4.0 } else { library.left() + 4.0 };
+        let source = h.get_by_role_and_label(egui::accesskit::Role::Tab, "Tools").rect().center();
+        drag(&mut h, source, egui::pos2(x, 500.0));
+        let layout = &h.state().ui.docking.as_ref().unwrap().layout;
+        assert!(layout.contains(&Panel::Tools));
+        let mut nodes: Vec<_> = layout.root.iter().collect();
+        while let Some(node) = nodes.pop() {
+            match node {
+                Node::Split { first, second, .. } => nodes.extend([&**first, &**second]),
+                Node::Dock { .. } => panic!("a drop at x = {x} made a dock: {layout:?}"),
+                _ => {}
+            }
+        }
+    }
+}
+
 #[test]
 fn invalid_docking_requests_preserve_layout_and_selected_tool() {
     let mut h = harness(None, 1400.0, 1.0);

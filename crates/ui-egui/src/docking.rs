@@ -298,6 +298,8 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     app.ui.docking = Some(workspace.clone());
     let mut style = DockStyle::from_ui(ui);
     style.min_pane = 96.0;
+    // The side panels are frames whose widths LightCraft tracks; dock columns are not offered.
+    style.new_dock_zones = false;
     style.float_label = crate::i18n::tr("Float panel").into();
     style.close_label = crate::i18n::tr("Close panel").into();
     style.move_panel_to_label = crate::i18n::tr("Move to group").into();
