@@ -1841,8 +1841,10 @@ pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
     let mut latitude_markers = t.char_indices().filter(|(_, c)| matches!(c, 'N' | 'S' | 'n' | 's'));
     if let Some((first, marker)) = latitude_markers.next() {
         if first == 0 {
-            if let Some((second, _)) = t.char_indices().skip(1).find(|(_, c)| is_gps_hemisphere(*c)) {
-                parsed = Some(parse_gps_pair(t.get(..second)?, t.get(second..)?)?);
+            if let Some((second, _)) = t.char_indices().skip(1).find(|(_, c)| is_gps_hemisphere(*c))
+                && let Some(pair) = parse_gps_pair(t.get(..second)?, t.get(second..)?)
+            {
+                parsed = Some(pair);
             }
         } else {
             let end = first.checked_add(marker.len_utf8())?;
@@ -2037,6 +2039,11 @@ mod gps_tests {
         assert_eq!(p("45NS, 7E"), None);
         assert_eq!(p("-45N, 7E"), None);
         assert_eq!(p("45N 7NE"), None);
+    }
+
+    #[test]
+    fn gps_tries_whitespace_split_when_prefix_marker_split_fails() {
+        assert_eq!(super::parse_gps("N51 0E"), Some((51.0, 0.0)));
     }
 
     #[test]
