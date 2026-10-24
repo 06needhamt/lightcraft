@@ -314,7 +314,6 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     style.font = t.font(12.0);
     // Tool and preset panels publish hover previews before the photo consumes them.
     let mut canvas = None;
-    let (mut library_width, mut tools_width) = (None, None);
     let output = DockArea::new(egui::Id::new("lightcraft-docking")).locked(workspace.locked).show_with_limits(
         ui,
         &workspace.layout,
@@ -327,12 +326,10 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
                 canvas = Some(ui.new_child(egui::UiBuilder::new().id_salt("photo-view").max_rect(ui.max_rect())));
             }
             Panel::Library => {
-                library_width = Some(ui.max_rect().width());
                 crate::widgets::register(ui.ctx(), "panel:left_panel", ui.max_rect());
                 crate::panels::left::show(app, ui);
             }
             Panel::Tools => {
-                tools_width = Some(ui.max_rect().width());
                 crate::widgets::register(ui.ctx(), "panel:right_panel", ui.max_rect());
                 crate::panels::right::show(app, ui);
             }
@@ -367,8 +364,6 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     let stale = workspace.layout != rendered.layout || workspace.hidden != rendered.hidden;
     if stale {
         craft_ui::docking::cancel_drag::<Panel>(ui.ctx(), egui::Id::new("lightcraft-docking"));
-    } else {
-        keep_side_widths(&mut workspace, [(Panel::Library, library_width), (Panel::Tools, tools_width)]);
     }
     publish_visibility(app, &workspace);
     app.ui.docking = Some(workspace);
@@ -382,45 +377,6 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
         {
             app.ui.toast = Some((format!("Panel move was not applied: {error}"), ui.input(|input| input.time) + 8.0, None));
         }
-    }
-}
-
-/// A dragged divider stores a ratio. The side panels keep the width they were drawn at instead,
-/// so a window resize leaves them as they are and `left_width` / `right_width` follow them.
-fn keep_side_widths(workspace: &mut Workspace, drawn: [(Panel, Option<f32>); 2]) {
-    let mut nodes = workspace.layout.root.as_ref().map(|node| vec![(node, Vec::new())]).unwrap_or_default();
-    let mut changes = Vec::new();
-    while let Some((node, path)) = nodes.pop() {
-        let Node::Split { axis, size, first, second } = node else { continue };
-        if *axis == SplitAxis::Horizontal && matches!(size, SplitSize::Ratio(_)) {
-            let fixed = drawn.iter().find_map(|(panel, width)| {
-                // A width drawn from a ratio carries float noise; in hundredths a panel at its
-                // limit stores the limit itself.
-                let width = width.filter(|width| width.is_finite() && *width > 0.0).map(|width| (width * 100.0).round() / 100.0)?;
-                if holds(first, *panel) { Some(SplitSize::FixedFirst(width)) } else { holds(second, *panel).then_some(SplitSize::FixedSecond(width)) }
-            });
-            if let Some(size) = fixed {
-                changes.push(Action::ResizeSplit { path: path.clone(), size });
-            }
-        }
-        for (child, side) in [(second, true), (first, false)] {
-            let mut path = path.clone();
-            path.push(side);
-            nodes.push((child, path));
-        }
-    }
-    for action in changes {
-        // A size the layout refuses leaves the ratio, which still draws the same widths.
-        let _ = apply(workspace, action);
-    }
-}
-
-/// Whether `node` is the group (tabs or accordion) holding `panel`.
-fn holds(node: &Node<Panel>, panel: Panel) -> bool {
-    match node {
-        Node::Tabs { panels, .. } => panels.contains(&panel),
-        Node::Stack { entries } => entries.iter().any(|entry| entry.panel == panel),
-        _ => false,
     }
 }
 
@@ -457,7 +413,11 @@ pub(crate) fn set_widths(state: &mut crate::UiState, params: &Value) -> Result<(
         let mut change = None;
         while let Some((node, path)) = nodes.pop() {
             if let Node::Split { axis, first, second, .. } = node {
-                let contains = |node: &Node<Panel>| holds(node, panel);
+                let contains = |node: &Node<Panel>| match node {
+                    Node::Tabs { panels, .. } => panels.contains(&panel),
+                    Node::Stack { entries } => entries.iter().any(|entry| entry.panel == panel),
+                    _ => false,
+                };
                 if *axis == SplitAxis::Horizontal {
                     if contains(first) {
                         change = Some(Action::ResizeSplit { path: path.clone(), size: SplitSize::FixedFirst(width) });
