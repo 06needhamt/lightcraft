@@ -53,6 +53,20 @@ fn a_folder_in_the_filter_put_aside_follows_a_move() {
 }
 
 #[test]
+fn a_folder_in_the_filter_follows_a_move_with_filters_on() {
+    let dir = Scratch::new("live");
+    let (trip, archive) = (dir.path("trip"), dir.path("archive"));
+    let mut s = Session::new();
+    add(&mut s, &format!("{trip}/a.jpg"), 0);
+    add(&mut s, &dir.path("elsewhere.jpg"), 0);
+    s.execute("library.filter", &json!({"folder": trip})).unwrap();
+    assert_eq!(s.visible().len(), 1, "the filter hides a photo, or a stale folder would look alike");
+    s.execute("folder.move", &json!({"path": trip, "into": archive})).unwrap();
+    assert_eq!(s.filter.folder.as_deref(), Some(dir.path("archive/trip").as_str()), "the folder where it went");
+    assert_eq!(s.visible().len(), 1, "the moved photo, as before the move");
+}
+
+#[test]
 fn moving_the_browsed_folder_while_off_brings_back_the_filter_put_aside() {
     let dir = Scratch::new("browse");
     let (trip, archive) = (dir.path("trip"), dir.path("archive"));
