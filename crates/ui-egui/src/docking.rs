@@ -128,10 +128,14 @@ fn set_visible(workspace: &mut Workspace, panel: Panel, visible: bool) -> Result
         return apply(workspace, Action::Close { panel });
     }
     validate(workspace)?;
-    let mut next = workspace.clone();
-    if next.set_visible(panel, true, None, permissions).is_ok() && validate(&next).is_ok() {
-        *workspace = next;
-        return Ok(());
+    // Without a recorded place craft-ui opens the panel at the right edge; LightCraft puts it
+    // beside the photo instead.
+    if workspace.hidden.iter().any(|(hidden, _)| *hidden == panel) {
+        let mut next = workspace.clone();
+        if next.set_visible(panel, true, None, permissions).is_ok() && validate(&next).is_ok() {
+            *workspace = next;
+            return Ok(());
+        }
     }
     apply(workspace, Action::OpenAt { panel, anchor: Panel::Canvas, placement: Placement::Split(panel.default_side()) })
 }
@@ -577,5 +581,16 @@ mod tests {
         let saved = serde_json::to_value(&workspace).unwrap();
         assert_eq!(saved["version"], 2);
         assert_eq!(saved["layout"]["floating"][0]["panels"], json!(["tools"]), "a one-group window keeps the v1 shape");
+    }
+
+    #[test]
+    fn a_panel_without_a_recorded_place_opens_beside_the_photo_on_its_side() {
+        for (panel, zone) in [(Panel::Library, Zone::Left), (Panel::Presets, Zone::Right)] {
+            let root = split(SplitAxis::Horizontal, SplitSize::FixedSecond(300.0), tabs(Panel::Canvas), tabs(Panel::Tools));
+            let mut workspace = Workspace::new(Layout { root: Some(root), floating: Vec::new() });
+            set_visible(&mut workspace, panel, true).unwrap();
+            let location = workspace.layout.location(&panel).unwrap();
+            assert_eq!((location.anchor, location.placement), (Some(Panel::Canvas), Placement::Split(zone)), "{panel:?}");
+        }
     }
 }
