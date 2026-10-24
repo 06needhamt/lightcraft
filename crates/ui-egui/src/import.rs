@@ -480,6 +480,9 @@ pub fn open(app: &mut LightcraftApp, paths: Vec<String>) -> Result<Value, String
     if app.scan.is_some() {
         return Err("a scan is already running".into());
     }
+    if app.review_pending.is_some() {
+        return Err("an import review is waiting for the open dialog to close".into());
+    }
     let sources = paths.clone();
     let (input, paths) = ScanInput::new(&mut app.session, &paths);
     let progress = std::sync::Arc::new(ScanProgress::default());
@@ -677,10 +680,11 @@ pub(crate) fn stall_scan_of(app: &mut LightcraftApp, browse: bool) -> Box<dyn st
     Box::new(tx)
 }
 
-/// Whether an import or any scan (the review's, or a Local folder browse) is running, which a drop of
-/// photos must not replace: `open` refuses while a scan runs, and a browse that finishes replaces `app.import`.
+/// Whether an import or any scan (the review's, or a Local folder browse) is running, or a finished scan's
+/// review waits for a dialog to close, which a drop of photos must not replace: `open` refuses while a scan
+/// runs, and a browse that finishes replaces `app.import`.
 pub fn running(app: &LightcraftApp) -> bool {
-    app.import.is_some() || app.scan.is_some()
+    app.import.is_some() || app.scan.is_some() || app.review_pending.is_some()
 }
 
 impl ScanTask {
@@ -690,11 +694,16 @@ impl ScanTask {
     }
 }
 
-/// Start importing the dialog's checked files (the dialog's OK / `ui.dialog.confirm`).
+/// Start importing the dialog's checked files (the dialog's OK / `ui.dialog.confirm`). Refused while another
+/// import runs: replacing `app.import` would stop its worker.
 pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String> {
     busy_synchronizing(app)?;
     if !d.in_library(app) {
         return Err("another library was opened since the photos were scanned: nothing was imported".into());
+    }
+    // a browse scan that finishes starts its own import, replacing this one
+    if app.import.is_some() || app.scan.as_ref().is_some_and(|t| t.browse) {
+        return Err(crate::i18n::tr("An import is running").to_string());
     }
     let queue = d.selected_paths();
     if queue.is_empty() {
