@@ -6,6 +6,14 @@ use crate::Session;
 use crate::export::{ExportFormat, ExportOptions, export_photo};
 use crate::tests_xmp::{synthetic_dng_with, synthetic_psd_with_metadata, temp_dir};
 
+fn jpeg_with_xmp(metadata: &lightcraft_meta::Metadata) -> Vec<u8> {
+    let pixels = [96u8; 12];
+    let image = lightcraft_codecs::EncodeImage::new(2, 2, 3, lightcraft_codecs::Samples::U8(&pixels));
+    let xmp = lightcraft_meta::write_xmp(metadata, None);
+    let encoded = lightcraft_codecs::EncodeMeta { xmp: Some(&xmp), ..Default::default() };
+    lightcraft_codecs::encode_jpeg(&image, 90, lightcraft_codecs::ChromaSubsampling::S444, &encoded).unwrap()
+}
+
 #[test]
 fn full_size_export_of_a_cropped_photo_is_not_upscaled() {
     let mut s = Session::with_demo();
@@ -637,6 +645,145 @@ fn remove_location_holds_for_original_and_dng_exports() {
     assert!(lightcraft_meta::extract(&e.bytes).gps.is_some());
     let err = export_photo(&mut s, jid, &opts("original", true), 1).err().unwrap();
     assert!(err.contains("can't remove the location") && err.contains("export as JPEG"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_refuses_original_with_embedded_place_names() {
+    let dir = temp_dir("export-noloc-place-fields");
+    let value = "Embedded Place";
+    let cases = [
+        ("sublocation", lightcraft_meta::Metadata { sublocation: Some(value.into()), ..Default::default() }),
+        ("city", lightcraft_meta::Metadata { city: Some(value.into()), ..Default::default() }),
+        ("state", lightcraft_meta::Metadata { state: Some(value.into()), ..Default::default() }),
+        ("country", lightcraft_meta::Metadata { country: Some(value.into()), ..Default::default() }),
+    ];
+    let mut paths = Vec::new();
+    for (name, metadata) in &cases {
+        let path = dir.join(format!("{name}.jpg"));
+        std::fs::write(&path, jpeg_with_xmp(metadata)).unwrap();
+        paths.push(path.to_string_lossy().to_string());
+    }
+
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": paths})).unwrap();
+    let options = ExportOptions { format: ExportFormat::Original, remove_location: true, ..Default::default() };
+    for (name, _) in cases {
+        let photo_id = session.catalog.photos().find(|p| p.file_name == format!("{name}.jpg")).unwrap().id;
+        let original = std::fs::read(dir.join(format!("{name}.jpg"))).unwrap();
+        let embedded = lightcraft_meta::try_extract(&original).unwrap();
+        assert!(embedded.gps.is_none(), "{name} fixture should isolate place names");
+        let place_name = match name {
+            "sublocation" => embedded.sublocation.as_deref(),
+            "city" => embedded.city.as_deref(),
+            "state" => embedded.state.as_deref(),
+            "country" => embedded.country.as_deref(),
+            _ => None,
+        };
+        assert_eq!(place_name, Some(value), "{name} fixture should be parsed");
+        let error = export_photo(&mut session, photo_id, &options, 1).err().expect("embedded place name should refuse Original export");
+        assert!(error.contains("place names") && error.contains("export as JPEG"), "{name}: {error}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_original_place_refusal_writes_no_files() {
+    use crate::export::{Destination, prepare_batch, run_batch};
+
+    let dir = temp_dir("export-noloc-place-no-write");
+    let source = dir.join("City.jpg");
+    let original = jpeg_with_xmp(&lightcraft_meta::Metadata { city: Some("Embedded Place".into()), ..Default::default() });
+    std::fs::write(&source, &original).unwrap();
+    let output = dir.join("out");
+    std::fs::create_dir_all(&output).unwrap();
+
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [source.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    let options = ExportOptions { format: ExportFormat::Original, remove_location: true, ..Default::default() };
+    let items = prepare_batch(&mut session, &[id], &options).unwrap();
+    let destination = Destination { dir: output.to_string_lossy().to_string(), exact: None };
+    let mut writes = Vec::new();
+    let mut write = |path: &str, bytes: &[u8]| -> Result<(), String> {
+        writes.push(path.to_string());
+        std::fs::write(path, bytes).map_err(|error| error.to_string())
+    };
+    let exists = |path: &str| std::path::Path::new(path).exists();
+    let result = run_batch(items, &options, &destination, &mut write, &exists, true, &mut |_, _| true);
+
+    let error = result.unwrap_err();
+    assert!(error.contains("place names"), "{error}");
+    assert!(writes.is_empty(), "refused export called the writer: {writes:?}");
+    assert!(!output.join("City.jpg").exists());
+    assert!(!output.join("City.xmp").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_checks_embedded_places_after_catalog_clear() {
+    let dir = temp_dir("export-noloc-place-catalog-clear");
+    let source = dir.join("City.jpg");
+    let original = jpeg_with_xmp(&lightcraft_meta::Metadata { city: Some("Embedded Place".into()), ..Default::default() });
+    std::fs::write(&source, &original).unwrap();
+
+    let mut session = Session::new().with_fs();
+    session.execute("library.import", &json!({"paths": [source.to_string_lossy()]})).unwrap();
+    let id = session.catalog.photos().next().unwrap().id;
+    assert_eq!(session.catalog.photo(id).unwrap().meta.city, "Embedded Place");
+    session.execute("photo.setMeta", &json!({"ids": [id.0], "city": ""})).unwrap();
+    assert!(session.catalog.photo(id).unwrap().meta.city.is_empty());
+    assert_eq!(lightcraft_meta::try_extract(&std::fs::read(&source).unwrap()).unwrap().city.as_deref(), Some("Embedded Place"));
+
+    let options = ExportOptions { format: ExportFormat::Original, remove_location: true, ..Default::default() };
+    let error = export_photo(&mut session, id, &options, 1).err().expect("embedded place name should refuse Original export");
+    assert!(error.contains("place names"), "{error}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn remove_location_allows_original_without_embedded_location() {
+    let dir = temp_dir("export-noloc-place-controls");
+    let embedded_path = dir.join("Embedded.jpg");
+    let no_location_path = dir.join("NoLocation.jpg");
+    let blank_path = dir.join("Blank.jpg");
+    let embedded = jpeg_with_xmp(&lightcraft_meta::Metadata { city: Some("Embedded Place".into()), ..Default::default() });
+    let no_location = jpeg_with_xmp(&Default::default());
+    let blank = jpeg_with_xmp(&lightcraft_meta::Metadata { city: Some("  \t".into()), ..Default::default() });
+    std::fs::write(&embedded_path, &embedded).unwrap();
+    std::fs::write(&no_location_path, &no_location).unwrap();
+    std::fs::write(&blank_path, &blank).unwrap();
+    assert!(lightcraft_meta::try_extract(&blank).unwrap().city.is_none(), "whitespace-only XMP place names are blank");
+
+    let mut session = Session::new().with_fs();
+    session
+        .execute(
+            "library.import",
+            &json!({"paths": [embedded_path.to_string_lossy(), no_location_path.to_string_lossy(), blank_path.to_string_lossy()]}),
+        )
+        .unwrap();
+    let photo_id = |name: &str| session.catalog.photos().find(|p| p.file_name == name).unwrap().id;
+    let embedded_id = photo_id("Embedded.jpg");
+    let no_location_id = photo_id("NoLocation.jpg");
+    let blank_id = photo_id("Blank.jpg");
+
+    let keep = ExportOptions { format: ExportFormat::Original, ..Default::default() };
+    let kept = export_photo(&mut session, embedded_id, &keep, 1).unwrap();
+    assert_eq!(kept.bytes, embedded, "removeLocation=false still copies the source byte for byte");
+    assert_eq!(lightcraft_meta::try_extract(&kept.bytes).unwrap().city.as_deref(), Some("Embedded Place"));
+
+    let remove = ExportOptions { format: ExportFormat::Original, remove_location: true, ..Default::default() };
+    for (id, source) in [(no_location_id, &no_location), (blank_id, &blank)] {
+        let exported = export_photo(&mut session, id, &remove, 1).unwrap();
+        assert_eq!(&exported.bytes, source);
+    }
+
+    session.execute("photo.setMeta", &json!({"ids": [no_location_id.0], "city": "Catalog-only Place"})).unwrap();
+    let catalog_only = export_photo(&mut session, no_location_id, &remove, 1).unwrap();
+    let sidecar = catalog_only.sidecars.first().unwrap().1.as_slice();
+    let packet = std::str::from_utf8(sidecar).unwrap();
+    assert!(lightcraft_meta::parse_xmp(packet).unwrap().metadata.city.is_none(), "catalog-only place name is removed from the sidecar");
+
     let _ = std::fs::remove_dir_all(&dir);
 }
 
