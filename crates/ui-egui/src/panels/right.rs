@@ -674,12 +674,13 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         });
     });
     divider(ui);
-    let m = p.meta.clone();
     // with several photos selected: Target Photo shows this photo's values, Selected Photos what
     // the selection shares (a field where they differ is empty and says Mixed)
     let selected = app.session.selected();
     let several = selected.len() > 1;
-    let mixed = if several && app.ui.settings.info_selected_photos { mixed_meta(&app.session.catalog, &selected, &m) } else { Vec::new() };
+    let for_selected = several && app.ui.settings.info_selected_photos;
+    let m = shown_meta(&app.session.catalog, &p, &selected, for_selected);
+    let mixed = if for_selected { mixed_meta(&app.session.catalog, &selected, &m) } else { Vec::new() };
     padded(ui, |ui| {
         if several {
             metadata_for(app, ui);
@@ -969,6 +970,21 @@ fn meta_text<'a>(m: &'a lightcraft_catalog::Meta, key: &str) -> Option<&'a str> 
         "country" => &m.country,
         _ => return None,
     })
+}
+
+/// The metadata the Info panel's fields show: the active photo `p`'s, or with `for_selected`
+/// (Selected Photos) the active photo's when it is one of the `selected` photos, else the first
+/// selected photo's.
+pub(crate) fn shown_meta(
+    catalog: &lightcraft_catalog::Catalog,
+    p: &lightcraft_catalog::Photo,
+    selected: &[PhotoId],
+    for_selected: bool,
+) -> lightcraft_catalog::Meta {
+    if !for_selected || selected.contains(&p.id) {
+        return p.meta.clone();
+    }
+    selected.iter().find_map(|&id| catalog.photo(id)).map_or_else(|| p.meta.clone(), |q| q.meta.clone())
 }
 
 /// The Info panel fields (`photo.setMeta` keys, plus `copyrightStatus` and `gps`) where one of

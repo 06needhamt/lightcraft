@@ -3047,6 +3047,37 @@ mod tests {
         assert_eq!(mixed, ["caption", "city", "copyrightStatus", "gps"]);
     }
 
+    /// Selected Photos with the active photo outside the selection: the fields show what the
+    /// selected photos share, not the active photo's values.
+    #[test]
+    fn info_selected_photos_ignore_an_active_photo_outside_the_selection() {
+        let mut h = demo([1300.0, 1000.0]);
+        let t = Duration::from_secs(10);
+        let ask = |h: &mut Headless, method: &str, params: serde_json::Value| {
+            let r = h.request(method, params.clone(), t);
+            assert_eq!(r["ok"], true, "{method} {params}: {r}");
+            h.step();
+            h.step();
+        };
+        let exec = |h: &mut Headless, command: &str, params: serde_json::Value| {
+            ask(h, "engine.execute", json!({"command": command, "params": params}));
+        };
+        let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(3).map(|p| p.0).collect();
+        let title = |h: &Headless, i: usize| h.app.session.catalog.photo(lightcraft_catalog::PhotoId(ids[i])).unwrap().meta.title.clone();
+        exec(&mut h, "photo.setMeta", json!({"ids": [ids[0], ids[1]], "title": "Same"}));
+        exec(&mut h, "photo.setMeta", json!({"ids": [ids[2]], "title": "Other"}));
+        h.request("ui.set", json!({"view": "detail", "right": "info"}), t);
+        exec(&mut h, "library.select", json!({"ids": [ids[0], ids[1]], "active": ids[2]}));
+        exec(&mut h, "view.infoSelectedPhotos", json!({"on": true}));
+        h.settle(SETTLE);
+        ask(&mut h, "ui.clickWidget", json!({"id": "field:title"}));
+        ask(&mut h, "ui.key", json!({"key": "End"}));
+        ask(&mut h, "ui.text", json!({"text": "!"}));
+        ask(&mut h, "ui.key", json!({"key": "Tab"}));
+        h.settle(SETTLE);
+        assert_eq!((title(&h, 0), title(&h, 1), title(&h, 2)), ("Same!".into(), "Same!".into(), "Other".into()));
+    }
+
     /// Local: a folder's photos show without joining the library; the breadcrumb, Include
     /// subfolders and Add to My Photos work from the grid header.
     #[test]
