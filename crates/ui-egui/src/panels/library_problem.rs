@@ -345,6 +345,9 @@ fn start_checks(app: &mut LightcraftApp, paths: Vec<String>) {
         if app.recent_checks.pending.contains_key(&path) {
             continue;
         }
+        // asked again about an answer it has (not after a failed open, which dropped it and says why
+        // on its row)
+        let recheck = app.recent_checks.known.contains_key(&path);
         let check = app.recent_checks.check.clone();
         let p = path.clone();
         let started = crate::tasks::spawn(app, CHECK_LABEL, Some("library"), move || check(&p), {
@@ -358,6 +361,16 @@ fn start_checks(app: &mut LightcraftApp, paths: Vec<String>) {
         });
         match started {
             Ok(()) => {
+                // a row of the launch list waits for this answer again (a library not found looked for
+                // again, a window back to the front): without it, the row kept its old answer
+                if recheck
+                    && let Some(l) =
+                        app.library_problem.as_mut().and_then(|p| p.chooser.as_mut()).and_then(|c| c.libraries.iter_mut().find(|l| l.path == path))
+                {
+                    l.checking = true;
+                    l.slow = false;
+                    l.unavailable = None;
+                }
                 app.recent_checks.pending.insert(path, web_time::Instant::now());
             }
             // no worker thread: say so on the row, and don't try again every frame

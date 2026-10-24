@@ -950,3 +950,42 @@ fn recent_libraries_are_checked_again_only_when_the_window_comes_back() {
     drop(h);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A library the launch list showed as not found comes back to it once found again (a drive plugged
+/// back in while the list is up): the row waits for the new check instead of keeping its old answer
+/// (FredApps on #2689, #2774).
+#[test]
+fn a_library_found_again_comes_back_to_the_launch_list() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let dir = temp("found-again");
+    let a = make_library(&dir.join("A"));
+    let plugged = std::sync::Arc::new(AtomicBool::new(false));
+    let p = plugged.clone();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(move |_| {
+        (!p.load(Ordering::SeqCst)).then_some(crate::panels::library_problem::Unavailable::NotFound)
+    })
+    .recheck_after(Duration::ZERO);
+    app.ui.settings.recent_libraries = vec![a.clone()];
+    app.library_problem = Some(LibraryProblem::choose_later(&app.ui.settings));
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let row = |h: &Headless| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).map(|c| c.libraries[0].clone()).unwrap();
+    assert!(
+        h.step_until(T, |h| {
+            let r = row(h);
+            !r.checking && r.unavailable.is_some()
+        }),
+        "not found first"
+    );
+    plugged.store(true, Ordering::SeqCst);
+    assert!(
+        h.step_until(T, |h| {
+            let r = row(h);
+            !r.checking && r.unavailable.is_none()
+        }),
+        "found again: it can be opened, {:?}",
+        row(&h)
+    );
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
