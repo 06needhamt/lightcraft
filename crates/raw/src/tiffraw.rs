@@ -105,46 +105,70 @@ pub fn read_image(data: &[u8], info: &ImageInfo, order: ByteOrder, packing: Pack
     let chunks = info.chunks(data.len() as u64);
     let planar = info.planar == 2 && cpp > 1;
     let ccpp = if planar { 1 } else { cpp };
-    let decoded: Vec<Result<(Chunk, ChunkPx)>> =
-        chunks.par_iter().map(|c| decode_chunk(data, info, c, order, packing, ccpp, bits, float).map(|p| (*c, p))).collect();
+    // The chunks are decoded and copied into the output in groups whose combined nominal size stays within
+    // a few times the output buffer's: everything decoded at once would retain the whole image twice, and
+    // a hostile tile table's chosen padding could stretch that much further (issue #1517). One group
+    // still decodes in parallel; the grid order groups make, the copies stay disjoint.
+    let group_samples = (total / 4).max(1 << 20);
     let mut out_u16 = if float { Vec::new() } else { vec![0u16; total] };
     let mut out_f32 = if float { vec![0f32; total] } else { Vec::new() };
-    for r in decoded {
-        // a chunk that cannot be decoded is not a partial image: the file stays preview-only
-        let (c, px) = r?;
-        let (cw, ch) = (c.width as usize, c.height as usize);
-        let (x0, y0) = (c.x as usize, c.y as usize);
-        if x0 >= w || y0 >= h {
-            continue;
+    let mut decode_from = 0usize;
+    while decode_from < chunks.len() {
+        let mut to = decode_from;
+        let mut taken = 0usize;
+        for (k, c) in chunks[decode_from..].iter().enumerate() {
+            let n = chunk_samples(c, ccpp);
+            if taken > 0 && taken + n > group_samples {
+                break;
+            }
+            taken = taken.saturating_add(n);
+            to = decode_from + k + 1;
         }
-        let copy_w = cw.min(w - x0);
-        let copy_h = ch.min(h - y0);
-        for y in 0..copy_h {
-            for x in 0..copy_w {
-                for s in 0..ccpp {
-                    let src = (y * cw + x) * ccpp + s;
-                    let dst_s = if planar { c.plane as usize } else { s };
-                    if dst_s >= cpp {
-                        continue;
-                    }
-                    let dst = ((y0 + y) * w + x0 + x) * cpp + dst_s;
-                    match &px {
-                        ChunkPx::U16(v) => {
-                            if let (Some(o), Some(&s)) = (out_u16.get_mut(dst), v.get(src)) {
-                                *o = s;
-                            }
+        let decoded: Vec<Result<(Chunk, ChunkPx)>> =
+            chunks[decode_from..to].par_iter().map(|c| decode_chunk(data, info, c, order, packing, ccpp, bits, float).map(|p| (*c, p))).collect();
+        for r in decoded {
+            // a chunk that cannot be decoded is not a partial image: the file stays preview-only
+            let (c, px) = r?;
+            let (cw, ch) = (c.width as usize, c.height as usize);
+            let (x0, y0) = (c.x as usize, c.y as usize);
+            if x0 >= w || y0 >= h {
+                continue;
+            }
+            let copy_w = cw.min(w - x0);
+            let copy_h = ch.min(h - y0);
+            for y in 0..copy_h {
+                for x in 0..copy_w {
+                    for s in 0..ccpp {
+                        let src = (y * cw + x) * ccpp + s;
+                        let dst_s = if planar { c.plane as usize } else { s };
+                        if dst_s >= cpp {
+                            continue;
                         }
-                        ChunkPx::F32(v) => {
-                            if let (Some(o), Some(&s)) = (out_f32.get_mut(dst), v.get(src)) {
-                                *o = s;
+                        let dst = ((y0 + y) * w + x0 + x) * cpp + dst_s;
+                        match &px {
+                            ChunkPx::U16(v) => {
+                                if let (Some(o), Some(&s)) = (out_u16.get_mut(dst), v.get(src)) {
+                                    *o = s;
+                                }
+                            }
+                            ChunkPx::F32(v) => {
+                                if let (Some(o), Some(&s)) = (out_f32.get_mut(dst), v.get(src)) {
+                                    *o = s;
+                                }
                             }
                         }
                     }
                 }
             }
         }
+        decode_from = to;
     }
     Ok(if float { RawData::F32(out_f32) } else { RawData::U16(out_u16) })
+}
+
+/// A chunk's nominal decoded size in samples (per plane, as the decoder builds it).
+fn chunk_samples(c: &Chunk, ccpp: usize) -> usize {
+    (c.width as usize).saturating_mul(c.height as usize).saturating_mul(ccpp)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -180,8 +204,12 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
         comp::LOSSY_JPEG => {
             // lossy DNG: each chunk is a baseline (DCT) JPEG of 8-bit samples
             let (px, jw, jh, jc) = lossy_jpeg(src, cpp, MAX_JPEG_SAMPLES)?;
-            let mut v = vec![0u16; n];
-            for y in 0..ch.min(jh) {
+            // the buffer holds the rows the decoded JPEG covers (the caller zero-fills the tile's
+            // remainder and reads only rows it fills): a tile-many-larger decoded JPEG does not
+            // get the nominal tile's full buffer (issue #1517)
+            let rows = ch.min(jh);
+            let mut v = vec![0u16; rows.max(1).saturating_mul(cw).saturating_mul(cpp)];
+            for y in 0..rows {
                 for x in 0..cw.min(jw) {
                     for k in 0..cpp {
                         v[(y * cw + x) * cpp + k] = px[(y * jw + x) * jc + k.min(jc - 1)] as u16;
@@ -516,6 +544,36 @@ mod lossy_tests {
         j[12..14].copy_from_slice(&1024u16.to_be_bytes());
         j[14..16].copy_from_slice(&1024u16.to_be_bytes());
         assert!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).is_ok() || matches!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES), Err(RawError::Corrupt(_))));
+    }
+
+    /// A lossy tile whose JPEG decodes far less than the nominal tile is fine: the rows the JPEG
+    /// covers hold its pixels, the rest of the output stays zero (and the tile's intermediate buffer
+    /// is sized by the JPEG, not by the nominal tile).
+    #[test]
+    fn a_small_lossy_jpeg_in_a_large_nominal_tile_decodes_with_zeros_below() {
+        let px: Vec<u8> = (0..8 * 8).flat_map(|_| [30u8, 90, 150]).collect();
+        let mut j = Vec::new();
+        jpeg_encoder::Encoder::new(&mut j, 100).encode(&px, 8, 8, jpeg_encoder::ColorType::Rgb).unwrap();
+        let info = ImageInfo {
+            width: 16,
+            height: 16,
+            bits_per_sample: vec![8, 8, 8],
+            samples_per_pixel: 3,
+            compression: comp::LOSSY_JPEG,
+            photometric: 34892,
+            planar: 1,
+            predictor: 1,
+            sample_format: 1,
+            new_subfile_type: 0,
+            layout: Layout::Tiles { tile_width: 16, tile_height: 16 },
+            offsets: vec![0],
+            byte_counts: vec![j.len() as u64],
+        };
+        let RawData::U16(v) = read_image(&j, &info, ByteOrder::Little, Packing::Msb).unwrap() else { panic!("integer samples") };
+        assert_eq!(v.len(), 16 * 16 * 3, "the output is the full nominal image");
+        let px = |x: usize, y: usize| &v[(y * 16 + x) * 3..(y * 16 + x) * 3 + 3];
+        assert!((px(3, 3)[0] as i32 - 30).abs() <= 3 && (px(3, 3)[2] as i32 - 150).abs() <= 3, "covered rows: {:?}", px(3, 3));
+        assert!(px(3, 12).iter().all(|&s| s == 0), "rows below the JPEG stay zero: {:?}", px(3, 12));
     }
 
     /// A deflated tile is refused when its packed bytes are too few for deflate to have produced
