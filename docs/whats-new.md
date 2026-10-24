@@ -8,6 +8,12 @@
   direct or nested smart albums. Held views keep photos that expired until Refresh View while admitting photos that
   newly match; expiry itself does not create an undo step.
 
+### The histogram's tonal zones adjust the Basic tones
+- The histogram is a control surface again, as in Lightroom Classic: hovering one of its five zones (Blacks, Shadows,
+  Exposure, Highlights, Whites) tints it and shows its name and value under the plot ("Exposure: +0.45 EV"). Dragging one
+  sideways moves that control — the zone you pressed stays locked while the pointer crosses the others, Shift drags a
+  tenth as far, and the whole drag is one undo step. Double-clicking a zone puts its control back to its default.
+
 ## 2026-10-23
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
