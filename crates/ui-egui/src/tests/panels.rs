@@ -1652,6 +1652,9 @@ fn a_count_never_covers_the_name_of_a_deep_row() {
         for (id, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("count:libfolder:")) {
             assert!(r.right() <= panel.right() || r.left() >= panel.right(), "at {width} pt {id} straddles the edge: {r:?} / {panel:?}");
         }
+        // and the deepest row's count still comes after its name
+        let (label, count) = (widget(&h, &format!("label:libfolder:{deep}")), widget(&h, &format!("count:libfolder:{deep}")));
+        assert!(count.left() >= label.right(), "at {width} pt the count comes after the name: {label:?} {count:?}");
     }
 }
 
