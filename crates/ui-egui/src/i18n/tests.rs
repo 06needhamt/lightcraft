@@ -604,11 +604,12 @@ fn german_switches_via_menu_and_control_and_persists() {
     let label = filter_label(&filter, &app.session.catalog);
     assert!(label.contains("Color") && !label.contains(&red) && label.contains(&blue), "{label}");
     let filter = lightcraft_catalog::Filter { flags: vec![lightcraft_catalog::Flag::Pick, lightcraft_catalog::Flag::None], ..Default::default() };
-    assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt oder keine");
+    let (flag, pick, reject, none) = (tr("Flag"), tr("pick"), tr("reject"), tr("none"));
+    assert_eq!(filter_label(&filter, &app.session.catalog), format!("{flag}: {pick} {or} {none}"));
     let filter = lightcraft_catalog::Filter { flag: Some(lightcraft_catalog::Flag::Pick), ..filter };
-    assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt");
+    assert_eq!(filter_label(&filter, &app.session.catalog), format!("{flag}: {pick}"));
     let filter = lightcraft_catalog::Filter { flags: vec![lightcraft_catalog::Flag::Reject, lightcraft_catalog::Flag::None], ..filter };
-    assert_eq!(filter_label(&filter, &app.session.catalog), "Markierung: ausgewählt und (abgelehnt oder keine)");
+    assert_eq!(filter_label(&filter, &app.session.catalog), format!("{flag}: {pick} {and} ({reject} {or} {none})"));
     set_language(Locale::En);
 }
 
