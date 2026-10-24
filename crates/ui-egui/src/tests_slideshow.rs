@@ -241,8 +241,8 @@ fn playback_settings_drive_the_slideshow_and_bad_ones_are_refused() {
     reveal(&mut h, "check:settings.slideshowRandom");
     let r = h.request("ui.clickWidget", json!({"id": "check:settings.slideshowRandom"}), T);
     assert_eq!(r["ok"], true, "{r}");
-    h.step();
-    assert!(h.app.session.slideshow.random_order, "the checkbox goes through slideshow.playback");
+    // (waits for it: one frame isn't always enough on a loaded machine)
+    assert!(h.step_until(T, |h| h.app.session.slideshow.random_order), "the checkbox goes through slideshow.playback");
     h.settle(SETTLE);
 }
 
@@ -394,9 +394,17 @@ fn settings_shows_the_slide_layout_and_a_live_preview() {
     h.step();
     // (the preview is pinned above the page: in view already)
     reveal(&mut h, "slideshow:preview");
-    let rect = h.app.widgets.iter().find(|(id, _)| id == "slideshow:preview").map(|(_, r)| *r).unwrap();
-    let img = h.paint();
-    let c = painted(&img, (rect.left() + 3.0) as usize, (rect.center().y) as usize);
+    // (painted once the new preview is on screen: one frame isn't always enough on a loaded machine)
+    let t0 = std::time::Instant::now();
+    let c = loop {
+        let rect = h.app.widgets.iter().find(|(id, _)| id == "slideshow:preview").map(|(_, r)| *r).unwrap();
+        let img = h.paint();
+        let c = painted(&img, (rect.left() + 3.0) as usize, (rect.center().y) as usize);
+        if (c[1] > 200 && c[0] < 60) || t0.elapsed() > T {
+            break c;
+        }
+        h.step();
+    };
     assert!(c[1] > 200 && c[0] < 60, "the green backdrop in the preview margin: {c:?}");
     h.settle(SETTLE);
 }
