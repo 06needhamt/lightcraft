@@ -1624,7 +1624,9 @@ fn folders_app_with_deep_labeled_chain() -> (Headless, String) {
     for name in &names[..names.len() - 1] {
         path.push('/');
         path.push_str(name);
-        let r = h.request("ui.clickWidget", json!({"id": format!("libraryFolderToggle:{path}")}), T);
+        let toggle = format!("libraryFolderToggle:{path}");
+        assert!(h.step_until(T, |h| has(h, &toggle)), "{toggle} is drawn");
+        let r = h.request("ui.clickWidget", json!({"id": toggle}), T);
         assert_eq!(r["ok"], true, "{r}");
         // the frame a new row is first drawn in, before the content has grown to what it asked for
         h.step();
