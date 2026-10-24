@@ -311,6 +311,16 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     style.panels_label = crate::i18n::tr("Panels").into();
     style.resize_label = crate::i18n::tr("Resize panels").into();
     style.resize_window_label = crate::i18n::tr("Resize panel window").into();
+    style.move_group_label = crate::i18n::tr("Move tab group").into();
+    style.move_group_to_label = crate::i18n::tr("Move group to").into();
+    style.float_group_label = crate::i18n::tr("Float tab group").into();
+    style.close_group_label = crate::i18n::tr("Close tab group").into();
+    style.close_others_label = crate::i18n::tr("Close other panels in group").into();
+    style.minimize_label = crate::i18n::tr("Minimize").into();
+    style.expand_label = crate::i18n::tr("Expand").into();
+    style.move_window_label = crate::i18n::tr("Move panel window").into();
+    style.close_window_label = crate::i18n::tr("Close panel window").into();
+    style.float_hint_label = crate::i18n::tr("Hold {key} to undock").into();
     style.background = t.chrome;
     style.tab_background = t.chrome;
     style.active_background = t.canvas;
