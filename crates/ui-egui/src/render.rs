@@ -683,14 +683,18 @@ impl Renderer {
     /// only the photos the ops since the last poll touched are tried again, and every photo when
     /// the catalog can't say which. So faces found or metadata written for other photos don't
     /// send each undecodable file back to the decoder (issue #2682: 37 tries each in 154 s idle).
-    fn follow_catalog(&mut self, catalog: &lightcraft_catalog::Catalog) {
+    /// A file `files` knows to be missing (its drive unplugged) is still tried at every change, so
+    /// its photo comes back with the drive, as before.
+    fn follow_catalog(&mut self, catalog: &lightcraft_catalog::Catalog, files: &lightcraft_engine::availability::Availability) {
         let rev = catalog.revision;
         if rev == self.catalog_rev {
             return;
         }
         if let Some(touched) = catalog.touched_since(self.catalog_rev) {
+            let missing =
+                |id| matches!(catalog.photo(id).map(|p| &p.source), Some(lightcraft_catalog::Source::File { path }) if files.is_offline(path));
             for f in self.failed.values_mut() {
-                if f.2 == self.catalog_rev && touched.binary_search(&f.3).is_err() {
+                if f.2 == self.catalog_rev && touched.binary_search(&f.3).is_err() && !missing(f.3) {
                     f.2 = rev;
                 }
             }
@@ -794,7 +798,7 @@ impl Renderer {
             self.forget_all();
         }
         self.preview_generation = Some((Arc::downgrade(cache), generation));
-        self.follow_catalog(&session.catalog);
+        self.follow_catalog(&session.catalog, &session.media.availability);
         self.frame += 1;
         self.trim_stages();
         // wasm: run one job per frame on this thread, timed with the host clock
@@ -1249,38 +1253,51 @@ mod thumbnail_tests {
 
     /// Issue #2682: writes to other photos in the background (faces found, metadata read) moved
     /// the catalog revision on and sent every undecodable file back to the decoder, 37 times each
-    /// in 154 s of idle. A failure is tried again only when its own photo changes, or when the
-    /// catalog can't say which photos did.
+    /// in 154 s of idle. A failure is tried again only when its own photo changes, when the
+    /// catalog can't say which photos did, or, at any change, when its file is known to be missing.
     #[test]
     fn a_failed_thumbnail_is_retried_only_when_its_photo_changes() {
+        use std::sync::atomic::{AtomicBool, Ordering};
         let mut catalog = Catalog::default();
         let p = photo();
         let other = PhotoId(2);
         catalog.apply(Op::AddPhoto { photo: Box::new((*p).clone()) }).unwrap();
         let other_photo = Photo::new(other, Source::File { path: "other.jpg".into() }, "other.jpg", "JPEG", 60, 40, "2026-01-01");
         catalog.apply(Op::AddPhoto { photo: Box::new(other_photo) }).unwrap();
+        // the files are there (an undecodable file is still a file)
+        let here = Arc::new(AtomicBool::new(true));
+        let mut files = lightcraft_engine::availability::Availability::default();
+        let h = here.clone();
+        files.set_probe(Arc::new(move |_| h.load(Ordering::SeqCst)));
         let slot = Slot::Thumb(p.id);
         let mut r = Renderer::default();
-        r.follow_catalog(&catalog);
+        r.follow_catalog(&catalog, &files);
         r.failed.insert(slot, (77, "unrecognised image format".into(), r.catalog_rev, p.id));
         assert!(!r.request_needed(slot, 77, 10), "a failure stands");
         // the other photo changes, op after op, as background work does
         for rating in 1..=5 {
             catalog.apply(Op::SetRating { id: other, rating }).unwrap();
-            r.follow_catalog(&catalog);
+            r.follow_catalog(&catalog, &files);
             assert!(!r.request_needed(slot, 77, 10), "another photo's change (rating {rating}) retries nothing");
         }
         // a change to the photo itself is a reason to try again
         catalog.apply(Op::SetRating { id: p.id, rating: 2 }).unwrap();
-        r.follow_catalog(&catalog);
+        r.follow_catalog(&catalog, &files);
         assert!(r.request_needed(slot, 77, 10), "its own photo changed");
         // so is a change the catalog can't attribute to photos
         r.failed.insert(slot, (77, "unrecognised image format".into(), r.catalog_rev, p.id));
         assert!(!r.request_needed(slot, 77, 10));
         let album = catalog.alloc_album_id();
         catalog.apply(Op::AddAlbum { album: lightcraft_catalog::Album::new(album, "Trip") }).unwrap();
-        r.follow_catalog(&catalog);
+        r.follow_catalog(&catalog, &files);
         assert!(r.request_needed(slot, 77, 10), "which photos changed is unknown");
+        // a file known to be missing (its drive unplugged) is tried at every change, as before, so
+        // the photo comes back with its drive
+        r.failed.insert(slot, (77, "file not found".into(), r.catalog_rev, p.id));
+        here.store(false, Ordering::SeqCst);
+        catalog.apply(Op::SetRating { id: other, rating: 1 }).unwrap();
+        r.follow_catalog(&catalog, &files);
+        assert!(r.request_needed(slot, 77, 10), "a missing file is tried again");
     }
 
     #[test]
