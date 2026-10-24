@@ -200,10 +200,24 @@ fn clock_minute(now: &str) -> &str {
     now.get(..16).unwrap_or(now)
 }
 
-/// Whether a query can change membership without a catalog edit, including smart albums it tests.
+/// Whether a query can change membership without a catalog edit, including the smart albums it tests.
 fn filter_depends_on_clock(filter: &Filter, catalog: &Catalog) -> bool {
-    filter.depends_on_now()
-        || (!filter.albums_tested().is_empty() && catalog.albums().any(|album| album.smart.as_deref().is_some_and(Filter::depends_on_now)))
+    if filter.depends_on_now() {
+        return true;
+    }
+    let mut pending = filter.albums_tested();
+    let mut seen = std::collections::HashSet::new();
+    while let Some(id) = pending.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        let Some(smart) = catalog.album(id).and_then(|album| album.smart.as_deref()) else { continue };
+        if smart.depends_on_now() {
+            return true;
+        }
+        pending.extend(smart.albums_tested());
+    }
+    false
 }
 
 /// Source of [`Session::visible_shared`] generations (process-wide, so two sessions never share one).

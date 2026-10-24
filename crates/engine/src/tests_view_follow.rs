@@ -1,7 +1,7 @@
 //! The view follows a small edit from the list it had ([`Session::visible`]): whatever the edit, the result has to
 //! be the list worked out from every photo.
 
-use lightcraft_catalog::{Op, Photo, PhotoId, Source};
+use lightcraft_catalog::{Album, Op, Photo, PhotoId, Source};
 use serde_json::{Value, json};
 
 use crate::Session;
@@ -277,6 +277,28 @@ fn relative_clock_absolute_and_same_minute_views_keep_their_generations() {
     let (same_minute_generation, same_minute_ids) = relative.visible_shared();
     assert_eq!(same_minute_generation, relative_generation);
     assert_eq!(same_minute_ids, relative_ids);
+}
+
+#[test]
+fn relative_clock_unrelated_smart_album_does_not_expire_album_filter_view() {
+    let (mut s, now, ids) = relative_clock_session(&["2026-10-23T12:00:30"]);
+    let manual = s.catalog.alloc_album_id();
+    s.catalog.apply(Op::AddAlbum { album: Album::new(manual, "Manual") }).unwrap();
+    s.catalog.apply(Op::SetAlbumPhotos { id: manual, photos: vec![ids[0]] }).unwrap();
+    s.execute(
+        "album.createSmart",
+        &json!({"name": "Unrelated recent", "rules": {"ruleSet": {"rules": [{"field": "captureDate", "op": "inLast", "value": 1}]}}}),
+    )
+    .unwrap();
+    s.execute("library.filter", &json!({"ruleSet": {"rules": [{"field": "album", "op": "is", "value": manual.0}]}})).unwrap();
+    let (generation, visible) = s.visible_shared();
+    assert_eq!(visible.as_ref(), ids.as_slice());
+
+    *now.lock().unwrap() = "2026-10-24T12:01:00".to_string();
+    let (after_generation, after_visible) = s.visible_shared();
+
+    assert_eq!(after_generation, generation, "an unrelated relative smart album must not expire this view");
+    assert_eq!(after_visible, visible);
 }
 
 #[test]

@@ -83,8 +83,8 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 ## Revision history
 
 | Date | Change | Summary |
-| 2026-10-24 | minor | LR-LIB-SMARTALBUM: relative-date views and source totals expire on the session-clock minute, including nested smart albums; ranked gaps and readiness counts unchanged |
 |---|---|---|
+| 2026-10-24 | minor | LR-LIB-SMARTALBUM: relative-date views and source totals expire on the session-clock minute, including nested smart albums; ranked gaps and readiness counts unchanged |
 | 2026-10-22 | patch | XMP namespace-prefix collisions no longer overwrite foreign metadata; ranked gaps and estimates unchanged |
 | 2026-10-22 | patch | Issue #2519: PSD/PSB EXIF resource 1058 and XMP resource 1060 now use the common metadata extractor, and `.psb` files are accepted by import; no ranked gap or readiness count changes |
 | 2026-10-22 | minor | Gap 30 added: multi-select metadata editing — Info panel and All Metadata dialog show one photo's values with no mixed-value indication |

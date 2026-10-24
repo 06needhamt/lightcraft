@@ -797,8 +797,8 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 ## Revision history
 
 | Date | Change | Summary |
-| 2026-10-24 | patch | LR-LIB-SMARTALBUM: relative-date view and source-count caches expire on the session-clock minute, including nested smart albums; held views retain expired photos until refresh and admit new matches; status and feature counts unchanged |
 |---|---|---|
+| 2026-10-24 | patch | LR-LIB-SMARTALBUM: relative-date view and source-count caches expire on the session-clock minute, including nested smart albums; held views retain expired photos until refresh and admit new matches; status and feature counts unchanged |
 | 2026-10-22 | patch | LR-META-XMP: namespace URI determines ownership; foreign namespaces using recognized prefixes survive saves and cannot supply native settings or ratings; status and counts unchanged |
 | 2026-10-22 | patch | LR-EXP-PSD, LR-META-EXIF-FULL: PSD/PSB imports and image resources 1058/1060 now supply EXIF and XMP to metadata readers and All Metadata; Original with Remove Location Info refuses detected PSD/PSB GPS; statuses and feature counts unchanged |
 | 2026-10-21 | patch | LR-IMP-ADD-DIALOG: reconcile #2362 with current main; deleted-album guard and hierarchical picker retained; counts unchanged |
