@@ -1701,6 +1701,35 @@ fn a_count_that_gives_way_is_whole_in_the_frame_the_panel_changes() {
     }
 }
 
+/// The same when the panel grows by more than a few points in one frame (a window resize, or a
+/// drag that was held up): the content is still as wide as the last frame asked for.
+#[test]
+fn a_count_that_gives_way_is_whole_when_the_panel_grows_in_one_frame() {
+    let (mut h, _) = folders_app_with_deep_labeled_chain();
+    for from in (200..=260).step_by(10) {
+        for by in [8, 16, 24, 32, 48, 64] {
+            for width in [from, from + by] {
+                let r = h.request("ui.set", json!({"leftWidth": width}), T);
+                assert_eq!(r["ok"], true, "{r}");
+                if width == from {
+                    h.settle(SETTLE);
+                } else {
+                    h.step();
+                }
+            }
+            let panel = widget(&h, "panel:left_panel");
+            assert!((panel.width() - (from + by) as f32).abs() < 2.0, "the panel is already {} pt wide in that frame: {panel:?}", from + by);
+            for (id, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("count:libfolder:") || w.starts_with("labelMark:libfolder:")) {
+                assert!(
+                    r.right() <= panel.right() || r.left() >= panel.right(),
+                    "one frame after {from} -> {} pt {id} straddles the edge: {r:?} / {panel:?}",
+                    from + by
+                );
+            }
+        }
+    }
+}
+
 /// Scrolling the sidebar sideways, a frame at a time, never leaves a count or dot cut in two by
 /// the panel's edge, also where the scroll reaches the end of the content.
 #[test]
