@@ -1837,11 +1837,12 @@ pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
 
     // A suffix N/S marks the end of latitude; a prefix N/S uses the next hemisphere prefix as
     // the boundary. If only longitude has a hemisphere, the whitespace pass below handles it.
+    let mut parsed: Option<(f64, f64)> = None;
     let mut latitude_markers = t.char_indices().filter(|(_, c)| matches!(c, 'N' | 'S' | 'n' | 's'));
     if let Some((first, marker)) = latitude_markers.next() {
         if first == 0 {
             if let Some((second, _)) = t.char_indices().skip(1).find(|(_, c)| is_gps_hemisphere(*c)) {
-                return parse_gps_pair(t.get(..second)?, t.get(second..)?);
+                parsed = Some(parse_gps_pair(t.get(..second)?, t.get(second..)?)?);
             }
         } else {
             let end = first.checked_add(marker.len_utf8())?;
@@ -1852,7 +1853,6 @@ pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
     // Without hemisphere letters, a comma-free pair is separated by whitespace. Trying each
     // boundary also permits spaces between DMS components without letting unconsumed text vanish.
     // If multiple boundaries parse, they must agree so ambiguous text cannot be reinterpreted.
-    let mut parsed: Option<(f64, f64)> = None;
     for (at, separator) in t.char_indices().filter(|(_, c)| c.is_whitespace()) {
         let after = at.checked_add(separator.len_utf8())?;
         if let Some(pair) = parse_gps_pair(t.get(..at)?, t.get(after..)?) {
