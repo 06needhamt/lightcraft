@@ -7,7 +7,8 @@
   strokes instead of grain, often orange and blue under warm light. Noise reduction made them stand out more, because
   it smooths the grain around them. The demosaic chose between a horizontal and a vertical guess at each pixel, and
   in a flat area the noise alone decided which. Where neither guess is clearly better it now blends the two, so the
-  noise looks like grain. Edges are as sharp as before. Thumbnails and previews of raws are redrawn.
+  noise looks like grain. Edges are as sharp as before. Thumbnails and previews that LightCraft rendered from a raw
+  are redrawn; the camera's own embedded preview, shown for an unedited raw until its render is ready, is unchanged.
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
 - In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
