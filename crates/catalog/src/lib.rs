@@ -627,10 +627,13 @@ impl Catalog {
             Err(e) => {
                 let made = self.revision.saturating_add(1);
                 if self.changes.torn {
-                    // (a batch the rollback of which failed changed something and says not what: anything may
-                    // have changed, as after an op of a wider reach)
+                    // (a batch the rollback of which failed changed something and says not what: it makes a
+                    // revision, so what is kept for the one before is dropped, and anything may have changed, as
+                    // after an op of a wider reach)
                     self.changes.torn = false;
                     self.changes.broad = made;
+                    self.revision = made;
+                    self.changes.seen = made;
                 } else {
                     // (everything the failed op, or the rollback of a batch, noted was made for the revision it
                     // would have made: nothing earlier has that one. A note the cap already dropped stays

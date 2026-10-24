@@ -1041,7 +1041,8 @@ fn a_batch_that_cannot_be_rolled_back_whole_makes_earlier_changes_unknown() {
     let failing =
         Op::Batch { ops: vec![Op::RemovePhoto { id: ids[0] }, Op::RemoveStack { id: stack }, Op::SetRating { id: PhotoId(9_999), rating: 1 }] };
     assert!(c.apply(failing).is_err());
-    assert_eq!(c.revision, start);
+    assert_eq!(c.revision, start + 1, "the catalog changed, so what is kept for the revision before is out of date");
     assert!(c.photo(ids[0]).is_some() && c.stack(stack).is_none(), "the rollback went only part of the way");
     assert_eq!(c.touched_since(start), None, "so nothing is said of what changed");
+    assert_eq!(c.touched_since(c.revision), Some(vec![]), "from after it, it is known again");
 }
