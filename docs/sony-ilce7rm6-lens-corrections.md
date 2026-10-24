@@ -327,8 +327,13 @@ the resampled source by the source, framing and output size, so tone, colour and
 - **ILCE-7RM6 and ILCE-6700 only.** Other Sony bodies record the same tags; their knot spacing (defined here by the
   full-frame crop, or an APS-C body's own crop), unit and zoom rule are unverified, so they get no correction from this conversion (the ILCE-7RM4A's distortion has
   its own: [Two conventions](#two-conventions)).
-- **ILCE-6700 at strong barrel distortion:** 1.36–1.38 px at the Sigma 10–18 mm's 10 mm end (above); its vignetting
-  and lateral CA tables are not measured.
+- **ILCE-6700 at strong barrel distortion:** 1.36–1.38 px at the Sigma 10–18 mm's 10 mm end (above). The two public
+  raw.pixls.us ILCE-6700 files (one scene, E 16–55 mm F2.8 G at 16 mm, not used for fitting) both carry the same
+  table (−1829 at the last knot). On the compressed file the correction leaves p95 3.1 px (uncorrected 5.1 px, exact
+  table 3.4 px); with the same spacing this lens fits at unit 16000 (0.43 px), another lens-dependent unit (below).
+  On the lossless file the table, on its padded 6656 × 4608 frame, misses the 0.5 px fit gate, so that photo stays
+  uncorrected (5.3 px). Its vignetting and lateral CA tables are read, not applied: measured in #2801 (the camera JPEG
+  doesn't compensate vignetting, as on the ILCE-7RM6).
 - **APS-C distortion is unverified in camera on the ILCE-7RM6:** no APS-C photo with distortion correction on was available; the APS-C
   knot spacing is verified on CA only, and the APS-C zoom follows the full-frame rule.
 - **Aspect-ratio crops** (in-camera 4:3, 16:9, 1:1) were not measured; the correction uses the crop the file records.
