@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-24
+
+### Relative-date filters and smart albums follow the clock
+- A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
+  minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for
+  direct or nested smart albums. Held views keep photos that expired until Refresh View while admitting photos that
+  newly match; expiry itself does not create an undo step.
+
 ## 2026-10-23
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
