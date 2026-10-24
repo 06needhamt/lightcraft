@@ -1850,9 +1850,9 @@ pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
         }
     }
 
-    // Without hemisphere letters, a comma-free pair is separated by whitespace. Trying each
-    // boundary also permits spaces between DMS components without letting unconsumed text vanish.
-    // If multiple boundaries parse, they must agree so ambiguous text cannot be reinterpreted.
+    // A comma-free pair can be separated by whitespace. Trying each boundary also permits spaces
+    // between DMS components without letting unconsumed text vanish. If multiple boundaries parse,
+    // they must agree so ambiguous text cannot be reinterpreted.
     for (at, separator) in t.char_indices().filter(|(_, c)| c.is_whitespace()) {
         let after = at.checked_add(separator.len_utf8())?;
         if let Some(pair) = parse_gps_pair(t.get(..at)?, t.get(after..)?) {
