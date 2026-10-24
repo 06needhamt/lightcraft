@@ -393,6 +393,8 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
         {
             fire.push("view.detail".to_string());
         }
+        // a held Space repeats: it toggles the zoom (or takes the hand) once per press
+        let space_repeat = !i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Space, pressed: true, repeat: false, .. }));
         for b in bindable() {
             if let Some(sc) = binding(keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
@@ -401,11 +403,17 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
                 && matches(i, m, k)
                 && let Some(id) = grid_key_command(keymap, grid, app.ui.fullscreen, b.id, (m, k))
             {
-                fire.push(id.to_string());
+                if id == "view.zoomToggle" && k == Key::Space {
+                    // Toggle Zoom given Space in the keymap is the Space alias: the same hand and
+                    // the same once-per-press
+                    if !space_repeat {
+                        aliased.push(("view.zoomToggle", json!({})));
+                    }
+                } else {
+                    fire.push(id.to_string());
+                }
             }
         }
-        // a held Space repeats: it toggles the zoom (or takes the hand) once per press
-        let space_repeat = !i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Space, pressed: true, repeat: false, .. }));
         for (sc, id, params) in ALIASES {
             if let Some((m, k)) = parse(sc).filter(|_| !native(sc))
                 && !(k == Key::Escape && popup_open)

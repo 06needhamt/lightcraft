@@ -107,6 +107,29 @@ fn a_held_space_toggles_the_zoom_once_however_long_it_repeats() {
 }
 
 #[test]
+fn toggle_zoom_given_space_in_the_keymap_takes_the_hand_and_toggles_once() {
+    // with Space as Toggle Zoom's own shortcut the Space alias yields to it: the binding gets the
+    // same hand over a tool and the same once-per-press
+    let mut h = detail(None);
+    crate::shortcuts::assign(&mut h.app.ui.settings.keymap, "view.zoomToggle", Some("Space")).unwrap();
+    space(&mut h, "down");
+    assert_eq!(h.app.ui.zoom, Zoom::Percent(100.0));
+    for _ in 0..3 {
+        space(&mut h, "down");
+    }
+    assert_eq!(h.app.ui.zoom, Zoom::Percent(100.0), "a repeat toggled the zoom");
+    space(&mut h, "up");
+    let r = h.request("engine.execute", json!({"command": "panel.remove"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    zoom_in(&mut h);
+    space(&mut h, "down");
+    assert!(h.app.space_hand.is_some(), "the binding did not take the hand");
+    assert_eq!(h.app.ui.zoom, Zoom::Percent(200.0), "the press zoomed");
+    space(&mut h, "up");
+}
+
+#[test]
 fn space_held_over_the_healing_brush_pans_and_paints_no_spot() {
     let mut h = detail(Some("panel.remove"));
     assert_eq!(h.app.ui.right, RightPanel::Remove);
