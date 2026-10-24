@@ -284,7 +284,8 @@ pub struct Catalog {
     /// What the library keeps about its folders (folder identity → record), see [`folders`].
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     folder_records: BTreeMap<String, FolderRecord>,
-    /// Increments on every applied op.
+    /// Increments on every applied op, and when a batch fails and its rollback cannot undo it whole (the catalog
+    /// changed, so what is keyed by the revision is out of date).
     #[serde(skip)]
     pub revision: u64,
     /// Which photos the latest ops touched ([`Catalog::touched_since`]).
@@ -612,9 +613,9 @@ impl Catalog {
         self.albums.get_mut(&id).ok_or(CatalogError::NoAlbum(id))
     }
 
-    /// Apply an op; returns its inverse. On error nothing changes, and nothing is remembered of the op in what the
-    /// latest ops touched; only a batch that could not be rolled back whole is remembered as "anything may have
-    /// changed".
+    /// Apply an op; returns its inverse. On error the catalog is as it was, the revision included, and nothing is
+    /// remembered of the op in what the latest ops touched. The one exception is a batch whose rollback fails: the
+    /// catalog did change, so the revision advances and anything may be taken to have changed.
     pub fn apply(&mut self, op: Op) -> Result<Op> {
         if self.changes.seen != self.revision {
             // the revision was set from outside: what is remembered is of another past
