@@ -371,6 +371,9 @@ pub fn specs() -> Vec<CommandSpec> {
                         if s.catalog.album(a).is_none_or(|a| a.folder) {
                             return Err(bad("library.source", "no such album"));
                         }
+                        // one album at a time: `to_filter` makes the album shown replace the filter's, and the
+                        // filter bar has no album chip, so a left-over one would narrow the next source unseen
+                        s.filter.album = None;
                         LibrarySource::Album(a)
                     }
                     "libraryFolder" => {
@@ -1807,3 +1810,7 @@ mod flag_cycle_tests;
 #[cfg(test)]
 #[path = "library/tests_enable_filters.rs"]
 mod enable_filters_tests;
+
+#[cfg(test)]
+#[path = "library/tests_source_album_filter.rs"]
+mod source_album_filter_tests;
