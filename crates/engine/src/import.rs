@@ -471,6 +471,20 @@ pub enum LaunchPath {
     /// Not imported: `path` (absolute) is a whole drive or the whole home folder, which is never
     /// walked without being chosen in the app (issue #374).
     Refused { path: String, why: String },
+    /// Open this (absolute) library folder: the argument was a library's `catalog.snap` or its folder, as a
+    /// double-click on a catalog in the file manager gives. Never imported.
+    Library(String),
+}
+
+/// The library folder `path` names: a library's `catalog.snap` (its folder), or a folder holding one. `None` for
+/// anything else (photos, folders of photos).
+pub fn library_dir_of(path: &Path) -> Option<PathBuf> {
+    let snapshot = lightcraft_catalog::journal::SNAPSHOT;
+    let named = path.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(snapshot));
+    if named && path.is_file() {
+        return path.parent().map(Path::to_path_buf);
+    }
+    (path.is_dir() && path.join(snapshot).is_file()).then(|| path.to_path_buf())
 }
 
 /// Resolve a launch argument for importing (issue #374). An empty argument is ignored (`None`);
@@ -513,6 +527,9 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
     let key = lightcraft_catalog::query::folder_key;
     if home.is_some_and(|h| key(&h.to_string_lossy()) == key(&shown)) {
         return Some(LaunchPath::Refused { path: shown, why: "the whole home folder".into() });
+    }
+    if let Some(dir) = library_dir_of(&abs) {
+        return Some(LaunchPath::Library(dir.to_string_lossy().to_string()));
     }
     Some(LaunchPath::Import(shown))
 }

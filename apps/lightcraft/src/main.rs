@@ -790,7 +790,8 @@ fn open_library_session(in_memory: bool, dir: Option<std::path::PathBuf>, seed_d
 const HELP: &str = "\
 lightcraft — photo library + raw developer
 
-USAGE: lightcraft [OPTIONS] [FILES/FOLDERS…]   (files and folders are imported)
+USAGE: lightcraft [OPTIONS] [FILES/FOLDERS…]   (files and folders are imported; a library's catalog.snap or
+                                               folder opens that library)
 
 OPTIONS:
   --library DIR    open (or create) this library (env LIGHTCRAFT_LIBRARY; default: the last library opened, or
@@ -817,17 +818,32 @@ ENVIRONMENT:
 
 /// The launch arguments' files and folders to import (absolute), and a notice for each one that
 /// is not imported (see [`lightcraft_engine::import::launch_path`]; issue #374).
-fn launch_imports(args: &[String]) -> (Vec<String>, Vec<String>) {
+fn launch_imports(args: &[String]) -> LaunchArgs {
     let cwd = std::env::current_dir().ok();
     let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).filter(|h| !h.is_empty()).map(std::path::PathBuf::from);
     launch_imports_in(args, cwd.as_deref(), home.as_deref())
 }
 
-fn launch_imports_in(args: &[String], cwd: Option<&std::path::Path>, home: Option<&std::path::Path>) -> (Vec<String>, Vec<String>) {
+/// What the launch arguments ask for: files and folders to import, a library to open (a library's `catalog.snap`
+/// or folder, double-clicked in the file manager), and a notice for each argument
+/// left alone.
+#[derive(Debug, Default, PartialEq)]
+struct LaunchArgs {
+    files: Vec<String>,
+    library: Option<std::path::PathBuf>,
+    notices: Vec<String>,
+}
+
+fn launch_imports_in(args: &[String], cwd: Option<&std::path::Path>, home: Option<&std::path::Path>) -> LaunchArgs {
     use lightcraft_engine::import::{LaunchPath, launch_path};
-    let (mut files, mut notices) = (Vec::new(), Vec::new());
+    let (mut files, mut notices, mut library) = (Vec::new(), Vec::new(), None);
     for a in args {
         match launch_path(a, cwd, home, lightcraft_engine::devices::dcim_in) {
+            Some(LaunchPath::Library(dir)) if library.is_none() => library = Some(std::path::PathBuf::from(dir)),
+            Some(LaunchPath::Library(dir)) => {
+                log::warn!("one library at a time: not opening {dir} given at launch");
+                notices.push(format!("{dir} was not opened: LightCraft opens one library at a time. Open it with File ▸ Open Library…"));
+            }
             Some(LaunchPath::Import(p)) => files.push(p),
             Some(LaunchPath::Refused { path, why }) => {
                 log::warn!("not importing {path} given at launch: {why}");
@@ -837,7 +853,7 @@ fn launch_imports_in(args: &[String], cwd: Option<&std::path::Path>, home: Optio
             None => {}
         }
     }
-    (files, notices)
+    LaunchArgs { files, library, notices }
 }
 
 /// Where the log files live: `logs` in the settings folder, next to `ui.json` (see `logging`).
@@ -920,7 +936,10 @@ fn main() -> eframe::Result {
     }
     // what the arguments name, resolved now: an empty or relative argument never becomes a drive
     // root, and a whole drive or home folder is not walked (issue #374)
-    let (files, launch_notices) = launch_imports(&files);
+    let LaunchArgs { files, library: launch_library, notices: launch_notices } = launch_imports(&files);
+    // a library double-clicked (its catalog.snap or folder) is the one that opens, not the last one used
+    let opened_by_argument = launch_library.is_some() && library_dir.is_none();
+    let library_dir = library_dir.or(launch_library);
     let (prefs, prefs_warning, keep_prefs_file) = load_prefs(in_memory);
     // the saved language from the start, so a failed start is reported in it too
     if let Some(ui) = &prefs {
@@ -1022,6 +1041,20 @@ fn main() -> eframe::Result {
                     keep_file: keep_prefs_file,
                     ..Default::default()
                 };
+                // a library opened from its catalog file is the one in use from now on, as Open Library makes it
+                // (after the snapshot above, so the writer saves it)
+                if opened_by_argument
+                    && problem.is_none()
+                    && let Some(dir) = app.session.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy().into_owned())
+                {
+                    let settings = &mut app.ui.settings;
+                    if settings.library_path != dir && !settings.library_path.is_empty() {
+                        let previous = settings.library_path.clone();
+                        lightcraft_ui_egui::panels::settings::remember_library(&mut settings.recent_libraries, &previous);
+                    }
+                    lightcraft_ui_egui::panels::settings::remember_library(&mut settings.recent_libraries, &dir);
+                    settings.library_path = dir;
+                }
                 // after the snapshot above, so the writer saves the switched-off preference
                 if let Some(notice) = gpu_crash {
                     app.ui.settings.gpu = false;
@@ -1161,14 +1194,41 @@ mod tests {
         let home = dir("launch");
         std::fs::create_dir_all(home.join("Trip")).unwrap();
         let args: Vec<String> = ["", "  ", ".", "Trip", &home.to_string_lossy()].iter().map(|s| s.to_string()).collect();
-        let (files, notices) = launch_imports_in(&args, Some(&home), Some(&home));
+        let LaunchArgs { files, notices, library } = launch_imports_in(&args, Some(&home), Some(&home));
+        assert_eq!(library, None);
         assert_eq!(files, [home.join("Trip").to_string_lossy().to_string()]);
         assert_eq!(notices.len(), 2, "{notices:?}");
         assert!(notices.iter().all(|n| n.contains("was not imported")), "{notices:?}");
         // the working folder is a drive root (a launcher's choice): `.` is never the whole drive
         let root = home.ancestors().last().unwrap().to_path_buf();
-        let (files, notices) = launch_imports_in(&[".".to_string()], Some(&root), None);
+        let LaunchArgs { files, notices, .. } = launch_imports_in(&[".".to_string()], Some(&root), None);
         assert!(files.iter().all(|f| f.ends_with("DCIM")) && files.len() + notices.len() == 1, "{files:?} {notices:?}");
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// A library's catalog.snap (double-clicked in Explorer) or its folder given at
+    /// launch opens that library and is never imported as photos; a second library is left with a notice.
+    #[test]
+    fn a_librarys_catalog_given_at_launch_opens_that_library() {
+        let home = dir("launch-library");
+        let lib = home.join("Wedding LC");
+        let mut s = lightcraft_engine::Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+        s.close_library().unwrap();
+        let snap = lib.join("catalog.snap");
+        assert!(snap.is_file(), "a library keeps its catalog.snap");
+        let other = home.join("Other LC");
+        let mut s = lightcraft_engine::Session::new().with_fs();
+        s.open_library(&other, false).unwrap();
+        s.close_library().unwrap();
+        for arg in [snap.to_string_lossy().to_string(), lib.to_string_lossy().to_string(), "Wedding LC/catalog.snap".to_string()] {
+            let got = launch_imports_in(std::slice::from_ref(&arg), Some(&home), Some(&home.join("elsewhere")));
+            assert_eq!(got.library.as_deref(), Some(lib.as_path()), "{arg}");
+            assert!(got.files.is_empty() && got.notices.is_empty(), "{arg}: never imported: {got:?}");
+        }
+        let got = launch_imports_in(&[snap.to_string_lossy().to_string(), other.to_string_lossy().to_string()], Some(&home), None);
+        assert_eq!(got.library.as_deref(), Some(lib.as_path()), "the first one");
+        assert_eq!(got.notices.len(), 1, "{got:?}");
         let _ = std::fs::remove_dir_all(&home);
     }
 
