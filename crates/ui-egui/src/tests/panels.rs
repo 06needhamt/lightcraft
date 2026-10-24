@@ -1703,6 +1703,29 @@ fn a_count_that_gives_way_is_whole_in_the_frame_the_panel_changes() {
     }
 }
 
+/// A sideways scroll of many points in one frame (a flick) does not leave a count or dot cut in
+/// two by the panel's edge in the frame it lands.
+#[test]
+fn a_count_that_gives_way_is_whole_after_a_sideways_flick() {
+    let (mut h, _) = folders_app_with_deep_labeled_chain();
+    h.request("ui.move", json!({"x": 120.0, "y": 400.0}), T);
+    for dx in [-10.0, -20.0, -30.0, -40.0, -60.0, -90.0, 20.0, 40.0, 90.0] {
+        for width in [210, 230, 250, 290] {
+            h.request("ui.set", json!({"leftWidth": width}), T);
+            h.settle(SETTLE);
+            h.request("ui.scroll", json!({"dx": dx}), T);
+            h.step();
+            let panel = widget(&h, "panel:left_panel");
+            for (id, r) in h.app.widgets.iter().filter(|(w, _)| w.starts_with("count:libfolder:") || w.starts_with("labelMark:libfolder:")) {
+                assert!(
+                    r.right() <= panel.right() || r.left() >= panel.right(),
+                    "flick {dx} at {width} pt: {id} straddles the edge: {r:?} / {panel:?}"
+                );
+            }
+        }
+    }
+}
+
 /// The same when the panel grows by more than a few points in one frame (a window resize, or a
 /// drag that was held up): the content is still as wide as the last frame asked for.
 #[test]

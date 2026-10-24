@@ -199,7 +199,9 @@ fn draw_row(app: &mut LightcraftApp, ui: &mut egui::Ui, row: Row) -> egui::Respo
     // a label's dot sits just before the count
     let count_w = count_galley.as_ref().map(|g| g.size().x);
     let past_edge = count_past_edge(label_left, full_w, mark_w, count_w, mark.is_some(), edge);
-    let edge = past_edge.map_or(edge, |e| e.min(r.right()));
+    // (held to the row's end only when that ends inside the panel: a row that reaches past the
+    // panel's edge keeps the count wholly past it, not cut by it)
+    let edge = past_edge.map_or(edge, |e| if r.right() < visible_right { e.min(r.right()) } else { e });
     let count_left = edge - 18.0 - count_w.unwrap_or(0.0);
     if let Some(c) = mark {
         let dot = Rect::from_center_size(pos2(count_left - MARK_W / 2.0, r.center().y), vec2(8.0, 8.0));
