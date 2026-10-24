@@ -365,6 +365,58 @@ fn templates_export_to_a_file_and_import_from_one() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// A library whose `prefs.json` can't be read, so saving the preferences fails.
+#[derive(Clone, Default)]
+struct PrefsUnreadable(MemStore);
+
+impl lightcraft_catalog::Store for PrefsUnreadable {
+    fn read(&mut self, name: &str) -> std::io::Result<Option<Vec<u8>>> {
+        if name == "prefs.json" {
+            return Err(std::io::Error::other("locked by another process"));
+        }
+        self.0.read(name)
+    }
+    fn write_atomic(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        self.0.write_atomic(name, data)
+    }
+    fn append(&mut self, name: &str, data: &[u8]) -> std::io::Result<()> {
+        self.0.append(name, data)
+    }
+    fn truncate(&mut self, name: &str, len: u64) -> std::io::Result<()> {
+        self.0.truncate(name, len)
+    }
+    fn describe(&self) -> String {
+        "prefs unreadable".into()
+    }
+}
+
+#[test]
+fn template_changes_that_cant_be_saved_are_undone() {
+    let mut s = Session::with_demo();
+    let stores =
+        LibraryStores { dir: "print".into(), catalog: Box::new(MemStore::new()), files: Box::new(PrefsUnreadable::default()), on_disk: false };
+    s.open_library_in(stores, false).unwrap();
+    s.print_templates.push(crate::print::template::PrintTemplate::new("Proofs", &s.print).unwrap());
+    let names = |s: &Session| s.print_templates.iter().map(|t| (t.name.clone(), t.settings.clone())).collect::<Vec<_>>();
+    let kept = names(&s);
+    let dir = std::env::temp_dir().join(format!("lightcraft-print-unsaved-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("proofs.lcprint");
+    run(&mut s, "print.template.export", json!({"name": "Proofs", "path": file.to_string_lossy()}));
+
+    run(&mut s, "print.set", json!({"layout": {"style": "contactSheet"}}));
+    for (id, p) in [
+        ("print.template.save", json!({"name": "Other"})),
+        ("print.template.save", json!({"name": "proofs"})),
+        ("print.template.delete", json!({"name": "Proofs"})),
+        ("print.template.import", json!({"path": file.to_string_lossy()})),
+    ] {
+        assert!(fails(&mut s, id, p.clone()).contains("prefs.json"), "{id} {p}");
+        assert_eq!(names(&s), kept, "{id} {p}");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn a_hostile_template_in_the_preferences_does_not_break_the_library() {
     let files = MemStore::new();

@@ -277,10 +277,21 @@ fn template_name(p: &Value, id: &str) -> Result<String> {
     clean_name(p.get("name").and_then(Value::as_str).ok_or_else(|| bad(id, "missing `name`"))?).map_err(|e| bad(id, e))
 }
 
+/// Save the preferences after a change to the templates; if that fails, the templates go back to
+/// `before`, so the list matches what is saved and a retry does the same thing.
+fn save_templates(s: &mut Session, before: Vec<PrintTemplate>) -> Result<()> {
+    if let Err(e) = s.save_prefs() {
+        s.print_templates = before;
+        return Err(e);
+    }
+    Ok(())
+}
+
 fn template_save(s: &mut Session, p: &Value) -> Result<Value> {
     const ID: &str = "print.template.save";
     let name = template_name(p, ID)?;
     let t = PrintTemplate::new(&name, &s.print).map_err(|e| bad(ID, e))?;
+    let before = s.print_templates.clone();
     match s.print_templates.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&name)) {
         Some(x) => *x = t,
         None => {
@@ -290,7 +301,7 @@ fn template_save(s: &mut Session, p: &Value) -> Result<Value> {
             s.print_templates.push(t);
         }
     }
-    s.save_prefs()?;
+    save_templates(s, before)?;
     Ok(template_list(s))
 }
 
@@ -309,12 +320,12 @@ fn template_apply(s: &mut Session, p: &Value) -> Result<Value> {
 fn template_delete(s: &mut Session, p: &Value) -> Result<Value> {
     const ID: &str = "print.template.delete";
     let name = template_name(p, ID)?;
-    let before = s.print_templates.len();
+    let before = s.print_templates.clone();
     s.print_templates.retain(|x| !x.name.eq_ignore_ascii_case(&name));
-    if s.print_templates.len() == before {
+    if s.print_templates.len() == before.len() {
         return Err(bad(ID, format!("no print template `{name}`")));
     }
-    s.save_prefs()?;
+    save_templates(s, before)?;
     Ok(template_list(s))
 }
 
@@ -360,8 +371,9 @@ fn template_import(s: &mut Session, p: &Value) -> Result<Value> {
     let name = unique_name(&t.name, &s.print_templates);
     let renamed = name != t.name;
     t.name = name.clone();
+    let before = s.print_templates.clone();
     s.print_templates.push(t);
-    s.save_prefs()?;
+    save_templates(s, before)?;
     let mut out = template_list(s);
     out["name"] = json!(name);
     out["renamed"] = json!(renamed);
