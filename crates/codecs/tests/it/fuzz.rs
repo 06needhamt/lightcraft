@@ -236,6 +236,50 @@ fn a_gif_padded_with_comments_still_cannot_claim_a_gigapixel_canvas() {
     assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains("can hold")), "{:?}", decoded.err());
 }
 
+/// Padding is not pixel data: coverage comes from what the pixel data draws, not from the file's
+/// length. Each file here is padded past what the old length-based bounds (8 pixels per byte for
+/// uncompressed BMP, 128 for RLE, 2731 per LZW byte for a GIF frame) needed to accept its 9 MP
+/// canvas, and each draws far less, so each is refused before the decoder allocates the canvas.
+#[test]
+fn files_padded_with_junk_cannot_claim_a_canvas_their_pixel_data_doesnt_draw() {
+    let refused = |name: &str, bytes: &[u8], why: &str| {
+        let header = read_header(bytes);
+        assert!(matches!(&header, Err(Error::Malformed(_, m)) if m.contains(why)), "{name}: {header:?}");
+        let decoded = decode(bytes, DecodeOptions::default());
+        assert!(matches!(&decoded, Err(Error::Malformed(_, m)) if m.contains(why)), "{name}: {:?}", decoded.err());
+    };
+    // a 24-bit BMP needs 3 bytes a pixel (27 MB here); 1.2 MB of zeros used to pass as 8 pixels a byte
+    let mut bmp = tiny_bmp(3_000, 3_000);
+    bmp.resize(bmp.len() + 1_200_000, 0);
+    refused("uncompressed bmp", &bmp, "can hold");
+    // an RLE BMP's picture ends at its end-of-bitmap code; 100 KB of runs after it draw nothing
+    let mut rle = rle_bmp_ending_at_once(3_000, 3_000);
+    rle.extend([255, 1].repeat(50_000));
+    refused("rle bmp padded after its end", &rle, "mostly blank");
+    // runs that never end their row are clipped to it: 100 KB of them draw one 3000-pixel row
+    let mut rle = rle_bmp_ending_at_once(3_000, 3_000);
+    rle.truncate(rle.len() - 2);
+    rle.extend([255, 1].repeat(50_000));
+    refused("rle bmp padded within one row", &rle, "mostly blank");
+    // a GIF frame's picture ends at its LZW end code; 4 KB of data sub-blocks after it draw nothing
+    let mut gif = b"GIF89a".to_vec();
+    gif.extend(3_000u16.to_le_bytes());
+    gif.extend(3_000u16.to_le_bytes());
+    gif.extend([0x80, 0, 0, 0, 0, 0, 255, 255, 255]); // 2-colour global table
+    gif.extend([b',', 0, 0, 0, 0]);
+    gif.extend(3_000u16.to_le_bytes());
+    gif.extend(3_000u16.to_le_bytes());
+    gif.extend([0, 2]); // no local table; LZW minimum code size 2
+    gif.extend([255, 0x2C]); // a full sub-block: 3-bit clear (4) then end (5), then padding
+    gif.extend([0xFF; 254]);
+    for _ in 0..15 {
+        gif.push(255);
+        gif.extend([0xFF; 255]);
+    }
+    gif.extend([0, b';']);
+    refused("gif padded after its end code", &gif, "mostly blank");
+}
+
 #[test]
 fn thumbnail_respects_configured_source_pixel_limit() {
     let image = Rgba8::from_fn(3, 2, |_, _| [40, 80, 120, 255]);

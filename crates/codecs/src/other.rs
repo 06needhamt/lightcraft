@@ -41,46 +41,57 @@ fn limits(opts: &DecodeOptions) -> image::Limits {
     l
 }
 
-/// The largest canvas allowed that the file's pixel data leaves mostly blank: a GIF screen larger
-/// than its first frame, or an RLE BMP whose runs can't cover it. Its decode still allocates the
+/// The largest canvas allowed that the file's pixel data leaves mostly blank: a GIF screen its
+/// first frame's codes don't cover, or an RLE BMP whose runs don't. Its decode still allocates the
 /// whole canvas (16 MB at this size), so it is held well below `max_pixels`.
 const SPARSE_MAX_PIXELS: u64 = 4_000_000;
 
-/// Refuses a canvas larger than the file's bytes can describe, before the decoder allocates it
-/// (issue #2553). Uncompressed BMP rows are stored in full at 1 bit per pixel or more, so the file
-/// holds at least one byte per 8 pixels. A GIF frame's pixels come from its LZW data alone; a code
-/// expands to at most 4096 pixels and takes 12 bits once the table holds that many (fewer bits only
-/// while its strings are shorter), so at most 2731 pixels per byte. That bounds the first frame's
-/// own size; the screen around it may be larger, and is blank there.
+/// Refuses a canvas larger than the file's pixel data can describe, before the decoder allocates it
+/// (issue #2553). Coverage is measured from the pixel data itself, never from the file's length, so
+/// padding (comments, bytes after an end code, trailing bytes) covers nothing:
 ///
-/// An RLE BMP has no such bound, since an end-of-bitmap code or a delta leaves the rest blank. Its
-/// runs cover at most 255 pixels per 2 bytes, so a canvas beyond 128 pixels per byte is mostly
-/// blank. Mostly blank canvases are limited to [`SPARSE_MAX_PIXELS`].
+/// - Uncompressed BMP rows are read in full, padding included, from the offset the file header
+///   gives, so the data must hold every row: anything shorter fails to decode once the canvas is
+///   allocated, and is refused here instead.
+/// - An RLE BMP covers the pixels its runs and absolute blocks draw, as the decoder paints them; an
+///   end-of-row, end-of-bitmap or delta code leaves the rest blank.
+/// - A GIF covers the pixels its first frame's LZW codes draw up to the end code. A code expands to
+///   at most 4096 pixels and takes 12 bits once the table holds that many (fewer bits only while its
+///   strings are shorter), so a frame larger than 2731 pixels per byte of LZW data is refused
+///   outright. The screen around the frame may be larger, and is blank there.
+///
+/// Canvases the data leaves mostly blank are limited to [`SPARSE_MAX_PIXELS`].
 fn check_fillable(format: Format, bytes: &[u8], w: u32, h: u32) -> Result<()> {
     let area = |w: u32, h: u32| u64::from(w).saturating_mul(u64::from(h));
-    let unfillable = |what: &str, w: u32, h: u32, len: usize| {
-        Error::Malformed(format, format!("a {w} × {h} {what} is far larger than its {len} bytes of pixel data can hold"))
-    };
     let canvas = area(w, h);
     // the pixels the file's data can cover
     let covered = match format {
         Format::Gif => {
             // without a frame there is nothing to decode, and nothing to bound the canvas by
-            let Some((fw, fh, len)) = gif_first_frame(bytes) else {
+            let Some(frame) = gif_first_frame(bytes) else {
                 return Err(Error::Malformed(format, "no readable first frame".into()));
             };
+            let (fw, fh, len) = (frame.width, frame.height, frame.data_len);
             if area(fw, fh) > (len as u64).saturating_mul(2_731) {
-                return Err(unfillable("frame", fw, fh, len));
+                return Err(Error::Malformed(format, format!("a {fw} × {fh} frame is far larger than its {len} bytes of pixel data can hold")));
             }
-            area(fw, fh)
+            gif_frame_pixels(bytes, frame.codes, area(fw, fh))
         }
-        Format::Bmp if bmp_is_rle(bytes) => (bytes.len() as u64).saturating_mul(128),
-        _ => {
-            if canvas > (bytes.len() as u64).saturating_mul(8) {
-                return Err(unfillable("canvas", w, h, bytes.len()));
+        _ => match bmp_layout(bytes) {
+            BmpLayout::Rle { offset, rle4 } => bmp_rle_pixels(bytes, offset, rle4, w, h),
+            BmpLayout::Rows { offset, bits } => {
+                let row = u64::from(w).saturating_mul(u64::from(bits)).div_ceil(32).saturating_mul(4);
+                let needed = row.saturating_mul(u64::from(h));
+                let held = bytes.len().saturating_sub(offset) as u64;
+                if held < needed {
+                    return Err(Error::Malformed(
+                        format,
+                        format!("a {w} × {h} canvas is larger than its {held} bytes of pixel data can hold ({needed} needed)"),
+                    ));
+                }
+                canvas
             }
-            canvas
-        }
+        },
     };
     if canvas > covered && canvas > SPARSE_MAX_PIXELS {
         return Err(Error::Malformed(
@@ -93,16 +104,91 @@ fn check_fillable(format: Format, bytes: &[u8], w: u32, h: u32) -> Result<()> {
     Ok(())
 }
 
-/// Whether a BMP's pixels are run-length encoded (RLE8 or RLE4, in a header of 40 bytes or more).
-fn bmp_is_rle(bytes: &[u8]) -> bool {
-    let u32_at = |i: usize| bytes.get(i..i + 4).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes);
-    u32_at(14).is_some_and(|size| size >= 40) && matches!(u32_at(30), Some(1 | 2))
+/// Where a BMP's pixels start (the offset in its file header, which the decoder seeks to) and how
+/// they are stored.
+enum BmpLayout {
+    /// RLE8 or RLE4 commands.
+    Rle { offset: usize, rle4: bool },
+    /// Rows of `bits` per pixel, each padded to 4 bytes.
+    Rows { offset: usize, bits: u16 },
 }
 
-/// A GIF's first frame: its width and height, and the bytes of LZW data present (its palettes,
-/// comments and other extensions describe no pixels). `None` when the blocks before the frame
-/// can't be walked.
-fn gif_first_frame(bytes: &[u8]) -> Option<(u32, u32, usize)> {
+/// The layout the decoder reads, from the file header and the bitmap header: a 12-byte core header
+/// (bits per pixel at 24, never compressed) or a 40-byte or larger one (bits at 28, compression at
+/// 30). Fields the decoder would have refused are read as 1 bit per pixel at offset 0, the most
+/// lenient layout.
+fn bmp_layout(bytes: &[u8]) -> BmpLayout {
+    let u16_at = |i: usize| bytes.get(i..i.checked_add(2)?).and_then(|b| b.try_into().ok()).map(u16::from_le_bytes);
+    let u32_at = |i: usize| bytes.get(i..i.checked_add(4)?).and_then(|b| b.try_into().ok()).map(u32::from_le_bytes);
+    let offset = u32_at(10).and_then(|o| usize::try_from(o).ok()).unwrap_or(0);
+    let (bits, compression) = match u32_at(14) {
+        Some(12) => (u16_at(24), Some(0)),
+        _ => (u16_at(28), u32_at(30)),
+    };
+    match compression {
+        Some(1) => BmpLayout::Rle { offset, rle4: false },
+        Some(2) => BmpLayout::Rle { offset, rle4: true },
+        _ => BmpLayout::Rows { offset, bits: bits.filter(|&b| b > 0).unwrap_or(1) },
+    }
+}
+
+/// The pixels an RLE8 or RLE4 BMP's commands draw on a `w` × `h` canvas, read the way the decoder
+/// paints them: a run is clipped at the end of its row, an end-of-row code moves to the next row, a
+/// delta skips pixels (left blank), and an end-of-bitmap code, a truncated command or the last row
+/// ends the picture. Every command takes at least 2 bytes, so the walk is linear in the file.
+fn bmp_rle_pixels(bytes: &[u8], offset: usize, rle4: bool, w: u32, h: u32) -> u64 {
+    let (w, h) = (u64::from(w), u64::from(h));
+    let (mut pos, mut x, mut y, mut covered) = (offset, 0u64, 0u64, 0u64);
+    while y < h {
+        let (Some(&count), Some(&value)) = (bytes.get(pos), bytes.get(pos.saturating_add(1))) else {
+            break;
+        };
+        pos = pos.saturating_add(2);
+        match (count, value) {
+            // end of row
+            (0, 0) => (x, y) = (0, y.saturating_add(1)),
+            // end of bitmap
+            (0, 1) => break,
+            // delta: right and down
+            (0, 2) => {
+                let (Some(&dx), Some(&dy)) = (bytes.get(pos), bytes.get(pos.saturating_add(1))) else {
+                    break;
+                };
+                pos = pos.saturating_add(2);
+                (x, y) = (x.saturating_add(u64::from(dx)), y.saturating_add(u64::from(dy)));
+            }
+            // absolute: `value` pixels stored one per byte (RLE8) or nibble (RLE4), padded to 2 bytes
+            (0, n) => {
+                let len = if rle4 { usize::from(n).div_ceil(2) } else { usize::from(n) };
+                pos = pos.saturating_add(len + (len & 1));
+                if pos > bytes.len() {
+                    break;
+                }
+                covered = covered.saturating_add(u64::from(n).min(w.saturating_sub(x)));
+                x = x.saturating_add(u64::from(n));
+            }
+            // a run of `count` pixels
+            (n, _) => {
+                covered = covered.saturating_add(u64::from(n).min(w.saturating_sub(x)));
+                x = x.saturating_add(u64::from(n));
+            }
+        }
+    }
+    covered
+}
+
+/// A GIF's first frame, from its image descriptor.
+struct GifFrame {
+    width: u32,
+    height: u32,
+    /// Bytes of LZW data present (its palettes, comments and other extensions describe no pixels).
+    data_len: usize,
+    /// Position of its LZW minimum code size, which its data sub-blocks follow.
+    codes: usize,
+}
+
+/// A GIF's first frame. `None` when the blocks before the frame can't be walked.
+fn gif_first_frame(bytes: &[u8]) -> Option<GifFrame> {
     let u16_at = |i: usize| bytes.get(i..i.checked_add(2)?).and_then(|b| b.try_into().ok()).map(u16::from_le_bytes);
     let table = |flags: u8| if flags & 0x80 != 0 { 3usize << ((flags & 7) + 1) } else { 0 };
     let mut pos = 13 + table(*bytes.get(10)?);
@@ -114,12 +200,78 @@ fn gif_first_frame(bytes: &[u8]) -> Option<(u32, u32, usize)> {
             // LZW minimum code size, data sub-blocks
             0x2C => {
                 let (fw, fh) = (u16_at(pos.saturating_add(5))?, u16_at(pos.saturating_add(7))?);
-                let start = pos.saturating_add(10).saturating_add(table(*bytes.get(pos.saturating_add(9))?)).saturating_add(1);
-                return Some((u32::from(fw), u32::from(fh), sub_blocks(bytes, start).0));
+                let codes = pos.saturating_add(10).saturating_add(table(*bytes.get(pos.saturating_add(9))?));
+                let data_len = sub_blocks(bytes, codes.saturating_add(1)).0;
+                return Some(GifFrame { width: u32::from(fw), height: u32::from(fh), data_len, codes });
             }
             _ => return None,
         }
     }
+}
+
+/// The pixels a GIF frame's LZW codes draw, at most `max` (the frame's size): the codes are walked
+/// up to the end code, an invalid code or the end of the data, keeping only the length of each
+/// table string, never the pixels. Data after the end code draws nothing. Codes are packed
+/// least-significant bit first across the data sub-blocks and start one bit wider than the minimum
+/// code size; a code is one bit wider each time the table fills its width, up to 12 bits, and a
+/// clear code starts the table again (GIF89a, appendix F).
+fn gif_frame_pixels(bytes: &[u8], codes: usize, max: u64) -> u64 {
+    // the `gif` decoder accepts minimum code sizes of 1 to 11
+    let Some(min_size) = bytes.get(codes).copied().filter(|s| (1..=11).contains(s)) else {
+        return 0;
+    };
+    let clear = 1usize << min_size;
+    let end = clear + 1;
+    let mut lens = [1u16; 4096]; // string length of each code; literals (below `clear`) are 1
+    let (mut width, mut next, mut prev) = (u32::from(min_size) + 1, end + 1, None::<usize>);
+    let (mut bits, mut held, mut covered) = (0u32, 0u32, 0u64);
+    let mut pos = codes.saturating_add(1);
+    while let Some(&n) = bytes.get(pos) {
+        let start = pos.saturating_add(1);
+        pos = start.saturating_add(usize::from(n));
+        if n == 0 {
+            break;
+        }
+        for &byte in bytes.get(start..pos.min(bytes.len())).unwrap_or_default() {
+            bits |= u32::from(byte) << held;
+            held += 8;
+            while held >= width {
+                let code = (bits & ((1 << width) - 1)) as usize;
+                bits >>= width;
+                held -= width;
+                if code == clear {
+                    (width, next, prev) = (u32::from(min_size) + 1, end + 1, None);
+                    continue;
+                }
+                let len_of = |c: usize| lens.get(c).copied().unwrap_or(1);
+                let len = match prev {
+                    _ if code == end => return covered,
+                    None if code < clear => 1,
+                    Some(_) if code < next => len_of(code),
+                    // the string just being defined: the previous one and its first pixel
+                    Some(p) if code == next => len_of(p).saturating_add(1),
+                    _ => return covered,
+                };
+                // each code after the first defines the next string: the previous one and a pixel
+                let defined = prev.map(|p| len_of(p).saturating_add(1));
+                if let Some(defined) = defined
+                    && let Some(slot) = lens.get_mut(next)
+                {
+                    *slot = defined;
+                    next += 1;
+                    if next == 1 << width && width < 12 {
+                        width += 1;
+                    }
+                }
+                prev = Some(code);
+                covered = covered.saturating_add(u64::from(len));
+                if covered >= max {
+                    return max;
+                }
+            }
+        }
+    }
+    covered
 }
 
 /// The GIF sub-blocks starting at `pos`: the data bytes present, and the position after them.
@@ -272,5 +424,30 @@ mod tests {
         }
         let r = check_fillable(Format::Gif, &b, 20_000, 20_000);
         assert!(matches!(&r, Err(Error::Malformed(_, m)) if m.contains("no readable first frame")), "{r:?}");
+    }
+
+    /// The LZW walk counts exactly the pixels an encoder wrote up to its end code: a frame of one
+    /// colour (long strings, the smallest codes), a 256-colour gradient and noise (a table that fills
+    /// up and is cleared again).
+    #[test]
+    fn the_lzw_walk_counts_every_pixel_an_encoder_wrote() {
+        let (w, h) = (640u32, 480u32);
+        let mut seed = 2_553u32;
+        let mut noise = move || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 24) as u8
+        };
+        let frames = [
+            ("solid", image::RgbaImage::from_pixel(w, h, image::Rgba([90, 90, 90, 255]))),
+            ("gradient", image::RgbaImage::from_fn(w, h, |x, y| image::Rgba([(x / 40 * 16) as u8, (y / 30 * 16) as u8, 0, 255]))),
+            ("noise", image::RgbaImage::from_fn(w, h, |_, _| image::Rgba([noise(), noise(), noise(), 255]))),
+        ];
+        for (name, frame) in frames {
+            let mut gif = Vec::new();
+            image::codecs::gif::GifEncoder::new_with_speed(&mut gif, 30).encode_frame(image::Frame::new(frame)).unwrap();
+            let first = gif_first_frame(&gif).unwrap();
+            assert_eq!((first.width, first.height), (w, h), "{name}");
+            assert_eq!(gif_frame_pixels(&gif, first.codes, u64::MAX), u64::from(w * h), "{name}");
+        }
     }
 }
