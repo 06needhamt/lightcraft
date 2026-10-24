@@ -147,6 +147,27 @@ fn the_painters_field_pastes_and_return_paints() {
     assert_eq!(h.app.ui.keyword_painter.as_deref(), Some("Weddings"));
 }
 
+/// ⌘⌥K (Ctrl+Alt+K) is Enable Painting: with the painter's box empty it shows the Keywords panel to
+/// type a keyword in, with a keyword in the box it paints that keyword, and pressed again it stops.
+#[test]
+fn cmd_alt_k_paints_the_painters_keyword_and_stops() {
+    let (mut h, _) = two_selected();
+    let key = json!({"key": "K", "cmd": true, "alt": true});
+    ask(&mut h, "ui.set", json!({"right": "none"}));
+    ask(&mut h, "ui.key", key.clone());
+    assert_eq!(h.app.ui.right, crate::state::RightPanel::Keywords, "an empty box: the Keywords panel");
+    assert!(h.app.ui.keyword_painter.is_none(), "nothing to paint yet");
+    h.view.clipboard = "Weddings".into();
+    ask(&mut h, "ui.clickWidget", json!({"id": "field:keywordPainter", "button": "right"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "field:keywordPainter:paste"}));
+    ask(&mut h, "ui.clickWidget", json!({"id": "keywordView:keywords"}));
+    ask(&mut h, "ui.key", key.clone());
+    assert_eq!(h.app.ui.keyword_painter.as_deref(), Some("Weddings"), "the box's keyword");
+    ask(&mut h, "ui.key", key);
+    assert!(h.app.ui.keyword_painter.is_none(), "pressed again: painting stops");
+    assert_eq!(h.app.ui.keyword_painter_text, "Weddings", "the box keeps the keyword");
+}
+
 /// Suggestions follow the selection: a keyword only some selected photos have is suggested, to give
 /// it to all of them; one every selected photo has isn't.
 #[test]

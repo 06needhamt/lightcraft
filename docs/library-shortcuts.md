@@ -18,6 +18,7 @@ Select photos in Photo Grid or Square Grid, then use:
 | `Shift` + `0`–`9`, `P`, `X` or `U` | Apply the action and select the next photo |
 | `\` (backslash) | Show / hide the Filter Bar |
 | ⌘L / Ctrl+L | Enable Filters: switch the filter off and on |
+| ⌘⌥K / Ctrl+Alt+K | Enable Painting: paint the painter box's keyword, or stop painting |
 
 Enter opens the active photo without changing the selection. Text fields, dialogs and open popups keep the key; a custom Enter binding takes precedence. Enter has no additional action in Detail.
 
@@ -83,7 +84,16 @@ Survey and Reference, and leave text fields alone, so the search box still types
 commands (`view.thumbSizeUp`, `view.thumbSizeDown`, reachable from the control channel and MCP, which
 return `{"size"}`); the size is saved with the other interface settings.
 
-Public behaviour references, checked 2026-10-08 (thumbnail size: 2026-10-13):
+## Keyword painter
+
+`⌘⌥K` (`Ctrl+Alt+K` on Windows and Linux) is Photo ▸ Enable Painting (`tool.enablePainting`). It
+paints the keyword typed in the Keywords panel's painter box: LightCraft shows the grid, and a click on a
+photo there adds the keyword or takes it off. Pressed again while painting, the key stops painting, as `Esc` does.
+With the box empty, the key opens the Keywords panel and asks for a keyword to paint. The shortcut list
+names the key only; stopping on a second press and opening the panel are LightCraft's choice. The key
+can be reassigned in Help → Keyboard Shortcuts.
+
+Public behavior references, checked 2026-10-08 (thumbnail size: 2026-10-13; keyword painter: 2026-10-24):
 
 - [Lightroom Classic keyboard shortcuts](https://helpx.adobe.com/lightroom-classic/help/keyboard-shortcuts.html)
 - [Lightroom Classic flagging, labelling and rating](https://helpx.adobe.com/lightroom-classic/help/flag-label-rate-photos.html)

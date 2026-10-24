@@ -198,6 +198,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("slideshow.end", "End Slideshow", None, ""),
     ("view.secondWindow", "Second Window", Some("Cmd+F11"), "Window"),
     ("tool.keywordPainter", "Keyword Painter", None, ""),
+    // paints the keyword in the Keywords panel's painter box, or stops painting
+    ("tool.enablePainting", "Enable Painting", Some("Cmd+Alt+K"), "Photo"),
     ("view.gridInfo", "Grid Info", None, ""),
     // {mode?: auto | light | dark}: Appearance Mode (cycles Auto, Light, Dark when omitted; the
     // top bar's appearance button). View ▸ Appearance lists the modes.
@@ -486,9 +488,25 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 app.ui.view = ViewMode::PhotoGrid;
             }
             if let Some(k) = app.ui.keyword_painter.clone() {
+                app.ui.keyword_painter_text = k.clone();
                 app.toast(&ctx, crate::i18n::tr_format!("Painting “{k}”: click photos to add or remove it · Esc stops", k = k));
             }
             Ok(json!({"keyword": app.ui.keyword_painter}))
+        }
+        "tool.enablePainting" => {
+            // stops painting; otherwise paints the painter box's keyword, and with the box empty
+            // shows the Keywords panel to type one in
+            let k = app.ui.keyword_painter_text.trim().to_string();
+            if app.ui.keyword_painter.is_some() {
+                app.ui.keyword_painter = None;
+                Ok(json!({"keyword": null}))
+            } else if k.is_empty() {
+                app.ui.right = RightPanel::Keywords;
+                app.toast(&ctx, crate::i18n::tr("Type a keyword to paint in the Keywords panel"));
+                Ok(json!({"keyword": null}))
+            } else {
+                run_ui_command(app, "tool.keywordPainter", &json!({"keyword": k})).unwrap_or(Ok(Value::Null))
+            }
         }
         "view.secondWindow" => {
             app.ui.second_window = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.second_window);
