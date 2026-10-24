@@ -39,6 +39,7 @@ pub mod output;
 pub mod profiles;
 pub mod redeye;
 pub mod spots;
+pub mod straighten;
 pub mod tone;
 pub mod transform;
 pub mod upright;
