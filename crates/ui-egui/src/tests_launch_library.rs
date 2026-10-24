@@ -874,15 +874,23 @@ fn photos_dropped_on_the_launch_list_go_into_the_library_chosen() {
 #[test]
 fn a_failed_lookup_doesnt_mark_a_recent_library_missing() {
     use std::os::unix::fs::PermissionsExt;
+    /// Gives the folder its permissions back and removes the test's folder, also when an assertion
+    /// fails (a folder left at mode 000 can't be removed).
+    struct Cleanup(std::path::PathBuf, std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::set_permissions(&self.1, std::fs::Permissions::from_mode(0o755));
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
     let dir = temp("lookup");
     let locked = dir.join("Locked");
+    let _cleanup = Cleanup(dir.clone(), locked.clone());
     let inside = make_library(&locked.join("Inside"));
     let gone = dir.join("Gone").to_string_lossy().into_owned();
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
     if std::fs::read_dir(&locked).is_ok() {
         // running as root (some CI containers): the mode bits don't stop it, so no lookup fails
-        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
         lightcraft_testkit::skip!(System, "a folder with no permissions can still be read (running as root)");
         return;
     }
@@ -890,7 +898,6 @@ fn a_failed_lookup_doesnt_mark_a_recent_library_missing() {
     app.ui.settings.recent_libraries = vec![inside.clone(), gone.clone()];
     let mut h = Headless::new(app, [900.0, 600.0], 1.0);
     let answered = h.step_until(T, |h| h.app.recent_checks.is_known(&inside) && h.app.recent_checks.is_known(&gone));
-    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
     assert!(answered);
     assert_eq!(h.app.recent_checks.exists(&gone), Some(false), "a library that isn't there is missing");
     assert_eq!(h.app.recent_checks.exists(&inside), None, "one that couldn't be looked at isn't");
@@ -901,7 +908,6 @@ fn a_failed_lookup_doesnt_mark_a_recent_library_missing() {
     assert!(!Unavailable::Unreadable("denied".into()).is_missing() && !Unavailable::LookupFailed("timed out".into()).is_missing());
     assert!(Unavailable::NotFound.is_missing());
     drop(h);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A library found is asked about again when the window comes back to the front, not on a timer: a
