@@ -758,17 +758,16 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         ui.label(egui::RichText::new("GPS").size(11.5).color(t.text_dim));
         let mut edit: FieldEdit = ui.data(|d| d.get_temp(gid)).unwrap_or_else(|| FieldEdit::new(&gps, gps_mixed, &selected));
         let hint = crate::i18n::tr(if gps_mixed { MIXED } else { "latitude, longitude" });
-        let r = ui.add(egui::TextEdit::singleline(&mut edit.text).hint_text(hint).desired_width(f32::INFINITY));
-        crate::widgets::screen_reader_name(ui.ctx(), r.id, "GPS");
-        register(ui.ctx(), "field:gps", r.rect);
+        let r = crate::text_field::TextField::singleline("field:gps", &mut edit.text).hint(hint).label("GPS").width(f32::INFINITY).show(ui);
         edit.typed |= edit.text != edit.start;
-        if r.has_focus() {
+        if r.editing {
             ui.data_mut(|d| d.insert_temp(gid, edit.clone()));
         } else {
             ui.data_mut(|d| d.remove::<FieldEdit>(gid));
         }
+        // Return or leaving saves; Esc gives the edit up
         let text = edit.text.trim();
-        if r.lost_focus()
+        if r.committed()
             && (text != edit.start || edit.clears())
             && let Err(e) = app.run("photo.setMeta", json!({"ids": edit.ids, "gps": text}))
         {

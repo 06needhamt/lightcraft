@@ -3117,6 +3117,17 @@ mod tests {
         h.settle(SETTLE);
         let gps: Vec<bool> = (0..4).map(|i| meta(&h, i).gps.is_some()).collect();
         assert_eq!(gps, [true, true, false, false]);
+        // Esc gives a GPS edit up
+        exec(&mut h, "library.select", json!({"ids": [ids[0], ids[1]], "active": ids[0]}));
+        h.settle(SETTLE);
+        let before = meta(&h, 0).gps;
+        ask(&mut h, "ui.clickWidget", json!({"id": "field:gps"}));
+        ask(&mut h, "ui.key", json!({"key": "End"}));
+        ask(&mut h, "ui.text", json!({"text": "5"}));
+        ask(&mut h, "ui.key", json!({"key": "Escape"}));
+        ask(&mut h, "ui.key", json!({"key": "Tab"}));
+        h.settle(SETTLE);
+        assert_eq!((meta(&h, 0).gps, meta(&h, 1).gps), (before, before));
     }
 
     /// Local: a folder's photos show without joining the library; the breadcrumb, Include
