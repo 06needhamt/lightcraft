@@ -119,7 +119,7 @@ pub(crate) fn read_tables(raw: &Ifd) -> LensTables {
 /// the sensor, so in its APS-C crop mode too); an APS-C body's default-crop `crop` half diagonal / (`knots` − 1). Both
 /// put the last knot at the corner of the crop the table was written for (the ILCE-7RM6's APS-C mode, 11 knots, gives
 /// 392 px that way, which fits its files as well as the sensor-fixed 400 px). `None` for an unverified body, or an
-/// APS-C body with fewer than two knots or an empty crop.
+/// APS-C body with fewer than two knots or a crop that isn't 3:2 (the only shape measured; empty crops included).
 fn knot_spacing(model: &str, knots: usize, crop: Rect) -> Option<f64> {
     let model = model.trim();
     if let Some(&(_, (w, h))) = FULL_FRAME_CROP.iter().find(|(m, _)| *m == model) {
@@ -127,7 +127,7 @@ fn knot_spacing(model: &str, knots: usize, crop: Rect) -> Option<f64> {
     }
     let gaps = knots.checked_sub(1).filter(|&n| n > 0)?;
     let half_diagonal = (crop.width as f64).hypot(crop.height as f64) / 2.0;
-    (APSC_BODIES.contains(&model) && half_diagonal > 0.0).then(|| half_diagonal / gaps as f64)
+    (APSC_BODIES.contains(&model) && super::arw_lens::is_3_2(crop)).then(|| half_diagonal / gaps as f64)
 }
 
 /// The knot table at radius `r` px: knot `i` at `i · spacing`, linear in between, the last segment extended beyond
@@ -574,6 +574,9 @@ mod tests {
         assert_eq!(knot_spacing("ILCE-6700", 1, A6700_CROP), None);
         assert_eq!(knot_spacing("ILCE-6700", 0, A6700_CROP), None);
         assert_eq!(knot_spacing("ILCE-6700", 11, Rect { x: 0, y: 0, width: 0, height: 0 }), None);
+        // the spacing comes from the crop, so a crop of another shape than the measured 3:2 gets no correction
+        let square = Rect { width: A6700_CROP.height, ..A6700_CROP };
+        assert_eq!(knot_spacing("ILCE-6700", 11, square), None);
         let ifd = sony_lens_ifd(&A6700_DISTORTION, &APSC_VIGNETTING, &APSC_CA, [1, 2, 1]);
         let ops = lens_opcodes(&ifd, "ILCE-6700", A6700_CROP, A6700_CROP);
         let gated = gated_warp_opcode(&read_tables(&ifd), s, A6700_CROP, A6700_CROP, false, APSC_FIT_ERROR_PX_AT_1440);
