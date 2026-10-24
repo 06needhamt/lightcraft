@@ -30,8 +30,11 @@ pub struct ParametricCurve {
 
 impl ParametricCurve {
     pub fn new(c: &ToneCurve) -> ParametricCurve {
-        let (s0, s1, s2) = ((c.split_shadows / 100.0) as f32, (c.split_mid / 100.0) as f32, (c.split_highlights / 100.0) as f32);
-        let (a0, a1, a2, a3) = (c.shadows, c.darks, c.lights, c.highlights);
+        let s0 = if c.split_shadows.is_nan() { 0.25 } else { (c.split_shadows / 100.0).clamp(0.0, 1.0) as f32 };
+        let s1 = if c.split_mid.is_nan() { 0.50_f32.max(s0) } else { (c.split_mid / 100.0).clamp(s0 as f64, 1.0) as f32 };
+        let s2 = if c.split_highlights.is_nan() { 0.75_f32.max(s1) } else { (c.split_highlights / 100.0).clamp(s1 as f64, 1.0) as f32 };
+        let clean_amt = |a: f64| if a.is_nan() { 0.0 } else { a.clamp(-100.0, 100.0) };
+        let (a0, a1, a2, a3) = (clean_amt(c.shadows), clean_amt(c.darks), clean_amt(c.lights), clean_amt(c.highlights));
         let splits = [s0 as f64, s1 as f64, s2 as f64];
         let amounts = [a0, a1, a2, a3];
         let regions = [(0.0, s0, a0), (s0, s1, a1), (s1, s2, a2), (s2, 1.0, a3)];
@@ -45,6 +48,9 @@ impl ParametricCurve {
                     continue;
                 }
                 let (ctr, half) = ((a + b) / 2.0, (b - a) * 0.75 + 0.05);
+                if half <= f32::EPSILON {
+                    continue;
+                }
                 let t = ((x - ctr) / half).clamp(-1.0, 1.0);
                 d += (amt / 100.0) as f32 * 0.22 * (0.5 + 0.5 * (t * std::f32::consts::PI).cos());
             }
@@ -62,7 +68,7 @@ impl ParametricCurve {
 
     /// The curve at `x` (0 = black, 1 = white), read off the table (so it never overshoots the ends).
     pub fn at(&self, x: f64) -> f64 {
-        let x = x.clamp(0.0, 1.0) as f32;
+        let x = if x.is_nan() { 0.0 } else { x.clamp(0.0, 1.0) as f32 };
         let at = x * (PARAM_LUT - 1) as f32;
         let i = at.floor().clamp(0.0, (PARAM_LUT - 1) as f32) as usize;
         let cur = self.lut.get(i).copied().unwrap_or(0.0);
@@ -112,7 +118,7 @@ impl ParametricCurve {
     /// windows tile 0..1, so this is always defined and a drag anywhere on the curve moves exactly
     /// one slider — the region under the pointer.
     pub fn region_at(&self, x: f64) -> usize {
-        let x = x.clamp(0.0, 1.0);
+        let x = if x.is_nan() { 0.0 } else { x.clamp(0.0, 1.0) };
         let s0 = self.split_x(0);
         let s1 = self.split_x(1);
         let s2 = self.split_x(2);
@@ -172,7 +178,7 @@ impl ParametricCurve {
         ((level.clamp(0.0, 1.0) - base) / per_unit).clamp(-100.0, 100.0).round()
     }
 
-    /// The graph position split `split` (0..3) sits at, 0..1.
+    /// The graph position split `split` (0..=2) sits at, 0..1.
     pub fn split_x(&self, split: usize) -> f64 {
         self.splits.get(split).copied().unwrap_or(0.5)
     }
@@ -181,6 +187,25 @@ impl ParametricCurve {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn non_finite_or_inverted_splits_do_not_panic_or_poison_curve() {
+        let c = ToneCurve {
+            split_shadows: 80.0,
+            split_mid: 20.0,
+            split_highlights: f64::NAN,
+            shadows: f64::NAN,
+            lights: f64::INFINITY,
+            ..Default::default()
+        };
+        let model = ParametricCurve::new(&c);
+        assert!(model.at(0.5).is_finite());
+        assert!(model.at(f64::NAN).is_finite());
+        assert!(model.region_at(f64::NAN) < 4);
+        assert!((model.splits[0] - 0.8).abs() < 1e-6);
+        assert!((model.splits[1] - 0.8).abs() < 1e-6);
+        assert!((model.splits[2] - 0.8).abs() < 1e-6);
+    }
 
     #[test]
     fn horizontal_inversion_at_x_0_51_with_darks_60_preserves_zero_lights() {

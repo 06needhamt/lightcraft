@@ -958,6 +958,9 @@ const PARAM_GRAB: f32 = 14.0;
 /// gesture back, not the last frame of it), and every write goes through `develop.set`, so the
 /// slider, the curve and what is drawn are the same state rather than three things kept in step.
 fn param_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect, resp: &egui::Response, d: &DevelopSettings) {
+    if r.width() <= 1.0 || r.height() <= 1.0 {
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     let model = ParametricCurve::new(&d.curve);
     let to_screen = |x: f64, y: f64| pos2(r.left() + x as f32 * r.width(), r.bottom() - y as f32 * r.height());
@@ -1029,7 +1032,7 @@ fn param_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect, resp: &egui::
     let shown = dragged.map(|(region, ..)| region).or_else(|| hovered.then(|| resp.hover_pos()).flatten().map(|q| model.region_at(from_screen_x(q))));
     if let Some(region) = shown
         && let Some(&id) = PARAM_AMOUNTS.get(region)
-        && let Some(v) = controls::get(d, id)
+        && let Some(v) = set.and_then(|(s_id, v)| (s_id == id).then_some(v)).or_else(|| controls::get(d, id))
     {
         let name = controls::find(id).map_or("", |s| s.label);
         ui.painter().text(r.left_top() + vec2(6.0, 4.0), Align2::LEFT_TOP, format!("{name} {v:.0}"), t.font(11.0), t.text_dim);
@@ -1122,7 +1125,7 @@ fn curve_editor(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, d: &Dev
         p.add(egui::Shape::line(pts, Stroke::new(2.0, Color32::from_gray(220))));
         param_drag(app, ui, r, &resp, d);
         curve_footer(app, ui, d);
-        for c in PARAM_AMOUNTS {
+        for &c in PARAM_AMOUNTS.iter().rev() {
             control(app, ui, d, c, true);
         }
         control(app, ui, d, "curve.refineSaturation", true);
