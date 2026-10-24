@@ -7,6 +7,9 @@ use serde_json::{Value, json};
 use super::{CommandSpec, always, bad, bool_or, cmd, has_active, has_library_selection, has_selection, ok, str_param};
 use crate::{LibrarySource, Result, Selection, Session};
 
+/// The selection after photos left the view (deleted, or rated, flagged or labelled out of it).
+/// Its callers end an open edit (a slider drag) before their own change, as moving to the next
+/// photo does, so it is its own undo step and comes first.
 fn select_after_deletion(s: &mut Session, before: &[PhotoId]) {
     let at = before.iter().position(|id| Some(*id) == s.selection.active);
     let remaining: std::collections::HashSet<_> = s.visible_cloned().into_iter().collect();
@@ -229,6 +232,10 @@ fn change_flag(s: &mut Session, p: &Value, label: &str, step: impl Fn(Flag) -> F
 /// keep showing the photo they rate.
 fn cull(s: &mut Session, p: &Value, edit: impl FnOnce(&mut Session) -> Result<Value>) -> Result<Value> {
     let named = [p.get("ids"), p.get("id")].into_iter().any(|t| t.is_some_and(|t| !t.is_null()));
+    // the selection may move on: an open drag ends first, as its own undo step
+    if !named {
+        s.end_interaction()?;
+    }
     let before = (!named).then(|| s.visible_shared().1);
     let active = s.selection.active;
     let v = edit(s)?;
@@ -979,6 +986,8 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("photo.delete", "Delete Photo", ["Photo"], Some("Delete"), "{ids?} — moves to Recently Deleted", has_selection, |s, p| {
             let before = s.visible_cloned();
             let targets = s.targets(p)?;
+            // an open drag ends first, as its own undo step (the selection moves on)
+            s.end_interaction()?;
             let n = mark_deleted(s, &targets, "Delete")?;
             select_after_deletion(s, &before);
             Ok(json!({"changed": n}))
@@ -1008,6 +1017,8 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("photo.deletePermanently", "Delete Permanently", ["Photo"], None, "{ids?}", has_selection, |s, p| {
             let before = s.visible_cloned();
             let t = s.targets(p)?;
+            // before the inverse ops are taken, so undo brings the photo back with its edit
+            s.end_interaction()?;
             let op = s.catalog.delete_photos_permanently_ops(&t);
             s.commit("Delete Permanently", op)?;
             select_after_deletion(s, &before);

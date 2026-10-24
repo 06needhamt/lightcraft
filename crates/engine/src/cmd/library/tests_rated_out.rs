@@ -110,3 +110,30 @@ fn named_photos_and_a_held_view_keep_the_selection() {
     s.execute("photo.rate", &json!({"rating": 0, "advance": true})).unwrap();
     assert_eq!(s.active(), Some(PhotoId(8)));
 }
+
+/// A slider drag still open when a rating takes the photo out of the view, or when the photo is
+/// deleted, ends as its own undo step before that change, as moving to the next photo does: undo
+/// brings the rating or the photo back first, then the edit. Before, the move left the drag open
+/// with no undo step (CodeRabbit on #2689).
+#[test]
+fn an_open_edit_ends_before_the_selection_moves_on() {
+    let exposure = |s: &Session, id| s.develop_of(PhotoId(id)).map(|d| d.light.exposure);
+    for (command, params) in [("photo.rate", json!({"rating": 0})), ("photo.delete", json!({})), ("photo.deletePermanently", json!({}))] {
+        let mut s = one_star().unwrap();
+        s.execute("library.select", &json!({"ids": [82]})).unwrap();
+        s.execute("develop.beginInteraction", &json!({"label": "Exposure"})).unwrap();
+        s.execute("develop.set", &json!({"control": "light.exposure", "value": 1.5})).unwrap();
+        s.execute(command, &params).unwrap();
+        assert_eq!(s.active(), Some(PhotoId(83)), "{command}");
+        assert!(s.interaction.is_none(), "{command}: the drag ended with the move");
+        if command != "photo.deletePermanently" {
+            assert_eq!(exposure(&s, 82), Some(1.5), "{command}");
+        }
+        // undo: the rating or the photo comes back first, with the edit; then the edit goes
+        s.execute("edit.undo", &json!({})).unwrap();
+        assert!(s.visible_cloned().contains(&PhotoId(82)), "{command}: back in the view");
+        assert_eq!(exposure(&s, 82), Some(1.5), "{command}: with its edit");
+        s.execute("edit.undo", &json!({})).unwrap();
+        assert_eq!(exposure(&s, 82), Some(0.0), "{command}");
+    }
+}
