@@ -181,10 +181,14 @@ impl KelvinPresets {
     }
 
     /// [`Self::temp_tint`] for a neutral pair (see [`Self::from_neutral_pair`]).
-    fn pair_temp_tint(pair: [[f32; 3]; 2], q: [f64; 2]) -> (f64, f64) {
+    fn pair_temp_tint(pair: [[f32; 3]; 2], q: [f64; 2]) -> Option<(f64, f64)> {
         let (pa, pd) = (log_point(pair[0]), log_point(pair[1]));
         let d = [pd[0] - pa[0], pd[1] - pa[1]];
         let len = d[0].hypot(d[1]);
+        // only a deserialized pair can repeat a point
+        if !(len > 0.0 && len.is_finite()) {
+            return None;
+        }
         let t = [d[0] / len, d[1] / len];
         let n = if t[0] - t[1] < 0.0 { [t[1], -t[0]] } else { [-t[1], t[0]] };
         let r = [q[0] - pa[0], q[1] - pa[1]];
@@ -194,7 +198,7 @@ impl KelvinPresets {
         let ((u0, v0), (u1, v1)) = (locus_uv(ta), locus_uv(td));
         let tint_per_len = cct::TINT_SCALE * (u1 - u0).hypot(v1 - v0) / len;
         let mired = 1e6 / ta + along * (1e6 / td - 1e6 / ta);
-        (1e6 / mired.clamp(1e6 / MAX_K, 1e6 / MIN_K), tint_a + along * (tint_d - tint_a) + tint_per_len * off)
+        Some((1e6 / mired.clamp(1e6 / MAX_K, 1e6 / MIN_K), tint_a + along * (tint_d - tint_a) + tint_per_len * off))
     }
 
     /// Temperature (K) and tint of the white these multipliers balance (see the module docs); `None` for unusable
@@ -205,7 +209,7 @@ impl KelvinPresets {
         }
         let q = log_point(wb_multipliers);
         if let Some(pair) = self.pair {
-            let (t, tint) = Self::pair_temp_tint(pair, q);
+            let (t, tint) = Self::pair_temp_tint(pair, q)?;
             return Some((t, tint.clamp(-MAX_TINT, MAX_TINT)));
         }
         let last = self.points.len().saturating_sub(2);
@@ -359,6 +363,9 @@ mod tests {
         let bad = KelvinPresets { points: vec![(5000.0, g(1400.0, 1400.0)); 3], pair: None };
         assert_eq!(bad.temp_tint(g(1400.0, 1400.0)), None);
         assert_eq!(KelvinPresets { points: vec![], pair: None }.temp_tint(g(1400.0, 1400.0)), None);
+        // and so does a stored neutral pair with equal endpoints
+        let same = KelvinPresets { points: vec![], pair: Some([[1.0, 1.0, 1.0]; 2]) };
+        assert_eq!(same.temp_tint(g(1400.0, 1400.0)), None);
     }
 
     /// An X-T20's stored pair (`302 366 866 17 302 646 498 21`).
