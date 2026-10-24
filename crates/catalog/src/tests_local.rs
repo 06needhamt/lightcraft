@@ -265,3 +265,17 @@ fn op_photo_ids_cover_nested_ops() {
     op.photo_ids(&mut |id| ids.push(id.0));
     assert_eq!(ids, vec![1, 2, 3, 4]);
 }
+
+#[test]
+fn drive_and_share_root_records_are_forgotten() {
+    for (path, folder) in [("C:\\IMG_1.JPG", "C:\\"), ("//srv/share/x.jpg", "//srv/share/")] {
+        let mut c = Catalog::new();
+        let id = c.alloc_photo_id();
+        let mut p = Photo::new(id, Source::File { path: path.into() }, "x.jpg", "JPEG", 60, 40, OLD);
+        p.local = true;
+        p.set_local_baseline();
+        c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+        c.apply(Op::SetBrowsed { folder: folder.into(), at: Some(OLD.into()) }).unwrap();
+        assert_eq!(plan(&c, 30).evict, vec![id], "{path}");
+    }
+}

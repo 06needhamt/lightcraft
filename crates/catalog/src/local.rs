@@ -64,7 +64,8 @@ pub fn folder_of(p: &Photo) -> Option<String> {
         // `/` and `\` are both separators whatever the platform (a catalog can move between them)
         Source::File { path } => {
             let key = crate::query::folder_key(path);
-            key.rsplit_once('/').map(|(dir, _)| if dir.is_empty() { "/".to_string() } else { dir.to_string() })
+            // a drive or share root keeps its trailing `/` in its key (`c:/`, `//srv/share/`)
+            key.rsplit_once('/').map(|(dir, _)| if dir.is_empty() { "/".to_string() } else { crate::query::folder_key(&format!("{dir}/")) })
         }
         Source::Demo { .. } => None,
     }
