@@ -195,6 +195,9 @@ pub enum Unavailable {
     CatalogUnreadable(String),
     /// The check itself failed (its worker stopped, or couldn't start).
     CheckFailed(String),
+    /// Looking at the path failed without saying it is gone (a parent folder it may not read, a
+    /// share that timed out; the system's reason).
+    LookupFailed(String),
 }
 
 impl Unavailable {
@@ -202,7 +205,8 @@ impl Unavailable {
     /// unlistable): what greys out File ▸ Open Recent Library and makes `app.recentLibraries` say
     /// `exists: false`. An unreadable catalog or a check that failed doesn't say the library is gone.
     pub fn is_missing(&self) -> bool {
-        matches!(self, Unavailable::NotFound | Unavailable::NotAFolder | Unavailable::NoLibrary | Unavailable::Unreadable(_))
+        // a folder that refuses to list is there (permissions, macOS privacy): opening it says why
+        matches!(self, Unavailable::NotFound | Unavailable::NotAFolder | Unavailable::NoLibrary)
     }
 
     /// In the interface language.
@@ -214,12 +218,15 @@ impl Unavailable {
             Unavailable::NoLibrary => crate::i18n::tr("There is no LightCraft library in this folder any more").to_string(),
             Unavailable::CatalogUnreadable(e) => format!("{} {e}", crate::i18n::tr("The library's catalog can't be read:")),
             Unavailable::CheckFailed(e) => e.clone(),
+            Unavailable::LookupFailed(e) => format!("{} {e}", crate::i18n::tr("This library couldn't be checked:")),
         }
     }
 }
 
-/// How long an answer stands before File ▸ Open Recent Library asks again (a drive plugged back
-/// in, a library moved away meanwhile).
+/// How old an answer must be to be asked again: a library not found, on its own (a drive plugged
+/// back in); any other, when the window comes back to the front (a library moved away meanwhile).
+/// Only "not found" goes on a timer: looking again at the others would wake every external drive
+/// and network share in the list over and over.
 pub const RECHECK_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
 /// How long a row stays "Checking…" before it says the drive isn't answering (it can still be
 /// opened: opening says why if it can't).
@@ -244,12 +251,22 @@ pub struct RecentChecks {
     pending: std::collections::HashMap<String, web_time::Instant>,
     /// How one path is checked ([`unavailable`]; tests put a slow one here).
     check: std::sync::Arc<dyn Fn(&str) -> Option<Unavailable> + Send + Sync>,
+    /// [`RECHECK_AFTER`] (shorter in tests).
+    recheck_after: std::time::Duration,
+    /// Whether the window had the focus on the last frame: answers are refreshed when it comes back.
+    pub(crate) focused: bool,
 }
 
 impl Default for RecentChecks {
     /// Nothing known yet, checking with [`unavailable`].
     fn default() -> Self {
-        RecentChecks { known: Default::default(), pending: Default::default(), check: std::sync::Arc::new(unavailable) }
+        RecentChecks {
+            known: Default::default(),
+            pending: Default::default(),
+            check: std::sync::Arc::new(unavailable),
+            recheck_after: RECHECK_AFTER,
+            focused: false,
+        }
     }
 }
 
@@ -292,6 +309,13 @@ impl RecentChecks {
     /// Check paths with another function (tests).
     pub fn with_check(check: impl Fn(&str) -> Option<Unavailable> + Send + Sync + 'static) -> RecentChecks {
         RecentChecks { check: std::sync::Arc::new(check), ..Default::default() }
+    }
+
+    /// Ask again about answers older than `after` when the window comes back (tests).
+    #[cfg(test)]
+    pub fn recheck_after(mut self, after: std::time::Duration) -> RecentChecks {
+        self.recheck_after = after;
+        self
     }
 
     /// `path` was just opened (or made): it can be opened.
@@ -387,14 +411,18 @@ fn apply_answers(app: &mut LightcraftApp) {
 /// who has it. Runs on a worker: the reason is put into words on the UI thread.
 fn unavailable(path: &str) -> Option<Unavailable> {
     let dir = Path::new(path);
-    if !dir.exists() {
-        return Some(Unavailable::NotFound);
+    // only a definite answer marks it missing: a lookup that fails otherwise (a parent folder it may
+    // not read, a share that timed out) is "couldn't check", and the library can still be opened
+    match std::fs::metadata(dir) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Some(Unavailable::NotFound),
+        Err(e) => return Some(Unavailable::LookupFailed(e.to_string())),
+        Ok(m) if !m.is_dir() => return Some(Unavailable::NotAFolder),
+        Ok(_) => {}
     }
-    if !dir.is_dir() {
-        return Some(Unavailable::NotAFolder);
-    }
-    if let Err(e) = std::fs::read_dir(dir) {
-        return Some(Unavailable::Unreadable(e.to_string()));
+    match std::fs::read_dir(dir) {
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => return Some(Unavailable::Unreadable(e.to_string())),
+        Err(e) => return Some(Unavailable::LookupFailed(e.to_string())),
+        Ok(_) => {}
     }
     // opening would make a new, empty library in it
     if !lightcraft_engine::library::is_library(dir) {
@@ -524,13 +552,27 @@ pub fn logic(app: &mut LightcraftApp, ctx: &egui::Context) {
         start_checks(app, listed);
         apply_answers(app);
     }
-    // File ▸ Open Recent Library: paths never checked, or not for a while
+    // File ▸ Open Recent Library: paths never checked; libraries not found, every RECHECK_AFTER (a
+    // drive plugged back in; looking at a path that isn't there wakes nothing); the others when the
+    // window comes back to the front and their answer is that old. The list as shown (at most
+    // RECENT_LIBRARIES).
+    let focused = ctx.input(|i| i.focused);
+    let regained = focused && !std::mem::replace(&mut app.recent_checks.focused, focused);
+    let after = app.recent_checks.recheck_after;
     let stale: Vec<String> = app
         .ui
         .settings
         .recent_libraries
         .iter()
-        .filter(|p| !app.recent_checks.is_checking(p) && app.recent_checks.known.get(*p).is_none_or(|a| a.at.elapsed() > RECHECK_AFTER))
+        .take(crate::state::RECENT_LIBRARIES)
+        .filter(|p| {
+            !app.recent_checks.is_checking(p)
+                && app
+                    .recent_checks
+                    .known
+                    .get(*p)
+                    .is_none_or(|a| (regained || matches!(a.why, Some(Unavailable::NotFound))) && a.at.elapsed() > after)
+        })
         .cloned()
         .collect();
     start_checks(app, stale);

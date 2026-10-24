@@ -866,3 +866,74 @@ fn photos_dropped_on_the_launch_list_go_into_the_library_chosen() {
     drop(h);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A lookup that fails without saying the library is gone (here a parent folder it may not read;
+/// a network share that timed out is the same) is "couldn't check", not "not found": the entry
+/// isn't greyed out in File ▸ Open Recent Library (CodeRabbit on #2689).
+#[cfg(unix)]
+#[test]
+fn a_failed_lookup_doesnt_mark_a_recent_library_missing() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = temp("lookup");
+    let locked = dir.join("Locked");
+    let inside = make_library(&locked.join("Inside"));
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.settings.recent_libraries = vec![inside.clone(), gone.clone()];
+    let mut h = Headless::new(app, [900.0, 600.0], 1.0);
+    let answered = h.step_until(T, |h| h.app.recent_checks.is_known(&inside) && h.app.recent_checks.is_known(&gone));
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(answered);
+    assert_eq!(h.app.recent_checks.exists(&gone), Some(false), "a library that isn't there is missing");
+    assert_eq!(h.app.recent_checks.exists(&inside), None, "one that couldn't be looked at isn't");
+    let why = h.app.recent_checks.reason(&inside).map(|w| w.text()).unwrap_or_default();
+    assert!(why.starts_with("This library couldn't be checked:"), "{why}");
+    // nor is a folder that is there but refuses to be listed (permissions, macOS privacy)
+    use crate::panels::library_problem::Unavailable;
+    assert!(!Unavailable::Unreadable("denied".into()).is_missing() && !Unavailable::LookupFailed("timed out".into()).is_missing());
+    assert!(Unavailable::NotFound.is_missing());
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A library found is asked about again when the window comes back to the front, not on a timer: a
+/// timer would wake every external drive and network share in the list over and over. One not
+/// found is looked for again on its own (a drive plugged back in with the app in front).
+#[test]
+fn recent_libraries_are_checked_again_only_when_the_window_comes_back() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let dir = temp("recheck");
+    let a = make_library(&dir.join("A"));
+    let gone = dir.join("Gone").to_string_lossy().into_owned();
+    let (calls, gone_calls) = (std::sync::Arc::new(AtomicUsize::new(0)), std::sync::Arc::new(AtomicUsize::new(0)));
+    let (c, g, gone_path) = (calls.clone(), gone_calls.clone(), gone.clone());
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.recent_checks = crate::panels::library_problem::RecentChecks::with_check(move |p| {
+        if p == gone_path {
+            g.fetch_add(1, Ordering::SeqCst);
+            return Some(crate::panels::library_problem::Unavailable::NotFound);
+        }
+        c.fetch_add(1, Ordering::SeqCst);
+        None
+    })
+    .recheck_after(Duration::ZERO);
+    app.ui.settings.recent_libraries = vec![a.clone(), gone.clone()];
+    let mut h = Headless::new(app, [900.0, 600.0], 1.0);
+    assert!(h.step_until(T, |h| h.app.recent_checks.exists(&a) == Some(true)));
+    assert!(h.step_until(T, |_| gone_calls.load(Ordering::SeqCst) >= 3), "the one not found is looked for again on its own");
+    // focused all along, every answer "old": nothing is asked again
+    for _ in 0..30 {
+        h.step();
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "no check on a timer");
+    // the window went to the back and comes to the front again
+    h.app.recent_checks.focused = false;
+    assert!(h.step_until(T, |_| calls.load(Ordering::SeqCst) == 2), "asked again when the window comes back");
+    for _ in 0..10 {
+        h.step();
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 2, "once");
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
