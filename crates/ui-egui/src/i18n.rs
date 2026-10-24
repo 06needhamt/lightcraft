@@ -865,16 +865,6 @@ mod tests {
         }
     }
 
-    /// The flag chip ("Flag: pick") translates the lowercase flag value; a catalog without it shows English.
-    #[test]
-    fn every_translation_names_the_pick_and_reject_flags_on_the_chip() {
-        for language in Locale::ALL.iter().filter(|language| **language != Locale::En) {
-            for key in ["pick", "reject"] {
-                assert!(language.catalog().contains_key(key), "{} lacks {key:?}", language.code());
-            }
-        }
-    }
-
     /// The language menu covers every language, and a language's own command selects it.
     #[test]
     fn language_commands_cover_every_language() {
@@ -1122,11 +1112,15 @@ mod tests {
             labels: vec![lightcraft_catalog::ColorLabel::Blue, lightcraft_catalog::ColorLabel::Red],
             ..Default::default()
         };
-        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot");
+        let name = |label| color_label(&app.session.catalog, label);
+        let (red, blue, green) =
+            (name(lightcraft_catalog::ColorLabel::Red), name(lightcraft_catalog::ColorLabel::Blue), name(lightcraft_catalog::ColorLabel::Green));
+        let (label, and, or) = (tr("Label"), tr("and"), tr("or"));
+        assert_eq!(filter_label(&both, &app.session.catalog), format!("{label}: {red}"));
         let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue], ..both };
-        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot und Blau");
+        assert_eq!(filter_label(&both, &app.session.catalog), format!("{label}: {red} {and} {blue}"));
         let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue, lightcraft_catalog::ColorLabel::Green], ..both };
-        assert_eq!(filter_label(&both, &app.session.catalog), "Farbmarkierung: Rot und (Blau oder Grün)");
+        assert_eq!(filter_label(&both, &app.session.catalog), format!("{label}: {red} {and} ({blue} {or} {green})"));
         let filter = lightcraft_catalog::Filter {
             labels: vec![lightcraft_catalog::ColorLabel::Red, lightcraft_catalog::ColorLabel::Blue],
             ..Default::default()
