@@ -13,7 +13,7 @@ approved foundation publication. Earlier planning and source-only validation sta
 are historical and are superseded by this status.
 
 The mandatory `cargo xtask ci` passed all eight stages (fmt, strict clippy, HEIF, tests,
-parity, layers, assets and WASM). Its log reports 4,739 passing test invocations, zero failures
+parity, layers, assets and WASM). Its log reports 4,747 passing test invocations, zero failures
 and 40 ignored tests. The CI prerequisite report separately lists 149 checks that returned
 without exercising their checks: corpus 137, models 8, fonts 2, GPU 1 and system 1. These are
 coverage gaps, not qualified behavior. Canonical source identities were resolved through local
@@ -24,11 +24,17 @@ re-resolves the lexical parent and refuses a changed destination before encoding
 The two standalone packaging helpers now default to the same craft-fonts pin as release CI;
 explicit font-directory overrides and existing checkouts retain their behavior.
 
-This qualification uses source base `98702b5c446ce2791b0aab92dab65cf9da7220b7`.
-Observed main `4ae3089420cb57d4c839e51a735d4f48271cbf17` adds a disjoint catalog security
-fix. Integration must preserve it and pass the required gates before landing. Actual visible
-UI, native platform/IME/PRIMARY, browser behavior, final release-package notices and paired
-performance acceptance remain open. No branch push or PR publication is authorized.
+The current-main integration includes `4ae3089420cb57d4c839e51a735d4f48271cbf17` and
+preserves its catalog hardening and other changes. Independent review caught a bad-chain
+memoization error: a descendant visited before a broken ancestor could be detached unnecessarily.
+The repair caches only proven valid chains and removes the offending parent edge, preserving
+valid descendants. Regressions cover child-before-cycle, child-before-missing-parent and a valid
+513-folder chain through actual catalog snapshot/reopen paths. All nine focused catalog repair
+tests passed before the full eight-stage CI run on the merged source. The only formatting change
+after the source review wraps one let-chain condition; the lockfile remains unchanged.
+
+Actual visible UI, native platform/IME/PRIMARY, browser behavior, final release-package notices
+and paired performance acceptance remain open. This application branch has not been published.
 
 ## Historical plan and review revisions
 
