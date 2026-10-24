@@ -166,6 +166,60 @@ fn a_finished_scan_waits_for_the_open_dialog_before_opening_the_review() {
     assert_eq!(opts.candidates.len(), 2, "the scan's photos were kept");
 }
 
+/// A scan that finishes behind Settings, which then opens another library: the review of the first
+/// library's scan doesn't open over the second one once Settings closes, and nothing is imported into it.
+#[test]
+fn a_waiting_review_is_dropped_when_another_library_opens() {
+    let dir = Scratch::new("switch");
+    let mut h = app(&dir);
+    crate::import::open(&mut h.app, vec![dir.path("trip")]).unwrap();
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "general".into() });
+    assert!(h.step_until(SETTLE, |h| h.app.scan.is_none()), "the scan ends");
+    h.step();
+    let stale = h.app.review_pending.clone().expect("the review waits behind Settings");
+    h.app.run("app.openLibrary", json!({"path": dir.path("other")})).unwrap();
+    h.app.ui.dialog = None;
+    for _ in 0..10 {
+        h.step();
+    }
+    assert!(h.app.ui.dialog.is_none(), "no review from the other library opens");
+    assert!(h.app.review_pending.is_none());
+    // a review confirmed after the switch (an agent holding it) imports nothing either
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &stale).is_err());
+    for _ in 0..10 {
+        h.step();
+    }
+    assert!(h.app.import.is_none(), "nothing is imported");
+    assert_eq!(photos(&h), 0);
+}
+
+/// A review waiting behind another dialog counts as an import in progress: a direct drop meanwhile is
+/// refused, and the review's OK never replaces an import that runs when it is confirmed.
+#[test]
+fn a_waiting_review_never_replaces_a_running_import() {
+    let dir = Scratch::new("pending-running");
+    let mut h = app(&dir);
+    h.app.ui.settings.import_dropped_directly = true;
+    write_png(&dir.path("more/c.png"), 3);
+    crate::import::open(&mut h.app, vec![dir.path("trip")]).unwrap();
+    h.app.ui.dialog = Some(Dialog::WhatsNew);
+    assert!(h.step_until(SETTLE, |h| h.app.scan.is_none()), "the scan ends");
+    h.step();
+    assert!(h.app.review_pending.is_some(), "the review waits behind the dialog");
+    assert!(crate::import::start_paths(&mut h.app, vec![dir.path("more")]).is_err(), "no second import starts");
+    assert!(h.app.import.is_none());
+    h.app.ui.dialog = None;
+    h.step();
+    let Some(review) = h.app.ui.dialog.clone() else { panic!("the review opens once the dialog is closed") };
+    assert!(matches!(review, Dialog::Import { .. }));
+    // an import that started anyway (a Local folder browse, say) is the one that runs
+    h.app.import = Some(crate::import::ImportTask::new(vec![dir.path("more")], json!({"mode": "add"}), 0, false));
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &review).is_err(), "the review's OK is refused");
+    assert_eq!(h.app.import.as_ref().map(|t| t.total), Some(1), "the running import stays");
+    assert!(h.step_until(SETTLE, |h| h.app.import.is_none()), "it runs to the end");
+    assert_eq!(photos(&h), 1, "only the running import's photo arrives");
+}
+
 /// A drop while an import runs would open a review whose OK replaces the running import: it is
 /// refused instead, and the card says so.
 #[test]
