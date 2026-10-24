@@ -798,7 +798,7 @@ Latin stays upright. Advanced Japanese composition remains open. Regression cove
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-23 | minor | LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: GoPro GPR (VC-5) decodes from sensor data and `.gpr` is imported (`crates/raw/src/vc5.rs`, ported from GoPro's Apache-2.0 / MIT GPR SDK); FUSION, HERO5, HERO6, HERO7 and HERO10 Black verified on CC0 files; status unchanged (🟡) |
+| 2026-10-23 | minor | LR-IMP-FORMATS, LR-IMP-CAMERA-COVERAGE: GoPro GPR (VC-5) decodes from sensor data and `.gpr` is imported (`crates/raw/src/vc5.rs`, ported from GoPro's Apache-2.0 / MIT GPR SDK); FUSION, HERO5, HERO6, HERO7 and HERO10 Black verified on CC0 files (eight files pinned: FUSION and HERO5–HERO11; HERO8, HERO9 and HERO11 are not in Adobe's list); status unchanged (🟡) |
 | 2026-10-22 | patch | LR-META-XMP: namespace URI determines ownership; foreign namespaces using recognized prefixes survive saves and cannot supply native settings or ratings; status and counts unchanged |
 | 2026-10-22 | patch | LR-EXP-PSD, LR-META-EXIF-FULL: PSD/PSB imports and image resources 1058/1060 now supply EXIF and XMP to metadata readers and All Metadata; Original with Remove Location Info refuses detected PSD/PSB GPS; statuses and feature counts unchanged |
 | 2026-10-21 | patch | LR-IMP-ADD-DIALOG: reconcile #2362 with current main; deleted-album guard and hierarchical picker retained; counts unchanged |

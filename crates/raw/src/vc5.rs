@@ -365,6 +365,10 @@ fn lowpass_band(src: &[u8], n: usize, precision: u32) -> Result<Vec<i16>> {
 /// A highpass band: `n` run-length coded (companded, still quantized) coefficients and the band-end codeword.
 fn highpass_band(src: &[u8], n: usize) -> Result<Vec<i16>> {
     let book = codebook();
+    // every codeword takes at least one bit and covers at most `max_run` samples, and the band-end marker follows
+    if n.div_ceil(book.max_run).saturating_add(1) > src.len().saturating_mul(8) {
+        return Err(corrupt("band longer than its codeblock"));
+    }
     let mut r = BitReader::new(src);
     let mut out = Vec::with_capacity(n);
     while out.len() < n {
@@ -373,13 +377,16 @@ fn highpass_band(src: &[u8], n: usize) -> Result<Vec<i16>> {
             return Err(corrupt("band ends early"));
         }
         let value = if magnitude != 0 && r.get(1) == 1 { -magnitude } else { magnitude };
+        if r.overrun() {
+            return Err(corrupt("band longer than its codeblock"));
+        }
         if count > n - out.len() {
             return Err(corrupt("run past the end of its band"));
         }
         out.resize(out.len() + count, value);
     }
     let (count, magnitude) = book.read(&mut r)?;
-    if count != 0 && magnitude != 1 {
+    if count != 0 || magnitude != 1 {
         return Err(corrupt("no band-end marker"));
     }
     if r.overrun() {
@@ -470,6 +477,8 @@ struct Codebook {
     lut: Vec<u16>,
     /// The first entry longer than `LUT_BITS`.
     long_start: usize,
+    /// The longest run one codeword codes.
+    max_run: usize,
 }
 
 impl Codebook {
@@ -487,7 +496,8 @@ impl Codebook {
                 *slot = i as u16 + 1;
             }
         }
-        Codebook { lut, long_start }
+        let max_run = TABLE17.iter().map(|e| usize::from(e.2)).max().unwrap_or(1).max(1);
+        Codebook { lut, long_start, max_run }
     }
 
     /// The next codeword's (run length, magnitude).
@@ -814,6 +824,18 @@ mod tests {
             assert!(out.iter().all(|&v| v < 1 << 14));
             assert!(out.iter().any(|&v| v != out[0]), "{highpass}: detail lost");
         }
+    }
+
+    /// Only the band-end codeword ends a band, and a band can't claim more samples than its codeblock can code.
+    #[test]
+    fn highpass_bands_end_on_the_marker_and_fit_their_codeblock() {
+        // `0` (a zero), then `10` (a run of one 1), not the band-end marker
+        assert!(matches!(highpass_band(&[0b0100_0000, 0, 0, 0], 1), Err(RawError::Corrupt(why)) if why.contains("band-end")));
+        let (end, len) = TABLE17.iter().find(|e| e.2 == 0).map(|e| (u64::from(e.1), e.0)).unwrap();
+        let bytes = (end << (63 - len)).to_be_bytes();
+        assert_eq!(highpass_band(&bytes, 1).unwrap(), [0]);
+        // four bytes code at most 31 codewords of at most 320 samples before the marker
+        assert!(matches!(highpass_band(&[0; 4], 31 * 320 + 1), Err(RawError::Corrupt(why)) if why.contains("longer")));
     }
 
     #[test]
