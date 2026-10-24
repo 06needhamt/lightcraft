@@ -1851,13 +1851,19 @@ pub(crate) fn parse_gps(t: &str) -> Option<(f64, f64)> {
 
     // Without hemisphere letters, a comma-free pair is separated by whitespace. Trying each
     // boundary also permits spaces between DMS components without letting unconsumed text vanish.
+    // If multiple boundaries parse, they must agree so ambiguous text cannot be reinterpreted.
+    let mut parsed: Option<(f64, f64)> = None;
     for (at, separator) in t.char_indices().filter(|(_, c)| c.is_whitespace()) {
         let after = at.checked_add(separator.len_utf8())?;
         if let Some(pair) = parse_gps_pair(t.get(..at)?, t.get(after..)?) {
-            return Some(pair);
+            match parsed {
+                Some(previous) if previous != pair => return None,
+                None => parsed = Some(pair),
+                Some(_) => {}
+            }
         }
     }
-    None
+    parsed
 }
 
 #[derive(Clone, Copy)]
@@ -1996,6 +2002,8 @@ mod gps_tests {
     fn coordinates_people_type() {
         let p = super::parse_gps;
         assert_eq!(p("51.5072, -0.1276"), Some((51.5072, -0.1276)));
+        assert_eq!(p("10 20 30"), None);
+        assert_eq!(p("10  20"), Some((10.0, 20.0)));
         let (la, lo) = p("51°30'26\"N 0°7'39\"W").unwrap();
         assert!((la - 51.50722).abs() < 1e-4 && (lo + 0.1275).abs() < 1e-4, "{la} {lo}");
         let (la, lo) = p("33.8688 S, 151.2093 E").unwrap();
