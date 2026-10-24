@@ -536,12 +536,15 @@ fn hovering_the_line_names_the_region_it_would_move() {
     assert_eq!(q["ok"], true, "{q}");
     h.step();
     assert_eq!(h.last_cursor, egui::CursorIcon::Grab, "the line offers a grab: {:?}", h.last_cursor);
-    assert!(h.painted_text().iter().any(|t| t.contains("Lights")), "and names the slider it would move: {:?}", h.painted_text());
+    // the slider rows also paint "Lights", so compare with a frame away from the line
+    let lights = |h: &Headless| h.painted_text().iter().filter(|t| t.contains("Lights")).count();
+    let hovered = lights(&h);
     // well above the line there is no grab and no name
     let q = h.request("ui.move", json!({"x": x, "y": r[1] + 0.06 * r[3]}), T);
     assert_eq!(q["ok"], true, "{q}");
     h.step();
     assert_eq!(h.last_cursor, egui::CursorIcon::Default, "away from the line there is nothing to grab: {:?}", h.last_cursor);
+    assert!(hovered > lights(&h), "hovering names the slider it would move: {hovered} vs {} away", lights(&h));
 }
 
 /// A point's level on the region's curve and its slider amount are inverses, so a drag puts the line
