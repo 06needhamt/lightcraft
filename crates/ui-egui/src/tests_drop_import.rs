@@ -166,6 +166,33 @@ fn a_finished_scan_waits_for_the_open_dialog_before_opening_the_review() {
     assert_eq!(opts.candidates.len(), 2, "the scan's photos were kept");
 }
 
+/// A scan that finishes behind Settings, which then opens another library: the review of the first
+/// library's scan doesn't open over the second one once Settings closes, and nothing is imported into it.
+#[test]
+fn a_waiting_review_is_dropped_when_another_library_opens() {
+    let dir = Scratch::new("switch");
+    let mut h = app(&dir);
+    crate::import::open(&mut h.app, vec![dir.path("trip")]).unwrap();
+    h.app.ui.dialog = Some(Dialog::Settings { tab: "general".into() });
+    assert!(h.step_until(SETTLE, |h| h.app.scan.is_none()), "the scan ends");
+    h.step();
+    let stale = h.app.review_pending.clone().expect("the review waits behind Settings");
+    h.app.run("app.openLibrary", json!({"path": dir.path("other")})).unwrap();
+    h.app.ui.dialog = None;
+    for _ in 0..10 {
+        h.step();
+    }
+    assert!(h.app.ui.dialog.is_none(), "no review from the other library opens");
+    assert!(h.app.review_pending.is_none());
+    // a review confirmed after the switch (an agent holding it) imports nothing either
+    assert!(crate::panels::dialogs::confirm_dialog(&mut h.app, &stale).is_err());
+    for _ in 0..10 {
+        h.step();
+    }
+    assert!(h.app.import.is_none(), "nothing is imported");
+    assert_eq!(photos(&h), 0);
+}
+
 /// A drop while an import runs would open a review whose OK replaces the running import: it is
 /// refused instead, and the card says so.
 #[test]

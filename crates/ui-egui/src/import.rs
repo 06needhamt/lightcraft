@@ -91,6 +91,10 @@ pub struct ImportDialog {
     /// The candidate clicked last: where a Shift-click range starts ([`ImportDialog::click`]).
     #[serde(skip)]
     pub last_clicked: Option<usize>,
+    /// The library the scan was made in ([`lightcraft_engine::Session::library_generation`]): its duplicate
+    /// decisions and album ids belong to that catalog, so the review is not shown or confirmed in another.
+    #[serde(skip)]
+    pub library: Option<u64>,
 }
 
 /// A candidate's file type, as the review groups them: its format, or its extension when the
@@ -113,6 +117,11 @@ impl ImportDialog {
     pub fn new(candidates: Vec<ImportCandidate>) -> Self {
         let checked = candidates.iter().map(|c| c.duplicate.is_none() && c.error.is_none()).collect();
         ImportDialog { candidates, checked, on_deleted: "restore".into(), ..Default::default() }
+    }
+
+    /// Whether the library the scan was made in is still the open one (a review that names none counts).
+    fn in_library(&self, app: &LightcraftApp) -> bool {
+        self.library.is_none_or(|g| g == app.session.library_generation())
     }
     /// Mark the candidates whose photo is in Recently Deleted. They are checked when the choice
     /// for them (`on_deleted`) imports them — by default it restores them, so a photo deleted by
@@ -627,14 +636,22 @@ pub fn poll_scan(app: &mut LightcraftApp, ctx: &egui::Context) {
     // only an album the review offers (it may have been deleted while the scan ran)
     d.album = task.album.filter(|id| app.session.catalog.album(lightcraft_catalog::AlbumId(*id)).is_some_and(|a| !a.folder && !a.is_smart()));
     d.sources = task.sources;
+    d.library = Some(app.session.library_generation());
     app.review_pending = Some(crate::state::Dialog::Import { opts: Box::new(d) });
     show_pending_review(app, ctx);
 }
 
 /// Open the review of a finished scan once no other dialog is open (a face model's licence, Settings…
-/// opened while the scan ran stays), checked again shortly while it waits.
+/// opened while the scan ran stays), checked again shortly while it waits. A review whose library was
+/// closed meanwhile (Settings can open another) is dropped.
 fn show_pending_review(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.review_pending.is_none() {
+        return;
+    }
+    if let Some(crate::state::Dialog::Import { opts }) = &app.review_pending
+        && !opts.in_library(app)
+    {
+        app.review_pending = None;
         return;
     }
     if app.ui.dialog.is_none() {
@@ -676,6 +693,9 @@ impl ScanTask {
 /// Start importing the dialog's checked files (the dialog's OK / `ui.dialog.confirm`).
 pub fn start(app: &mut LightcraftApp, d: &ImportDialog) -> Result<Value, String> {
     busy_synchronizing(app)?;
+    if !d.in_library(app) {
+        return Err("another library was opened since the photos were scanned: nothing was imported".into());
+    }
     let queue = d.selected_paths();
     if queue.is_empty() {
         return Err("no photos selected".into());
