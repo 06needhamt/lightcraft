@@ -189,8 +189,9 @@ Enter opens it and Escape quits (over an open library: closes the window and kee
 opening a library ends it. While it shows, the settings are saved as usual (a removal is kept).
 
 `app.recentLibraries` returns `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
-background check found (`false`: moved, on a disconnected drive, a folder that can't be listed or no longer a
-library; `null`: not checked yet, or the check couldn't tell, e.g. an unreadable catalog) and `checking` whether one
+background check found (`false`: moved, on a disconnected drive, not a folder or no longer a library; `null`: not
+checked yet, or the check couldn't tell, e.g. a folder that can't be listed, an unreadable catalog or a lookup that
+failed) and `checking` whether one
 is running: the command never looks at a folder itself. A failed open never marks a library missing (another program
 may have it). Recent libraries are checked in the
 background when the app starts (the first 8) and when the launch window opens; one not found is looked for again every

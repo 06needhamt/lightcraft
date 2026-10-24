@@ -879,6 +879,13 @@ fn a_failed_lookup_doesnt_mark_a_recent_library_missing() {
     let inside = make_library(&locked.join("Inside"));
     let gone = dir.join("Gone").to_string_lossy().into_owned();
     std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&locked).is_ok() {
+        // running as root (some CI containers): the mode bits don't stop it, so no lookup fails
+        std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        lightcraft_testkit::skip!(System, "a folder with no permissions can still be read (running as root)");
+        return;
+    }
     let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
     app.ui.settings.recent_libraries = vec![inside.clone(), gone.clone()];
     let mut h = Headless::new(app, [900.0, 600.0], 1.0);

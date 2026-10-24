@@ -1307,9 +1307,9 @@ fn free_name(location: &std::path::Path, base: &str) -> std::path::PathBuf {
 
 /// `app.recentLibraries {remove?: path, clear?: bool}`: the recently opened libraries, newest
 /// first, as `[{path, name, exists, checking, open, lastOpened}]`. `exists` is what the last
-/// background check found (`false`: moved, on a disconnected drive, a folder that can't be listed
-/// or no longer a library; `null`: not checked yet, or the check couldn't tell — an unreadable catalog, a check
-/// that failed; `checking` says whether a check is running): the command never
+/// background check found (`false`: moved, on a disconnected drive, not a folder or no longer a
+/// library; `null`: not checked yet, or the check couldn't tell — a folder that can't be listed, an
+/// unreadable catalog, a lookup or check that failed; `checking` says whether a check is running): the command never
 /// looks at a folder itself, as one on an offline network share can take seconds to answer.
 /// `lastOpened`: ISO 8601 time, `null` when not known. `remove` forgets that
 /// one entry (an error if the list doesn't hold it) and `clear` forgets them all; neither touches

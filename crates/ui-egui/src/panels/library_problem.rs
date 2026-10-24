@@ -201,9 +201,10 @@ pub enum Unavailable {
 }
 
 impl Unavailable {
-    /// The folder isn't a library that is there to open (gone, a file, not a library any more, or
-    /// unlistable): what greys out File ▸ Open Recent Library and makes `app.recentLibraries` say
-    /// `exists: false`. An unreadable catalog or a check that failed doesn't say the library is gone.
+    /// The folder isn't a library that is there to open (gone, a file, or not a library any more):
+    /// what greys out File ▸ Open Recent Library and makes `app.recentLibraries` say `exists: false`.
+    /// A folder that can't be listed, an unreadable catalog or a check that failed doesn't say the
+    /// library is gone (the launch window still shows why, and offers Open only for one it checked).
     pub fn is_missing(&self) -> bool {
         // a folder that refuses to list is there (permissions, macOS privacy): opening it says why
         matches!(self, Unavailable::NotFound | Unavailable::NotAFolder | Unavailable::NoLibrary)
