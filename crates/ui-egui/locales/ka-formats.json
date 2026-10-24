@@ -268,6 +268,7 @@
   "LightCraft stopped unexpectedly: {e}": "LightCraft მოულოდნელად შეწყდა: {e}",
   "LightCraft stopped unexpectedly: {e}\n\nThe log file has the details: {path}": "LightCraft მოულოდნელად შეწყდა: {e}\n\nდეტალები ჟურნალის ფაილშია: {path}",
   "Removed “{name}” from {n} photos. Edit ▸ Undo puts it back.": "„{name}“ მოშორდა ფოტოებს ({n}). რედაქტირება → დაბრუნება მას უკან აბრუნებს.",
+  "Inside: {names}": "შიგნით: {names}",
   "Renames {n} face{} across the library. The files are not changed.": "სახეებს ({n}){:.0} მთელ ბიბლიოთეკაში ეცვლება სახელი. ფაილები არ იცვლება.",
   "Saved template {name}": "შაბლონი შენახულია: {name}",
   "Skipped {problem}": "გამოტოვებულია: {problem}",
@@ -278,6 +279,7 @@
   "Updated {name}": "განახლდა: {name}",
   "new, inside {parent}": "ახალი, {parent}-ის შიგნით",
   "{count} more warnings.": "კიდევ გაფრთხილება: {count}.",
+  "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "კატალოგის {skipped} სურათი არ დაიმპორტდა, რადგან მათი ჩანაწერები კატალოგში არასრულია.",
   "{missing} originals are missing. Their catalog records are available; use Find Missing Photos to relink them.": "დაკარგულია ორიგინალი: {missing}. მათი კატალოგის ჩანაწერები ხელმისაწვდომია; ხელახლა დასაკავშირებლად გამოიყენეთ „დაკარგული ფოტოების მოძებნა“.",
   "{n} JPEG files": "JPEG ფაილი: {n}",
   "{n} pages": "გვერდი: {n}",
@@ -295,7 +297,13 @@
   "Already in “{}”": "უკვე „{}“-შია",
   "Move {n} photo{} to “{}”": "ფოტოს გადატანა „{1}“-ში: {n}{0:.0}",
   "Move {n} photo{} to “{}”?": "გადავიდეს „{1}“-ში ფოტო: {n}{0:.0}?",
+  "Listing folders — folders: {folders}, files: {files}": "საქაღალდეების ჩამოთვლა — საქაღალდეები: {folders}, ფაილები: {files}",
   "Moved {n} photo{} to “{}”. Edit → Undo moves them back.": "„{1}“-ში გადავიდა ფოტო: {n}{0:.0}. რედაქტირება → დაბრუნება მათ უკან აბრუნებს.",
-  "{skipped} catalog images were not imported because their records in the catalog are incomplete.": "კატალოგის {skipped} სურათი არ დაიმპორტდა, რადგან მათი ჩანაწერები კატალოგში არასრულია.",
-  "Listing folders — folders: {folders}, files: {files}": "საქაღალდეების ჩამოთვლა — საქაღალდეები: {folders}, ფაილები: {files}"
+  "Drop to review {n} item{} for import": "ჩააგდეთ იმპორტამდე გადასახედად (ელემენტები: {n}){:.0}",
+  "Drop to import {n} item{}": "ჩააგდეთ იმპორტისთვის (ელემენტები: {n}){:.0}",
+  "Drop to import {n} preset{}": "ჩააგდეთ პრესეტების იმპორტისთვის: {n}{:.0}",
+  "Could not read {name}: {e}": "ვერ წაიკითხა {name}: {e}",
+  "Added {n} photo{}": "დაემატა ფოტო: {n}{:.0}",
+  "Where should the Lightroom catalog “{catalog}” go?": "სად გადავიტანოთ Lightroom-ის კატალოგი „{catalog}“?",
+  "Merge into the open library “{library}” ({count} photo{})": "გაერთიანება ღია ბიბლიოთეკასთან „{library}“ (ფოტოები: {count}){:.0}"
 }
