@@ -306,7 +306,7 @@ On Windows / DX12 the kernels cost more: FXC compiles each pipeline single-threa
 `create_compute_pipeline` (issue #471). Built one after another, the 27 took ~2.2 s on an Intel Core
 Ultra 7 165U iGPU (`app.gpu` 2.4 s median, up to 7 s on the first run after an install), so
 `ctx::build_kernels` shares them out to worker threads (issue #2936): ~1.05 s there (`app.gpu` 1.2 s),
-now bounded by the largest kernel (`finish.wgsl`). wgpu's error scopes are per thread, so every worker
+most likely the largest kernel (`finish.wgsl`) alone (not timed per kernel). wgpu's error scopes are per thread, so every worker
 opens its own; a refused kernel still means no GPU. The `gpu:` info log line gives the kernel count
 and build time.
 
