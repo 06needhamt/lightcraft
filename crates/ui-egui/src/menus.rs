@@ -502,6 +502,10 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                 Ok(json!({"keyword": null}))
             } else if k.is_empty() {
                 app.ui.right = RightPanel::Keywords;
+                // (a Keywords section folded shut would hide the painter's box)
+                if app.ui.section_folded("keywording") {
+                    app.ui.toggle_folded("keywording");
+                }
                 app.toast(&ctx, crate::i18n::tr("Type a keyword to paint in the Keywords panel"));
                 Ok(json!({"keyword": null}))
             } else {

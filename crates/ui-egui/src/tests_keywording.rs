@@ -148,14 +148,17 @@ fn the_painters_field_pastes_and_return_paints() {
 }
 
 /// ⌘⌥K (Ctrl+Alt+K) is Enable Painting: with the painter's box empty it shows the Keywords panel to
-/// type a keyword in, with a keyword in the box it paints that keyword, and pressed again it stops.
+/// type a keyword in (unfolding the Keywords section when it was folded shut), with a keyword in the
+/// box it paints that keyword, and pressed again it stops.
 #[test]
 fn cmd_alt_k_paints_the_painters_keyword_and_stops() {
     let (mut h, _) = two_selected();
     let key = json!({"key": "K", "cmd": true, "alt": true});
     ask(&mut h, "ui.set", json!({"right": "none"}));
+    h.app.ui.toggle_folded("keywording");
     ask(&mut h, "ui.key", key.clone());
     assert_eq!(h.app.ui.right, crate::state::RightPanel::Keywords, "an empty box: the Keywords panel");
+    assert!(!h.app.ui.section_folded("keywording") && has(&h, "field:keywordPainter"), "the painter's box shows");
     assert!(h.app.ui.keyword_painter.is_none(), "nothing to paint yet");
     h.view.clipboard = "Weddings".into();
     ask(&mut h, "ui.clickWidget", json!({"id": "field:keywordPainter", "button": "right"}));
