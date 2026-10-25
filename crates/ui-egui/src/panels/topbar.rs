@@ -12,11 +12,8 @@ use crate::widgets::{icon_button, register};
 /// double-click acts as the system setting says. Made before the bar's widgets so they win the click.
 fn window_handle(ui: &mut egui::Ui, bar: Rect) {
     register(ui.ctx(), "region:titlebar", bar);
-    craft_window::title_bar::empty_area(ui, bar);
-    // (the empty area is the widget `empty_area` makes under this id)
-    if let Some(resp) = ui.ctx().read_response(ui.id().with("title_bar_empty")) {
-        crate::widgets::announce(&resp, crate::i18n::tr("Title bar"));
-    }
+    let resp = craft_window::title_bar::empty_area(ui, bar);
+    crate::widgets::announce(&resp, crate::i18n::tr("Title bar"));
 }
 
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
