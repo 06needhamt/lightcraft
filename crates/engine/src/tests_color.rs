@@ -296,6 +296,64 @@ fn one_field_wb_partial_merge_keeps_the_other_field_on_its_scale() {
     nearly(&d.wb, &l2k(5800.0, 0.0), "the as-shot tint keeps its meaning");
     assert_eq!(d.wb.scale, WbScale::Kelvin);
 
+    // A mode that answers its own white (As Shot, or a named preset on a raw edited in Kelvin) ignores the numbers
+    // stored on the photo, so a one-field partial naming its scale landed on a white balance that stored the number
+    // where no render would read it: the panel showed 5800 while the photo stayed at as shot. The white the photo
+    // really renders is written out as Custom values first, so the named number means what it says and the field the
+    // partial leaves out carries that same white (review of #2952).
+    let as_shot_photo = DevelopSettings {
+        wb: lightcraft_develop::WhiteBalance { mode: WbMode::AsShot, temp: 4986.0, tint: -2.0, scale: WbScale::Kelvin },
+        ..DevelopSettings::for_raw(as_shot.0, as_shot.1)
+    };
+    s.set_develop(kelvin, as_shot_photo.clone(), "as shot").unwrap();
+    assert_eq!(lightcraft_engine_effective(&s.source_info(kelvin), &as_shot_photo), as_shot, "as shot renders the file's own white");
+    s.execute("develop.merge", &json!({"settings": {"wb": {"temp": 5800.0, "scale": "kelvin"}}})).unwrap();
+    let d = dev(&s, kelvin);
+    assert_eq!((d.wb.mode, d.wb.temp, d.wb.tint, d.wb.scale), (WbMode::Custom, 5800.0, -2.0, WbScale::Kelvin), "{:?}", d.wb);
+    assert_eq!(lightcraft_engine_effective(&s.source_info(kelvin), &d), (5800.0, -2.0), "the temperature the partial asked for renders");
+    // the tint side of the same hole
+    s.set_develop(kelvin, as_shot_photo.clone(), "as shot").unwrap();
+    s.execute("develop.merge", &json!({"settings": {"wb": {"tint": 20.0, "scale": "kelvin"}}})).unwrap();
+    let d = dev(&s, kelvin);
+    assert_eq!((d.wb.mode, d.wb.temp, d.wb.tint, d.wb.scale), (WbMode::Custom, as_shot.0, 20.0, WbScale::Kelvin), "{:?}", d.wb);
+    assert_eq!(lightcraft_engine_effective(&s.source_info(kelvin), &d), (as_shot.0, 20.0));
+    // a named preset mode answers its own Kelvin white on such a raw, so its numbers are swallowed the same way
+    let preset_photo = DevelopSettings {
+        wb: lightcraft_develop::WhiteBalance { mode: WbMode::Cloudy, temp: 4986.0, tint: -2.0, scale: WbScale::Kelvin },
+        ..DevelopSettings::for_raw(as_shot.0, as_shot.1)
+    };
+    s.set_develop(kelvin, preset_photo.clone(), "cloudy").unwrap();
+    let cloudy = lightcraft_engine_effective(&s.source_info(kelvin), &preset_photo);
+    assert_ne!(cloudy, (4986.0, -2.0), "the preset mode renders its own white, not the stored numbers");
+    s.execute("develop.merge", &json!({"settings": {"wb": {"temp": 5800.0, "scale": "kelvin"}}})).unwrap();
+    let d = dev(&s, kelvin);
+    assert_eq!((d.wb.mode, d.wb.temp, d.wb.tint, d.wb.scale), (WbMode::Custom, 5800.0, cloudy.1, WbScale::Kelvin), "{:?}", d.wb);
+    assert_eq!(lightcraft_engine_effective(&s.source_info(kelvin), &d), (5800.0, cloudy.1), "the kept tint is that white's own tint");
+    // `Auto` resolves its gray when the mode is set and reads its stored numbers back: its mode stays, nothing frozen
+    let auto_photo = DevelopSettings {
+        wb: lightcraft_develop::WhiteBalance { mode: WbMode::Auto, temp: 5100.0, tint: 3.0, scale: WbScale::Kelvin },
+        ..DevelopSettings::for_raw(as_shot.0, as_shot.1)
+    };
+    s.set_develop(kelvin, auto_photo, "auto").unwrap();
+    s.execute("develop.merge", &json!({"settings": {"wb": {"temp": 5800.0, "scale": "kelvin"}}})).unwrap();
+    let d = dev(&s, kelvin);
+    assert_eq!((d.wb.mode, d.wb.temp, d.wb.tint), (WbMode::Auto, 5800.0, 3.0), "{:?}", d.wb);
+    // a partial that names a mode stays authoritative: naming `asShot` puts the photo back on the file's white
+    s.set_develop(kelvin, as_shot_photo.clone(), "as shot").unwrap();
+    s.execute("develop.merge", &json!({"settings": {"wb": {"mode": "asShot", "temp": 5800.0, "scale": "kelvin"}}})).unwrap();
+    let d = dev(&s, kelvin);
+    assert_eq!((d.wb.mode, lightcraft_engine_effective(&s.source_info(kelvin), &d)), (WbMode::AsShot, as_shot), "{:?}", d.wb);
+    // the same swallow on a source without the Kelvin scale (a raw with no matrices): the number was stored and read
+    // by nothing there too, and now reaches the render
+    s.execute("library.select", &json!({"ids": [relative.0], "active": relative.0})).unwrap();
+    let before = dev(&s, relative);
+    assert_eq!(lightcraft_engine_effective(&s.source_info(relative), &before), (6500.0, 0.0), "as shot on this body is 6500 / 0");
+    s.execute("develop.merge", &json!({"settings": {"wb": {"temp": 5800.0}}})).unwrap();
+    let d = dev(&s, relative);
+    assert_eq!((d.wb.mode, d.wb.temp, d.wb.tint, d.wb.scale), (WbMode::Custom, 5800.0, 0.0, WbScale::Legacy), "{:?}", d.wb);
+    assert_eq!(lightcraft_engine_effective(&s.source_info(relative), &d), (5800.0, 0.0), "the number the partial named renders");
+    s.execute("library.select", &json!({"ids": [kelvin.0], "active": kelvin.0})).unwrap();
+
     // the other direction: an old relative Custom value (no scale) plus a Kelvin temp-only partial — the photo's
     // white balance is taken onto the Kelvin scale first, so the kept tint is the Kelvin value of the photo's look
     let old = DevelopSettings {
@@ -331,4 +389,78 @@ fn one_field_wb_partial_merge_keeps_the_other_field_on_its_scale() {
     let d = dev(&s, relative);
     assert_eq!(d.light.contrast, 20.0);
     assert_eq!(d.wb, wb_before, "the white balance is untouched");
+}
+
+/// The issue asks for one photo-aware merge in every caller that writes settings onto a photo, and that includes
+/// `preset.apply`: a preset a person or an agent authors by hand can name a single white balance number, and on a
+/// photo edited in Kelvin that demoted the field it never mentioned to the relative scale, exactly as
+/// `develop.merge` did. Presets the app makes and the crs / Luminar importers name `mode`, `temp`, `tint` and
+/// `scale` together, and those keep their old path through `Preset::apply` → `apply_partial` unchanged.
+#[test]
+fn one_field_wb_preset_apply_keeps_the_other_field_on_its_scale() {
+    use lightcraft_catalog::{MediaKind, Op, Photo, Source};
+    use lightcraft_develop::{DevelopSettings, WbMode, WbScale};
+    let mut s = Session::new();
+    let add = |s: &mut Session, name: &str, camera: &str, as_shot: (f64, f64)| {
+        let id = s.catalog.alloc_photo_id();
+        let mut p = Photo::new(id, Source::File { path: format!("/photos/{name}") }, name, "ARW", 64, 64, "2026-01-01T00:00:00");
+        p.kind = MediaKind::Raw;
+        p.meta.camera = camera.into();
+        p.as_shot_wb = Some(as_shot);
+        p.develop = std::sync::Arc::new(p.camera_defaults());
+        s.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+        id
+    };
+    let as_shot = (4986.0, -2.0);
+    let kelvin = add(&mut s, "preset-wb.arw", "SONY ILCE-7M3", as_shot);
+    let l2k = |t, ti| lightcraft_pipeline::local::legacy_to_kelvin(t, ti, as_shot);
+    let k2l = |t, ti| lightcraft_pipeline::local::kelvin_to_legacy(t, ti, as_shot).unwrap();
+    let nearly = |wb: &lightcraft_develop::WhiteBalance, want: &(f64, f64), why: &str| {
+        assert!((wb.temp - want.0).abs() < 1.0 && (wb.tint - want.1).abs() < 0.5, "{why}: {wb:?} vs {want:?}");
+    };
+    s.execute("library.select", &json!({"ids": [kelvin.0], "active": kelvin.0})).unwrap();
+    let edited = DevelopSettings {
+        wb: lightcraft_develop::WhiteBalance { mode: WbMode::Custom, temp: 5000.0, tint: 12.0, scale: WbScale::Kelvin },
+        ..DevelopSettings::for_raw(as_shot.0, as_shot.1)
+    };
+    s.set_develop(kelvin, edited.clone(), "kelvin edit").unwrap();
+
+    // a hand-written preset naming one number: the tint it never mentions keeps its Kelvin look, instead of the
+    // old path that stored 5800 and re-read the photo's +12 tint as a relative shift
+    s.presets.push(lightcraft_develop::Preset {
+        id: "user.temp-only".into(),
+        name: "Temp only".into(),
+        group: "User".into(),
+        settings: json!({"wb": {"temp": 5800.0}}),
+        favorite: false,
+        builtin: false,
+    });
+    s.execute("preset.apply", &json!({"id": "user.temp-only"})).unwrap();
+    let d = (*s.develop_of(kelvin).unwrap()).clone();
+    let keep = k2l(5000.0, 12.0);
+    assert_eq!(d.wb.mode, WbMode::Custom, "{:?}", d.wb);
+    assert_eq!(d.wb.scale, WbScale::Kelvin, "the preset left the photo on the scale it is edited on: {:?}", d.wb);
+    nearly(&d.wb, &l2k(5800.0, keep.1), "the preset's number keeps the meaning an unmarked scale always had");
+    // an amount below 100 % blends between the photo's own white and the preset's, on one scale, and never
+    // mentions the other field at all
+    s.set_develop(kelvin, edited.clone(), "kelvin edit").unwrap();
+    s.execute("preset.apply", &json!({"id": "user.temp-only", "amount": 50})).unwrap();
+    let half = (*s.develop_of(kelvin).unwrap()).clone();
+    let full = l2k(5800.0, keep.1);
+    assert_eq!(half.wb.scale, WbScale::Kelvin, "{:?}", half.wb);
+    assert!(half.wb.temp < 5000.0 && half.wb.temp > full.0, "between the photo's own white and the preset's: {:?}", half.wb);
+    nearly(&half.wb, &(half.wb.temp, 12.0), "the tint the preset never named stays exactly the photo's");
+    // the same number through `develop.merge` gives the same white: that is the point of one shared merge
+    s.set_develop(kelvin, edited.clone(), "kelvin edit").unwrap();
+    s.execute("develop.merge", &json!({"settings": {"wb": {"temp": 5800.0}}})).unwrap();
+    let merged = (*s.develop_of(kelvin).unwrap()).clone();
+    nearly(&merged.wb, &(d.wb.temp, d.wb.tint), "preset apply and develop.merge agree on a one-field white balance");
+    // a preset made from the photo names the whole white balance: its own path, unchanged
+    s.execute("preset.create", &json!({"name": "My kelvin look", "groups": ["whiteBalance"]})).unwrap();
+    let made = s.presets.iter().find(|p| p.name == "My kelvin look").cloned().unwrap();
+    let look = (*s.develop_of(kelvin).unwrap()).clone();
+    s.execute("develop.merge", &json!({"settings": {"wb": {"mode": "asShot"}}})).unwrap();
+    s.execute("preset.apply", &json!({"id": made.id})).unwrap();
+    let back = (*s.develop_of(kelvin).unwrap()).clone();
+    assert_eq!(back.wb, look.wb, "a preset made from the photo puts its whole white balance back: {:?} vs {:?}", back.wb, look.wb);
 }
