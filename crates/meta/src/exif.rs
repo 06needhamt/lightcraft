@@ -201,9 +201,9 @@ fn panasonic_jpg_from_raw_lens(tiff: &Tiff) -> Option<String> {
     panasonic_lens(data, &Tiff::parse(data).ok()?)
 }
 
-/// Canon maker note tag `0x0001` (LensType in the ExifTool Canon tag names): the lens name as ASCII. Canon
-/// plain maker notes put the IFD at the note start with offsets relative to the enclosing TIFF header.
-const CANON_LENS_TYPE: u16 = 0x0001;
+/// Canon maker note tag `0x0095` (LensModel in the ExifTool Canon tag names): the lens name as ASCII. Older
+/// bodies instead record a numeric LensType (CameraSettings, tag `0x0001`, index 22), which is no name to read.
+const CANON_LENS_MODEL: u16 = 0x0095;
 
 /// The lens name in a Canon maker note of this Exif stream (`data` starts at its TIFF header): the note of
 /// its own Exif IFD. Only consulted when Make is Canon, so other vendors' plain notes are never read as lenses.
@@ -215,7 +215,7 @@ fn canon_maker_note_lens(data: &[u8], tiff: &Tiff) -> Option<String> {
     let exif = tiff.exif()?;
     let e = exif.get(t::MAKER_NOTE)?;
     let mn = lightcraft_tiff::makernote::parse_makernote(data, e.offset, e.count() as u64, tiff.order, &make)?;
-    text(Some(&mn.ifd), CANON_LENS_TYPE)
+    text(Some(&mn.ifd), CANON_LENS_MODEL)
 }
 
 /// Nikon maker note tag `0x0084` (Lens in the ExifTool Nikon tag names): shortest and longest focal length, then the
@@ -314,26 +314,40 @@ pub(crate) mod tests {
         assert_eq!(crate::extract(&rw2).lens_model.as_deref(), Some("LUMIX S 85/F1.8"));
     }
 
-    /// Canon maker note tag holding the lens name as ASCII in a plain maker-note IFD (offsets relative to
-    /// the TIFF header, as Canon writes it).
-    const CANON_LENS_TAG: u16 = 0x0001;
+    /// Canon maker note tags: `0x0095` holds the lens name as ASCII; `0x0001` is CameraSettings, a table of
+    /// int16s whose index 22 is the numeric LensType.
+    const CANON_LENS_MODEL_TAG: u16 = 0x0095;
+    const CANON_CAMERA_SETTINGS: u16 = 0x0001;
 
-    /// An Exif block from a Canon EOS 5D: `Canon` / `Canon EOS 5D` in IFD0, no LensModel tag, and a maker
-    /// note whose plain IFD records the lens name at an offset relative to the TIFF header.
+    /// An Exif block from a Canon EOS 5D: `Canon` / `Canon EOS 5D` in IFD0, no LensModel tag, and a plain maker
+    /// note whose IFD (value offsets relative to the enclosing TIFF header, as Canon writes it) records
+    /// CameraSettings with the numeric LensType at index 22 and, when `lens` is given, the name at `0x0095`.
     fn canon_exif(order: ByteOrder, lens: Option<&str>) -> Vec<u8> {
-        let name = lens.unwrap_or("Canon EF 50mm f/1.8 II");
         let note = |at: u32| {
+            // The plain IFD: entry count, one or two 12-byte entries and the next-IFD pointer, then the
+            // out-of-line values (CameraSettings, then the lens name when present).
+            // pointer, then the out-of-line values (CameraSettings, then the lens name when present).
+            let settings_at = at + 2 + 12 * (1 + lens.is_some() as u32) + 4;
+            let name_at = settings_at + 60;
             let mut v = Vec::new();
-            order.put_u16(&mut v, 1);
-            order.put_u16(&mut v, CANON_LENS_TAG);
-            order.put_u16(&mut v, 2); // ASCII
-            order.put_u32(&mut v, name.len() as u32);
-            // Value offset = at + size of IFD header (num_entries[2] + entry[12] + next_ifd[4] = 18)
-            // At this point v.len() == 10 (num_entries + tag + type + count); value field (4) + next_ifd (4) = 8 more.
-            let value_offset = at + v.len() as u32 + 8;
-            order.put_u32(&mut v, value_offset);
+            let entry = |v: &mut Vec<u8>, tag: u16, kind: u16, count: u32, off: u32| {
+                order.put_u16(v, tag);
+                order.put_u16(v, kind);
+                order.put_u32(v, count);
+                order.put_u32(v, off);
+            };
+            order.put_u16(&mut v, 1 + lens.is_some() as u16);
+            entry(&mut v, CANON_CAMERA_SETTINGS, 3, 30, settings_at);
+            if let Some(name) = lens {
+                entry(&mut v, CANON_LENS_MODEL_TAG, 2, name.len() as u32, name_at);
+            }
             order.put_u32(&mut v, 0);
-            v.extend_from_slice(name.as_bytes());
+            for i in 0..30u16 {
+                order.put_u16(&mut v, if i == 22 { 178 } else { 0 }); // 22: numeric LensType, no name
+            }
+            if let Some(name) = lens {
+                v.extend_from_slice(name.as_bytes());
+            }
             v
         };
         let build = |at: u32| {
@@ -357,6 +371,8 @@ pub(crate) mod tests {
         for order in [ByteOrder::Little, ByteOrder::Big] {
             let m = read_exif(&canon_exif(order, Some("Canon EF 50mm f/1.8 II")));
             assert_eq!(m.lens_model.as_deref(), Some("Canon EF 50mm f/1.8 II"));
+            // a note that only records the numeric LensType has no name to fill in
+            assert_eq!(read_exif(&canon_exif(order, None)).lens_model, None);
         }
     }
 
