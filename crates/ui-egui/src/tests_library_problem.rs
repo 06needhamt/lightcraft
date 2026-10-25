@@ -730,3 +730,85 @@ fn clipboard_pastes_into_the_launch_lists_own_text_prompt() {
     };
     assert!(value.contains("pasted-name"), "the paste reached the chooser's own text field: {value:?}");
 }
+
+/// The blocking library window owns input while it is on screen, including over an unrelated
+/// dialog it did not open. Disabling only the dialog widgets that handle pointer input is not
+/// enough: `dialog_field` must not take the focus back, or egui's text edit keeps consuming host
+/// text into the draft behind the window. Several settled barrier frames must stay inert, and the
+/// same field must accept typing again once the window is gone.
+#[test]
+fn a_settled_library_window_keeps_a_background_dialogs_text_draft_unchanged() {
+    let mut h = Headless::new(
+        LightcraftApp::new(lightcraft_engine::Session::with_demo(), Services { png: None, ..Default::default() }),
+        [1200.0, 760.0],
+        1.0,
+    );
+    h.settle(T);
+    h.app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: "Trip".into(), folder: false, parent: None, include_selected: false });
+    for _ in 0..4 {
+        h.step();
+    }
+    assert!(h.view.ctx.text_edit_focused(), "the dialog's field takes the focus while it is the top modal");
+    h.app.library_problem = Some(LibraryProblem::new("/no/such/library", "a test error"));
+    assert!(h.settle(T), "the library window settles over the dialog");
+    assert!(has(&h, "button:libraryRetry"), "the library window is laid out");
+    assert!(crate::panels::library_problem::blocks_dialog_input(&h.app), "the library window owns input");
+    assert!(!h.view.ctx.text_edit_focused(), "the background dialog's field must not regain the focus behind the library window");
+    for text in ["leak", "ed", "-draft"] {
+        h.events.push(egui::Event::Text(text.into()));
+        h.step();
+        let draft = match &h.app.ui.dialog {
+            Some(crate::state::Dialog::NewAlbum { name, .. }) => name.as_str(),
+            other => panic!("the background New Album dialog is still open: {other:?}"),
+        };
+        assert_eq!(draft, "Trip", "host text on a settled library-barrier frame must not mutate the dialog draft");
+    }
+    assert!(!h.view.ctx.text_edit_focused(), "several settled barrier frames still leave the field unfocused");
+    // Positive control: with the library window gone, the same field takes focus and typing again.
+    h.app.library_problem = None;
+    assert!(h.settle(T), "the dialog settles once the library window is gone");
+    assert!(!crate::panels::library_problem::blocks_dialog_input(&h.app), "there is no barrier now");
+    assert!(h.view.ctx.text_edit_focused(), "the dialog's field is usable again");
+    h.events.push(egui::Event::Text("Holiday".into()));
+    h.step();
+    let draft = match &h.app.ui.dialog {
+        Some(crate::state::Dialog::NewAlbum { name, .. }) => name.as_str(),
+        other => panic!("the New Album dialog is still open: {other:?}"),
+    };
+    assert_eq!(draft, "Holiday", "typing reaches the dialog once the library barrier is gone");
+}
+
+/// The launch list's own New Library name prompt is not a background dialog: `visible_mode` is
+/// None while it is open, so the dialog must stay enabled and `dialog_field` must keep giving it
+/// the focus and accept host text.
+#[test]
+fn typing_reaches_the_launch_lists_own_new_library_prompt() {
+    let settings = crate::state::AppSettings {
+        recent_libraries: vec!["/no/such/library-one".into()],
+        library_path: "/no/such/library-one".into(),
+        ..Default::default()
+    };
+    let mut h = Headless::new(
+        LightcraftApp::new(
+            lightcraft_engine::Session::with_demo(),
+            Services { png: None, pick_folder: Some(Box::new(|| -> Option<String> { None })), ..Default::default() },
+        ),
+        [1200.0, 760.0],
+        1.0,
+    );
+    h.settle(T);
+    h.app.library_problem = Some(LibraryProblem::choose(&settings));
+    h.settle(T);
+    assert!(h.app.run("app.newLibrary", json!({})).is_ok(), "New Library opens its name prompt");
+    h.step();
+    h.step();
+    assert!(!crate::panels::library_problem::blocks_dialog_input(&h.app), "the launch list's own prompt is not a background barrier");
+    assert!(h.view.ctx.text_edit_focused(), "the prompt's name field has the focus");
+    h.events.push(egui::Event::Text("Fresh".into()));
+    h.step();
+    let Some(crate::state::Dialog::TextPrompt { value, command, .. }) = &h.app.ui.dialog else {
+        panic!("the New Library name dialog closed unexpectedly");
+    };
+    assert_eq!(command, "app.newLibrary");
+    assert_eq!(value, "Fresh", "typing reaches the launch list's own text prompt");
+}

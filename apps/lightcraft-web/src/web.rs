@@ -168,6 +168,9 @@ fn download(path: &str, bytes: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Build the browser host's `Services`: library backup/restore through browser storage and a
+/// download, asynchronous file picking, downloads for writes, and PNG encoding. Desktop-only
+/// services (native pickers, reveal, model folders) stay unset.
 fn services(originals: Originals, backend: Option<Backend>, files: Files, frozen: Rc<Cell<bool>>, ctx: egui::Context) -> Services {
     let (backup_backend, backup_files) = (backend.clone(), files);
     let restore_backend = backend.clone();
@@ -420,6 +423,9 @@ struct WebApp {
 }
 
 impl WebApp {
+    /// Construct the web app from the boot options: install originals and open the library from
+    /// browser storage (a read failure starts an empty session and a blocking `LibraryProblem`),
+    /// load the stored UI state, start render workers and the optional benchmark.
     fn new(cc: &eframe::CreationContext<'_>, boot: Boot, chinese_font: Vec<u8>) -> Self {
         let Boot { opts, backend, files, index, lib_dir, load_error } = boot;
         let originals = Originals::default();
@@ -684,6 +690,8 @@ impl WebApp {
 }
 
 impl eframe::App for WebApp {
+    /// eframe's non-drawing pass for the browser host: drain safety notices and queued inbox work,
+    /// load originals the UI requested, apply the cache budget, run the app's logic, then save.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         for text in safety::take_notices() {
             let now = self.app.tick_now();
@@ -700,10 +708,14 @@ impl eframe::App for WebApp {
         self.save();
     }
 
+    /// Pass the browser's raw input to the app hook before egui processes it, so prompt barriers
+    /// and synthetic or dropped input are applied consistently with the desktop host.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.app.raw_input_hook(ctx, raw);
     }
 
+    /// eframe's UI pass: import queued drops unless a prompt blocks input, draw the app, update the
+    /// page title, and advance the benchmark once per root pass.
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Drops are the UI phase's: a hidden `logic`/`run_logic` tick must not import them twice.
         // A prompt owns the library too: keep taking the queue only after it is gone, so a drop

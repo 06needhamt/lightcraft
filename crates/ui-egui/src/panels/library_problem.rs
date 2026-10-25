@@ -30,6 +30,7 @@ const DIM_ID: &str = "library-problem-dim";
 const ERROR_WINDOW_ID: &str = "library-problem";
 const CHOOSER_WINDOW_ID: &str = "library-chooser";
 
+/// The named `Foreground` layer used by the dim and the two blocking library windows.
 fn foreground_layer(id: &str) -> egui::LayerId {
     egui::LayerId::new(egui::Order::Foreground, egui::Id::unique(id))
 }
@@ -110,6 +111,8 @@ impl WindowBarrier {
     }
 }
 
+/// The blocking library window that is present (not dismissed), if any: the launch chooser when
+/// it is shown, otherwise the error window.
 fn present_mode(app: &LightcraftApp) -> Option<WindowMode> {
     let problem = app.library_problem.as_ref().filter(|p| !p.dismissed)?;
     Some(if problem.chooser.is_some() { WindowMode::Chooser } else { WindowMode::Error })
@@ -155,6 +158,8 @@ fn note_first_draw(app: &mut LightcraftApp, mode: WindowMode) {
     }
 }
 
+/// Surrender egui's current keyboard focus, so a background field cannot receive text in the
+/// window's first shielded pass.
 fn clear_focus(ctx: &egui::Context) {
     ctx.memory_mut(|memory| {
         if let Some(id) = memory.focused() {

@@ -15,6 +15,7 @@ const EDGE: f32 = 6.0;
 /// How fast resting on a scroll arrow scrolls, in points per second.
 const SPEED: f32 = 600.0;
 
+/// The egui temp-data id holding the row a menu at `depth` hangs from.
 fn anchor_id(depth: usize) -> Id {
     Id::unique(("lc-menu-anchor", depth))
 }

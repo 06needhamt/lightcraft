@@ -129,6 +129,8 @@ struct PromptKey {
     queue_len: usize,
 }
 
+/// Identity of the prompt currently owning input: its layer, text and, for the settings-notice
+/// queue, the number of notices remaining, including the one shown. `None` when no prompt is up.
 fn prompt_key(app: &LightcraftApp) -> Option<PromptKey> {
     let (layer, text, queue_len) = match (&app.quit_prompt, app.notices.first()) {
         (Some(prompt), _) => (prompt_layer(app)?, prompt.text().to_string(), 0),
@@ -168,6 +170,8 @@ pub(crate) struct PromptInput {
 }
 
 impl PromptInput {
+    /// Reset the prompt input state for `key`, discarding layout, focus, button ids and pending
+    /// activation. A present key arms the shield transition; `None` leaves input unowned.
     fn reset_to(&mut self, key: Option<PromptKey>) {
         let transition = key.is_some();
         self.key = key;
@@ -181,11 +185,13 @@ impl PromptInput {
         self.pointer = None;
     }
 
+    /// The index of the prompt button whose real egui id matches AccessKit's `node`, if any.
     fn button_index(&self, accesskit_node: egui::accesskit::NodeId) -> Option<usize> {
         self.button_ids.iter().position(|(_, id)| id.accesskit_id() == accesskit_node)
     }
 }
 
+/// Surrender egui's current keyboard focus before a chosen prompt button disappears.
 fn clear_prompt_focus(ctx: &egui::Context) {
     ctx.memory_mut(|memory| {
         if let Some(id) = memory.focused() {
@@ -194,6 +200,8 @@ fn clear_prompt_focus(ctx: &egui::Context) {
     });
 }
 
+/// Whether a key press belongs to the prompt: Tab (optionally with Shift) or unmodified Enter,
+/// Space or Escape.
 fn prompt_key_allowed(key: egui::Key, modifiers: egui::Modifiers) -> bool {
     match key {
         egui::Key::Tab => modifiers.is_none() || modifiers.shift_only(),
@@ -202,6 +210,8 @@ fn prompt_key_allowed(key: egui::Key, modifiers: egui::Modifiers) -> bool {
     }
 }
 
+/// Whether an AccessKit action targets a prompt button on the root tree and is a Focus or Click
+/// request.
 fn prompt_accesskit_allowed(request: &egui::accesskit::ActionRequest, ids: &[(String, egui::Id)]) -> bool {
     request.target_tree == egui::accesskit::TreeId::ROOT
         && ids.iter().any(|(_, id)| id.accesskit_id() == request.target_node)
@@ -426,6 +436,9 @@ pub(crate) fn finish_ui_pass(app: &mut LightcraftApp, ctx: &egui::Context) {
     }
 }
 
+/// Draw one modal prompt and return the index of the chosen button. The dim takes the modal
+/// layer and a sizing pass is discarded so the first interactive pass has settled geometry;
+/// `input` keeps focus on the safe Cancel/OK button unless a keyboard or AccessKit choice arrives.
 fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&str, &str, Choice)], input: &mut PromptInput) -> Option<usize> {
     let t = Tokens::get(ctx);
     let screen = ctx.content_rect();
@@ -505,6 +518,9 @@ fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&s
     chosen
 }
 
+/// Draw the prompt owning input, if any, and act on its answer: quit-while-tasks cancels jobs
+/// and re-checks for unsaved changes; quit-with-unsaved retries, quits or cancels; a settings
+/// notice is removed when acknowledged. Returns without drawing when no prompt is up.
 pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if let Some(QuitPrompt::Tasks(text)) = app.quit_prompt.clone() {
         let buttons = [("quitAnyway", "Quit Anyway", Choice::QuitAnyway), ("quitCancel", "Cancel", Choice::Cancel)];

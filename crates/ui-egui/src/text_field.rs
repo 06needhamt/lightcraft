@@ -162,6 +162,12 @@ impl<'a> TextField<'a> {
         self
     }
 
+    /// Draw the field and return its response, any ending this frame, and whether an edit is
+    /// under way. Per-frame state keeps the pre-edit text for Esc, the selection across the
+    /// context menu, and select-on-focus; single-line Enter ends the edit, and focus loss ends it
+    /// except when the focus went to the field's own menu (a choice from the menu resumes the
+    /// edit). The menu offers cut/copy/paste/select-all (paste is omitted on the web; egui also
+    /// handles their keyboard shortcuts), and a field not drawn on the previous pass starts clean.
     pub fn show(self, ui: &mut Ui) -> TextFieldResponse {
         let id = id(self.widget);
         let mut memo: Memo = ui.data_mut(|d| d.get_temp(id.with("memo"))).unwrap_or_default();
@@ -190,6 +196,16 @@ impl<'a> TextField<'a> {
                 Action::SelectAll => select_all(ui.ctx(), id, self.text),
                 Action::Refocus => {}
             }
+        }
+        // A field focused by the previous pass (a dialog asks after drawing it) must already
+        // select its text on the pass that carries the first keystroke: egui processes text
+        // inside `ui.add`, before the after-add branch below could select, leaving the new text
+        // inserted into the old. A press may go on to drag a selection, so it keeps the
+        // after-add path; an edit already under way keeps its pre-edit text for Esc.
+        let focused_at_start = ui.memory(|m| m.has_focus(id));
+        if focused_at_start && memo.before.is_none() && self.select_on_focus && !ui.input(|i| i.pointer.any_down()) {
+            memo.before = Some(self.text.clone());
+            select_all(ui.ctx(), id, self.text);
         }
         let name = self.label.clone().or_else(|| self.hint.clone());
         let mut edit = if self.multiline { egui::TextEdit::multiline(self.text) } else { egui::TextEdit::singleline(self.text) };
@@ -433,6 +449,12 @@ mod tests {
         }
 
         fn frame(&mut self, events: Vec<Event>) {
+            self.frame_with(events, false);
+        }
+
+        /// A frame that asks for the field's focus after drawing it, as a dialog does, so the
+        /// focus takes effect on the next frame.
+        fn frame_with(&mut self, events: Vec<Event>, focus_after: bool) {
             self.time += 1.0 / 60.0;
             let mut raw = HeadlessView::raw_input(egui::vec2(400.0, 300.0), 1.0, self.time, events);
             raw.focused = self.window_focused;
@@ -445,6 +467,9 @@ mod tests {
                 let r = TextField::singleline(FIELD, text).width(200.0).select_on_focus(select).show(ui);
                 endings.extend(r.ending);
                 *editing = r.editing;
+                if focus_after {
+                    ui.memory_mut(|m| m.request_focus(id(FIELD)));
+                }
             });
             self.widgets = crate::widgets::take_registry(&self.view.ctx);
         }
@@ -697,6 +722,25 @@ mod tests {
         rig.click(FIELD, PointerButton::Primary);
         rig.type_text("Kyoto");
         assert_eq!(rig.text, "Kyoto");
+    }
+
+    /// A field focused by the pass before (a dialog asks for focus after drawing it) selects its
+    /// text before egui handles the first keystroke of the pass the focus takes effect, so that
+    /// keystroke replaces the text instead of being inserted into it.
+    #[test]
+    fn text_typed_on_the_first_focused_pass_replaces_the_whole_text() {
+        let mut rig = Rig::new("LightCraft Library");
+        rig.select_on_focus = true;
+        // the dialog draws the field, then asks for its focus: effective on the next pass
+        rig.frame_with(vec![], true);
+        assert!(rig.view.ctx.memory(|m| m.has_focus(id(FIELD))), "focused for the next pass");
+        // the pass the focus takes effect already carries the text
+        rig.frame(vec![Event::Text("Fresh".into())]);
+        assert_eq!(rig.text, "Fresh", "the first keystroke replaced the selected text");
+        // the text from before the edit is still what Esc gives back
+        rig.key(Key::Escape, Modifiers::NONE);
+        assert_eq!(rig.text, "LightCraft Library");
+        assert_eq!(rig.endings, vec![Ending::Escape]);
     }
 
     /// Esc after using the menu still gives back the text from before the whole edit.

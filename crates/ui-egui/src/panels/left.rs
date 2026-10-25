@@ -639,6 +639,8 @@ fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     }
 }
 
+/// Draw the My Photos sidebar: title and open-library name, the scrollable sources, albums,
+/// folders and sections, with the section visibility menu on the title.
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.chrome).stroke(egui::Stroke::new(1.0, t.divider));

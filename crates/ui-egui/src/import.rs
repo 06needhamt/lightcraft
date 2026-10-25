@@ -1397,6 +1397,10 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog) {
     });
 }
 
+/// Draw one import-dialog candidate cell: register `import:{i}`, request the cell's thumbnail,
+/// paint the selection checkbox, and label duplicates, unreadable or trashed files. A click on an
+/// importable cell toggles it (Shift extends the range); `rect` is the full cell and the thumbnail
+/// uses its width as height.
 fn candidate_cell(app: &mut LightcraftApp, ui: &mut egui::Ui, d: &mut ImportDialog, i: usize, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let c = d.candidates[i].clone();

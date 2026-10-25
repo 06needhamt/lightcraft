@@ -45,6 +45,9 @@ fn window_handle(app: &LightcraftApp, ui: &mut egui::Ui, bar: Rect, search_rect:
     }
 }
 
+/// Draw the top bar: the titlebar drag area, the in-window menus when there is no native menu
+/// bar, sidebar and back/forward buttons, the centred search field, the filter button with its
+/// active count, and the right-side action icons.
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     // room for the traffic lights; in full screen they are gone, and the sidebar button sits as far

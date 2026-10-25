@@ -170,6 +170,9 @@ fn modifiers(p: &Value) -> egui::Modifiers {
     egui::Modifiers { alt: b("alt"), ctrl: b("ctrl"), shift: b("shift"), mac_cmd: b("cmd") && cfg!(target_os = "macos"), command: b("cmd") }
 }
 
+/// Parse a control-protocol key name into an egui key. `egui::Key::from_name` is tried first;
+/// then lowercase aliases cover `return`/`enter`, `esc`/`escape`, `delete`/`backspace` (both
+/// Backspace), arrow names, space/tab, and backslash, slash and square brackets.
 fn key_from(name: &str) -> Option<egui::Key> {
     egui::Key::from_name(name).or(match name.to_ascii_lowercase().as_str() {
         "enter" | "return" => Some(egui::Key::Enter),
@@ -226,6 +229,8 @@ pub(crate) struct GestureOutcome {
 }
 
 impl GestureOutcome {
+    /// A gesture outcome that injected no widget-targeted events, so delivery has no geometry to
+    /// re-check.
     fn done(result: Value) -> Self {
         Self { result, target: None }
     }
@@ -241,6 +246,8 @@ fn push_drag(app: &mut LightcraftApp, a: egui::Pos2, b: egui::Pos2, steps: u64, 
     app.synthetic.push(egui::Event::PointerButton { pos: b, button: egui::PointerButton::Primary, pressed: false, modifiers: m });
 }
 
+/// The rectangle registered for automation id `id` in the latest completed pass. The last
+/// registration wins, so a redrawn widget's current geometry is returned.
 pub(crate) fn widget_rect(app: &LightcraftApp, id: &str) -> Option<egui::Rect> {
     app.widgets.iter().rev().find(|(w, _)| w == id).map(|(_, r)| *r)
 }
@@ -311,6 +318,9 @@ pub(crate) fn widget_target_visible(ctx: &egui::Context, hit: Option<crate::widg
     top_modal == at_layer && !above_modal
 }
 
+/// Dispatch one control request: run engine commands, list menus/widgets, inspect state, queue
+/// file drops and synthetic input, capture screenshots, or return an error for an unknown or
+/// invalid request. Requests that need fresh widget geometry are queued as `Outcome` values.
 pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
     let p = &req.params;
     let s = |k: &str| p.get(k).and_then(Value::as_str);
@@ -774,6 +784,10 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
     }
 }
 
+/// Encode `image` as PNG and write it to the capture's pinned target, returning the control
+/// protocol's JSON result. The destination is revalidated before encoding; a new path is written
+/// with create-new semantics (never replacing a file that appeared), and a missing encoder or
+/// writer is an error. `None` only reports the image size without writing.
 pub fn save_screenshot(app: &mut LightcraftApp, image: &egui::ColorImage, target: Option<&lightcraft_engine::originals::WriteTarget>) -> Value {
     let [w, h] = image.size;
     let Some(target) = target else {

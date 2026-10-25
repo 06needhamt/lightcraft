@@ -43,6 +43,7 @@ struct Hud {
     logged: Option<f64>,
 }
 
+/// Stable egui data id under which the FPS HUD's per-frame state is stored.
 fn hud_id() -> egui::Id {
     egui::Id::unique("fps-hud-state")
 }

@@ -54,6 +54,8 @@ impl Bench {
         }
     }
 
+    /// The render key of the main preview texture, or `None` while that slot holds no texture.
+    /// A changed key means the benchmark's requested main-image render has arrived.
     fn main_key(app: &LightcraftApp) -> Option<u64> {
         app.renderer.textures.get(&Slot::Main).map(|t| t.key)
     }

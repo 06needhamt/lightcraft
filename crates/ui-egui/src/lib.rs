@@ -596,6 +596,8 @@ pub struct LightcraftApp {
 }
 
 impl LightcraftApp {
+    /// Build the app with default UI, renderer, cache and control state, and move AI segmentation
+    /// to a worker so frames apply results instead of waiting.
     pub fn new(mut session: Session, services: Services) -> Self {
         // AI mask requests run on the model's worker; frames apply their results (never wait)
         session.segmenter.background = true;
@@ -710,6 +712,8 @@ impl LightcraftApp {
         self
     }
 
+    /// Attach the control-channel receiver and keep CPU copies of photo textures, which headless
+    /// screenshots need; returns the app for chaining.
     pub fn with_control(mut self, rx: Receiver<ControlRequest>) -> Self {
         self.control_rx = Some(rx);
         // keep CPU copies of photo textures so `ui.screenshot {"headless": true}` can draw them
@@ -723,6 +727,7 @@ impl LightcraftApp {
         self.clock.now()
     }
 
+    /// The app clock in milliseconds, for control deadlines and timers.
     fn tick_now_ms(&self) -> f64 {
         self.clock.now() * 1000.0
     }
@@ -1181,6 +1186,9 @@ impl LightcraftApp {
         self.ui.toast = Some((text.into(), t + 6.0, None));
     }
 
+    /// Take the control receiver for this frame, run every queued request whose sender still
+    /// wants it, and reply directly or admit its screenshot/gesture to a later completed pass.
+    /// Requests abandoned by their sender are skipped rather than executed late.
     fn drain_control(&mut self, ctx: &egui::Context) {
         let Some(rx) = self.control_rx.take() else { return };
         while let Ok(req) = rx.try_recv() {
@@ -2868,10 +2876,12 @@ struct AppClock {
 }
 
 impl AppClock {
+    /// Start the clock at the current monotonic instant with no simulated time.
     fn new() -> Self {
         Self { start: web_time::Instant::now(), simulated: None }
     }
 
+    /// Seconds on the clock: the supplied simulated time when set, otherwise time since `new`.
     fn now(&self) -> f64 {
         self.simulated.unwrap_or_else(|| self.start.elapsed().as_secs_f64())
     }

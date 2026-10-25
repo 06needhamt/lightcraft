@@ -608,6 +608,9 @@ fn count(n: u64, one: &str, many: &str) -> String {
     tr_format!("{n} {noun}", n = n, noun = tr(if n == 1 { one } else { many }))
 }
 
+/// The pace to ask the denoise worker for: "light" when minimized, "normal" while unfocused,
+/// "pause" shortly after input, then "light"/"full"/"normal" according to move recency and
+/// whether the Denoise settings tab is being watched.
 pub(super) fn window_pace(app: &LightcraftApp, ctx: &egui::Context, now: f64, watching: bool) -> &'static str {
     let (focused, minimized) = ctx.input(|i| (i.raw.focused, i.viewport().minimized.unwrap_or(false)));
     pace_for(focused, minimized, now - app.caches.last_input, now - app.caches.last_move, watching)
@@ -665,6 +668,9 @@ pub(super) fn open_page(app: &mut LightcraftApp, url: &str) {
     }
 }
 
+/// Draw the denoise model's terms dialog from the engine's model info: unsupported files show
+/// why; otherwise the name/size, download host, licence and provenance, an optional page link,
+/// and the acceptance checkbox in `accepted`.
 pub fn model_dialog(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, info: &Value, accepted: &mut bool) {
     let kind = info["kind"].as_str().unwrap_or("unsupported");
     let file = info["fileName"].as_str().unwrap_or("");

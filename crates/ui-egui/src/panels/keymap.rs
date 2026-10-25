@@ -15,6 +15,9 @@ use crate::widgets::register;
 const SEARCH: &str = "shortcuts-search";
 const SHOW_ALL: &str = "shortcuts-show-all";
 
+/// Draw the Keyboard Shortcuts editor: search and "show all", Reset All, one row per bindable
+/// command that has a shortcut (all bindable commands when "Show commands without a shortcut" is
+/// on), and the fixed non-command keys. Pending shortcut capture is processed once per frame.
 pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
     capture(app, ui.ctx());
@@ -79,6 +82,9 @@ fn menu_text(sc: &str, mac: bool) -> String {
     crate::menubar::shortcut_text(sc, mac)
 }
 
+/// One editable command row: its label and id, a click-to-record shortcut button, and buttons
+/// that clear or restore it. The restore button is enabled when a saved binding exists or the
+/// declared default is currently yielded to another command.
 fn row(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, b: &Bindable, sc: Option<&str>, mac: bool) {
     // a declared key that yields to another command's saved key counts as changed: ↺ takes it back
     let changed = app.ui.settings.keymap.contains_key(b.id) || (sc.is_none() && b.default.is_some());

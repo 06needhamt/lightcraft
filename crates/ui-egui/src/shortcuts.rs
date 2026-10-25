@@ -363,6 +363,9 @@ fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
     })
 }
 
+/// Dispatch the global shortcut pass. It yields while a dialog, prompt, blocking library window,
+/// text field, name edit or shortcut recording owns input, then fires saved command bindings,
+/// aliases and fixed photo keys, respecting native menu ownership and open popups.
 pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     if !matches!(app.ui.dialog, Some(crate::state::Dialog::Shortcuts)) {
         app.recording_shortcut = None;

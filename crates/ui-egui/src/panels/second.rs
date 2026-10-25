@@ -6,6 +6,9 @@ use egui::{Color32, Rect, pos2, vec2};
 use crate::LightcraftApp;
 use crate::render::Slot;
 
+/// Show the optional second window: an immediate viewport titled "LightCraft — Second Window"
+/// whose body draws the active photo fitted. Closing a real window turns the option off;
+/// embedded web and headless hosts get a floating window instead.
 pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if !app.ui.second_window {
         return;
@@ -22,6 +25,9 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     });
 }
 
+/// Draw the second window's content: register `view:secondWindow`, request a loupe render sized
+/// for the window (each edge clamped to 64 through the texture-side limit) and paint the active
+/// photo fitted, or "No photo selected".
 fn body(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let area = ui.available_rect_before_wrap();
     crate::widgets::register(ui, "view:secondWindow", area);

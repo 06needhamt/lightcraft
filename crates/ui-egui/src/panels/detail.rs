@@ -498,6 +498,10 @@ fn draw_window(p: &egui::Painter, app: &LightcraftApp, c: &WindowCtx, v: &Window
     p.image(tex.tex.id(), dst, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
 }
 
+/// Draw the Develop loupe: the optional filmstrip, the fitted or zoomed photo (before/after and
+/// full-screen aware), crop overlays and the render requests for the current view, or, when no
+/// photo is active, the empty-library message if the library is empty and "No photo selected"
+/// otherwise.
 pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     let full = ui.max_rect();
@@ -2912,6 +2916,11 @@ fn film_label(name: &str) -> String {
     if name.chars().nth(14).is_some() { format!("{}…", name.chars().take(13).collect::<String>()) } else { name.to_string() }
 }
 
+/// Draw the horizontal filmstrip in `r`: selectable thumbnail cells with names and format when
+/// film names are on, badges when film badges are on, and stack counts, following the active
+/// photo and scrolling sideways with the wheel. Clicks select: Command toggles and Shift extends
+/// the range; in Compare they adjust the pair's selection, and a plain click replaces the active
+/// side.
 pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
     let t = Tokens::get(ui.ctx());
     ui.painter().rect_filled(r, 0.0, t.canvas);

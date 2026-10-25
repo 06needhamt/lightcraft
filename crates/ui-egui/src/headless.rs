@@ -35,6 +35,10 @@ pub fn viewport_pixels(size: [f32; 2], pixels_per_point: f32) -> Result<[usize; 
     native_viewport_pixels(size, pixels_per_point)
 }
 
+/// Turn a logical viewport size into native pixels for the headless renderer. Both edges and
+/// the scale must be finite and positive; each scaled edge is rounded like egui's scissor and
+/// must be within `1..=MAX_IMAGE_EDGE`, and the product must fit both the raster and screenshot
+/// pixel budgets. Returns a user-facing error instead of clamping.
 fn native_viewport_pixels(size: [f32; 2], pixels_per_point: f32) -> Result<[usize; 2], String> {
     let [width, height] = size;
     if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 || !pixels_per_point.is_finite() || pixels_per_point <= 0.0 {

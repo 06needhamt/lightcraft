@@ -91,6 +91,8 @@ pub(crate) fn intercept(app: &mut LightcraftApp, command: &str, params: &Value) 
     }))
 }
 
+/// Show the pending model-setup note for `kind` in the model dialog, with a button that cancels
+/// the pending action. Does nothing unless a valid denoise setup is waiting.
 pub(crate) fn notice(app: &mut LightcraftApp, ui: &mut egui::Ui, kind: &str) {
     if kind != "denoise" || !app.model_setup.denoise.as_ref().is_some_and(|r| r.valid(app)) {
         return;
@@ -118,6 +120,11 @@ fn abandoned(app: &mut LightcraftApp) -> bool {
     !v["downloads"].as_array().into_iter().flatten().any(|d| matches!(d["state"].as_str(), Some("running" | "done" | "installing" | "installed")))
 }
 
+/// Advance a pending model setup. An abandoned setup is cancelled on any call (the
+/// abandonment/download probe is not throttled); while another interaction is open it waits, and
+/// otherwise it checks the photo's model state at most every 250 ms. A photo that still has no
+/// model (or cannot use one) keeps waiting; otherwise denoise is enabled and the outcome reported
+/// in the status line.
 pub(crate) fn pump(app: &mut LightcraftApp, ctx: &egui::Context, now: f64) {
     if app.model_setup.denoise.is_none() {
         return;

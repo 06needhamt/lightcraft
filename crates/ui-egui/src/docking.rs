@@ -397,6 +397,10 @@ fn command_impl(app: &mut crate::LightcraftApp, reset: bool, params: &Value, ren
     Ok(json!({"docking": app.ui.docking}))
 }
 
+/// Draw the docked workspace: restore or fall back from an invalid layout, sync panel
+/// visibility, render the panels and the current view in the canvas, then apply the docking
+/// actions. If the layout changed during the pass, any in-flight dock drag is cancelled and the
+/// docking actions it produced are not applied.
 pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let mut workspace = app.ui.docking.clone().unwrap_or_else(|| from_ui(app));

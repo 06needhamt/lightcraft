@@ -75,6 +75,8 @@ impl eframe::App for App {
         self.0.logic(ctx);
         self.1.tick(&mut self.0, ctx);
     }
+    /// Forwards the host's raw-input pass to the app's hook before egui processes it, keeping
+    /// modal/prompt input barriers and queued synthetic or dropped input ahead of the panels.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.0.raw_input_hook(ctx, raw);
     }
@@ -404,6 +406,9 @@ impl PrefsWriter {
         }
     }
 
+    /// Per-frame host tick: records the window's placement while visible, asks for a repaint when
+    /// a remembered size is due, and saves settings/library at most every three seconds or
+    /// immediately after the library path changes; a failed save is reported once and retried.
     fn tick(&mut self, app: &mut LightcraftApp, ctx: &egui::Context) {
         // (asked for before the input is read: the context is not asked from inside its own lock)
         let zoom = ctx.zoom_factor();

@@ -341,8 +341,10 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         })
         .show(ctx, |ui| {
             // Disabled, not skipped: the dialog keeps its layout and state, but a raw event in the
-            // first prompt frame cannot toggle a checkbox or press a button underneath it.
-            if blocked {
+            // first prompt frame cannot toggle a checkbox or press a button underneath it. The
+            // blocking library window gets the same treatment: it owns input while it is on screen,
+            // so the dialog behind it must not take focus or accept typed text either.
+            if raw_blocked {
                 ui.disable();
             }
             ui.spacing_mut().item_spacing.y = 8.0;
@@ -1172,7 +1174,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
                         .width(f32::INFINITY)
                         .select_on_focus(true)
                         .show(ui);
-                    if just_opened(ui, "keyword-tag") {
+                    if ui.is_enabled() && just_opened(ui, "keyword-tag") {
                         r.response.request_focus();
                     }
                     if r.ending == Some(crate::text_field::Ending::Return) {
@@ -1217,7 +1219,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
                         .width(f32::INFINITY)
                         .select_on_focus(true)
                         .show(ui);
-                    if just_opened(ui, "keyword-set") {
+                    if ui.is_enabled() && just_opened(ui, "keyword-set") {
                         r.response.request_focus();
                     }
                     let mut returned = r.ending == Some(crate::text_field::Ending::Return);
@@ -2440,8 +2442,10 @@ fn person_rename_plan(cat: &lightcraft_catalog::Catalog, from: &str, to: &str) -
 fn dialog_field(ui: &mut egui::Ui, widget: &str, text: &mut String, hint: &str) -> bool {
     let r = crate::text_field::TextField::singleline(widget, text).hint(crate::i18n::tr(hint)).width(f32::INFINITY).select_on_focus(true).show(ui);
     // (and takes it back when nothing has it: after a click on the dialog's background or a check box,
-    // or when Return gave it up on a refusal; a control Tab reached keeps it)
-    if just_opened(ui, widget) || (!r.editing && r.ending.is_none() && ui.memory(|m| m.focused().is_none())) {
+    // or when Return gave it up on a refusal; a control Tab reached keeps it). A disabled dialog (a
+    // prompt or the blocking library window owns input) must not request the focus at all: egui's
+    // text edit would otherwise keep editing the draft from host text behind that window.
+    if ui.is_enabled() && (just_opened(ui, widget) || (!r.editing && r.ending.is_none() && ui.memory(|m| m.focused().is_none()))) {
         r.response.request_focus();
     }
     r.ending == Some(crate::text_field::Ending::Return)
