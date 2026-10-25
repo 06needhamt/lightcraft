@@ -187,8 +187,8 @@ fn token_matches(p: &Photo, tok: &str) -> bool {
         let cmp = |x: f64, s: &str| match num(s) {
             Some((">", v)) => x > v,
             Some(("<", v)) => x < v,
-            Some((">=", v)) => x > v || (x - v).abs() < 1e-9,
-            Some(("<=", v)) => x < v || (x - v).abs() < 1e-9,
+            Some((">=", v)) => x >= v,
+            Some(("<=", v)) => x <= v,
             Some((_, v)) => (x - v).abs() < 1e-9,
             None => false,
         };
