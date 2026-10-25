@@ -49,7 +49,6 @@ pub mod sync;
 pub mod tasks;
 pub mod text_field;
 pub mod theme;
-pub mod titlebar;
 pub mod widgets;
 pub mod window_place;
 
@@ -388,6 +387,8 @@ pub struct LightcraftApp {
     pub perf: Perf,
     /// macOS: the host draws the traffic lights over our top bar.
     pub integrated_titlebar: bool,
+    /// The `movable` flag last given to the window (macOS, `craft_window::title_bar::sync_movable`).
+    pub window_movable: Option<bool>,
     /// The host installed a native menu bar (no in-window menus then).
     pub native_menu: bool,
     /// Shortcuts the native menu bar currently handles (`Cmd+Z`, `G`…): the egui shortcut handler
@@ -545,6 +546,7 @@ impl LightcraftApp {
             perf: Perf::default(),
             caches: Caches::default(),
             integrated_titlebar: false,
+            window_movable: None,
             native_menu: false,
             native_shortcuts: Default::default(),
             recording_shortcut: None,
@@ -1624,6 +1626,10 @@ impl LightcraftApp {
         panels::keyword_list::drag_feedback(self, &ctx);
         panels::toast(self, &ctx);
         drop_overlay::show(self, &ctx);
+        // AppKit moves the window on a drag anywhere in the title-bar band unless the window isn't
+        // movable: it stops being movable while the pointer is on a bar control or a panel over it
+        #[cfg(target_os = "macos")]
+        craft_window::title_bar::sync_movable(&ctx, &mut self.window_movable);
         self.widgets = widgets::take_registry(&ctx);
         self.text_focus = ctx.egui_wants_keyboard_input();
         self.end_frame(&ctx, t0);

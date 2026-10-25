@@ -1096,6 +1096,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-window"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=8177bad411b577f3204deb0a0e074516d76a0b93#8177bad411b577f3204deb0a0e074516d76a0b93"
+dependencies = [
+ "egui",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "wayland-client",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3522,6 +3533,7 @@ name = "lightcraft-ui-egui"
 version = "0.13.0"
 dependencies = [
  "craft-ui",
+ "craft-window",
  "egui",
  "egui_kittest",
  "lightcraft-catalog",
