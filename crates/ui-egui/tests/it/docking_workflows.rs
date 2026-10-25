@@ -94,7 +94,7 @@ fn dragging_a_group_by_its_bar_moves_the_whole_group() {
     h.run_steps(4);
     h.state_mut().run("ui.dock", json!({"operation":"move","panel":"presets","target":"tools","zone":"center"})).unwrap();
     h.run_steps(6);
-    let bar = DockArea::<Panel>::hit_rects(&h.ctx, egui::Id::new("lightcraft-docking"))
+    let bar = DockArea::<Panel>::hit_rects(&h.ctx, egui::Id::unique("lightcraft-docking"))
         .into_iter()
         .find_map(|(hit, rect)| matches!(hit, Hit::DragBar(Panel::Tools | Panel::Presets)).then_some(rect))
         .expect("the Tools and Presets group draws its drag bar");
