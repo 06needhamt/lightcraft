@@ -151,20 +151,25 @@ pub fn probe(bytes: &[u8]) -> Result<Info, Error> {
 
 fn probe_unguarded(bytes: &[u8]) -> Result<Info, Error> {
     census::cap(bytes)?;
-    let info = heic_rs::probe(bytes).map_err(|e| match e {
-        // No `meta` box: no still image, only a `moov` image sequence (a video track).
+    // No `meta` box: no still image, only a `moov` image sequence (a video track).
+    let open_error = |e| match e {
         heic_rs::Error::MissingBox("meta") => Error::Unsupported(SEQUENCE),
         e => err(e),
-    })?;
-    let ctx = Context::open(bytes).map_err(err)?;
+    };
+    let ctx = Context::open(bytes).map_err(open_error)?;
     let id = ctx.meta.primary;
     // heic-rs 0.1.4 caps the size of what it assembles, not the work: an item built from other
     // items (`iloc` construction method 2) is rebuilt once per extent, so a chain of such items
     // multiplies at every level while each result stays small. Count those visits from the
-    // `iloc` table before reconstructing anything, the primary item (whose grid descriptor
-    // `Context::grid` rebuilds) first and then every tile reference, repeats included.
+    // `iloc` table before reconstructing anything: the primary item first (`heic_rs::probe` and
+    // `Context::grid` both rebuild its descriptor), then its alpha plane, then every tile
+    // reference, repeats included.
     let mut visits = 0_usize;
     item_visits(&ctx, id, 0, &mut visits)?;
+    let info = heic_rs::probe(bytes).map_err(open_error)?;
+    if let Some(alpha) = ctx.alpha_item(id).map_err(err)? {
+        item_visits(&ctx, alpha, 0, &mut visits)?;
+    }
     let mut coded = match ctx.grid(id).map_err(err)? {
         Some((_, tiles)) => tiles,
         None => vec![id],
@@ -244,7 +249,13 @@ pub fn decode_thumbnail(bytes: &[u8], min_edge: u32, options: &Options) -> Resul
         let ctx = Context::open(bytes).map_err(err)?;
         let primary = ctx.meta.primary;
         let mut best: Option<(u32, u32)> = None;
+        // A thumbnail whose own reconstruction would cost too much is not a candidate; the visits
+        // of all the candidates share one budget.
+        let mut candidate_visits = 0_usize;
         for r in ctx.meta.refs.iter().filter(|r| r.kind == heic_rs::meta::iref::RefKind::Thmb && r.to.contains(&primary)) {
+            if item_visits(&ctx, r.from, 0, &mut candidate_visits).is_err() {
+                continue;
+            }
             let Ok(p) = ctx.props(r.from) else { continue };
             let Ok((w, h)) = ctx.coded_size(r.from, &p) else { continue };
             let edge = w.max(h);
