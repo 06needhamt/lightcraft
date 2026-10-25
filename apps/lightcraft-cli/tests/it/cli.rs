@@ -466,6 +466,41 @@ fn snapshot_defaults_to_cpu_without_gpu_environment_overrides() {
     assert_eq!((decoded.width, decoded.height), (480, 320));
 }
 
+/// Issue #136: `app.gpu {enabled: true, wait: false}` (what the UI sends on its first frame) answers
+/// at once while the device is still being created: enabled, and nothing known yet (`null`), instead
+/// of waiting for the driver. It starts creating the device (off the calling thread), so this test
+/// touches the GPU driver and skips when the environment turns the GPU off.
+#[test]
+fn enabling_the_gpu_without_waiting_answers_before_the_device_exists() {
+    if std::env::var("LIGHTCRAFT_GPU").is_ok_and(|v| matches!(v.trim(), "0" | "off" | "false" | "no")) {
+        lightcraft_testkit::skip!(Gpu, "LIGHTCRAFT_GPU=0: enabling the GPU starts creating a device");
+        return;
+    }
+    let script = tmp("gpu-starting.jsonl");
+    std::fs::write(
+        &script,
+        format!("{}\n", json!({"method": "engine.execute", "params": {"command": "app.gpu", "params": {"enabled": true, "wait": false}}})),
+    )
+    .unwrap();
+    let image = tmp("gpu-starting.png");
+    let output = Command::new(BIN)
+        .env_remove("LIGHTCRAFT_GPU")
+        .env_remove("LIGHTCRAFT_GPU_BACKEND")
+        .env_remove("WGPU_BACKEND")
+        .args(["snapshot", "--demo", "--script", script.to_str().unwrap(), "-o", image.to_str().unwrap(), "--size", "480x320"])
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "status {}: {}", output.status, String::from_utf8_lossy(&output.stderr));
+    let replies: Vec<Value> = String::from_utf8_lossy(&output.stdout).lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    assert_eq!(replies.len(), 1, "{replies:?}");
+    assert_eq!(replies[0]["ok"], true, "{replies:?}");
+    let gpu = &replies[0]["result"];
+    assert_eq!(gpu["enabled"], true, "{gpu}");
+    for field in ["available", "adapter", "reason"] {
+        assert_eq!(gpu[field], Value::Null, "{field} is not known while the device is created: {gpu}");
+    }
+}
+
 /// Issue #136: with the GPU switched off from the environment the UI starts and renders on the CPU,
 /// without creating a GPU device (no driver is loaded), and says why.
 #[test]

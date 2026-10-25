@@ -588,6 +588,8 @@ fn performance_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     check(ui, "settings.gpu", &mut app.ui.settings.gpu, "Use the GPU for rendering");
     // `available` would wait for a device still being created (issue #136)
     let status = if gpu::enabled() && !gpu::ready() {
+        // the device is created on another thread, which doesn't wake the UI when it's done
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
         "GPU: starting…".to_string()
     } else if !gpu::available() {
         match gpu::unavailable_reason() {

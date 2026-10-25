@@ -308,13 +308,24 @@ pub(crate) fn existing_device() -> Option<&'static ctx::Gpu> {
 
 /// Create the device and compile the kernels on a background thread now (once the window is up),
 /// so the first render doesn't wait ~0.3–0.4 s for it and the UI thread never does. Does nothing
-/// while GPU rendering is turned off.
+/// while GPU rendering is turned off. Repeated calls start one thread at most.
 pub fn warm_up() {
     #[cfg(not(target_arch = "wasm32"))]
     if !env_disabled() && ENABLED.load(Ordering::Relaxed) && GPU.get().is_none() {
-        let _ = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        if STARTED.swap(true, Ordering::AcqRel) {
+            return;
+        }
+        let spawned = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
             let _ = device();
+            // turned off before the thread ran (nothing created): a later call may start again
+            if GPU.get().is_none() {
+                STARTED.store(false, Ordering::Release);
+            }
         });
+        if spawned.is_err() {
+            STARTED.store(false, Ordering::Release);
+        }
     }
 }
 

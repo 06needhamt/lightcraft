@@ -230,7 +230,7 @@ pub fn specs() -> Vec<CommandSpec> {
                 "versions": ph.versions.iter().map(|v| json!({"name": v.name, "created": v.created})).collect::<Vec<_>>(),
             }))
         }),
-        cmd!(query "app.gpu", "GPU Rendering", [], None, "{enabled?: bool, wait?: bool} — allow/forbid GPU rendering (CPU fallback; LIGHTCRAFT_GPU=0 forbids it for the process); returns {enabled, available, adapter, reason (why the GPU is off), lastFallback (latest render redone on the CPU, and why)}. wait: false never waits for a device still being created (available, adapter and reason are then null; with GPU rendering off they say so at once)", always, |_, p| {
+        cmd!(query "app.gpu", "GPU Rendering", [], None, "{enabled?: bool, wait?: bool} — allow/forbid GPU rendering (CPU fallback; LIGHTCRAFT_GPU=0 forbids it for the process); returns {enabled, available, adapter, reason (why the GPU is off), lastFallback (latest render redone on the CPU, and why)}. wait: false never waits for a device still being created (available, adapter and reason are then null and the device is created in the background; with GPU rendering off they say so at once)", always, |_, p| {
             if let Some(on) = p.get("enabled").and_then(Value::as_bool) {
                 lightcraft_gpu::set_enabled(on);
             }
@@ -240,6 +240,11 @@ pub fn specs() -> Vec<CommandSpec> {
                 // off (preference, environment): known at once, and asking the adapter would
                 // create the device; on: still being created, so nothing is known yet
                 let on = lightcraft_gpu::enabled();
+                if on {
+                    // a caller that never waits still gets an answer later (off the UI thread;
+                    // starts at most once)
+                    lightcraft_gpu::warm_up();
+                }
                 return Ok(json!({
                     "enabled": on,
                     "available": if on { Value::Null } else { Value::Bool(false) },

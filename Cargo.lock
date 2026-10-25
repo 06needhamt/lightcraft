@@ -3141,6 +3141,7 @@ dependencies = [
  "lightcraft-merge",
  "lightcraft-raster",
  "lightcraft-sysmem",
+ "lightcraft-testkit",
  "lightcraft-ui-egui",
  "serde_json",
 ]
