@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-25
+
+### Import rename numbering stops safely at its limit
+- Copy and Move imports can use the last representable rename number once. If more renamed files remain, each is
+  reported as failed with guidance to lower `renameStart` or leave `rename` blank; completed transfers stay
+  accounted for and catalogued. A `renameStart` value outside this platform's range is rejected before setup.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

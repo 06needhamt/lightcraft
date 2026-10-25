@@ -18,6 +18,8 @@
 //! 7. Optionally apply a preset and add keywords (the import dialog's options).
 //! 8. Commit all new photos as one undoable op. (Undoing a move removes the catalog records;
 //!    the files stay at the destination — undo never moves files back over a card.)
+//! 9. Copy and Move rename sequences use checked platform-sized numbers: the last number is usable once, and any
+//!    further renamed files are reported as failed without losing earlier completed transfers.
 //!
 //! The import dialog first calls [`scan`] (`library.importPreview`): the same expansion, probing
 //! and duplicate detection without adding anything, so the user can review the candidates. The
@@ -831,7 +833,8 @@ pub struct ImportJob {
     cache: HashMap<String, ProbeInfo>,
     naming: crate::sidecar::SidecarNaming,
     now: String,
-    seq: usize,
+    /// Next rename number; `None` once the final representable value has been reserved.
+    seq: Option<usize>,
     /// Files found so far (folders expanded) and handled so far, for progress.
     pub total: std::sync::Arc<std::sync::atomic::AtomicUsize>,
     pub done: std::sync::Arc<std::sync::atomic::AtomicUsize>,
@@ -964,7 +967,7 @@ impl ImportJob {
         }
         let fresh = opts.on_deleted == OnDeleted::Fresh;
         Ok(ImportJob {
-            seq: opts.rename_start.max(1),
+            seq: Some(opts.rename_start.max(1)),
             opts,
             mode,
             lib_dir,
@@ -1144,11 +1147,20 @@ impl ImportJob {
                     let mut q = Photo::new(PhotoId(0), Source::File { path: path.clone() }, &own, &info.format, 0, 0, &self.now);
                     q.captured = info.captured.clone();
                     q.meta = info.meta.clone();
-                    let name = opts.rename.as_deref().filter(|t| !t.trim().is_empty()).map(|t| {
-                        let n = crate::rename::expand(t, &q, self.seq);
-                        self.seq += 1;
-                        n
-                    });
+                    let name = if let Some(template) = opts.rename.as_deref().filter(|t| !t.trim().is_empty()) {
+                        let Some(seq) = self.seq else {
+                            self.done.fetch_add(1, Relaxed);
+                            plan.slots.push(Slot::Item(PreparedItem::Failed(
+                                path,
+                                "rename sequence exhausted; choose a lower renameStart or leave rename blank".into(),
+                            )));
+                            continue;
+                        };
+                        self.seq = seq.checked_add(1);
+                        Some(crate::rename::expand(template, &q, seq))
+                    } else {
+                        None
+                    };
                     let folders = opts.organize.folders(&q);
                     let dir = folders.iter().fold(root.to_path_buf(), |d, f| d.join(f));
                     // the name this file gets depends on what a pending transfer of a like-named file
