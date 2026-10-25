@@ -557,6 +557,8 @@ fn run(args: &[String]) -> Result<(), String> {
         } else {
             std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?
         };
+        // Windows PowerShell 5.1 writes a UTF-8 BOM; it is not part of the first JSON line.
+        let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
         for (n, line) in text.lines().enumerate().filter(|(_, l)| !l.trim().is_empty() && !l.trim_start().starts_with('#')) {
             let v: Value = serde_json::from_str(line).map_err(|e| format!("{path}:{}: {e}", n + 1))?;
             // `{"command": id, "params": …}` or a control request `{"method": m, "params": …}`
@@ -851,6 +853,8 @@ fn snapshot(args: &[String]) -> Result<(), String> {
     let mut failed = 0usize;
     if let Some(script) = &script {
         let text = std::fs::read_to_string(script).map_err(|e| format!("{script}: {e}"))?;
+        // Windows PowerShell 5.1 writes a UTF-8 BOM; it is not part of the first JSON line.
+        let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
         let mut out = std::io::stdout().lock();
         for (n, line) in text.lines().enumerate() {
             let line = line.trim();
