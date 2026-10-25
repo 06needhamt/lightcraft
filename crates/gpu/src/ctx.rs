@@ -1,7 +1,7 @@
 //! The wgpu device, the compiled kernels, buffers, dispatch and readback.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use wgpu::util::DeviceExt;
 
@@ -75,6 +75,101 @@ struct Kernel {
     pipeline: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
     nbuf: usize,
+}
+
+/// A module's shader and layouts, shared by the kernels of its entry points.
+struct Prepared {
+    module: wgpu::ShaderModule,
+    layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    nbuf: usize,
+}
+
+/// Validation and internal error scopes. They belong to the thread that pushed them.
+fn push_scopes(device: &wgpu::Device) -> [wgpu::ErrorScopeGuard; 2] {
+    [device.push_error_scope(wgpu::ErrorFilter::Validation), device.push_error_scope(wgpu::ErrorFilter::Internal)]
+}
+
+/// The error the scopes caught, if any (popped innermost first).
+fn pop_scopes(scopes: [wgpu::ErrorScopeGuard; 2]) -> Option<String> {
+    let [validation, internal] = scopes;
+    let (internal, validation) = (pollster::block_on(internal.pop()), pollster::block_on(validation.pop()));
+    internal.or(validation).map(|e| e.to_string())
+}
+
+/// Build every kernel. A kernel the driver's compiler refuses is a validation or an internal error,
+/// and then there is no GPU, not a half-built one.
+///
+/// Issue #2936: built one after another, the 27 pipelines took 1.7–7 s on an Intel iGPU under DX12,
+/// where FXC (issue #471) compiles each one, single-threaded, inside `create_compute_pipeline`. The
+/// device takes pipeline creation from any thread, so the entry points are shared out to worker
+/// threads. This thread works too: every kernel is built even when no thread can be started.
+fn build_kernels(device: &wgpu::Device) -> Result<HashMap<&'static str, Kernel>, String> {
+    let scopes = push_scopes(device);
+    let consts = constants();
+    let prepared: Vec<Prepared> = MODULES
+        .iter()
+        .map(|m| {
+            let src = module_source(m, &consts);
+            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(src.into()) });
+            let mut entries = vec![storage_entry(0, true)];
+            entries.extend(m.bindings.iter().enumerate().map(|(i, (_, w, _))| storage_entry(i as u32 + 1, !w)));
+            let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: None, entries: &entries });
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[Some(&layout)],
+                immediate_size: 0,
+            });
+            Prepared { module, layout, pipeline_layout, nbuf: m.bindings.len() }
+        })
+        .collect();
+    if let Some(e) = pop_scopes(scopes) {
+        return Err(e);
+    }
+    let jobs: Vec<(&Prepared, &'static str)> = MODULES.iter().zip(&prepared).flat_map(|(m, p)| m.entries.iter().map(move |e| (p, *e))).collect();
+    let next = AtomicUsize::new(0);
+    let built = std::sync::Mutex::new(HashMap::with_capacity(jobs.len()));
+    let workers = std::thread::available_parallelism().map_or(1, |n| n.get()).min(jobs.len()).saturating_sub(1);
+    let errors: Vec<String> = std::thread::scope(|s| {
+        let work = || build_jobs(device, &jobs, &next, &built);
+        let threads: Vec<_> =
+            (0..workers).filter_map(|_| std::thread::Builder::new().name("lc-gpu-kernels".into()).spawn_scoped(s, work).ok()).collect();
+        let mut errors: Vec<String> = work().into_iter().collect();
+        for t in threads {
+            match t.join() {
+                Ok(e) => errors.extend(e),
+                Err(_) => errors.push("a kernel build thread panicked".into()),
+            }
+        }
+        errors
+    });
+    if let Some(e) = errors.into_iter().next() {
+        return Err(e);
+    }
+    Ok(built.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
+/// One worker of [`build_kernels`]: build kernels until none is left; the first error its scopes caught.
+fn build_jobs(
+    device: &wgpu::Device,
+    jobs: &[(&Prepared, &'static str)],
+    next: &AtomicUsize,
+    built: &std::sync::Mutex<HashMap<&'static str, Kernel>>,
+) -> Option<String> {
+    let scopes = push_scopes(device);
+    while let Some(&(p, entry)) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some(entry),
+            layout: Some(&p.pipeline_layout),
+            module: &p.module,
+            entry_point: Some(entry),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+        let kernel = Kernel { pipeline, layout: p.layout.clone(), nbuf: p.nbuf };
+        built.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(entry, kernel);
+    }
+    pop_scopes(scopes)
 }
 
 /// A device buffer of `len` 32-bit values.
@@ -339,39 +434,15 @@ impl Gpu {
             log::error!("gpu: device lost ({reason:?}): {msg}");
             crate::mark_broken(&format!("device lost ({reason:?}): {msg}"));
         });
-        // a kernel the driver's compiler refuses is a validation or an internal error: no GPU, not a half-built one
-        let scopes = [device.push_error_scope(wgpu::ErrorFilter::Validation), device.push_error_scope(wgpu::ErrorFilter::Internal)];
-        let consts = constants();
-        let mut kernels = HashMap::new();
-        for m in MODULES {
-            let src = module_source(m, &consts);
-            let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(src.into()) });
-            let mut entries = vec![storage_entry(0, true)];
-            entries.extend(m.bindings.iter().enumerate().map(|(i, (_, w, _))| storage_entry(i as u32 + 1, !w)));
-            let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: None, entries: &entries });
-            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: None,
-                bind_group_layouts: &[Some(&layout)],
-                immediate_size: 0,
-            });
-            for e in m.entries {
-                let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: Some(e),
-                    layout: Some(&pl),
-                    module: &module,
-                    entry_point: Some(e),
-                    compilation_options: Default::default(),
-                    cache: None,
-                });
-                kernels.insert(*e, Kernel { pipeline, layout: layout.clone(), nbuf: m.bindings.len() });
+        let started = std::time::Instant::now();
+        let kernels = match build_kernels(&device) {
+            Ok(kernels) => kernels,
+            Err(e) => {
+                log::error!("gpu: kernels failed to build on {}: {e}", info.name);
+                return Err(format!("{}: kernels failed to build ({e})", info.name));
             }
-        }
-        let [validation, internal] = scopes;
-        let (internal, validation) = (pollster::block_on(internal.pop()), pollster::block_on(validation.pop()));
-        if let Some(e) = internal.or(validation) {
-            log::error!("gpu: kernels failed to build on {}: {e}", info.name);
-            return Err(format!("{}: kernels failed to build ({e})", info.name));
-        }
+        };
+        let build_ms = started.elapsed().as_millis();
         let dummy = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("dummy"),
             size: 16,
@@ -379,7 +450,7 @@ impl Gpu {
             mapped_at_creation: false,
         });
         let max_buffer = limits.max_storage_buffer_binding_size.min(limits.max_buffer_size);
-        log::info!("gpu: {} ({:?}), buffers ≤ {} MiB", info.name, info.backend, max_buffer >> 20);
+        log::info!("gpu: {} ({:?}), {} kernels in {build_ms} ms, buffers ≤ {} MiB", info.name, info.backend, kernels.len(), max_buffer >> 20);
         Ok(Gpu { device, queue, info, kernels, dummy, free: Default::default(), max_buffer })
     }
 
@@ -771,6 +842,20 @@ mod tests {
         assert_eq!(super::parse_limits("512MiB"), Some((512 << 20, 1024 << 20)));
         assert_eq!(super::parse_limits(""), None);
         assert_eq!(super::parse_limits("lots"), None);
+    }
+
+    /// Issue #2936: the kernels are built on several threads; every entry point of every module has one.
+    #[test]
+    fn every_entry_point_has_a_kernel() {
+        let Some(g) = crate::device() else {
+            lightcraft_testkit::skip!(Gpu, "no GPU device");
+            return;
+        };
+        let entries: Vec<&str> = super::MODULES.iter().flat_map(|m| m.entries.iter().copied()).collect();
+        assert_eq!(g.kernels.len(), entries.len());
+        for e in entries {
+            assert!(g.kernels.contains_key(e), "no kernel for {e}");
+        }
     }
 
     /// Run `child` (an ignored test in this module) in its own process: it loses the device, which
