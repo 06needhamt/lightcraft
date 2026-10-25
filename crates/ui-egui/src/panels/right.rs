@@ -20,6 +20,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let Some(id) = app.session.active() else {
             // the Keyword List is the library's, not a photo's: it is there without a selection
             if app.ui.right == RightPanel::Keywords {
+                // (without a selection there is no Add keyword box for Add Keywords to put the cursor in)
+                app.ui.focus_keywords = false;
                 egui::ScrollArea::vertical().id_salt("right-scroll").auto_shrink([false, false]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     if fold_header(app, ui, "keywording", "Keywords") {
@@ -1014,11 +1016,16 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         // switched away, doesn't claim the cursor whenever it is next drawn)
         let bid = egui::Id::new("kw-begin");
         let begin = ui.data_mut(|d| d.remove_temp::<u64>(bid)).is_some_and(|asked| asked.checked_add(1) == Some(pass));
+        // Add Keywords (⌘K) asks for the cursor too, and for the box to be scrolled into sight
+        let asked = std::mem::take(&mut app.ui.focus_keywords);
         let r = crate::text_field::TextField::singleline("field:keyword", &mut text)
             .hint(crate::i18n::tr("Add keyword"))
             .width(f32::INFINITY)
-            .begin_edit(begin)
+            .begin_edit(begin || asked)
             .show(ui);
+        if asked {
+            r.response.scroll_to_me(None);
+        }
         let in_sight = ui.clip_rect().contains(r.response.rect.center());
         let mut drawn = Rect::NOTHING;
         // (what isn't drawn can't be taken: Return on the frame the box scrolls out gives nothing)

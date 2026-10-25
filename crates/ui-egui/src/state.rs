@@ -900,6 +900,9 @@ pub struct UiState {
     /// Focus the search field on the next frame (Edit → Find…).
     #[serde(skip)]
     pub focus_search: bool,
+    /// Put the cursor in the Keywords panel's Add keyword box when it is next drawn (Add Keywords).
+    #[serde(skip)]
+    pub focus_keywords: bool,
     /// A mask being renamed in the Masks list: its id and the edited name.
     #[serde(skip)]
     pub renaming_mask: Option<(u32, String)>,
@@ -1508,6 +1511,7 @@ impl Default for UiState {
             known_cards: None,
             search: String::new(),
             focus_search: false,
+            focus_keywords: false,
             renaming_mask: None,
             describe: None,
             detail_due: None,

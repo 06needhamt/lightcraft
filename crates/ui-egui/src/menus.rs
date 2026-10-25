@@ -158,6 +158,8 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("panel.presets", "Presets", Some("Shift+P"), "Window"),
     ("panel.info", "Info", Some("I"), "Window"),
     ("panel.keywords", "Keywords", Some("K"), "Window"),
+    // the Keywords panel with the cursor in its Add keyword box
+    ("panel.addKeywords", "Add Keywords", Some("Cmd+K"), ""),
     ("panel.versions", "Versions", Some("Shift+V"), "Window"),
     ("panel.activity", "History", None, "Window"),
     ("panel.close", "Close Panel", None, ""),
@@ -1240,6 +1242,15 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
         }
         "panel.keywords" => {
             panel(app, &ctx, RightPanel::Keywords, "Keywords");
+            Ok(Value::Null)
+        }
+        "panel.addKeywords" => {
+            // opens Keywording when it is folded shut; the panel stays open when pressed again
+            if app.ui.right != RightPanel::Keywords {
+                panel(app, &ctx, RightPanel::Keywords, "Keywords");
+            }
+            app.ui.folded_sections.retain(|s| s != "keywording");
+            app.ui.focus_keywords = true;
             Ok(Value::Null)
         }
         "panel.versions" => {
