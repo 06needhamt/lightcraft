@@ -881,6 +881,25 @@ impl TileRunner for NetRunner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The denoise kernels validate without a GPU: the pooling kernel, and the convolution for every block size the
+    /// planner picks for these layer widths and channel counts.
+    #[test]
+    fn the_network_kernels_validate_without_a_gpu() {
+        assert_eq!(crate::validate_wgsl("nn_pool", include_str!("wgsl/nn_pool.wgsl")), Ok(()));
+        let mut sizes: Vec<(u32, u32, u32)> = Vec::new();
+        for n in [1usize, 3, 8, 16, 24, 32, 48, 64, 96, 128, 256, 512] {
+            for cin in [1usize, 3, 4, 8, 16, 32, 48, 64, 128, 256, 512] {
+                let b = blocks(n, cin);
+                if !sizes.contains(&b) {
+                    sizes.push(b);
+                }
+            }
+        }
+        for (bm, bn, bk) in sizes {
+            assert_eq!(crate::validate_wgsl(&format!("nn_conv {bm}x{bn}x{bk}"), &conv_source(bm, bn, bk)), Ok(()));
+        }
+    }
     use lightcraft_denoise::{onnx, reference, synthetic};
 
     fn net(tile: u64, ch: u64, depth: usize, seed: u64) -> Net {
