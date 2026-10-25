@@ -24,7 +24,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
 
 fn body(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     let area = ui.available_rect_before_wrap();
-    crate::widgets::register(ui.ctx(), "view:secondWindow", area);
+    crate::widgets::register(ui, "view:secondWindow", area);
     ui.allocate_rect(area, egui::Sense::hover());
     let Some(id) = app.session.active() else {
         ui.painter().text(

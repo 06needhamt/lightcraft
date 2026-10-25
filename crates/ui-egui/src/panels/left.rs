@@ -138,7 +138,7 @@ fn row_sensed(
     if scroll_asked(ui, id) {
         ui.scroll_to_rect_animation(r, None, egui::style::ScrollAnimation::none());
     }
-    register(ui.ctx(), format!("source:{id}"), r);
+    register(ui, format!("source:{id}"), r);
     let mark_w = if mark.is_some() { MARK_W } else { 0.0 };
     let said = spoken.unwrap_or(label);
     let name = match count {
@@ -153,7 +153,7 @@ fn row_sensed(
     let inner = Rect::from_min_max(r.min + vec2(8.0, 0.0), pos2((r.right() - 8.0).min(edge - 8.0).max(r.left() + 8.0), r.bottom()));
     if selected {
         ui.painter().rect_filled(inner, 4.0, t.canvas);
-        register(ui.ctx(), format!("highlight:{id}"), inner);
+        register(ui, format!("highlight:{id}"), inner);
     } else if resp.hovered() {
         ui.painter().rect_filled(inner, 4.0, t.hover.gamma_multiply(0.6));
     }
@@ -174,7 +174,7 @@ fn row_sensed(
     if let Some(c) = mark {
         let dot = Rect::from_center_size(pos2(count_left - MARK_W / 2.0, r.center().y), vec2(8.0, 8.0));
         ui.painter().circle_filled(dot.center(), 4.0, c);
-        register(ui.ctx(), format!("labelMark:{id}"), dot);
+        register(ui, format!("labelMark:{id}"), dot);
     }
     // the name gives way to the count: cut with an ellipsis, in full on hover
     let room = count_left - mark_w - 8.0 - label_left;
@@ -182,12 +182,12 @@ fn row_sensed(
     let full_w = measure(label);
     let shown = if full_w <= room { label.to_string() } else { crate::widgets::elide_head(label, room.max(0.0), measure) };
     let label_rect = ui.painter().text(pos2(label_left, r.center().y), Align2::LEFT_CENTER, &shown, font.clone(), color);
-    register(ui.ctx(), format!("label:{id}"), label_rect);
+    register(ui, format!("label:{id}"), label_rect);
     let resp = if shown != label { resp.on_hover_text(label) } else { resp };
     note_width(ui, row_need(indent, full_w, mark_w, count_galley.as_ref().map(|g| g.size().x)));
     if let Some(galley) = count_galley {
         let rect = Rect::from_min_size(pos2(edge - 18.0 - galley.size().x, r.center().y - galley.size().y / 2.0), galley.size());
-        register(ui.ctx(), format!("count:{id}"), rect);
+        register(ui, format!("count:{id}"), rect);
         ui.painter().galley(rect.min, galley, t.text_dim);
     }
     resp
@@ -204,7 +204,7 @@ fn out_of_sight(app: &LightcraftApp, ui: &mut egui::Ui, id: &str, label: &str, c
         return false;
     }
     ui.allocate_space(r.size());
-    register(ui.ctx(), format!("source:{id}"), r);
+    register(ui, format!("source:{id}"), r);
     let indent = drawn_indent(ui, indent);
     let t = Tokens::get(ui.ctx());
     let painter = ui.painter();
@@ -234,7 +234,7 @@ fn disclosure_chevron(ui: &mut egui::Ui, row: &egui::Response, indent: f32, open
     let c = pos2(row.rect.left() + 10.0 + indent_x(ui.ctx(), indent), row.rect.center().y);
     let tri = Rect::from_center_size(c, vec2(16.0, 16.0));
     let tr = ui.interact(tri, id, Sense::click());
-    register(ui.ctx(), widget, tri);
+    register(ui, widget, tri);
     let col = if tr.hovered() { t.text } else { t.text_dim };
     paint(ui.painter(), Rect::from_center_size(c, vec2(16.0, 16.0)), if open { Icon::ChevronDown } else { Icon::ChevronRight }, col);
     tr
@@ -348,7 +348,7 @@ fn pinned_header(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSec
 fn empty_hint(ui: &mut egui::Ui, section: SidebarSection) {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_HEIGHT), Sense::hover());
-    register(ui.ctx(), format!("sidebarEmpty:{}", section.id()), r);
+    register(ui, format!("sidebarEmpty:{}", section.id()), r);
     let text = crate::i18n::tr(section.empty_hint());
     let galley = ui.painter().layout_no_wrap(text.to_string(), t.font(12.5), t.text_dim);
     note_width(ui, 42.0 + galley.size().x + 18.0);
@@ -416,7 +416,7 @@ fn section_drag(app: &mut LightcraftApp, ui: &mut egui::Ui, placed: &[PlacedSect
         let t = Tokens::get(ui.ctx());
         let line = Rect::from_min_max(pos2(view.left() + 8.0, y - 1.0), pos2(visible_right(ui).min(view.right()) - 8.0, y + 1.0));
         ui.painter().rect_filled(line, 1.0, t.accent);
-        register(ui.ctx(), "sidebarSectionDrop", line);
+        register(ui, "sidebarSectionDrop", line);
     }
 }
 
@@ -453,7 +453,7 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
     let title = crate::i18n::tr(section.title());
     let (interact, widget) = if pinned { ("sidebar-section-pinned", "sidebarSectionPinned") } else { ("sidebar-section", "sidebarSection") };
     let resp = ui.interact(r, ui.scope_id().with((interact, id)), Sense::click_and_drag());
-    register(ui.ctx(), format!("{widget}:{id}"), r);
+    register(ui, format!("{widget}:{id}"), r);
     let toggled = resp.clicked();
     if toggled {
         app.ui.sidebar.toggle_collapsed(section);
@@ -477,7 +477,7 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
         ui.painter().rect_filled(bar, 4.0, t.hover.gamma_multiply(0.6));
     }
     let c = pos2(r.left() + 10.0, r.center().y);
-    register(ui.ctx(), format!("{widget}Chevron:{id}"), Rect::from_center_size(c, vec2(16.0, 16.0)));
+    register(ui, format!("{widget}Chevron:{id}"), Rect::from_center_size(c, vec2(16.0, 16.0)));
     let col = if hovered { t.text } else { t.text_dim };
     paint(ui.painter(), Rect::from_center_size(c, vec2(16.0, 16.0)), if open { Icon::ChevronDown } else { Icon::ChevronRight }, col);
     ui.painter().text(pos2(r.left() + 18.0, r.center().y), Align2::LEFT_CENTER, title, t.semibold(13.5), t.text_label);
@@ -488,7 +488,7 @@ fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSe
         // folded: how much is in there (left of the header's own button)
         let right = edge - 18.0 - if button.is_some() { HEADER_BUTTON + 4.0 } else { 0.0 };
         let count = ui.painter().text(pos2(right, r.center().y), Align2::RIGHT_CENTER, rows.to_string(), t.font(12.5), t.text_dim);
-        register(ui.ctx(), format!("{widget}Count:{id}"), count);
+        register(ui, format!("{widget}Count:{id}"), count);
     }
     if section == SidebarSection::Albums {
         top_level_drop_target(app, ui, r);
@@ -577,13 +577,13 @@ fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarS
     let mut run = None;
     if let Some(section) = on {
         let hide = ui.button(crate::i18n::tr("Hide This Section"));
-        register(ui.ctx(), "sidebarMenu:hide", hide.rect);
+        register(ui, "sidebarMenu:hide", hide.rect);
         if hide.clicked() {
             run = Some(("view.sidebarSection", json!({"section": section.id(), "show": false})));
         }
         for (up, label, widget) in [(true, "Move Up", "sidebarMenu:moveUp"), (false, "Move Down", "sidebarMenu:moveDown")] {
             let item = ui.add_enabled(app.ui.sidebar.can_move(section, up), egui::Button::new(crate::i18n::tr(label)));
-            register(ui.ctx(), widget, item.rect);
+            register(ui, widget, item.rect);
             if item.clicked() {
                 run = Some(("view.sidebarMoveSection", json!({"section": section.id(), "direction": if up { "up" } else { "down" }})));
             }
@@ -592,14 +592,14 @@ fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Option<SidebarS
     }
     for s in app.ui.sidebar.sections().iter().filter(|s| s.id.available()) {
         let shown = ui.selectable_label(!s.hidden, crate::i18n::tr(s.id.title()));
-        register(ui.ctx(), format!("sidebarMenu:section:{}", s.id.id()), shown.rect);
+        register(ui, format!("sidebarMenu:section:{}", s.id.id()), shown.rect);
         if shown.clicked() {
             run = Some(("view.sidebarSection", json!({"section": s.id.id(), "show": s.hidden})));
         }
     }
     ui.separator();
     let reset = ui.add_enabled(!app.ui.sidebar.is_default(), egui::Button::new(crate::i18n::tr("Reset Sidebar Sections")));
-    register(ui.ctx(), "sidebarMenu:reset", reset.rect);
+    register(ui, "sidebarMenu:reset", reset.rect);
     if reset.clicked() {
         run = Some(("view.sidebarReset", json!({})));
     }
@@ -647,7 +647,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         // the title offers the sections' menu too: where hidden sections come back from
         let (hr, title) = ui.allocate_exact_size(vec2(ui.available_width(), 44.0), Sense::click());
         crate::widgets::announce(&title, crate::i18n::tr("My Photos"));
-        register(ui.ctx(), "sidebarTitle", hr);
+        register(ui, "sidebarTitle", hr);
         crate::widgets::context_menu(&title, |ui| sections_menu(app, ui, None));
         // the open library's name under the title, so nobody edits in the wrong one (issue #902)
         let library = crate::panels::settings::open_library_name(app);
@@ -661,7 +661,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 t.font(11.0),
                 t.text_dim,
             );
-            crate::widgets::register(ui.ctx(), "label:libraryName", hr);
+            crate::widgets::register(ui, "label:libraryName", hr);
             if let Some(l) = app.session.library.as_ref() {
                 title.on_hover_text(l.dir.display().to_string());
             }
@@ -942,7 +942,7 @@ fn local_rows(app: &mut LightcraftApp, ui: &mut egui::Ui, now: &LocalNow) {
 fn hidden_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, hidden: &[(String, String)]) {
     for (name, path) in hidden {
         let r = ui.button(name).on_hover_text(path);
-        register(ui.ctx(), format!("local:restoreHidden:{path}"), r.rect);
+        register(ui, format!("local:restoreHidden:{path}"), r.rect);
         if r.clicked() {
             let _ = app.run("local.restoreHidden", json!({"path": path}));
             ui.close();
@@ -950,7 +950,7 @@ fn hidden_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, hidden: &[(String, St
     }
     ui.separator();
     let r = ui.button(crate::i18n::tr("Restore All"));
-    register(ui.ctx(), "local:restoreHidden:all", r.rect);
+    register(ui, "local:restoreHidden:all", r.rect);
     if r.clicked() {
         let _ = app.run("local.restoreHidden", json!({}));
         ui.close();
@@ -1304,7 +1304,7 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
             let label = if problems.is_empty() { label } else { format!("⚠ {label}") };
             let mut resp = row_sensed(app, ui, &format!("album:{}", a.id.0), icon, &label, None, Some(n), sel, indent, Sense::click_and_drag(), None);
             if !problems.is_empty() {
-                crate::widgets::register(ui.ctx(), format!("albumProblem:{}", a.id.0), resp.rect);
+                crate::widgets::register(ui, format!("albumProblem:{}", a.id.0), resp.rect);
             }
             if resp.drag_started() {
                 app.ui.dragging_album = Some(a.id.0);
@@ -1560,7 +1560,7 @@ fn top_level_drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, header: Rec
         return;
     }
     let t = Tokens::get(ui.ctx());
-    register(ui.ctx(), "albumDrop:top", header);
+    register(ui, "albumDrop:top", header);
     let over = pointer_over(ui, header);
     let stroke = if over { egui::Stroke::new(1.5, t.accent) } else { egui::Stroke::new(1.0, t.text_dim.gamma_multiply(0.5)) };
     ui.painter().rect_stroke(header.shrink2(vec2(8.0, 3.0)), 4.0, stroke, egui::StrokeKind::Inside);
@@ -1681,7 +1681,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
             let menu = crate::widgets::menu_button(ui, crate::i18n::tr("Import"), |ui| {
                 let mut entry = |ui: &mut egui::Ui, label: String, widget: String, command: &str, params: serde_json::Value| {
                     let r = ui.button(label);
-                    crate::widgets::register(ui.ctx(), widget, r.rect);
+                    crate::widgets::register(ui, widget, r.rect);
                     if r.clicked() {
                         if let Err(e) = app.run(command, params) {
                             app.toast(ui.ctx(), e);
@@ -1706,9 +1706,9 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
                         entry(ui, format!("{}…", d.name), format!("button:albumImportDevice:{i}"), "file.addFromDevice", params);
                     }
                 });
-                crate::widgets::register(ui.ctx(), "button:albumImportDevice", device.response.rect);
+                crate::widgets::register(ui, "button:albumImportDevice", device.response.rect);
             });
-            crate::widgets::register(ui.ctx(), "button:albumImport", menu.response.rect);
+            crate::widgets::register(ui, "button:albumImport", menu.response.rect);
         }
         if !a.folder && !a.is_smart() {
             let is_target = app.session.target_album == Some(a.id) || (app.session.target_album.is_none() && a.quick);
@@ -1776,7 +1776,7 @@ fn folder_menu(app: &mut LightcraftApp, resp: &egui::Response, a: &Album) {
             app.ui.dialog = Some(crate::state::Dialog::RenameAlbum { id: a.id.0, name: a.name.clone() });
         }
         let delete = ui.button(crate::i18n::tr("Delete"));
-        register(ui.ctx(), format!("albumDelete:{}", a.id.0), delete.rect);
+        register(ui, format!("albumDelete:{}", a.id.0), delete.rect);
         let delete =
             delete.on_hover_text(crate::i18n::tr("Photos stay in All Photos. Deleting a folder also deletes its albums. You can undo this."));
         if delete.clicked() {
@@ -2054,7 +2054,7 @@ fn row_menu(app: &mut LightcraftApp, resp: &egui::Response, n: &FolderNode) {
 /// background finder relink only this folder's photos (including the folders inside it).
 fn locate_missing_item(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &FolderNode) {
     let r = ui.button(crate::i18n::tr("Locate Missing Files…"));
-    register(ui.ctx(), "folderLocateMissing", r.rect);
+    register(ui, "folderLocateMissing", r.rect);
     if r.clicked() {
         if let Err(e) = app.run("file.findMissing", json!({"within": n.path})) {
             app.toast(ui.ctx(), e);
@@ -2101,7 +2101,7 @@ fn synchronize_item(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &FolderNode, 
     let r = ui
         .button(crate::i18n::tr("Synchronize Folder…"))
         .on_hover_text(crate::i18n::tr("Find photos added to or missing from this folder on disk, and XMP sidecars changed by other apps"));
-    crate::widgets::register(ui.ctx(), "folderSynchronize", r.rect);
+    crate::widgets::register(ui, "folderSynchronize", r.rect);
     if r.clicked() {
         // a disk, or a folder holding disks, was chosen as such
         if let Err(e) = crate::sync::open(app, &n.path, name, n.volume || !n.selectable) {
@@ -2122,7 +2122,7 @@ fn folder_label_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, n: &FolderNode)
             ui.close();
         }
     });
-    register(ui.ctx(), "folderLabelMenu", menu.response.rect);
+    register(ui, "folderLabelMenu", menu.response.rect);
 }
 
 /// The context menu of a folder row: the folder's disk actions (the same as Local's, photos

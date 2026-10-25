@@ -359,7 +359,7 @@ impl<'a> Button<'a> {
             ui.ctx().accesskit_node_builder(resp.id, |node| node.set_busy());
         }
         if let Some(w) = &self.widget {
-            crate::widgets::register(ui.ctx(), w.clone(), rect);
+            crate::widgets::register(ui, w.clone(), rect);
         }
         let state = if !enabled {
             State::Disabled

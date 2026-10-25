@@ -700,14 +700,18 @@ impl eframe::App for WebApp {
         self.save();
     }
 
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
-        self.app.raw_input_hook(raw);
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        self.app.raw_input_hook(ctx, raw);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Drops are the UI phase's: a hidden `logic`/`run_logic` tick must not import them twice.
+        // A prompt owns the library too: keep taking the queue only after it is gone, so a drop
+        // during a notice cannot add photos behind it.
         let ctx = ui.ctx().clone();
-        self.import_dropped(&ctx);
+        if !lightcraft_ui_egui::panels::notices::blocks_input(&self.app) {
+            self.import_dropped(&ctx);
+        }
         self.app.ui(ui);
         // eframe's web runner ignores `ViewportCommand::Title`: name the open photo in the page title
         let title = self.app.page_title(self.files.is_dirty() || self.flushing.get());

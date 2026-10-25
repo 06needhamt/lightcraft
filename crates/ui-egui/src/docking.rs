@@ -439,11 +439,11 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
                 canvas = Some(ui.new_child(egui::UiBuilder::new().id_salt("photo-view").max_rect(ui.max_rect())));
             }
             Panel::Library => {
-                crate::widgets::register(ui.ctx(), "panel:left_panel", ui.max_rect());
+                crate::widgets::register(ui, "panel:left_panel", ui.max_rect());
                 crate::panels::left::show(app, ui);
             }
             Panel::Tools => {
-                crate::widgets::register(ui.ctx(), "panel:right_panel", ui.max_rect());
+                crate::widgets::register(ui, "panel:right_panel", ui.max_rect());
                 crate::panels::right::show(app, ui);
             }
             Panel::Presets => crate::panels::presets::show(app, ui),

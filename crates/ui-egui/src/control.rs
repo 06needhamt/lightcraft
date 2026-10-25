@@ -189,6 +189,48 @@ fn key_from(name: &str) -> Option<egui::Key> {
     })
 }
 
+/// Most clicks one `ui.click`/`ui.clickWidget` request may inject. The control server is a
+/// local automation surface, but a request must not be able to fill memory with synthetic events.
+pub(crate) const MAX_CLICKS: u64 = 16;
+/// Most pointer-move steps one `ui.drag`/`ui.dragWidget` request may inject.
+pub(crate) const MAX_DRAG_STEPS: u64 = 1000;
+
+/// What a widget gesture's synthetic events were aimed at when they were resolved. Delivery
+/// rechecks this against the latest completed layout before the first event and again before every
+/// press: a moved widget cancels the request instead of being retargeted.
+#[derive(Clone, Debug)]
+pub(crate) struct GestureTarget {
+    pub id: String,
+    /// The rect the request resolved against. An explicit `fx`/`fy` may place `at` outside it;
+    /// delivery accepts that only while egui's actual clipped interaction rectangle still
+    /// contains the point.
+    pub rect: egui::Rect,
+    /// The point the pointer events aim at.
+    pub at: egui::Pos2,
+    /// Whether the release must still find this widget. egui attributes a click on release while a
+    /// drag may legitimately end outside the widget it started on, so only `ui.clickWidget` sets
+    /// this.
+    pub check_release: bool,
+    /// Whether the first event must find the widget visible and topmost. A hover is not harmless
+    /// when its point is clipped out of the widget or covered by a non-modal overlay: the
+    /// documented contract refuses it rather than moving the pointer at a stale place.
+    pub check_visible: bool,
+}
+
+/// The events queued for a resolved gesture, plus the widget target whose geometry must still hold
+/// when the first event and each press are injected.
+#[derive(Debug)]
+pub(crate) struct GestureOutcome {
+    pub result: Value,
+    pub target: Option<GestureTarget>,
+}
+
+impl GestureOutcome {
+    fn done(result: Value) -> Self {
+        Self { result, target: None }
+    }
+}
+
 fn push_drag(app: &mut LightcraftApp, a: egui::Pos2, b: egui::Pos2, steps: u64, m: egui::Modifiers) {
     app.synthetic.push(egui::Event::PointerMoved(a));
     app.synthetic.push(egui::Event::PointerButton { pos: a, button: egui::PointerButton::Primary, pressed: true, modifiers: m });
@@ -199,8 +241,74 @@ fn push_drag(app: &mut LightcraftApp, a: egui::Pos2, b: egui::Pos2, steps: u64, 
     app.synthetic.push(egui::Event::PointerButton { pos: b, button: egui::PointerButton::Primary, pressed: false, modifiers: m });
 }
 
-fn widget_rect(app: &LightcraftApp, id: &str) -> Option<egui::Rect> {
+pub(crate) fn widget_rect(app: &LightcraftApp, id: &str) -> Option<egui::Rect> {
     app.widgets.iter().rev().find(|(w, _)| w == id).map(|(_, r)| *r)
+}
+
+/// The real egui widget that owns automation id `id` in the latest completed pass (the last
+/// registration wins, as [`widget_rect`] does).
+pub(crate) fn widget_hit(app: &LightcraftApp, id: &str) -> Option<crate::widgets::WidgetHit> {
+    app.widget_hits.iter().rev().find(|(w, _)| w == id).map(|(_, hit)| *hit)
+}
+
+/// Whether the registered automation rectangle still owns egui's pointer hit at `at`.
+///
+/// A registration records the egui id and layer of a hover probe (or of the widget's own
+/// response), plus that response's clipped `interact_rect` in the same completed pass. This asks
+/// egui for the current areas at the point and checks:
+///
+/// - the recorded clipped rectangle still contains the point (a widget scrolled out of its panel
+///   has an empty interact rect even though its unclipped rect still contains the old point);
+/// - the top-most interactable area at the point is the recorded layer; or
+/// - the top-most area is the current modal layer and the recorded layer is below it. egui routes
+///   every point below a modal to that modal, even outside the dialog window, so leaving the press
+///   to egui is safe: the dialog consumes it or `clicked_backdrop` closes the dialog, and a
+///   background widget cannot receive it. A non-modal overlay is not the modal layer, so it must
+///   still match the target and is refused otherwise. The one exception is the explicitly
+///   blocking library-problem/launch-list window: its dim also owns the modal layer, but a
+///   background target is refused here rather than reported `ok:true` after the dim swallows the
+///   press; only controls drawn in that window's own layer pass. Same-layer overlaps are invisible
+///   to this area check; egui still delivers the press to whichever widget is top-most in that
+///   layer.
+///
+/// `interact_rect` comes from the latest completed registry, not `Context::read_response`:
+/// `raw_input_hook` runs before `begin_pass`, where `read_response` checks `this_pass` before
+/// `prev_pass` and can therefore return the pass before the one that just published the registry.
+/// This matters when clipping, scrolling or a viewport change alters the target without changing
+/// its layer.
+///
+/// In pinned egui `6d518fc`, `Response::hovered` is deliberately false while any button is down
+/// unless this is the clicked widget (`context.rs:1884-1886`, `interaction.rs:257-300`). A
+/// hover-only probe cannot use it for a click release. `Response::contains_pointer` would survive
+/// the press, but its hit-test snapshot is one frame behind the pointer move that precedes the
+/// press (`context.rs:517-548` reads `prev_pass.widgets` at `begin_pass`). The recorded clipped rect
+/// plus the current layer has no such lag.
+///
+/// This also avoids the old centre-of-an-interactive-rect heuristic: a registration may be a
+/// sub-rect of its widget's interactive response (rating stars, date cells, a checkbox's box, a
+/// profile card's star), so the interactive rect's centre need not lie in the registered rect.
+/// Disabled controls keep working as a no-op: their own probe is enabled and the injected click
+/// is ignored by egui, which is the documented `ui.clickWidget` semantics.
+pub(crate) fn widget_target_visible(ctx: &egui::Context, hit: Option<crate::widgets::WidgetHit>, at: egui::Pos2) -> bool {
+    let Some(hit) = hit else {
+        // A hand-built registry entry (tests) or painted geometry has no egui widget to own a
+        // press. Production widget registrations always record a probe or a real response.
+        return false;
+    };
+    let interact_rect = ctx.layer_transform_to_global(hit.layer_id).map_or(hit.interact_rect, |to_global| to_global * hit.interact_rect);
+    if !interact_rect.is_finite() || !interact_rect.contains(at) {
+        return false;
+    }
+    let (top_modal, allows_interaction, above_modal) =
+        ctx.memory(|memory| (memory.top_modal_layer(), memory.allows_interaction(hit.layer_id), memory.is_above_modal_layer(hit.layer_id)));
+    if crate::panels::library_problem::refuses_control_target(top_modal, hit.layer_id) {
+        return false;
+    }
+    let at_layer = ctx.layer_id_at(at);
+    if at_layer == Some(hit.layer_id) {
+        return allows_interaction;
+    }
+    top_modal == at_layer && !above_modal
 }
 
 pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
@@ -488,7 +596,7 @@ pub fn export_active(app: &mut LightcraftApp, p: &Value) -> Result<Value, String
 /// and the image rect therefore come from that pass; nothing is retargeted. A successful return
 /// has pushed the events onto `app.synthetic`; the app answers the request once the UI consumed
 /// them.
-pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, method: &str, p: &Value) -> Result<Value, String> {
+pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, method: &str, p: &Value) -> Result<GestureOutcome, String> {
     let s = |k: &str| p.get(k).and_then(Value::as_str);
     let f = |k: &str| p.get(k).and_then(Value::as_f64);
     match method {
@@ -496,11 +604,19 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
             let Some(id) = s("id") else { return Err("missing `id`".into()) };
             let Some(r) = widget_rect(app, id) else { return Err(format!("no widget `{id}` on screen (see ui.widgets)")) };
             let m = modifiers(p);
-            let at = egui::pos2(r.left() + r.width() * f("fx").unwrap_or(0.5) as f32, r.top() + r.height() * f("fy").unwrap_or(0.5) as f32);
-            if method == "ui.hoverWidget" {
+            let (fx, fy) = (f("fx").unwrap_or(0.5), f("fy").unwrap_or(0.5));
+            let at = egui::pos2(r.left() + r.width() * fx as f32, r.top() + r.height() * fy as f32);
+            if !fx.is_finite() || !fy.is_finite() || !at.is_finite() {
+                return Err(format!("{method}: fx and fy must resolve to a finite point"));
+            }
+            let hover = method == "ui.hoverWidget";
+            if hover && !widget_target_visible(ctx, widget_hit(app, id), at) {
+                return Err(format!("ui.hoverWidget: widget `{id}` has no visible interaction area at the requested point"));
+            }
+            if hover {
                 app.synthetic.push(egui::Event::PointerMoved(at));
             } else if method == "ui.clickWidget" {
-                let n = p.get("count").and_then(Value::as_u64).unwrap_or(1);
+                let n = p.get("count").and_then(Value::as_u64).unwrap_or(1).min(MAX_CLICKS);
                 let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
                 app.synthetic.push(egui::Event::PointerMoved(at));
                 for _ in 0..n {
@@ -512,15 +628,18 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
                     f("toX").map(|v| v as f32).unwrap_or(at.x + f("dx").unwrap_or(0.0) as f32),
                     f("toY").map(|v| v as f32).unwrap_or(at.y + f("dy").unwrap_or(0.0) as f32),
                 );
-                push_drag(app, at, to, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
+                push_drag(app, at, to, p.get("steps").and_then(Value::as_u64).unwrap_or(10).min(MAX_DRAG_STEPS), m);
             }
             ctx.request_repaint();
-            Ok(json!({"rect": rect_json(r)}))
+            Ok(GestureOutcome {
+                result: json!({"rect": rect_json(r)}),
+                target: Some(GestureTarget { id: id.to_string(), rect: r, at, check_release: method == "ui.clickWidget", check_visible: hover }),
+            })
         }
         "ui.move" => {
             app.synthetic.push(egui::Event::PointerMoved(egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32)));
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.click" | "ui.drag" => {
             let a = egui::pos2(f("x").unwrap_or(0.0) as f32, f("y").unwrap_or(0.0) as f32);
@@ -528,16 +647,16 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
             let button = if s("button") == Some("right") { egui::PointerButton::Secondary } else { egui::PointerButton::Primary };
             if method == "ui.drag" {
                 let b = egui::pos2(f("toX").unwrap_or(0.0) as f32, f("toY").unwrap_or(0.0) as f32);
-                push_drag(app, a, b, p.get("steps").and_then(Value::as_u64).unwrap_or(10), m);
+                push_drag(app, a, b, p.get("steps").and_then(Value::as_u64).unwrap_or(10).min(MAX_DRAG_STEPS), m);
             } else {
                 app.synthetic.push(egui::Event::PointerMoved(a));
-                for _ in 0..p.get("count").and_then(Value::as_u64).unwrap_or(1) {
+                for _ in 0..p.get("count").and_then(Value::as_u64).unwrap_or(1).min(MAX_CLICKS) {
                     app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: true, modifiers: m });
                     app.synthetic.push(egui::Event::PointerButton { pos: a, button, pressed: false, modifiers: m });
                 }
             }
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.pointer" => {
             let Some(img) = app.image_rect else { return Err("no image on screen (switch to Detail view)".into()) };
@@ -559,7 +678,7 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
                 }
             }
             ctx.request_repaint();
-            Ok(json!({"events": events.len()}))
+            Ok(GestureOutcome::done(json!({"events": events.len()})))
         }
         "ui.key" => {
             let Some(k) = s("key").and_then(key_from) else { return Err("unknown or missing `key`".into()) };
@@ -567,14 +686,34 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
             app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
             app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: false, repeat: false, modifiers: m });
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.text" => {
             app.synthetic.push(egui::Event::Text(s("text").unwrap_or("").to_string()));
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.clipboard" => {
+            // RequestPaste is a viewport command, not an event: the prompt/library input barrier
+            // cannot inspect it after the fact. Refuse the command while either barrier owns input,
+            // including a window created after this pass began resolving the gesture. Without
+            // `text` this only queues RequestPaste in egui; it is not a host-dispatch or delivery
+            // acknowledgement. egui 0.37 documents RequestPaste as asking the host to paste into
+            // the focused text edit, with no completion or correlation id. egui-winit emits a later
+            // Event::Paste only for non-empty text (or a PasteImage fallback; Wayland reads finish
+            // later), so a barrier created after the request can drop that later event; the reply
+            // below cannot promise dispatch or delivery. With `text`, the synthetic
+            // Event::Paste is filtered and canceled like other injected input.
+            let barrier = if crate::panels::notices::blocks_input(app) {
+                Some("a modal prompt")
+            } else if crate::panels::library_problem::blocks_dialog_input(app) {
+                Some("the blocking library window")
+            } else {
+                None
+            };
+            if let Some(barrier) = barrier {
+                return Err(format!("ui.clipboard: {barrier} is blocking background input"));
+            }
             if !ctx.text_edit_focused() {
                 return Err("ui.clipboard: no text field has the focus (click one first)".into());
             }
@@ -588,7 +727,7 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
                 _ => return Err("ui.clipboard: `action` is cut, copy or paste".into()),
             }
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.scroll" => {
             // Omitted keys keep the pre-0.37 request meaning; all other values are validated
@@ -621,7 +760,7 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
                 modifiers: modifiers(p),
             });
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         "ui.zoom" => {
             let Some(factor) = f("factor").map(|v| v as f32).filter(|v| v.is_finite() && *v > 0.0) else {
@@ -629,7 +768,7 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
             };
             app.synthetic.push(egui::Event::Zoom(factor));
             ctx.request_repaint();
-            Ok(Value::Null)
+            Ok(GestureOutcome::done(Value::Null))
         }
         other => Err(format!("not a synthetic-input gesture: `{other}`")),
     }

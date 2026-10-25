@@ -116,7 +116,7 @@ impl Progress {
             info
         });
         if let Some(w) = &self.widget {
-            crate::widgets::register(ui.ctx(), w.clone(), rect);
+            crate::widgets::register(ui, w.clone(), rect);
         }
         if !ui.is_rect_visible(rect) {
             return resp;

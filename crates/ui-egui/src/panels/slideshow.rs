@@ -368,7 +368,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             draw(frame.current, 1.0);
         }
     }
-    register(ui.ctx(), "slideshow:canvas", canvas);
+    register(ui, "slideshow:canvas", canvas);
     controls(app, ui, canvas, now);
 }
 

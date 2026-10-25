@@ -45,7 +45,7 @@ fn slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &str, value
         Unit::Degrees => (value, -180.0..=180.0, "°"),
     };
     let r = ui.add(egui::Slider::new(&mut v, range).suffix(suffix).max_decimals(1));
-    register(ui.ctx(), format!("slider:{id}"), r.rect);
+    register(ui, format!("slider:{id}"), r.rect);
     let value = match unit {
         Unit::Percent => v / 100.0,
         Unit::Degrees => v,
@@ -64,7 +64,7 @@ fn slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &str, value
 fn colour(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &str, value: [u8; 3]) {
     let mut c = value;
     let r = egui::color_picker::color_edit_button_srgb(ui, &mut c);
-    register(ui.ctx(), format!("button:{id}"), r.rect);
+    register(ui, format!("button:{id}"), r.rect);
     if r.changed() {
         set(app, json!({ key: c }));
     }
@@ -132,7 +132,7 @@ pub fn sections(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let active = app.session.active();
     let mut on = s.background_image.is_some();
     let r = ui.add_enabled(on || active.is_some(), egui::Checkbox::new(&mut on, crate::i18n::tr("Background image")));
-    register(ui.ctx(), "check:settings.slideshowBackgroundImage", r.rect);
+    register(ui, "check:settings.slideshowBackgroundImage", r.rect);
     if r.changed() {
         set(app, json!({"backgroundImage": if on { active.map(|a| a.0) } else { None }}));
     }
@@ -185,7 +185,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f3
     let rect = Rect::from_center_size(room.center(), vec2(fit_w, fit_h));
     let h = rect.height();
     let w = rect.width();
-    register(ui.ctx(), "slideshow:preview", rect);
+    register(ui, "slideshow:preview", rect);
     let p = ui.painter_at(room.expand(1.0));
     p.rect_stroke(rect, 0.0, Stroke::new(1.0, t.text_dim.gamma_multiply(0.5)), egui::StrokeKind::Outside);
     super::slide_titles::preview_choice(ui);

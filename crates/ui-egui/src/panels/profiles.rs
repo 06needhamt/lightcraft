@@ -76,7 +76,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         let open: bool = ui.data(|m| m.get_temp(open_id)).unwrap_or(true);
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
         crate::widgets::announce(&resp, title.to_string());
-        register(ui.ctx(), if imported { format!("profileGroup:lut:{title}") } else { format!("profileGroup:{title}") }, r);
+        register(ui, if imported { format!("profileGroup:lut:{title}") } else { format!("profileGroup:{title}") }, r);
         paint(
             ui.painter(),
             Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(16.0, 16.0)),
@@ -155,7 +155,7 @@ fn cell_ui(
     let key = if tag.is_empty() { format!("profileCell:{p_id}") } else { format!("profileCell:{tag}:{p_id}") };
     let resp = ui.interact(cell, egui::Id::unique(&key), Sense::click());
     crate::widgets::announce(&resp, p_name.to_string());
-    register(ui.ctx(), key, cell);
+    register(ui, key, cell);
     let thumb = Rect::from_min_size(cell.min, vec2(cell.width(), th));
     let s = with_profile_id(d, p_id);
     let painter = ui.painter();
@@ -178,7 +178,7 @@ fn cell_ui(
     // favourite star (always shown when set, on hover otherwise)
     let fav = app.session.profile_favorites.iter().any(|f| f == p_id);
     let star = Rect::from_center_size(pos2(thumb.right() - 13.0, thumb.top() + 13.0), vec2(20.0, 20.0));
-    register(ui.ctx(), format!("profileStar:{}{}", if tag.is_empty() { "" } else { "fav:" }, p_id), star);
+    register(ui, format!("profileStar:{}{}", if tag.is_empty() { "" } else { "fav:" }, p_id), star);
     let over_star = resp.hover_pos().is_some_and(|q| star.contains(q));
     if fav || resp.hovered() {
         painter.circle_filled(star.center(), 10.0, Color32::from_black_alpha(110));

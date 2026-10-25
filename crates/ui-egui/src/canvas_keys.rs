@@ -53,7 +53,7 @@ pub fn handle(ui: &mut Ui, key: &str, name: &str, value: String, at: Pos2) -> Ha
     ui.ctx().accesskit_node_builder(id, |node| {
         node.set_value(value);
     });
-    crate::widgets::register(ui.ctx(), format!("canvasHandle:{key}"), rect);
+    crate::widgets::register(ui, format!("canvasHandle:{key}"), rect);
     let mut out = HandleKeys::default();
     if !resp.has_focus() {
         return out;

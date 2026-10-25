@@ -257,12 +257,12 @@ pub fn contributors_ui(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         }
         ui.separator();
         let r = ui.selectable_label(!v.table, crate::i18n::tr("Grab bag"));
-        crate::widgets::register(ui.ctx(), "button:creditsGrabBag", r.rect);
+        crate::widgets::register(ui, "button:creditsGrabBag", r.rect);
         if r.clicked() {
             v.table = false;
         }
         let r = ui.selectable_label(v.table, crate::i18n::tr("Table"));
-        crate::widgets::register(ui.ctx(), "button:creditsTable", r.rect);
+        crate::widgets::register(ui, "button:creditsTable", r.rect);
         if r.clicked() {
             v.table = true;
         }

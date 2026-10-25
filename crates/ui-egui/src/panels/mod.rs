@@ -70,7 +70,7 @@ pub fn resizable_side(
     let max = (avail.width() - reserve - crate::state::MIN_PHOTO_WIDTH).clamp(limits.min, limits.max);
     let panel = if left { egui::Panel::left(id) } else { egui::Panel::right(id) };
     let r = panel.frame(frame).resizable(true).size_range(limits.min..=max).default_size(limits.clamp(width).min(max)).show(ui, add);
-    crate::widgets::register(ui.ctx(), format!("panel:{id}"), r.response.rect);
+    crate::widgets::register(ui, format!("panel:{id}"), r.response.rect);
     // egui names the edge's drag widget `<panel id>.with("__resize")`; the width is measured from
     // the panel's fixed edge to the pointer (contents wider than the panel don't count)
     if !ui.ctx().is_being_dragged(pid.with("__resize")) {
@@ -173,7 +173,7 @@ pub fn empty_state(ui: &mut egui::Ui, rect: Rect, title: &str, body: &str, actio
         let button =
             if i == 0 { egui::Button::new(label.color(egui::Color32::WHITE)).fill(t.accent) } else { egui::Button::new(label.color(t.text)) };
         let resp = ui.put(r, button);
-        crate::widgets::register(ui.ctx(), a.widget, resp.rect);
+        crate::widgets::register(ui, a.widget, resp.rect);
         if resp.clicked() {
             clicked = Some(a.command);
         }

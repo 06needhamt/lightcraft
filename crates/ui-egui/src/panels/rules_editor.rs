@@ -66,7 +66,7 @@ fn text_value(ui: &mut egui::Ui, v: &mut Value, width: f32, hint: &str, salt: &s
         other => other.to_string(),
     };
     let r = ui.add(egui::TextEdit::singleline(&mut s).hint_text(crate::i18n::tr(hint)).desired_width(width));
-    register(ui.ctx(), format!("field:{salt}"), r.rect);
+    register(ui, format!("field:{salt}"), r.rect);
     if r.changed() {
         *v = json!(s);
     }
@@ -243,7 +243,7 @@ fn field_menu(ui: &mut egui::Ui, salt: &str, field: &mut String, op: &mut String
         let mut pick = None;
         let mut item = |ui: &mut egui::Ui, id: &'static str| {
             let r = ui.selectable_label(current == id, crate::i18n::tr(field_label(id).unwrap_or(id)));
-            register(ui.ctx(), format!("ruleFieldItem:{id}:{salt}"), r.rect);
+            register(ui, format!("ruleFieldItem:{id}:{salt}"), r.rect);
             if r.clicked() {
                 pick = Some(id);
                 ui.close();
@@ -265,12 +265,12 @@ fn field_menu(ui: &mut egui::Ui, salt: &str, field: &mut String, op: &mut String
                     item(ui, id);
                 }
             });
-            register(ui.ctx(), format!("ruleFieldGroup:{group}:{salt}"), r.response.rect);
+            register(ui, format!("ruleFieldGroup:{group}:{salt}"), r.response.rect);
         }
         pick
     });
     crate::widgets::name_combo(&r.response, crate::i18n::tr("Field"));
-    register(ui.ctx(), format!("ruleField:{salt}"), r.response.rect);
+    register(ui, format!("ruleField:{salt}"), r.response.rect);
     let Some(Some(id)) = r.inner else { return };
     if field == id {
         return;
@@ -295,7 +295,7 @@ fn problem_note(ui: &mut egui::Ui, problem: Option<&Problem>, salt: &str) {
     let Some(p) = problem else { return };
     let t = Tokens::get(ui.ctx());
     let r = ui.label(RichText::new(format!("⚠ {}", crate::i18n::problem_text(p))).color(t.caution).small());
-    register(ui.ctx(), format!("ruleProblem:{salt}"), r.rect);
+    register(ui, format!("ruleProblem:{salt}"), r.rect);
 }
 
 /// Edit `rs` in place; `salt` keeps widget ids apart between groups, `path` is where `rs` sits
@@ -350,12 +350,12 @@ pub fn edit(ui: &mut egui::Ui, rs: &mut RuleSet, salt: &str, depth: usize, path:
                     let buttons = small_button_width(ui, "−") + ui.spacing().item_spacing.x + small_button_width(ui, "+");
                     ui.add_space((ui.available_width() - buttons).max(0.0));
                     let del = ui.small_button("−").on_hover_text(crate::i18n::tr("Remove this rule"));
-                    register(ui.ctx(), format!("button:ruleRemove-{rsalt}"), del.rect);
+                    register(ui, format!("button:ruleRemove-{rsalt}"), del.rect);
                     if del.clicked() {
                         remove = Some(i);
                     }
                     let add = ui.small_button("+").on_hover_text(crate::i18n::tr("Add a rule (⌥-click: a group)"));
-                    register(ui.ctx(), format!("button:ruleAdd-{rsalt}"), add.rect);
+                    register(ui, format!("button:ruleAdd-{rsalt}"), add.rect);
                     if add.clicked() {
                         let group = ui.input(|i| i.modifiers.alt) && depth < 3;
                         insert = Some((
@@ -377,7 +377,7 @@ pub fn edit(ui: &mut egui::Ui, rs: &mut RuleSet, salt: &str, depth: usize, path:
     if rs.rules.is_empty() || depth == 0 {
         ui.horizontal(|ui| {
             let add = ui.small_button(crate::i18n::tr("+ Rule"));
-            register(ui.ctx(), format!("button:ruleAddEnd-{salt}"), add.rect);
+            register(ui, format!("button:ruleAddEnd-{salt}"), add.rect);
             if add.clicked() {
                 rs.rules.push(new_rule());
             }

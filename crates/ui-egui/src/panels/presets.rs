@@ -111,7 +111,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let more = icon_button(&mut hdr, "presetMore", Icon::More, vec2(28.0, 28.0), false, true, crate::i18n::tr("More preset options"));
         egui::Popup::menu(&more).show(|ui| {
             let r = ui.checkbox(&mut app.ui.preset_thumbs, crate::i18n::tr("Show Thumbnails"));
-            register(ui.ctx(), "presetMenu:thumbnails", r.rect);
+            register(ui, "presetMenu:thumbnails", r.rect);
             ui.separator();
             if ui.button(crate::i18n::tr("Import Presets…")).clicked() {
                 let _ = app.run("file.importPresets", json!({}));
@@ -175,7 +175,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
                 crate::widgets::announce(&resp, g.to_string());
                 // outside the `presetGroup:` ids, which a user group of any name can take
-                register(ui.ctx(), if favorites { "presetFavorites".to_string() } else { format!("presetGroup:{g}") }, r);
+                register(ui, if favorites { "presetFavorites".to_string() } else { format!("presetGroup:{g}") }, r);
                 paint(
                     ui.painter(),
                     Rect::from_center_size(pos2(r.left() + 22.0, r.center().y), vec2(16.0, 16.0)),
@@ -212,10 +212,10 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_h), Sense::click());
                     crate::widgets::announce(&resp, name.clone());
                     // a starred preset is listed twice: in Favorites and in its group
-                    register(ui.ctx(), if favorites { format!("presetFavorite:{pid}") } else { format!("preset:{pid}") }, r);
+                    register(ui, if favorites { format!("presetFavorite:{pid}") } else { format!("preset:{pid}") }, r);
                     let is_last = marked.as_deref() == Some(pid.as_str());
                     if is_last {
-                        register(ui.ctx(), "presetApplied", r);
+                        register(ui, "presetApplied", r);
                         ui.painter().rect_filled(r, 0.0, t.tool_active);
                     } else if resp.hovered() {
                         ui.painter().rect_filled(r, 0.0, t.hover.gamma_multiply(0.7));

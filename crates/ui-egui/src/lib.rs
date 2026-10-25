@@ -411,6 +411,8 @@ pub struct LightcraftApp {
     pub notices: Vec<String>,
     /// Quitting was stopped to ask first: changes couldn't be saved, or tasks are running.
     pub quit_prompt: Option<QuitPrompt>,
+    /// Keyboard/focus/input state for the prompt above, including its one-frame creation barrier.
+    pub(crate) notice_input: panels::notices::PromptInput,
     /// Quit Anyway was chosen: the window may close with unsaved changes.
     pub quit_confirmed: bool,
     control_rx: Option<Receiver<ControlRequest>>,
@@ -447,10 +449,20 @@ pub struct LightcraftApp {
     synthetic_in_flight: bool,
     /// Completed, nondiscarded root UI passes; host frames, not layout passes.
     ui_passes: u64,
+    /// Test-only: the library barrier's per-pass decisions, so a first-return test can observe the
+    /// dedicated shield/discard pass and the following background pass rather than only its input
+    /// effects (which the global shortcut guard also hides).
+    #[cfg(test)]
+    pub(crate) library_passes: Vec<panels::library_problem::LibraryPass>,
     /// Offscreen context for headless screenshots of the windowed app.
     shadow: Option<headless::HeadlessView>,
     /// Synthetic input events (from the control channel) injected one step per frame.
     pub synthetic: Vec<egui::Event>,
+    /// A gesture was canceled after its synthetic pointer press reached egui. The next
+    /// [`Self::raw_input_hook`] cancels that press before egui's next input pass, without a
+    /// `PointerMoved` (which can start a drag) or a `PointerButton` release (which can become a
+    /// click).
+    pointer_cleanup: bool,
     /// Files the control channel (`ui.dropFiles`) holds over the window: every frame reports them
     /// as hovered, as the OS does while a drag is over the window.
     drop_hover: Vec<String>,
@@ -460,10 +472,15 @@ pub struct LightcraftApp {
     pub copied: Option<String>,
     /// Native file dialogs up for commands (`pick`): each command runs again when its closes.
     pub(crate) pending_picks: Vec<pick::Pending>,
-    /// Modifiers announced for synthetic input (held from a button down to its release).
+    /// Modifiers announced for synthetic input (held from a button down to its release). This is
+    /// only the app's synthetic ownership; the real host state is tracked separately in
+    /// `host_mods`, so a canceled synthetic gesture never clears a physically held key.
     synthetic_mods: egui::Modifiers,
     /// Clear `synthetic_mods` on the next frame.
     synthetic_mods_release: bool,
+    /// The host's last reported physical modifier state (`ModifiersChanged`), restored after a
+    /// synthetic gesture releases instead of unconditionally announcing `NONE`.
+    host_mods: egui::Modifiers,
     styled: bool,
     /// The language the installed fonts were built for: the CJK fallback order follows the UI
     /// language's script, so switching language reinstalls them.
@@ -479,8 +496,14 @@ pub struct LightcraftApp {
     /// drawn last (`ui.inspect` → `scroll`).
     pub grid_scroll: Option<f32>,
     pub film_scroll: Option<f32>,
-    /// Widget registry from the last frame (automation ids → rects).
+    /// Widget registry from the last completed, nondiscarded frame (automation ids → rects).
     pub widgets: Vec<(String, egui::Rect)>,
+    /// Egui hit owners for [`Self::widgets`] from the same completed pass. A press is delivered
+    /// only when this id still owns egui's pointer hit (see `control::widget_target_visible`).
+    pub widget_hits: Vec<(String, widgets::WidgetHit)>,
+    /// Registry collected by the pass being laid out, published only if that pass completes.
+    next_widgets: Vec<(String, egui::Rect)>,
+    next_widget_hits: Vec<(String, widgets::WidgetHit)>,
     /// In-progress on-canvas gesture (brush stroke points, gradient drag…).
     pub gesture: Option<panels::detail::Gesture>,
     /// The brush stroke being painted, as drawn on the photo until it's committed (issue #517).
@@ -560,6 +583,8 @@ pub struct LightcraftApp {
     /// The library failed to open at launch: the blocking window, then the temporary-session
     /// banner (issue #100). Cleared once a library opens.
     pub library_problem: Option<panels::library_problem::LibraryProblem>,
+    /// First-frame focus/input state for a newly shown blocking library window.
+    pub(crate) library_window_input: panels::library_problem::WindowBarrier,
     /// Alt/Option held as the window first appears offers the recent libraries once (issue
     /// #1290); the desktop host arms it when nothing chose the library already.
     pub alt_asks_for_library: bool,
@@ -589,6 +614,7 @@ impl LightcraftApp {
             headless_host: false,
             notices: vec![],
             quit_prompt: None,
+            notice_input: Default::default(),
             quit_confirmed: false,
             control_rx: None,
             pending_screenshots: vec![],
@@ -606,14 +632,18 @@ impl LightcraftApp {
             dropped_files: vec![],
             synthetic_in_flight: false,
             ui_passes: 0,
+            #[cfg(test)]
+            library_passes: vec![],
             shadow: None,
             synthetic: vec![],
+            pointer_cleanup: false,
             drop_hover: vec![],
             drop_pending: vec![],
             copied: None,
             pending_picks: vec![],
             synthetic_mods: egui::Modifiers::NONE,
             synthetic_mods_release: false,
+            host_mods: egui::Modifiers::NONE,
             styled: false,
             font_language: i18n::Locale::En,
             chinese_font: None,
@@ -624,6 +654,9 @@ impl LightcraftApp {
             grid_scroll: None,
             film_scroll: None,
             widgets: vec![],
+            widget_hits: vec![],
+            next_widgets: vec![],
+            next_widget_hits: vec![],
             gesture: None,
             brush_live: None,
             loupe_shown: None,
@@ -661,6 +694,7 @@ impl LightcraftApp {
             screen_profile: None,
             screen_profile_read: None,
             library_problem: None,
+            library_window_input: Default::default(),
             alt_asks_for_library: false,
             recent_checks: Default::default(),
             activity_expanded: false,
@@ -1206,6 +1240,8 @@ impl LightcraftApp {
             resolved_pass: None,
             remaining_events: 0,
             started: false,
+            target: None,
+            pressed: None,
             result: Value::Null,
         });
         ctx.request_repaint();
@@ -1223,23 +1259,18 @@ impl LightcraftApp {
         let epoch = self.layout_epoch;
         let mut gestures = std::mem::take(&mut self.pending_gestures);
         let mut keep = Vec::with_capacity(gestures.len());
-        let mut timed_out = false;
         for mut gesture in gestures.drain(..) {
+            if gesture.resolved_pass.is_some() {
+                // Already handed to the delivery queue; `reply_delivered_gestures` (or
+                // `expire_gestures`) owns its deadline and must remove its unsent events too.
+                keep.push(gesture);
+                continue;
+            }
             if now > gesture.deadline_ms {
+                // Only this request failed to get a fresh layout. A later gesture has its own
+                // deadline and must not be canceled with it.
                 let _ =
                     gesture.reply.send(serde_json::json!({"ok": false, "error": format!("{} timed out before the UI consumed it", gesture.method)}));
-                timed_out = true;
-                continue;
-            }
-            if timed_out {
-                let _ = gesture.reply.send(serde_json::json!({
-                    "ok": false,
-                    "error": "control gesture canceled: another request timed out before the UI consumed it",
-                }));
-                continue;
-            }
-            if gesture.resolved_pass.is_some() {
-                keep.push(gesture);
                 continue;
             }
             if epoch <= gesture.admitted_epoch {
@@ -1255,8 +1286,9 @@ impl LightcraftApp {
             }
             let before = self.synthetic.len();
             match control::gesture_events(self, ctx, &gesture.method, &gesture.params) {
-                Ok(result) => {
-                    gesture.result = result;
+                Ok(outcome) => {
+                    gesture.target = outcome.target;
+                    gesture.result = outcome.result;
                     gesture.resolved_pass = Some(self.ui_passes);
                     gesture.remaining_events = self.synthetic.len().saturating_sub(before);
                     gesture.started = gesture.remaining_events == 0;
@@ -1268,17 +1300,6 @@ impl LightcraftApp {
             }
         }
         self.pending_gestures = keep;
-        if timed_out {
-            // Fail closed: an error must not be followed by a late synthetic click.
-            self.synthetic.clear();
-            let remaining = std::mem::take(&mut self.pending_gestures);
-            for gesture in remaining {
-                let _ = gesture.reply.send(serde_json::json!({
-                    "ok": false,
-                    "error": "control gesture canceled: another request timed out before the UI consumed it",
-                }));
-            }
-        }
     }
 
     /// Answer gestures whose last synthetic event a completed, nondiscarded UI pass consumed.
@@ -1294,16 +1315,21 @@ impl LightcraftApp {
             return;
         }
         let now = self.tick_now_ms();
-        if self.pending_gestures.iter().any(|g| g.resolved_pass.is_some() && now > g.deadline_ms) {
-            self.synthetic.clear();
-            let gestures = std::mem::take(&mut self.pending_gestures);
-            for gesture in gestures {
-                let _ = gesture.reply.send(serde_json::json!({
-                    "ok": false,
-                    "error": format!("{} timed out before the UI consumed its last event", gesture.method),
-                }));
+        // Cancel only the gestures that actually stalled: their unsent events are at the front of
+        // the queue, and gestures queued behind them are independent input that must survive.
+        let mut i = 0;
+        while i < self.pending_gestures.len() {
+            if self.pending_gestures[i].resolved_pass.is_none() || now <= self.pending_gestures[i].deadline_ms {
+                i += 1;
+                continue;
             }
-            return;
+            let at_head = self.head_gesture() == Some(i);
+            let gesture = self.pending_gestures.remove(i);
+            self.cancel_gesture_events(&gesture, at_head);
+            let _ = gesture.reply.send(serde_json::json!({
+                "ok": false,
+                "error": format!("{} timed out before the UI consumed its last event", gesture.method),
+            }));
         }
         if !self.synthetic.is_empty() || self.synthetic_in_flight {
             return;
@@ -1317,6 +1343,15 @@ impl LightcraftApp {
             };
             if self.ui_passes <= resolved {
                 keep.push(gesture);
+                continue;
+            }
+            if gesture.remaining_events > 0 {
+                // A defensive queue reset (a non-head gesture owned unsent events) dropped this
+                // batch. It must not become an `ok: true` for input no panel ever saw.
+                let _ = gesture.reply.send(serde_json::json!({
+                    "ok": false,
+                    "error": format!("{} canceled: its queued input was dropped before delivery", gesture.method),
+                }));
                 continue;
             }
             let result = std::mem::take(&mut gesture.result);
@@ -1335,29 +1370,183 @@ impl LightcraftApp {
     /// passes and may change what an automation id or a photo click means; fail closed instead of
     /// delivering it against the new state.
     ///
-    /// Only the gesture at the head of the queue, and only before its first batch, is checked:
-    /// later batches of the same gesture may see its own partial effect (the first click of a
-    /// double click selects the photo the second one opens), and a second, concurrently queued
-    /// gesture is checked when its events reach the head.
-    fn drop_gestures_stale_before_injection(&mut self) -> bool {
+    /// A widget gesture also has to keep aiming at the requested widget. egui attributes a click
+    /// to the widget under the press point in the *previous completed pass*, while the control
+    /// batch spans several host frames (a move, then press, then release). Recheck the target
+    /// before the first event and before every press; if it moved or disappeared, cancel this
+    /// gesture with an error instead of clicking whatever is now at those coordinates.
+    ///
+    /// Only the gesture at the head of the queue is checked, and later batches of the same gesture
+    /// may see its own partial effect (the first click of a double click selects the photo the
+    /// second one opens). A second, concurrently queued gesture is checked when its events reach
+    /// the head.
+    fn drop_gestures_stale_before_injection(&mut self, ctx: &egui::Context) -> bool {
         let Some(head) = self.head_gesture() else { return false };
-        let gesture = &self.pending_gestures[head];
-        if gesture.started || gesture.frame == self.gesture_frame() {
+        let first_batch = !self.pending_gestures[head].started;
+        if first_batch && self.pending_gestures[head].frame != self.gesture_frame() {
+            let gestures = std::mem::take(&mut self.pending_gestures);
+            for gesture in gestures {
+                if gesture.resolved_pass.is_none() {
+                    self.pending_gestures.push(gesture);
+                } else {
+                    if gesture.pressed.is_some() {
+                        self.queue_pointer_cleanup();
+                    }
+                    let _ = gesture.reply.send(serde_json::json!({
+                        "ok": false,
+                        "error": format!("{} canceled: the view, document, dialog or panel layout changed before delivery", gesture.method),
+                    }));
+                }
+            }
+            self.synthetic.clear();
+            return true;
+        }
+        let Some(target) = self.pending_gestures[head].target.clone() else { return false };
+        let press_next = matches!(self.synthetic.first(), Some(egui::Event::PointerButton { pressed: true, .. }));
+        let release_next = matches!(self.synthetic.first(), Some(egui::Event::PointerButton { pressed: false, .. }));
+        // A drag legitimately ends outside the widget it started on; only a click must still find
+        // its target at the release that egui attributes the click to. A hover must still find a
+        // visible widget for its single pointer move.
+        let check_release = release_next && target.check_release;
+        let check_visible = first_batch && target.check_visible;
+        if !first_batch && !press_next && !check_release && !check_visible {
             return false;
         }
-        let gestures = std::mem::take(&mut self.pending_gestures);
-        for gesture in gestures {
-            if gesture.resolved_pass.is_none() {
-                self.pending_gestures.push(gesture);
-            } else {
+        let latest = control::widget_rect(self, &target.id);
+        let latest_hit = control::widget_hit(self, &target.id);
+        // A press must go to the widget that owns the point. A click's release must too (a drag
+        // may legitimately end outside the widget it started on), so an overlay that appears
+        // between press and release cancels the click before the release rather than activating it.
+        // A hover's single move must also still find the widget visible: the documented contract
+        // rejects a clipped or newly covered target instead of moving the pointer at stale coordinates.
+        let must_own = press_next || (release_next && target.check_release) || check_visible;
+        // A quit prompt or settings notice owns input even before its Foreground areas have
+        // settled (egui's first layout pass is non-interactable), and even when a control request
+        // is resolved against the registry of that first pass. Only the prompt's own buttons pass.
+        let notice_ok = !must_own || crate::panels::notices::allows_target(self, latest_hit);
+        let still_aimed = latest.is_some_and(|rect| {
+            // A changed widget cancels any gesture before its first event. Owned presses, click
+            // releases and hovers must also be inside egui's clipped, visible part and be the
+            // topmost widget hit: a target scrolled out of its panel, or one under a non-modal
+            // overlay, must not be pressed or hovered at stale coordinates.
+            let geometry_ok = rect == target.rect || rect.contains(target.at);
+            geometry_ok && notice_ok && (!must_own || control::widget_target_visible(ctx, latest_hit, target.at))
+        });
+        if still_aimed {
+            return false;
+        }
+        let outside_registered = !target.rect.contains(target.at);
+        let reason = match latest {
+            None => "disappeared",
+            Some(rect) if !(rect == target.rect || rect.contains(target.at)) => "moved",
+            Some(_) if outside_registered => "has no visible interaction area at the requested point",
+            Some(_) => "is no longer visible",
+        };
+        let phase = if first_batch {
+            "its first event"
+        } else if check_release {
+            "its release"
+        } else {
+            "its press"
+        };
+        // Only this gesture's unsent events are removed: they are at the front of the queue, and
+        // gestures resolved after it are checked in turn when they reach the head. Failing the
+        // whole click would also discard unrelated input.
+        let gesture = self.pending_gestures.remove(head);
+        self.cancel_gesture_events(&gesture, true);
+        let _ = gesture.reply.send(serde_json::json!({
+            "ok": false,
+            "error": format!("{} canceled: widget `{}` {reason} before {phase}; nothing was retargeted", gesture.method, target.id),
+        }));
+        true
+    }
+
+    /// Remove a canceled gesture's unsent events from the front of the queue and release a pointer
+    /// button it left down. Callers cancel in queue order, so the events removed are exactly this
+    /// gesture's unsent prefix; a later gesture's events stay queued.
+    fn cancel_gesture_events(&mut self, gesture: &PendingGesture, at_head: bool) {
+        if at_head {
+            let unsent = gesture.remaining_events.min(self.synthetic.len());
+            self.synthetic.drain(..unsent);
+        } else if gesture.remaining_events > 0 {
+            // The queue order makes only the head own unsent events. If a caller ever breaks that
+            // invariant, fail safe: stale synthetic input must not reach an unrelated widget, even
+            // at the cost of dropping the rest of this batch instead of panicking or guessing a
+            // prefix. `reply_delivered_gestures` fails any gesture whose events disappeared this
+            // way instead of reporting a false success.
+            log::warn!("canceled non-head gesture still owned {} unsent synthetic events; dropping the queue", gesture.remaining_events);
+            self.synthetic.clear();
+            self.synthetic_in_flight = false;
+        }
+        if gesture.pressed.is_some() {
+            self.queue_pointer_cleanup();
+        }
+    }
+
+    /// Cancel every synthetic gesture that a newly shown prompt or blocking library window makes
+    /// unsafe.
+    ///
+    /// A gesture whose input is still queued must not be delivered under the barrier or later when
+    /// it is gone. A gesture whose press already reached egui must be released without a click. A
+    /// gesture that already delivered all its events may still complete its reply: the barrier may
+    /// well be its own result (e.g. a key that opened the quit prompt). `all` is for a batch already
+    /// injected this host frame before the barrier was discovered after `raw_input_hook`: the
+    /// barrier filter drops it before any panel sees it, so even a fully injected gesture must fail
+    /// rather than report a successful delivery.
+    fn cancel_gestures_for_barrier(&mut self, all: bool, reason: &str) {
+        // All not-yet-injected events belong to the queue's head, one gesture at a time. Cancel
+        // them in order so only that gesture's unsent prefix is removed.
+        while let Some(head) = self.head_gesture() {
+            let gesture = self.pending_gestures.remove(head);
+            self.cancel_gesture_events(&gesture, true);
+            let _ = gesture.reply.send(serde_json::json!({
+                "ok": false,
+                "error": format!("{} canceled: {reason} before its input was delivered", gesture.method),
+            }));
+        }
+        let mut i = 0;
+        while i < self.pending_gestures.len() {
+            if all || self.pending_gestures[i].resolved_pass.is_none() || self.pending_gestures[i].pressed.is_some() {
+                let gesture = self.pending_gestures.remove(i);
+                self.cancel_gesture_events(&gesture, false);
                 let _ = gesture.reply.send(serde_json::json!({
                     "ok": false,
-                    "error": format!("{} canceled: the view, document, dialog or panel layout changed before delivery", gesture.method),
+                    "error": format!("{} canceled: {reason} before its input was delivered", gesture.method),
                 }));
+            } else {
+                i += 1;
             }
         }
-        self.synthetic.clear();
-        true
+    }
+
+    /// Cancel a press that reached egui without making it a click or starting a drag. The reset
+    /// itself happens before egui's next input pass in [`Self::raw_input_hook`], where replacing
+    /// the pointer state and stopping the drag is safe (the same approach as the sibling
+    /// SoundCraft/VectorCraft apps). No pointer movement is injected: moving beyond
+    /// `max_click_dist` suppresses a click but can also start a drag on a slider or curve.
+    fn queue_pointer_cleanup(&mut self) {
+        self.pointer_cleanup = true;
+    }
+
+    /// Apply a queued pointer cancellation before egui processes the next input pass.
+    fn apply_pointer_cleanup(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if !std::mem::take(&mut self.pointer_cleanup) {
+            return;
+        }
+        ctx.input_mut(|input| input.pointer = egui::PointerState::default());
+        ctx.stop_dragging();
+        if self.synthetic_mods != egui::Modifiers::NONE {
+            // The cleanup removes only the app's synthetic modifiers, never a real host change.
+            // A host `ModifiersChanged` in this same raw batch is already authoritative and was
+            // recorded before this call; otherwise restore the host's last known state (which may
+            // be a physically held Shift), rather than clearing it unconditionally with NONE.
+            let host_changed = raw.events.iter().any(|event| matches!(event, egui::Event::ModifiersChanged(_)));
+            self.synthetic_mods = egui::Modifiers::NONE;
+            if !host_changed {
+                raw.events.push(egui::Event::ModifiersChanged(self.host_mods));
+            }
+        }
+        self.synthetic_mods_release = false;
     }
 
     /// Fail pending gestures at the monotonic deadline even when no UI pass runs (a hidden window
@@ -1367,13 +1556,20 @@ impl LightcraftApp {
             return;
         }
         let now = self.tick_now_ms();
-        if self.pending_gestures.iter().any(|gesture| now > gesture.deadline_ms) {
-            self.synthetic.clear();
-            let gestures = std::mem::take(&mut self.pending_gestures);
-            for gesture in gestures {
-                let _ =
-                    gesture.reply.send(serde_json::json!({"ok": false, "error": format!("{} timed out before the UI consumed it", gesture.method)}));
+        if !self.pending_gestures.iter().any(|gesture| now > gesture.deadline_ms) {
+            return;
+        }
+        // Cancel exactly the stalled requests, in queue order, so a later gesture's input survives.
+        let mut i = 0;
+        while i < self.pending_gestures.len() {
+            if now <= self.pending_gestures[i].deadline_ms {
+                i += 1;
+                continue;
             }
+            let at_head = self.head_gesture() == Some(i);
+            let gesture = self.pending_gestures.remove(i);
+            self.cancel_gesture_events(&gesture, at_head);
+            let _ = gesture.reply.send(serde_json::json!({"ok": false, "error": format!("{} timed out before the UI consumed it", gesture.method)}));
         }
     }
 
@@ -1745,7 +1941,7 @@ impl LightcraftApp {
         let now = self.tick_now();
         self.drain_control(ctx);
         self.apply_settings(ctx);
-        if !self.synthetic.is_empty() {
+        if self.queued_input_needs_repaint() {
             ctx.request_repaint();
         }
         self.renderer.poll(ctx, &mut self.session);
@@ -1871,9 +2067,17 @@ impl LightcraftApp {
     /// `RequestPaintWhileHidden`; its fallback and timeout keep running from `logic`.
     fn needs_ui_pass_while_hidden(&self) -> bool {
         !self.pending_gestures.is_empty()
+            || self.pointer_cleanup
             || self.pending_screenshots.iter().any(|shot| shot.sent_at_ms.is_none())
             || !self.synthetic.is_empty()
             || self.synthetic_in_flight
+    }
+
+    /// Queued synthetic input, including a queued pointer cancellation that is not part of
+    /// `synthetic`, needs the next visible frame even when an earlier stall left the synthetic
+    /// queue empty.
+    fn queued_input_needs_repaint(&self) -> bool {
+        !self.synthetic.is_empty() || self.pointer_cleanup
     }
 
     /// Input, layout and setup for a known UI phase: at most once per host frame, and never from a
@@ -1883,6 +2087,15 @@ impl LightcraftApp {
         if ctx.current_pass_index() != 0 {
             return;
         }
+        // A prompt owns the keyboard and focus. A notice may have been added by this frame's logic
+        // after `raw_input_hook`; capture its Tab/Enter/Space/Escape and drop everything else
+        // before any panel, focused control or shortcut reads the input. A new prompt gets a
+        // shielding pass whose background is not drawn at all (see `draw_window`).
+        let batch_in_flight = self.synthetic_in_flight;
+        if panels::notices::prepare_ui_pass(self, ctx) {
+            self.cancel_gestures_for_barrier(batch_in_flight, "a modal prompt appeared");
+        }
+        panels::library_problem::prepare_ui_pass(self, ctx, batch_in_flight);
         let now = self.tick_now();
         // the last pass's time is fine here: this is a UI phase, not a hidden tick
         let t = ctx.input(|i| i.time);
@@ -1893,7 +2106,11 @@ impl LightcraftApp {
         self.last_time = t;
         panels::denoise::pump_ui_input(self, ctx, now);
         panels::faces::pump_ui_input(self, ctx, now);
-        self.import_dropped_files(ctx);
+        // A prompt owns the library too: files dropped while it is up wait in the queue and are
+        // imported on the first UI pass after it goes away, never behind it.
+        if !panels::notices::blocks_input(self) {
+            self.import_dropped_files(ctx);
+        }
         self.check_external_editor(ctx);
         // Recent-library checks and launch-list keys read focus/time/keys: they belong to the UI
         // phase, not the hidden-capable `logic` tick (plan §4.5 / migration input contract).
@@ -2084,7 +2301,7 @@ impl LightcraftApp {
     /// The hook also runs before a hidden logic-only tick, so it injects at most one batch and
     /// keeps that batch in flight until a completed UI pass consumed it. It never injects while
     /// the fonts are not installed (the pass would draw nothing and the events would be lost).
-    pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
+    pub fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         let file = |p: &String| (!p.is_empty()).then(|| std::path::PathBuf::from(p));
         if !self.drop_pending.is_empty() {
             raw.dropped_files = std::mem::take(&mut self.drop_pending)
@@ -2097,16 +2314,50 @@ impl LightcraftApp {
         }
         // Queue after injecting, so a `ui.dropFiles` request is consumed exactly once by the UI phase.
         self.queue_dropped_files(raw);
+        // Track the real host modifier state separately from the app's synthetic ownership. A host
+        // change means the host now owns the modifier state: relinquish any synthetic claim and do
+        // not later synthesise a release for a key that is physically held.
+        if let Some(host_mods) = raw.events.iter().rev().find_map(|event| match event {
+            egui::Event::ModifiersChanged(modifiers) => Some(*modifiers),
+            _ => None,
+        }) {
+            self.host_mods = host_mods;
+            self.synthetic_mods = egui::Modifiers::NONE;
+            self.synthetic_mods_release = false;
+        }
+        // A prompt owns all input. On its first host frame this also removes pointer/touch input
+        // before egui computes its hit test; later frames keep only key releases, the prompt's own
+        // keys, and AccessKit actions targeted at a prompt button. See `notices::filter_raw_input`.
+        let batch_in_flight = self.synthetic_in_flight;
+        if crate::panels::notices::prepare_raw_input(self, ctx, raw) {
+            // A prompt appearing during a synthetic drag must abort the drag, not let its remaining
+            // move/release events act under the prompt or after it is dismissed. If a whole batch
+            // was already injected, it is unsafe as well: this frame's prompt filter drops it
+            // before a panel sees it, so it must not report a successful delivery.
+            self.cancel_gestures_for_barrier(batch_in_flight, "a modal prompt appeared");
+            self.queue_pointer_cleanup();
+        }
+        // Enforce the stall deadline before injecting another event: a request that expired during
+        // a long frame gap must not get one more event on the frame that resumes.
+        self.expire_gestures();
+        // A canceled press is released by resetting egui's pointer state before its next input
+        // pass, even while another batch is in flight or the fonts are not ready, so the pointer
+        // cannot stay down. No move/release event is injected: either could start a drag or
+        // become a click on the widget being canceled.
+        self.apply_pointer_cleanup(ctx, raw);
         if !self.fonts_ready || self.synthetic_in_flight {
             return;
         }
-        if self.drop_gestures_stale_before_injection() {
+        if self.drop_gestures_stale_before_injection(ctx) {
+            // The stale check can cancel the head gesture while its press is already down.
+            self.apply_pointer_cleanup(ctx, raw);
             return;
         }
-        // the frame after a synthetic release / key: modifiers back up
+        // the frame after a synthetic release / key: restore the host's physical modifiers, not
+        // necessarily NONE (Shift may still be held while a synthetic Alt gesture is released)
         if std::mem::take(&mut self.synthetic_mods_release) && self.synthetic_mods != egui::Modifiers::NONE {
             self.synthetic_mods = egui::Modifiers::NONE;
-            raw.events.push(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
+            raw.events.push(egui::Event::ModifiersChanged(self.host_mods));
         }
         if self.synthetic.is_empty() {
             return;
@@ -2135,11 +2386,47 @@ impl LightcraftApp {
             }
             self.synthetic_mods_release = ends;
         }
-        raw.events.extend(self.synthetic.drain(..n));
-        if let Some(head) = self.head_gesture() {
+        let blocked_by_prompt = self.synthetic[..n].iter().any(|event| !crate::panels::notices::prompt_allows_event(self, event));
+        let head = self.head_gesture();
+        if let Some(head) = head {
             let gesture = &mut self.pending_gestures[head];
+            for event in &self.synthetic[..n] {
+                match event {
+                    egui::Event::PointerButton { button, pressed: true, .. } => {
+                        gesture.pressed = Some(InjectedPress { button: *button });
+                    }
+                    egui::Event::PointerButton { button, pressed: false, .. }
+                        if gesture.pressed.as_ref().is_some_and(|press| press.button == *button) =>
+                    {
+                        gesture.pressed = None;
+                    }
+                    _ => {}
+                }
+            }
             gesture.started = true;
             gesture.remaining_events = gesture.remaining_events.saturating_sub(n);
+        }
+        raw.events.extend(self.synthetic.drain(..n));
+        // The same barrier applies after injection: only the prompt's own keys and targeted
+        // AccessKit actions survive; host input and `ui.text`/clipboard never reach the background.
+        crate::panels::notices::filter_raw_input(self, raw);
+        if blocked_by_prompt && let Some(index) = head {
+            // A settled prompt is already laid out, so this is not the prompt-creation-cancels-all
+            // path: only the gesture whose batch the barrier removed fails. Allowed prompt keys,
+            // pointer input and targeted AccessKit actions still report a successful delivery.
+            let gesture = self.pending_gestures.remove(index);
+            self.cancel_gesture_events(&gesture, true);
+            let _ = gesture.reply.send(serde_json::json!({
+                "ok": false,
+                "error": format!("{} canceled: the open modal prompt blocked this input", gesture.method),
+            }));
+        }
+        // The 5 s deadline is a delivery-stall limit, not a limit on a gesture's frame count: a
+        // drag feeds one event per host frame, so every batch that the app consumes proves the UI
+        // is alive and restarts the clock for the whole queue.
+        let now = self.tick_now_ms();
+        for gesture in &mut self.pending_gestures {
+            gesture.deadline_ms = now + GESTURE_TIMEOUT_MS;
         }
         self.synthetic_in_flight = true;
     }
@@ -2252,19 +2539,65 @@ impl LightcraftApp {
         // bind to and a control gesture may resolve against.
         self.synthetic_in_flight = false;
         if ctx.will_discard() {
+            self.next_widgets.clear();
+            self.next_widget_hits.clear();
             return;
         }
+        self.widgets = std::mem::take(&mut self.next_widgets);
+        self.widget_hits = std::mem::take(&mut self.next_widget_hits);
+        panels::notices::finish_ui_pass(self, ctx);
+        panels::library_problem::finish_ui_pass(self, ctx);
         self.ui_passes = self.ui_passes.wrapping_add(1);
         self.layout_epoch = self.layout_epoch.wrapping_add(1);
         self.resolve_pending_gestures(ctx);
         self.reply_delivered_gestures();
+        if self.pointer_cleanup {
+            // A canceled press may be discovered by a timeout after the synthetic queue emptied;
+            // nothing else may ask for the frame that applies its cancellation.
+            ctx.request_repaint();
+        }
     }
 
     /// Presentation only: the window's panels, dialogs and overlays.
     fn draw_window(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
-        panels::dialogs::prepare(self, ui);
         let t0 = monotonic_ms();
+        panels::library_problem::begin_draw(self);
+        // A command or shortcut drawn before this can create the window after `ui_pass`; catch it
+        // here before any panel draws with the still-focused background text field.
+        let batch_in_flight = self.synthetic_in_flight;
+        panels::library_problem::prepare_ui_pass(self, &ctx, batch_in_flight);
+        // A newly shown blocking library window gets the same barrier as a prompt: its first Area
+        // layout is non-interactable and hit testing still uses the previous pass, so background
+        // panels (and a focused text field) must not draw in that pass.
+        if panels::library_problem::shield_pass(self, &ctx) {
+            #[cfg(test)]
+            self.library_passes.push(panels::library_problem::LibraryPass::Shield);
+            panels::library_problem::show(self, &ctx, false);
+            (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
+            ctx.request_discard("library problem: shield the window's creation frame");
+            self.end_frame(&ctx, t0);
+            return;
+        }
+        // A newly shown prompt gets one pass with no background. egui's first Area layout is
+        // non-interactable and its hit test uses the previous pass, so drawing panels here would
+        // let a pointer press/release in the prompt's creation frame act underneath it. `ui()` then
+        // reruns this pass with empty raw input, where the settled prompt and the full window draw
+        // together. This is a state/input-routing barrier, not a wholesale input disable: once
+        // settled, raw pointer input still reaches the prompt backdrop (a no-op) or its buttons.
+        if panels::notices::shield_pass(self, &ctx) {
+            panels::notices::show(self, &ctx);
+            (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
+            ctx.request_discard("notice: shield the prompt's creation frame");
+            self.end_frame(&ctx, t0);
+            return;
+        }
+        #[cfg(test)]
+        self.library_passes.push(panels::library_problem::LibraryPass::Background);
+        panels::dialogs::prepare(self, ui);
+        // Freeze this frame's notice barrier before `notices::show` can dismiss a prompt: the same
+        // click or key must never be acted on again by the dialog drawn after it.
+        let notice_blocks = panels::notices::blocks_input(self);
         if std::mem::take(&mut self.ui.quit) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -2277,12 +2610,23 @@ impl LightcraftApp {
                 .frame(egui::Frame::NONE.fill(egui::Color32::BLACK))
                 .show(ui, |ui| if self.ui.slideshow.is_some() { panels::slideshow::show(self, ui) } else { panels::detail::show(self, ui) });
             panels::second::show(self, &ctx);
+            if notice_blocks {
+                panels::notices::restore_prompt_pointer(self, &ctx);
+            }
             panels::notices::show(self, &ctx);
-            panels::dialogs::show(self, &ctx);
-            panels::library_problem::show(self, &ctx);
+            if notice_blocks {
+                panels::notices::hide_background_pointer(&ctx);
+            }
+            panels::dialogs::show(self, &ctx, notice_blocks);
+            panels::library_problem::show(self, &ctx, notice_blocks);
             panels::toast(self, &ctx);
             drop_overlay::show(self, &ctx);
-            self.widgets = widgets::take_registry(&ctx);
+            if notice_blocks {
+                // Keep the real press/release state for the next pass: an ordinary click spans
+                // host frames, and resetting it above must only hide it from this pass's dialogs.
+                panels::notices::restore_prompt_pointer(self, &ctx);
+            }
+            (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
             self.end_frame(&ctx, t0);
             return;
         }
@@ -2296,9 +2640,15 @@ impl LightcraftApp {
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(chrome)).show(ui, |ui| docking::show(self, ui));
         self.lights_out(&ctx);
         panels::second::show(self, &ctx);
+        if notice_blocks {
+            panels::notices::restore_prompt_pointer(self, &ctx);
+        }
         panels::notices::show(self, &ctx);
-        panels::dialogs::show(self, &ctx);
-        panels::library_problem::show(self, &ctx);
+        if notice_blocks {
+            panels::notices::hide_background_pointer(&ctx);
+        }
+        panels::dialogs::show(self, &ctx, notice_blocks);
+        panels::library_problem::show(self, &ctx, notice_blocks);
         export_task::poll(self, &ctx);
         slideshow_export::poll(self, &ctx);
         panels::activity::show(self, &ctx);
@@ -2310,7 +2660,12 @@ impl LightcraftApp {
         panels::keyword_list::drag_feedback(self, &ctx);
         panels::toast(self, &ctx);
         drop_overlay::show(self, &ctx);
-        self.widgets = widgets::take_registry(&ctx);
+        if notice_blocks {
+            // Keep the real press/release state for the next pass: an ordinary click spans host
+            // frames, and resetting it above must only hide it from this pass's dialogs.
+            panels::notices::restore_prompt_pointer(self, &ctx);
+        }
+        (self.next_widgets, self.next_widget_hits) = widgets::take_registries(&ctx);
         self.text_focus = ctx.egui_wants_keyboard_input();
         self.end_frame(&ctx, t0);
     }
@@ -2325,6 +2680,10 @@ const SCREENSHOT_FALLBACK_MS: f64 = 2000.0;
 const MAX_PENDING_SHOTS: usize = 4;
 /// Bytes one screenshot image may use.
 const MAX_SHOT_BYTES: usize = 128 * 1024 * 1024;
+/// Largest RGBA surface that fits [`MAX_SHOT_BYTES`], checked with the viewport dimensions before
+/// layout. The CPU rasterizer's own `softpaint::MAX_IMAGE_PIXELS` may be larger; a snapshot that
+/// cannot be captured must be rejected up front rather than after admission.
+pub(crate) const MAX_SHOT_PIXELS: usize = MAX_SHOT_BYTES / std::mem::size_of::<egui::Color32>();
 /// Bytes all pending/completed screenshots may reserve together.
 const MAX_SHOT_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 /// Slack for PNG framing and deflate overhead while encoding one screenshot. zlib can exceed the
@@ -2337,11 +2696,15 @@ const MAX_SHOT_WORKING_SET_BYTES: usize = MAX_SHOT_TOTAL_BYTES + 2 * MAX_SHOT_BY
 const _: () = {
     assert!(MAX_SHOT_WORKING_SET_BYTES > MAX_SHOT_TOTAL_BYTES);
     assert!(SHOT_ENCODE_SLACK_BYTES > 0);
+    assert!(MAX_SHOT_BYTES.is_multiple_of(std::mem::size_of::<egui::Color32>()));
+    assert!(MAX_SHOT_PIXELS * std::mem::size_of::<egui::Color32>() == MAX_SHOT_BYTES);
 };
 /// Synthetic-input control requests waiting for a fresh layout/delivery at once.
 const MAX_PENDING_GESTURES: usize = 32;
 /// A control gesture is answered with an error after this long without a completed UI pass and
 /// delivery (milliseconds).
+/// How long synthetic input may wait without the UI consuming a batch. Each consumed batch
+/// restarts this clock, so it is a stall limit, not a cap on a many-step drag's total time.
 const GESTURE_TIMEOUT_MS: f64 = 5000.0;
 /// Completed UI frames a request waits for before it is issued (a settled, laid-out frame).
 const SHOT_SETTLE_FRAMES: u64 = 3;
@@ -2440,17 +2803,32 @@ struct PendingGesture {
     /// [`LightcraftApp::layout_epoch`] at admission; resolution needs a later one.
     admitted_epoch: u64,
     frame: GestureFrame,
-    /// Monotonic deadline (milliseconds).
+    /// Monotonic stall deadline (milliseconds): delivery refreshes it whenever the UI consumes a
+    /// batch, so a long but progressing drag is not a timeout.
     deadline_ms: f64,
     /// [`LightcraftApp::ui_passes`] when the events were queued (`None`: not resolved yet).
     resolved_pass: Option<u64>,
     /// Synthetic events queued for this gesture that the host has not injected yet.
     remaining_events: usize,
     /// At least one batch of this gesture's events has reached a pass. Later batches may see the
-    /// gesture's own effect (a first click selects, the second opens), so freshness is only
-    /// checked before the first one.
+    /// gesture's own effect (a first click selects, the second opens), so the semantic frame
+    /// snapshot is only checked before the first one.
     started: bool,
+    /// For a widget gesture, the id and point resolved against the completed layout. Delivery
+    /// rechecks the widget's fresh rect before the first event, before each press and (for a click)
+    /// before its release.
+    target: Option<control::GestureTarget>,
+    /// A pointer button this gesture has pressed but not yet released. Cancellation resets the
+    /// pointer state before egui's next input pass, so a refused click neither leaves the pointer
+    /// down nor turns the cleanup into a click or drag.
+    pressed: Option<InjectedPress>,
     result: Value,
+}
+
+/// A pointer press delivered to the UI, kept so a canceled gesture knows that a button is down.
+#[derive(Clone, Copy, Debug)]
+struct InjectedPress {
+    button: egui::PointerButton,
 }
 
 /// A `ui.screenshot` request in progress.

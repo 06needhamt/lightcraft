@@ -367,8 +367,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
     if !matches!(app.ui.dialog, Some(crate::state::Dialog::Shortcuts)) {
         app.recording_shortcut = None;
     }
-    // Dialogs own their keys (including Esc and text editing); background photo actions wait.
-    if app.ui.dialog.is_some() {
+    // Dialogs own their keys (including Esc and text editing); background photo actions wait. A
+    // quit prompt or settings notice owns every key too: its Foreground dim only blocks the
+    // pointer, so without this a rating or navigation shortcut would still act behind it. The
+    // blocking library window (error or launch list) owns all app shortcuts for every settled
+    // frame, not only its shield pass; its own list keys are consumed earlier by
+    // `library_problem::logic`, and its buttons remain reachable through the control channel.
+    if app.ui.dialog.is_some() || crate::panels::notices::blocks_input(app) || crate::panels::library_problem::blocks_dialog_input(app) {
         return;
     }
     if app.recording_shortcut.is_none() && app.ui.name_edit.is_none() && crate::panels::person::handle_bulk_key(app, ctx) {

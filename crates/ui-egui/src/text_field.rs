@@ -236,7 +236,7 @@ impl<'a> TextField<'a> {
             state.cursor.set_char_range(selection);
             state.store(ui.ctx(), id);
         }
-        crate::widgets::register(ui.ctx(), self.widget, response.rect);
+        crate::widgets::register(ui, self.widget, response.rect);
         // egui's own focus: `Response::has_focus` is also false while the window is in the
         // background (another app in front), which neither ends nor restarts an edit
         let focused = ui.memory(|m| m.has_focus(id));
@@ -382,7 +382,7 @@ fn menu(ui: &mut Ui, widget: &str, id: egui::Id, text: &str, action: &mut Option
         }
         let button = egui::Button::new(crate::i18n::tr(label)).shortcut_text(crate::menubar::shortcut_text(shortcut, mac));
         let r = ui.add_enabled(enabled, button);
-        crate::widgets::register(ui.ctx(), format!("{widget}:{key}"), r.rect);
+        crate::widgets::register(ui, format!("{widget}:{key}"), r.rect);
         if r.clicked() {
             *action = Some(a);
             ui.close();

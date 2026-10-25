@@ -112,7 +112,7 @@ pub fn fold_title(app: &mut LightcraftApp, ui: &egui::Ui, id: &str, r: Rect, res
     let t = Tokens::get(ui.ctx());
     let open = !app.ui.section_folded(id);
     crate::widgets::announce_disclosure(resp, true, open, title);
-    register(ui.ctx(), format!("section:{id}"), r);
+    register(ui, format!("section:{id}"), r);
     let p = ui.painter();
     if resp.hovered() {
         p.rect_filled(r, 0.0, t.chrome.gamma_multiply(1.06));
@@ -187,11 +187,11 @@ fn custom_aspect(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         ui.label(crate::i18n::tr("Custom"));
         let a = ui.add(egui::TextEdit::singleline(&mut w).desired_width(34.0));
         crate::widgets::screen_reader_name(ui.ctx(), a.id, crate::i18n::tr("Width"));
-        register(ui.ctx(), "field:cropCustomW", a.rect);
+        register(ui, "field:cropCustomW", a.rect);
         ui.label("×");
         let b = ui.add(egui::TextEdit::singleline(&mut h).desired_width(34.0));
         crate::widgets::screen_reader_name(ui.ctx(), b.id, crate::i18n::tr("Height"));
-        register(ui.ctx(), "field:cropCustomH", b.rect);
+        register(ui, "field:cropCustomH", b.rect);
         let go = text_button(ui, "cropCustomApply", "Apply", false);
         apply = go.clicked() || ((a.lost_focus() || b.lost_focus()) && ui.input(|i| i.key_pressed(egui::Key::Enter)));
     });
@@ -286,7 +286,7 @@ fn crop(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                         // keystroke: no half-typed angles, one undo step
                         .update_while_editing(false),
                 );
-                crate::widgets::register(ui.ctx(), "cropAngleField", r.rect);
+                crate::widgets::register(ui, "cropAngleField", r.rect);
                 // a drag on the field is one undo step, like the slider's
                 if r.drag_started() {
                     let _ = app.run("develop.beginInteraction", json!({"label": "Straighten"}));
@@ -549,7 +549,7 @@ pub(crate) fn tool_overlay_options(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         egui::Popup::menu(&r).show(|ui| {
             for m in ToolOverlay::ALL {
                 let item = ui.selectable_label(m == current, crate::i18n::tr(m.label()));
-                register(ui.ctx(), format!("toolOverlay:{}", m.name()), item.rect);
+                register(ui, format!("toolOverlay:{}", m.name()), item.rect);
                 if item.clicked() {
                     let _ = app.run("view.toolOverlay", json!({"mode": m.name()}));
                 }
@@ -656,7 +656,7 @@ fn info(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
                 let (r, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
                 crate::widgets::announce(&resp, crate::i18n::tr(&format!("{l:?}")));
                 let key = format!("{l:?}").to_lowercase();
-                register(ui.ctx(), format!("label:{key}"), r);
+                register(ui, format!("label:{key}"), r);
                 let on = p.label == Some(l);
                 ui.painter().circle_filled(r.center(), if on || resp.hovered() { 8.0 } else { 6.5 }, crate::panels::grid::label_color(l));
                 if on {
@@ -892,7 +892,7 @@ fn camera_card(ui: &mut egui::Ui, p: &lightcraft_catalog::Photo) {
                 ui.add_space(12.0);
                 ui.label(egui::RichText::new(text).size(12.0).color(t.text));
             });
-            register(ui.ctx(), "info:focus", r.response.rect);
+            register(ui, "info:focus", r.response.rect);
         }
     });
 }
@@ -1051,7 +1051,7 @@ fn copyright_status(app: &mut LightcraftApp, ui: &mut egui::Ui, current: lightcr
         }
     });
     crate::widgets::name_combo(&r.response, crate::i18n::tr("Copyright Status"));
-    register(ui.ctx(), "field:copyrightStatus", r.response.rect);
+    register(ui, "field:copyrightStatus", r.response.rect);
     ui.add_space(6.0);
 }
 
@@ -1277,7 +1277,7 @@ fn keywording(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     let name = names.get(i).unwrap_or(&whole);
                     let r = ui.add(egui::Button::new(egui::RichText::new(format!("+ {name}")).color(t.text_label)).corner_radius(10.0));
                     let r = if grouped { r.on_hover_text(&whole) } else { r };
-                    register(ui.ctx(), format!("kwSuggest:{k}"), r.rect);
+                    register(ui, format!("kwSuggest:{k}"), r.rect);
                     if r.clicked() {
                         let _ = app.run("photo.setMeta", json!({"addKeywords": [k]}));
                     }
@@ -1342,7 +1342,7 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 ui.separator();
                 // Edit Set…: the current nine, slot by slot (named, Recent Keywords becomes a set)
                 let edit = ui.button(crate::i18n::tr("Edit Set…"));
-                register(ui.ctx(), "keywordSetMenu:edit", edit.rect);
+                register(ui, "keywordSetMenu:edit", edit.rect);
                 if edit.clicked() {
                     let mut slots: Vec<String> =
                         sets["keywords"].as_array().into_iter().flatten().filter_map(|k| k.as_str().map(str::to_string)).collect();
@@ -1372,7 +1372,7 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                 }
             });
         crate::widgets::name_combo(&combo.response, crate::i18n::tr("Keyword Set"));
-        register(ui.ctx(), "keywordSetCombo", combo.response.rect);
+        register(ui, "keywordSetCombo", combo.response.rect);
     });
     let kws: Vec<String> = sets["keywords"].as_array().into_iter().flatten().filter_map(|k| k.as_str().map(str::to_string)).collect();
     if kws.is_empty() {
@@ -1385,7 +1385,7 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             // an empty slot: an idle button, so the others keep their ⌥ keys
             if k.is_empty() {
                 let r = ui.add_enabled_ui(false, |ui| ui.add_sized([bw, 22.0], egui::Button::new(""))).inner;
-                register(ui.ctx(), format!("kwSetEmpty:{}", i + 1), r.rect);
+                register(ui, format!("kwSetEmpty:{}", i + 1), r.rect);
                 if i % 3 == 2 {
                     ui.end_row();
                 }
@@ -1401,11 +1401,11 @@ fn keyword_set(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     egui::Button::new(egui::RichText::new(short).size(11.5).color(if on { t.text } else { t.text_label })).selected(on).truncate(),
                 )
                 .on_hover_text(format!("{} — ⌥{}", k.replace('|', " › "), i + 1));
-            register(ui.ctx(), format!("kwSet:{}", i + 1), r.rect);
+            register(ui, format!("kwSet:{}", i + 1), r.rect);
             if on {
-                register(ui.ctx(), format!("kwSetOn:{}", i + 1), r.rect);
+                register(ui, format!("kwSetOn:{}", i + 1), r.rect);
             } else if some {
-                register(ui.ctx(), format!("kwSetSome:{}", i + 1), r.rect);
+                register(ui, format!("kwSetSome:{}", i + 1), r.rect);
             }
             if r.clicked() {
                 let _ = app.run("keyword.toggleFromSet", json!({"index": i + 1}));
@@ -1448,7 +1448,7 @@ fn versions(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         for (i, v) in shown.into_iter().rev() {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 58.0), Sense::click());
             crate::widgets::announce(&resp, format!("{} {}", crate::i18n::tr("Version"), i + 1));
-            register(ui.ctx(), format!("version:{i}"), r);
+            register(ui, format!("version:{i}"), r);
             let current = *v.settings == *p.develop;
             if resp.hovered() {
                 ui.painter().rect_filled(r, 4.0, t.hover.gamma_multiply(0.7));
@@ -1559,7 +1559,7 @@ fn activity(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId) {
         for (i, h) in p.history.iter().enumerate().rev() {
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
             crate::widgets::announce(&resp, crate::i18n::tr(&h.label));
-            register(ui.ctx(), format!("history:{i}"), r);
+            register(ui, format!("history:{i}"), r);
             let row = history_row(i, cursor);
             if row == HistoryRow::Current {
                 ui.painter().rect_filled(r, 3.0, t.pressed);

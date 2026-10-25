@@ -709,11 +709,12 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             Ok(Value::Null)
         }
         "view.fullScreenPreview" => {
-            app.ui.fullscreen = !app.ui.fullscreen;
-            if !app.ui.fullscreen {
-                app.ui.slideshow = None;
-            }
             if app.ui.fullscreen {
+                // Through `slideshow::end`: it also releases the held slide textures. Clearing the
+                // two fields directly left every rendered slide in the renderer.
+                crate::panels::slideshow::end(app);
+            } else {
+                app.ui.fullscreen = true;
                 app.ui.zoom = Zoom::Fit;
                 app.ui.tool.clear();
                 let _ = app.session.end_interaction();

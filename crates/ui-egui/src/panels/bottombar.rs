@@ -123,7 +123,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
             }),
             flag == f,
         );
-        register(pill_ui.ctx(), format!("flag:{id}"), r);
+        register(&pill_ui, format!("flag:{id}"), r);
         let on = flag == f && f != Flag::None;
         let c = if on {
             if f == Flag::Reject { t.reject } else { t.pick }
@@ -148,7 +148,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     let copy_r = Rect::from_min_size(pos2(pill.right() + 10.0, pill.top()), vec2(copy_width, 30.0));
     let cresp = ui.interact(copy_r, egui::Id::unique("copy-settings"), Sense::click());
     crate::widgets::announce(&cresp, label.to_string());
-    register(ui.ctx(), "button:copySettings", copy_r);
+    register(ui, "button:copySettings", copy_r);
     ui.painter().rect_filled(copy_r, 15.0, if cresp.hovered() { t.hover } else { t.canvas });
     ui.painter().text(copy_r.center(), Align2::CENTER_CENTER, label, t.font(13.0), if active.is_some() { t.text_label } else { t.text_disabled });
     if cresp.clicked() && active.is_some() {
@@ -159,7 +159,7 @@ fn centre(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, from: f32, to:
     let gear_r = Rect::from_min_size(pos2(copy_r.right() + 4.0, pill.top()), vec2(30.0, 30.0));
     let gresp = ui.interact(gear_r, egui::Id::unique("copy-gear"), Sense::click());
     crate::widgets::announce(&gresp, crate::i18n::tr("Copy Settings…"));
-    register(ui.ctx(), "icon:copyGear", gear_r);
+    register(ui, "icon:copyGear", gear_r);
     ui.painter().rect_filled(gear_r, 15.0, if gresp.hovered() { t.hover } else { t.canvas });
     paint(ui.painter(), gear_r.shrink(7.0), Icon::Gear, t.icon);
     if gresp.clicked() {
@@ -243,7 +243,7 @@ fn right_side(app: &mut LightcraftApp, ui: &mut egui::Ui, full: Rect, compact_zo
         // thumbnail size slider
         let (r, resp) = child.allocate_exact_size(vec2(110.0, 20.0), Sense::click_and_drag());
         crate::widgets::announce(&resp, crate::i18n::tr("Thumbnail size"));
-        register(child.ctx(), "slider:thumbSize", r);
+        register(&child, "slider:thumbSize", r);
         let p = child.painter();
         let y = r.center().y;
         p.line_segment([pos2(r.left(), y), pos2(r.right(), y)], egui::Stroke::new(2.0, t.track));
@@ -292,7 +292,7 @@ fn sort_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // a view that holds its photos shows what matches now when asked to
     if app.session.hold_view {
         let r = ui.button(crate::i18n::tr("Refresh View"));
-        crate::widgets::register(ui.ctx(), "button:refreshView", r.rect);
+        crate::widgets::register(ui, "button:refreshView", r.rect);
         if r.clicked() {
             let _ = app.run("library.refresh", json!({}));
         }

@@ -64,7 +64,7 @@ fn slider(
 ) {
     let mut v = value * k;
     let r = ui.add(egui::Slider::new(&mut v, (range.start() * k)..=(range.end() * k)).suffix(suffix).max_decimals(1));
-    register(ui.ctx(), format!("slider:{id}"), r.rect);
+    register(ui, format!("slider:{id}"), r.rect);
     let p = json!({ t.id(): { key: v / k } });
     if r.changed() {
         if let Ok(next) = app.session.slide_titles.merged(&p) {
@@ -81,7 +81,7 @@ fn slider(
 fn colour(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, t: Title, key: &str, value: [u8; 3]) {
     let mut c = value;
     let r = egui::color_picker::color_edit_button_srgb(ui, &mut c);
-    register(ui.ctx(), format!("button:{id}"), r.rect);
+    register(ui, format!("button:{id}"), r.rect);
     if r.changed() {
         set(app, ui.ctx(), t, key, json!(c));
     }

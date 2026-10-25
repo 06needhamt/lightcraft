@@ -38,7 +38,7 @@ fn slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, value: f64, lo: 
     };
     let mut v = value * k;
     let r = ui.add(egui::Slider::new(&mut v, lo * k..=hi * k).suffix(suffix).max_decimals(1));
-    register(ui.ctx(), format!("slider:{id}"), r.rect);
+    register(ui, format!("slider:{id}"), r.rect);
     let p = wrap(v / k);
     if r.changed()
         && let Ok(next) = app.session.slide_overlays.merged(&p)
@@ -54,7 +54,7 @@ fn slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, value: f64, lo: 
 fn colour(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, value: [u8; 3], wrap: &dyn Fn([u8; 3]) -> Value) {
     let mut c = value;
     let r = egui::color_picker::color_edit_button_srgb(ui, &mut c);
-    register(ui.ctx(), format!("button:{id}"), r.rect);
+    register(ui, format!("button:{id}"), r.rect);
     if r.changed() {
         set(app, wrap(c));
     }

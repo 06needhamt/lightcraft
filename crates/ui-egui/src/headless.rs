@@ -49,8 +49,11 @@ fn native_viewport_pixels(size: [f32; 2], pixels_per_point: f32) -> Result<[usiz
         Ok(pixels as usize)
     };
     let (w, h) = (axis(width)?, axis(height)?);
-    if w.checked_mul(h).is_none_or(|pixels| pixels > softpaint::MAX_IMAGE_PIXELS) {
-        return Err(format!("scaled viewport exceeds {} pixels", softpaint::MAX_IMAGE_PIXELS));
+    // The rasterizer's limit is not enough: a screenshot is also bounded by the RGBA budget it is
+    // admitted against, so reject a size `ui.screenshot` would only refuse later.
+    let max_pixels = softpaint::MAX_IMAGE_PIXELS.min(crate::MAX_SHOT_PIXELS);
+    if w.checked_mul(h).is_none_or(|pixels| pixels > max_pixels) {
+        return Err(format!("scaled viewport exceeds {max_pixels} pixels"));
     }
     Ok([w, h])
 }
@@ -258,6 +261,10 @@ pub struct Headless {
     pub window_commands: Vec<ViewportCommand>,
     /// The pointer cursor the last frame asked for (what a real host would show).
     pub last_cursor: egui::CursorIcon,
+    /// Test-only hook run after `raw_input_hook` and before `logic`/`ui`, as eframe does: it can
+    /// create a prompt after the host input was already filtered for the previous frame.
+    #[cfg(test)]
+    after_raw_input_hook: Option<Box<dyn FnMut(&mut LightcraftApp)>>,
 }
 
 /// A headless run (`lightcraft-cli snapshot`, tests) is a one-shot process: however it ends, it
@@ -298,7 +305,17 @@ impl Headless {
             window_maximized: false,
             window_commands: vec![],
             last_cursor: egui::CursorIcon::Default,
+            #[cfg(test)]
+            after_raw_input_hook: None,
         }
+    }
+
+    /// Run `hook` once, between the next frame's [`LightcraftApp::raw_input_hook`] and its
+    /// `logic`/`ui` call. This is the production order in eframe: a prompt can be created there
+    /// after the host input was already accepted for the frame.
+    #[cfg(test)]
+    pub(crate) fn set_after_raw_input_hook(&mut self, hook: impl FnMut(&mut LightcraftApp) + 'static) {
+        self.after_raw_input_hook = Some(Box::new(hook));
     }
 
     pub fn frames(&self) -> u64 {
@@ -329,7 +346,11 @@ impl Headless {
         self.reported_texture_side = Some(self.max_texture_side);
         // A headless run's timers follow its simulated clock, not the host's wall clock.
         self.app.set_simulated_clock(Some(self.time));
-        self.app.raw_input_hook(&mut raw);
+        self.app.raw_input_hook(&self.view.ctx, &mut raw);
+        #[cfg(test)]
+        if let Some(mut hook) = self.after_raw_input_hook.take() {
+            hook(&mut self.app);
+        }
         let app = &mut self.app;
         let mut cursor = egui::CursorIcon::Default;
         let commands = self.view.run(raw, |ui| {
@@ -645,7 +666,9 @@ mod tests {
     fn screenshot_dimensions_are_checked_before_layout() {
         assert_eq!(viewport_pixels([1600.0, 1000.0], 2.0).unwrap(), [3200, 2000]);
         assert_eq!(viewport_pixels([345.0, 200.0], 0.9).unwrap(), [311, 180]);
-        assert_eq!(viewport_pixels([8000.0, 8000.0], 1.0).unwrap(), [8000, 8000]);
+        // The largest accepted surface is exactly the 128 MiB screenshot budget (32 Mi pixels).
+        assert_eq!(viewport_pixels([16384.0, 2048.0], 1.0).unwrap(), [16384, 2048]);
+        assert_eq!(viewport_pixels([5792.0, 5792.0], 1.0).unwrap(), [5792, 5792]);
         for (size, scale) in [
             ([f32::NAN, 10.0], 1.0),
             ([10.0, f32::INFINITY], 1.0),
@@ -654,6 +677,9 @@ mod tests {
             ([10.0, 10.0], 0.0),
             ([0.0, 10.0], 1.0),
             ([10.0, 10.0], 0.01),
+            ([16384.0, 2049.0], 1.0),
+            ([8000.0, 8000.0], 1.0),
+            ([5793.0, 5793.0], 1.0),
             ([9000.0, 9000.0], 1.0),
             ([9000.0, 100.0], 2.0),
         ] {

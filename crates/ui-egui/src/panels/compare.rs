@@ -361,9 +361,9 @@ fn photo_tile(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, slot: Slo
         && lr.right() < cap.right()
     {
         pt.circle_filled(lr.center(), 5.0, super::grid::label_color(l));
-        register(ui.ctx(), format!("cull:{}:label", id.0), lr);
+        register(ui, format!("cull:{}:label", id.0), lr);
     }
-    register(ui.ctx(), format!("cull:{}", id.0), display);
+    register(ui, format!("cull:{}", id.0), display);
     (display, resp)
 }
 

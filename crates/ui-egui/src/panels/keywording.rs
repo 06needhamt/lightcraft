@@ -18,7 +18,7 @@ pub fn view_switch(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             [(V::Keywords, "keywords", "Keywords"), (V::Containing, "containing", "& Containing"), (V::WillExport, "willExport", "Will Export")]
         {
             let r = ui.selectable_label(app.ui.keywording_view == view, crate::i18n::tr(label));
-            register(ui.ctx(), format!("keywordView:{id}"), r.rect);
+            register(ui, format!("keywordView:{id}"), r.rect);
             if r.clicked() {
                 app.ui.keywording_view = view;
             }
@@ -41,7 +41,7 @@ pub fn names_row(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     ui.horizontal_wrapped(|ui| {
         for n in names.iter() {
             let (body, _) = chip(ui, &n.path, &n.path, !n.on_all(), false, ui.max_rect().width());
-            register(ui.ctx(), format!("{prefix}:{}", n.path), body.rect);
+            register(ui, format!("{prefix}:{}", n.path), body.rect);
             if n.on_all() {
                 body.on_hover_text(&n.path);
             } else {
@@ -148,7 +148,7 @@ fn remove(app: &mut LightcraftApp, ctx: &egui::Context, chip: &Chip) {
 fn menu(app: &mut LightcraftApp, ui: &mut egui::Ui, chip: &Chip) {
     let item = |ui: &mut egui::Ui, id: &str, label: &str| {
         let r = ui.button(label);
-        register(ui.ctx(), format!("keywordChipMenu:{id}"), r.rect);
+        register(ui, format!("keywordChipMenu:{id}"), r.rect);
         r.clicked()
     };
     if !chip.on_all() && item(ui, "add", crate::i18n::tr("Add to All Selected Photos")) {
@@ -177,7 +177,7 @@ pub fn scope(app: &mut LightcraftApp, ui: &mut egui::Ui, selection: &[PhotoId]) 
     let t = Tokens::get(ui.ctx());
     let said = crate::i18n::tr_format!("Keywords of {n} selected photos", n = photos);
     let r = ui.label(egui::RichText::new(said).size(11.5).color(t.text_label));
-    register(ui.ctx(), "keywordScope", r.rect);
+    register(ui, "keywordScope", r.rect);
     ui.add_space(4.0);
 }
 
@@ -189,7 +189,7 @@ pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui, selection: &[PhotoId
     if chips.is_empty() {
         let t = Tokens::get(ui.ctx());
         let r = ui.label(egui::RichText::new(crate::i18n::tr("No keywords yet")).color(t.text_dim));
-        register(ui.ctx(), "keywordChipsEmpty", r.rect);
+        register(ui, "keywordChipsEmpty", r.rect);
         return;
     }
     if app.ui.settings.keyword_chips == crate::state::KeywordChips::Grouped {
@@ -208,9 +208,9 @@ pub fn chip_row(app: &mut LightcraftApp, ui: &mut egui::Ui, selection: &[PhotoId
 /// A drawn chip does its work: its × takes the keyword off the selected photos, its name has the
 /// tooltip and the menu.
 fn chip_acts(app: &mut LightcraftApp, ui: &egui::Ui, c: &Chip, body: egui::Response, x: Option<egui::Response>) {
-    register(ui.ctx(), format!("keywordChip:{}", c.path), body.rect);
+    register(ui, format!("keywordChip:{}", c.path), body.rect);
     if let Some(x) = x {
-        register(ui.ctx(), format!("keywordChipRemove:{}", c.path), x.rect);
+        register(ui, format!("keywordChipRemove:{}", c.path), x.rect);
         if x.on_hover_text(crate::i18n::tr("Remove from Selected Photos")).clicked() {
             remove(app, ui.ctx(), c);
         }
@@ -220,7 +220,7 @@ fn chip_acts(app: &mut LightcraftApp, ui: &egui::Ui, c: &Chip, body: egui::Respo
     let body = if c.on_all() {
         body.on_hover_text(full)
     } else {
-        register(ui.ctx(), format!("keywordChipPartial:{}", c.path), body.rect);
+        register(ui, format!("keywordChipPartial:{}", c.path), body.rect);
         let n = crate::i18n::tr_format!("On {have} of {of} selected photos", have = c.have, of = c.of);
         body.on_hover_text(format!("{full}\n{n}"))
     };
@@ -279,7 +279,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group], sel
                 if shown != full {
                     resp.on_hover_text(&full);
                 }
-                register(ui.ctx(), format!("keywordGroup:{}", group.parent), r);
+                register(ui, format!("keywordGroup:{}", group.parent), r);
             }
             Line::Chips(g, row) => {
                 let Some(group) = groups.get(g) else { continue };
@@ -296,7 +296,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group], sel
                 ui.add_space(6.0);
                 let label = crate::i18n::tr_format!("+{n} more", n = n);
                 let r = ui.add(egui::Button::new(egui::RichText::new(label).color(t.text_label)).corner_radius(10.0));
-                register(ui.ctx(), "keywordChipsMore", r.rect);
+                register(ui, "keywordChipsMore", r.rect);
                 if r.on_hover_text(crate::i18n::tr("Show every keyword of the selected photos")).clicked() {
                     app.ui.keyword_chips_all = Some(selection);
                 }
@@ -304,7 +304,7 @@ fn chip_groups(app: &mut LightcraftApp, ui: &mut egui::Ui, groups: &[Group], sel
             Line::Fewer => {
                 ui.add_space(6.0);
                 let r = ui.add(egui::Button::new(egui::RichText::new(crate::i18n::tr("Show fewer")).color(t.text_label)).corner_radius(10.0));
-                register(ui.ctx(), "keywordChipsFewer", r.rect);
+                register(ui, "keywordChipsFewer", r.rect);
                 if r.clicked() {
                     app.ui.keyword_chips_all = None;
                 }
@@ -470,9 +470,9 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 let whole = k.replace(SEP, " › ");
                 let lit = at == Some(k.as_str());
                 let r = line(ui, egui::Id::unique(("keyword-offer", k.to_lowercase())), name, place, &whole, lit);
-                register(ui.ctx(), format!("kwComplete:{k}"), r.rect);
+                register(ui, format!("kwComplete:{k}"), r.rect);
                 if lit {
-                    register(ui.ctx(), format!("kwCompleteAt:{k}"), r.rect);
+                    register(ui, format!("kwCompleteAt:{k}"), r.rect);
                 }
                 if r.clicked() {
                     picked = Some(Picked::Keyword(k.clone()));
@@ -500,7 +500,7 @@ pub(crate) fn offers_below(ui: &egui::Ui, below: egui::Rect, offers: &Offers, at
                 let r = line(ui, egui::Id::unique("keyword-offer-create"), name, "", &said, false);
                 let small = t.font(11.5);
                 ui.painter().text(pos2(r.rect.right() - 8.0, r.rect.center().y), Align2::RIGHT_CENTER, place, small, t.text_label);
-                register(ui.ctx(), "kwCompleteCreate", r.rect);
+                register(ui, "kwCompleteCreate", r.rect);
                 // (Return gives the highlighted offer instead, while there is one)
                 let r = if at.is_none() {
                     r.on_hover_text(crate::i18n::tr("Return creates this keyword and gives it to the selected photos"))

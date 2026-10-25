@@ -97,7 +97,7 @@ pub(crate) fn notice(app: &mut LightcraftApp, ui: &mut egui::Ui, kind: &str) {
     }
     ui.add(egui::Label::new(tr("After installation, AI Denoise will turn on for the requesting photo.")).wrap());
     let r = ui.small_button(tr("Cancel pending action"));
-    crate::widgets::register(ui.ctx(), "modelSetup:cancel:denoise", r.rect);
+    crate::widgets::register(ui, "modelSetup:cancel:denoise", r.rect);
     if r.clicked() {
         let _ = app.run("modelSetup.cancel", json!({"kind": "denoise"}));
     }

@@ -104,7 +104,7 @@ pub fn level(ui: &mut Ui, depth: usize, bar_bottom: Option<f32>, rows: impl FnOn
     let out = area.show(ui, rows);
     let down = over.then(|| ui.allocate_exact_size(vec2(0.0, ARROW), Sense::hover()).0);
     ctx.data_mut(|d| d.insert_temp(key, out.content_size.y));
-    crate::widgets::register(&ctx, format!("menu-level:{depth}"), ui.min_rect());
+    crate::widgets::register(ui, format!("menu-level:{depth}"), ui.min_rect());
     let (Some(up), Some(down)) = (up, down) else { return };
     let t = crate::theme::Tokens::get(&ctx);
     let x = ui.min_rect().x_range();

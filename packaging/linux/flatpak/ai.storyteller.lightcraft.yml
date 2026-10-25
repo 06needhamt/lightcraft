@@ -54,6 +54,7 @@ modules:
       - mkdir -p /app/share/icons && cp -R assets/app-icon/hicolor /app/share/icons/
       - install -Dm644 NOTICE /app/share/doc/lightcraft/NOTICE
       - install -Dm644 assets/ATTRIBUTION.md /app/share/doc/lightcraft/ATTRIBUTION.md
+      - install -Dm644 assets/fonts/OFL-Inter.txt /app/share/doc/lightcraft/OFL-Inter.txt
       - >-
         version=$(awk '/^\[/{p=($0=="[workspace.package]");next} p&&$1=="version"{gsub(/[" ]/,"",$3);print $3;exit}' Cargo.toml);
         install -d /app/share/metainfo;
