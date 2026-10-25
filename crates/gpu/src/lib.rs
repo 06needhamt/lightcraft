@@ -193,7 +193,9 @@ pub fn reset_failures() {
 /// Allow or forbid GPU rendering at runtime (a preference). `LIGHTCRAFT_GPU=0` forbids it for the
 /// whole process regardless.
 pub fn set_enabled(on: bool) {
-    ENABLED.store(on, Ordering::Relaxed);
+    // (SeqCst, as `warm_up`'s thread reads it after releasing its start: a switch back on is
+    // never missed there)
+    ENABLED.store(on, Ordering::SeqCst);
 }
 
 /// Whether GPU rendering is allowed (environment, preference, no earlier failure — real, or
@@ -311,9 +313,9 @@ pub(crate) fn existing_device() -> Option<&'static ctx::Gpu> {
 /// while GPU rendering is turned off. Repeated calls start one thread at most.
 pub fn warm_up() {
     #[cfg(not(target_arch = "wasm32"))]
-    if !env_disabled() && ENABLED.load(Ordering::Relaxed) && GPU.get().is_none() {
+    if !env_disabled() && ENABLED.load(Ordering::SeqCst) && GPU.get().is_none() {
         static STARTED: AtomicBool = AtomicBool::new(false);
-        if STARTED.swap(true, Ordering::AcqRel) {
+        if STARTED.swap(true, Ordering::SeqCst) {
             return;
         }
         let spawned = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
@@ -333,7 +335,7 @@ pub fn warm_up() {
             }
         });
         if spawned.is_err() {
-            STARTED.store(false, Ordering::Release);
+            STARTED.store(false, Ordering::SeqCst);
         }
     }
 }
