@@ -94,7 +94,6 @@ pub(crate) fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.updates_rt.manual_window_open {
         let mut open = true;
         egui::Window::new(crate::i18n::tr("LightCraft Updates"))
-            .id(egui::Id::new("lightcraft_manual_updates"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
