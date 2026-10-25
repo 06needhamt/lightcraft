@@ -317,10 +317,19 @@ pub fn warm_up() {
             return;
         }
         let spawned = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
-            let _ = device();
-            // turned off before the thread ran (nothing created): a later call may start again
-            if GPU.get().is_none() {
-                STARTED.store(false, Ordering::Release);
+            loop {
+                let _ = device();
+                if GPU.get().is_some() || shutting_down() || env_disabled() {
+                    break;
+                }
+                // turned off before the thread ran (nothing created): a later call may start
+                // again. Released first, then the preference read again: a call made while this
+                // thread still held the flag (turned back on meanwhile) returned without starting
+                // one, so this thread tries again itself rather than leave "starting" for good.
+                STARTED.store(false, Ordering::SeqCst);
+                if !ENABLED.load(Ordering::SeqCst) || STARTED.swap(true, Ordering::SeqCst) {
+                    break;
+                }
             }
         });
         if spawned.is_err() {
