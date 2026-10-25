@@ -192,6 +192,10 @@ pub struct KeywordInfo {
     /// most, see [`Catalog::default_keyword_parent`].
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub new_keywords_inside: bool,
+    /// Part of the keyword shortcut (Set Keyword Shortcut), which ⇧K adds to or removes from the
+    /// selected photos: see [`Catalog::keyword_shortcut`].
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub keyword_shortcut: bool,
 }
 
 fn yes() -> bool {
@@ -207,6 +211,7 @@ impl Default for KeywordInfo {
             export_synonyms: true,
             person: false,
             new_keywords_inside: false,
+            keyword_shortcut: false,
         }
     }
 }
@@ -369,6 +374,7 @@ impl Catalog {
                 match list.get_mut(&path.to_lowercase()) {
                     Some(there) => {
                         there.info.new_keywords_inside |= l.info.new_keywords_inside;
+                        there.info.keyword_shortcut |= l.info.keyword_shortcut;
                         for s in l.info.synonyms {
                             if !there.info.synonyms.iter().any(|x| same(x, &s)) {
                                 there.info.synonyms.push(s);
@@ -580,7 +586,13 @@ impl Catalog {
                     continue;
                 }
                 if !known.contains_key(&key) {
-                    list.insert(key.clone(), ListedKeyword { path: path.clone(), info: KeywordInfo { new_keywords_inside: false, ..info.clone() } });
+                    list.insert(
+                        key.clone(),
+                        ListedKeyword {
+                            path: path.clone(),
+                            info: KeywordInfo { new_keywords_inside: false, keyword_shortcut: false, ..info.clone() },
+                        },
+                    );
                     // it and its parents are the library's now: what follows spells them so
                     let levels: Vec<&str> = path.split(SEP).collect();
                     for i in 0..levels.len() {
@@ -664,6 +676,29 @@ impl Catalog {
                 }
             }),
         })
+    }
+
+    /// The keyword shortcut's keywords (Set Keyword Shortcut), in the keyword list's order.
+    pub fn keyword_shortcut(&self) -> Vec<String> {
+        self.keyword_list.values().filter(|l| l.info.keyword_shortcut).map(|l| l.path.clone()).collect()
+    }
+
+    /// Make `keywords` the keyword shortcut, in one batch. A keyword the library doesn't have yet is
+    /// listed, and the others keep the attributes they have.
+    pub fn set_keyword_shortcut_ops(&self, keywords: &[String]) -> Op {
+        let paths: Vec<String> =
+            keywords.iter().map(|k| self.keyword_path(k).unwrap_or_else(|| self.spelled(&clean(k)))).filter(|k| !k.is_empty()).collect();
+        Op::Batch {
+            ops: self.list_ops(|list| {
+                for l in list.values_mut() {
+                    l.info.keyword_shortcut = false;
+                }
+                for path in paths {
+                    let l = list.entry(path.to_lowercase()).or_insert_with(|| ListedKeyword { path, info: KeywordInfo::default() });
+                    l.info.keyword_shortcut = true;
+                }
+            }),
+        }
     }
 
     /// The keyword as written in the library (whatever the case of `path`): its listing, or the
@@ -1253,6 +1288,36 @@ mod tests {
         assert_eq!(op, Op::Batch { ops: vec![] }, "none to clear");
         c.apply(undo).unwrap();
         assert_eq!(c.default_keyword_parent(), None, "undo of the first: none was");
+    }
+
+    /// The keyword shortcut is a mark on its keywords: setting it is one undo step (a new name is
+    /// listed), and the mark moves with its keyword (also into a merge), goes with it, and comes
+    /// back with undo.
+    #[test]
+    fn the_keyword_shortcut_moves_with_its_keywords() {
+        let (mut c, _) = lib(&[&["Events|Weddings"], &["Travel"]]);
+        let op = c.set_keyword_shortcut_ops(&["travel".into(), "Lisbon".into()]);
+        let undo = c.apply(op).unwrap();
+        assert_eq!(c.keyword_shortcut(), ["Lisbon", "Travel"], "spelled as the library spells it; a new name listed");
+        let op = c.set_keyword_shortcut_ops(&["events|weddings".into(), "Travel".into()]);
+        c.apply(op).unwrap();
+        assert_eq!(c.keyword_shortcut(), ["Events|Weddings", "Travel"], "the old marks are cleared");
+        let op = c.rename_keyword_ops("travel", "Trips").unwrap();
+        let undo_rename = c.apply(op).unwrap();
+        assert_eq!(c.keyword_shortcut(), ["Events|Weddings", "Trips"]);
+        c.apply(undo_rename).unwrap();
+        assert_eq!(c.keyword_shortcut(), ["Events|Weddings", "Travel"], "undo moves it back");
+        let op = c.set_keyword_shortcut_ops(&["Travel".into()]);
+        c.apply(op).unwrap();
+        let op = c.merge_keywords_ops(&["travel".into()], "Events|Weddings").unwrap();
+        c.apply(op).unwrap();
+        assert_eq!(c.keyword_shortcut(), ["Events|Weddings"], "into the merge");
+        let op = c.delete_keyword_ops("events").unwrap();
+        c.apply(op).unwrap();
+        assert!(c.keyword_shortcut().is_empty());
+        assert_eq!(c.set_keyword_shortcut_ops(&[]), Op::Batch { ops: vec![] }, "none to clear");
+        c.apply(undo).unwrap();
+        assert!(c.keyword_shortcut().is_empty(), "undo of the first: there was none");
     }
 
     /// A file's keywords as a photo carries them: the paths of `lr:hierarchicalSubject`, and the

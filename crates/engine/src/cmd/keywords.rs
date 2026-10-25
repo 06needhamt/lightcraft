@@ -54,6 +54,7 @@ fn info_from(p: &Value, base: KeywordInfo) -> KeywordInfo {
         export_synonyms: bool_or(p, "exportSynonyms", base.export_synonyms),
         person: bool_or(p, "person", base.person),
         new_keywords_inside: base.new_keywords_inside,
+        keyword_shortcut: base.keyword_shortcut,
     }
 }
 
@@ -135,6 +136,27 @@ pub fn slots(typed: &[String]) -> Vec<String> {
     }
     while out.last().is_some_and(String::is_empty) {
         out.pop();
+    }
+    out
+}
+
+/// The keyword shortcut's keywords: a list, or one text with commas between them. Each is
+/// cleaned, a new name goes inside the default parent as the Keywording box puts it, and each is
+/// kept once whatever its case; empty ones are dropped. The text Set Keyword Shortcut… shows (the
+/// keyword shortcut's keywords joined with ", ") keeps them as they are, commas in a name included.
+fn shortcut_keywords(s: &Session, p: &Value) -> Vec<String> {
+    let now = s.catalog.keyword_shortcut();
+    let typed: Vec<String> = match p.get("keywords") {
+        Some(Value::String(text)) if !now.is_empty() && text.trim() == now.join(", ") => return now,
+        Some(Value::String(text)) => text.split(',').map(str::to_string).collect(),
+        _ => strs(p, "keywords"),
+    };
+    let mut out: Vec<String> = Vec::new();
+    for k in typed {
+        let k = s.catalog.typed_keyword(&k);
+        if !k.is_empty() && !out.iter().any(|x| lightcraft_catalog::keywords::same(x, &k)) {
+            out.push(k);
+        }
     }
     out
 }
@@ -306,6 +328,48 @@ pub fn specs() -> Vec<CommandSpec> {
                     s.recent_keywords = recent;
                 }
                 r["keyword"] = json!(k);
+                r["added"] = json!(!all);
+                Ok(r)
+            }
+        ),
+        cmd!(query "keyword.shortcut", "Keyword Shortcut", [], None, "{} → {keywords: the keyword shortcut's, which ⇧K adds or removes}", always, |s, _| {
+            Ok(json!({"keywords": s.catalog.keyword_shortcut()}))
+        }),
+        cmd!(
+            "keyword.setShortcut",
+            "Set Keyword Shortcut",
+            [],
+            None,
+            "{keywords: [..] or \"a, b\" (none clears it)}: sets the keyword shortcut, a mark on its keywords in the keyword list (a new name is listed; one undo step) → {keywords}",
+            always,
+            |s, p| {
+                let op = s.catalog.set_keyword_shortcut_ops(&shortcut_keywords(s, p));
+                commit_keywords(s, "Set Keyword Shortcut", op, |k| Some(k.to_string()))?;
+                Ok(json!({"keywords": s.catalog.keyword_shortcut()}))
+            }
+        ),
+        cmd!(
+            "keyword.toggleShortcut",
+            "Add or Remove Keyword Shortcut",
+            [],
+            Some("Shift+K"),
+            "{ids?}: removes the keyword shortcut's keywords from the target photos when they all have every one, else adds them → {changed, keywords, added}",
+            super::has_selection,
+            |s, p| {
+                let keywords = s.catalog.keyword_shortcut();
+                // with no keyword shortcut set, ⇧K returns without changing any photo
+                if keywords.is_empty() {
+                    return Ok(json!({"changed": 0, "keywords": keywords}));
+                }
+                let ids = s.targets(p)?;
+                let has = |ph: &lightcraft_catalog::Photo, k: &str| {
+                    ph.meta.keywords.iter().any(|x| lightcraft_catalog::keywords::same(&clean(x), &clean(k)))
+                };
+                let all = !ids.is_empty() && ids.iter().all(|id| s.catalog.photo(*id).is_some_and(|ph| keywords.iter().all(|k| has(ph, k))));
+                let ids: Vec<u64> = ids.iter().map(|i| i.0).collect();
+                let key = if all { "removeKeywords" } else { "addKeywords" };
+                let mut r = s.execute("photo.setMeta", &json!({"ids": ids, key: keywords}))?;
+                r["keywords"] = json!(keywords);
                 r["added"] = json!(!all);
                 Ok(r)
             }
