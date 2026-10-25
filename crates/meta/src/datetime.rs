@@ -93,7 +93,11 @@ impl DateTime {
     /// ISO 8601 (XMP date): `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DDThh:mm[:ss[.s+]][TZD]`.
     pub fn parse_iso(s: &str) -> Option<DateTime> {
         let s = s.trim();
-        let (d, t) = s.split_once('T').unwrap_or((s, ""));
+        let (d, t) = match s.split_once('T') {
+            Some((d, t)) if !t.is_empty() => (d, t),
+            Some(_) => return None,
+            None => (s, ""),
+        };
         let dp: Vec<&str> = d.split('-').collect();
         let year = num(dp.first()?)?.try_into().ok()?;
         let month = dp.get(1).map(|m| num(m)).unwrap_or(Some(1))?.try_into().ok()?;
@@ -107,13 +111,26 @@ impl DateTime {
                 Some(i) => (&t[..i], Some(&t[i..])),
                 None => (t, None),
             };
-            let cp: Vec<&str> = clock.split(':').collect();
-            dt.hour = num(cp.first()?)?.try_into().ok()?;
-            dt.minute = num(cp.get(1)?)?.try_into().ok()?;
-            if let Some(sec) = cp.get(2) {
-                let (whole, frac) = sec.split_once('.').unwrap_or((sec, ""));
+            let mut cp = clock.split(':');
+            dt.hour = num(cp.next()?)?.try_into().ok()?;
+            dt.minute = num(cp.next()?)?.try_into().ok()?;
+            if let Some(sec) = cp.next() {
+                let (whole, fraction) = match sec.split_once('.') {
+                    Some((whole, fraction)) => {
+                        if fraction.is_empty() || !fraction.bytes().all(|b| b.is_ascii_digit()) {
+                            return None;
+                        }
+                        (whole, Some(fraction))
+                    }
+                    None => (sec, None),
+                };
                 dt.second = num(whole)?.try_into().ok()?;
-                dt = dt.with_subsec(frac);
+                if let Some(fraction) = fraction {
+                    dt = dt.with_subsec(fraction);
+                }
+            }
+            if cp.next().is_some() {
+                return None;
             }
             if let Some(o) = off {
                 dt.offset_minutes = Some(Self::parse_offset(o)?);
@@ -213,6 +230,36 @@ mod tests {
         assert_eq!(DateTime::parse_iso("2019-07-04T10:11").unwrap().minute, 11);
         assert!(DateTime::parse_iso("nonsense").is_none());
         assert!(DateTime::parse_iso("2019-07-04Tab:cd").is_none());
+    }
+
+    #[test]
+    fn iso_rejects_incomplete_or_unconsumed_clock_text() {
+        for value in [
+            "2026-01-01T",
+            "2026-01-01T12:34:56:99Z",
+            "2026-01-01T12:34:56.Z",
+            "2026-01-01T12:34:56.123junkZ",
+            "2026-01-01T12:34:56.1.2Z",
+            "2026-01-01T12:34:56.12 3Z",
+            "2026-01-01T12:34:56:99Z",
+            "2026-01-01T12::34Z",
+        ] {
+            assert!(DateTime::parse_iso(value).is_none(), "accepted malformed timestamp {value:?}");
+        }
+    }
+
+    #[test]
+    fn iso_validates_clock_while_preserving_supported_forms() {
+        assert_eq!(DateTime::parse_iso("2019").unwrap().to_iso(), "2019-01-01T00:00:00");
+        assert_eq!(DateTime::parse_iso("2019-07").unwrap().to_iso(), "2019-07-01T00:00:00");
+        assert_eq!(DateTime::parse_iso("2019-07-04").unwrap().to_iso(), "2019-07-04T00:00:00");
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11").unwrap().to_iso(), "2019-07-04T10:11:00");
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11:12").unwrap().to_iso(), "2019-07-04T10:11:12");
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11:12Z").unwrap().offset_minutes, Some(0));
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11:12-05:30").unwrap().offset_minutes, Some(-330));
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11:12.123456Z").unwrap().millis, 123);
+        assert_eq!(DateTime::parse_iso(" 2019-07-04T10:11:12.5Z ").unwrap().millis, 500);
+        assert_eq!(DateTime::parse_iso("2019-07-04T10:11:60Z").unwrap().second, 60);
     }
 
     #[test]

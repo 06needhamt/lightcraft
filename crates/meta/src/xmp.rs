@@ -895,6 +895,25 @@ mod tests {
     }
 
     #[test]
+    fn malformed_capture_time_falls_back_and_keeps_raw_property() {
+        let packet = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/" exif:DateTimeOriginal="2026-01-01T" xmp:CreateDate="2026-01-02T10:00:00Z"/></rdf:RDF></x:xmpmeta>"#;
+        let parsed = parse_xmp(packet).unwrap();
+        assert_eq!(
+            parsed.metadata.capture_time.map(|d| (d.year, d.month, d.day, d.hour, d.minute, d.second, d.offset_minutes)),
+            Some((2026, 1, 2, 10, 0, 0, Some(0)))
+        );
+        assert_eq!(parsed.properties["exif:DateTimeOriginal"], vec!["2026-01-01T".to_string()]);
+    }
+
+    #[test]
+    fn malformed_capture_time_without_fallback_is_not_projected() {
+        let packet = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" exif:DateTimeOriginal="2026-01-01T"/></rdf:RDF></x:xmpmeta>"#;
+        let parsed = parse_xmp(packet).unwrap();
+        assert_eq!(parsed.metadata.capture_time, None);
+        assert_eq!(parsed.properties["exif:DateTimeOriginal"], vec!["2026-01-01T".to_string()]);
+    }
+
+    #[test]
     fn malformed_inputs() {
         assert!(parse_xmp("<a><b></a>").is_ok() || parse_xmp("<a><b></a>").is_err());
         assert_eq!(parse_xmp("").unwrap().metadata, Metadata::default());
