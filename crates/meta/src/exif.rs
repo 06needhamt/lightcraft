@@ -217,6 +217,53 @@ pub(crate) mod tests {
     use super::*;
     use lightcraft_tiff::{ByteOrder, IfdBuilder, TiffWriter, Value};
 
+    fn capture_time_tiff(original: Option<&str>, digitized: Option<&str>, ifd0_time: Option<&str>, xmp: Option<&str>) -> Vec<u8> {
+        let mut exif = IfdBuilder::new();
+        if let Some(value) = original {
+            exif.set(t::DATE_TIME_ORIGINAL, Value::Ascii(value.into()));
+        }
+        if let Some(value) = digitized {
+            exif.set(t::DATE_TIME_DIGITIZED, Value::Ascii(value.into()));
+        }
+        let mut ifd0 = IfdBuilder::new();
+        if let Some(value) = ifd0_time {
+            ifd0.set(t::DATE_TIME, Value::Ascii(value.into()));
+        }
+        ifd0.set_child(t::EXIF_IFD, exif);
+        if let Some(packet) = xmp {
+            ifd0.set(t::XMP, Value::Byte(packet.as_bytes().to_vec()));
+        }
+        TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap()
+    }
+
+    #[test]
+    fn exif_clock_invalid_original_uses_the_next_valid_exif_time() {
+        let invalid = "2026:01:01 12:34:56:99";
+        let digitized = capture_time_tiff(Some(invalid), Some("2026:01:02 10:00:00"), Some("2026:01:03 11:00:00"), None);
+        assert_eq!(read_exif(&digitized).capture_time.map(|date| date.to_iso()), Some("2026-01-02T10:00:00".into()));
+
+        let ifd0 = capture_time_tiff(Some(invalid), Some("2026:01:02 10:00:00:"), Some("2026:01:03 11:00:00"), None);
+        assert_eq!(read_exif(&ifd0).capture_time.map(|date| date.to_iso()), Some("2026-01-03T11:00:00".into()));
+
+        let none = capture_time_tiff(Some(invalid), Some("2026:01:02 10:00:00:junk"), Some("2026:01:03 11:00:00:"), None);
+        assert_eq!(read_exif(&none).capture_time, None);
+
+        let original = capture_time_tiff(Some("2026:01:04 12:00:00"), Some("2026:01:02 10:00:00"), Some("2026:01:03 11:00:00"), None);
+        assert_eq!(read_exif(&original).capture_time.map(|date| date.to_iso()), Some("2026-01-04T12:00:00".into()));
+    }
+
+    #[test]
+    fn exif_clock_invalid_original_allows_xmp_fallback_and_keeps_raw_tag() {
+        let capture = DateTime::parse_iso("2026-01-02T10:00:00Z");
+        let packet = crate::write_xmp(&Metadata { capture_time: capture, ..Default::default() }, None);
+        let bytes = capture_time_tiff(Some("2026:01:01 12:34:56:99"), None, None, Some(&packet));
+        assert_eq!(crate::extract(&bytes).capture_time.map(|date| date.to_iso()), Some("2026-01-02T10:00:00+00:00".into()));
+
+        let without_fallback = capture_time_tiff(Some("2026:01:01 12:34:56:junk"), None, None, None);
+        assert_eq!(crate::extract(&without_fallback).capture_time, None);
+        assert!(crate::embedded(&without_fallback).exif.is_some(), "rejecting the projection must retain the embedded EXIF block");
+    }
+
     /// An Exif block from a Panasonic body: no LensModel, the lens name in maker note tag 0x0051, whose value
     /// lies outside the note's IFD at an offset relative to the Exif TIFF header (as Panasonic writes it).
     pub(crate) fn panasonic_exif(order: ByteOrder, lens: Option<&str>, lens_model: Option<&str>) -> Vec<u8> {

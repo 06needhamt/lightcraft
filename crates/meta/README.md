@@ -20,6 +20,10 @@ Photo metadata: EXIF, XMP (read + write), IPTC-IIM, and the containers that carr
 35 mm equivalent, flash, exposure bias, program, metering, white balance), orientation, GPS, dimensions and the
 user fields (artist, copyright, title, caption, keywords, hierarchical keywords, rating −1…5, colour label).
 
+EXIF capture-time candidates are tried in order: DateTimeOriginal, DateTimeDigitized, then IFD0 DateTime. A clock
+with more than three colon-separated components is rejected as a whole, allowing the next valid candidate or XMP
+fallback to supply the capture time. The original tag remains available in All Metadata.
+
 ## XMP namespaces
 
 Written: `dc`, `xmp`, `photoshop`, `exif`, `exifEX`, `tiff`, `lr` (`hierarchicalSubject`) and ours,

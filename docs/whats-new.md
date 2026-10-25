@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-25
+
+### Invalid EXIF capture clocks no longer become plausible dates
+- An EXIF capture time with extra clock components is ignored as a whole. LightCraft can use a valid DateTimeDigitized,
+  IFD0 DateTime or embedded XMP value instead, while All Metadata continues to show the original tag. This also keeps
+  malformed timestamps from creating false matches when geotagging from a track log.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
