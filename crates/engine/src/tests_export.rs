@@ -1203,3 +1203,26 @@ fn same_folder_as_original_refuses_photos_without_a_folder() {
     assert!(e.contains("folder is missing") && e.contains(&gone), "{e}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Issue #2882: the demo photo's 16-bit TIFF export (2000 px long edge) with ZIP (the default) is
+/// never larger than the same export uncompressed.
+#[test]
+fn sixteen_bit_zip_tiff_export_is_never_larger_than_uncompressed() {
+    use crate::export::TiffCompression;
+    let mut s = Session::with_demo();
+    let id = s.active().unwrap();
+    let size = |s: &mut Session, tiff_compression| {
+        let o = ExportOptions {
+            format: ExportFormat::Tiff,
+            bit_depth: Some(16),
+            tiff_compression,
+            ..ExportOptions::from_json(&json!({"longEdge": 2000}))
+        };
+        export_photo(s, id, &o, 1).unwrap().bytes.len()
+    };
+    let none = size(&mut s, TiffCompression::None);
+    let zip = size(&mut s, TiffCompression::Deflate);
+    let lzw = size(&mut s, TiffCompression::Lzw);
+    eprintln!("demo photo, 16-bit TIFF: none {none} B, ZIP {zip} B, LZW {lzw} B");
+    assert!(zip <= none, "16-bit ZIP {zip} B is larger than uncompressed {none} B");
+}
