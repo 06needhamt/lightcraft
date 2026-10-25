@@ -23,6 +23,7 @@
 //!   replacing anything** (a hard link, which fails on a taken name; where the volume has no hard
 //!   links, an exclusive create that claims the name, then a rename over that placeholder).
 //! - [`same_file`] tells whether two paths name the same file on disk (device + inode on Unix,
+//!   volume serial number + file index on Windows,
 //!   resolved paths elsewhere), for "is this target an original?" checks.
 
 use std::cell::Cell;
@@ -267,7 +268,8 @@ fn same_content(path: &Path, data: &[u8]) -> io::Result<bool> {
     }
 }
 
-/// Do `a` and `b` name the same existing file (through links, `..`, case-insensitive names)?
+/// Do `a` and `b` name the same existing file (through hard links, symlinks, `..`,
+/// case-insensitive names)?
 pub fn same_file(a: &Path, b: &Path) -> bool {
     let (Ok(ma), Ok(mb)) = (fs::metadata(a), fs::metadata(b)) else { return false };
     #[cfg(unix)]
@@ -277,6 +279,14 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
     }
     #[cfg(not(unix))]
     {
+        // A hard link has its own path but shares the volume serial number and file index with
+        // its original. A volume that does not report them is compared by resolved path below.
+        #[cfg(windows)]
+        {
+            if ::same_file::is_same_file(a, b).unwrap_or(false) {
+                return true;
+            }
+        }
         if ma.len() != mb.len() {
             return false;
         }
@@ -394,6 +404,20 @@ mod tests {
         assert_eq!(got, d.join("a-2.dng"));
         assert_eq!(fs::read(&got).unwrap(), b"fresh");
         assert_eq!(names(&d), vec!["a-2.dng", "a.dng"], "the temp file is gone");
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn same_file_sees_a_hard_link_under_another_name() {
+        let d = temp("same-link");
+        let p = d.join("IMG_1.jpg");
+        fs::write(&p, b"original").unwrap();
+        let linked = d.join("linked.png");
+        fs::hard_link(&p, &linked).unwrap();
+        fs::write(d.join("copy.png"), b"original").unwrap();
+        assert!(same_file(&p, &linked), "a hard link is the same file");
+        assert!(same_file(&linked, &p));
+        assert!(!same_file(&p, &d.join("copy.png")), "a copy with the same content and length is another file");
         let _ = fs::remove_dir_all(&d);
     }
 
