@@ -384,6 +384,34 @@ CARGO_BUILD_JOBS=1 CARGO_PROFILE_RELEASE_DEBUG=0 CARGO_PROFILE_RELEASE_LTO=false
 设置可以覆盖继承的环境变量；应在本地调整打包配方或联系维护者，而不要假定给
 `makepkg` 添加环境变量前缀就能优先生效。
 
+**Linux/Arch 构建故障：rustc 在 ThinLTO 阶段发生 SIGILL。**
+在 [#2811](https://github.com/storytold/lightcraft/issues/2811) 中，报告者的 Arch Linux x86_64
+机器配备 AMD Ryzen 9 7900X3D 和 64 GB RAM，使用 rustc 1.99.0 / LLVM 23.1.1、AUR
+`lightcraft` `0.7.1-1` 和 `0.13.0-1`、`RUSTFLAGS="-C opt-level=3 -C target-cpu=native"`，
+以及 release 设置 `opt-level=3`、`lto=thin`、`codegen-units=1`。
+`cargo build --frozen --release` 在编译到可执行 crate 时，rustc 因 signal 4
+（`SIGILL` / `ILL_ILLOPN`）崩溃。core dump 指向 LLVM 的 SelectionDAG / vector-combine
+优化路径；编译器的具体根因尚未确定。这不表示所有使用这些硬件或工具链的机器都会失败。
+此故障与上文 [#1196](https://github.com/storytold/lightcraft/issues/1196) 中 16 GB 机器上的
+OOM 终止表现不同，没有证据表明两者根因相同。
+
+直接使用 Cargo 从源码构建时，等价的单条命令 LTO 覆盖方式是：
+
+```sh
+CARGO_PROFILE_RELEASE_LTO=off cargo build --frozen --release
+```
+
+报告者 @rwarmstr 验证成功的是：在 **AUR PKGBUILD 的 `_srcenv()` 函数内部**导出
+`CARGO_PROFILE_RELEASE_LTO=off` 后重新构建上述两个版本，无需更改 `RUSTFLAGS`。
+报告者测试的是 AUR 配方，并未单独验证上面的直接 Cargo 命令。仅在 `makepkg` 前添加变量，
+可能会被 PKGBUILD 自己的 export 覆盖；打包配方必须保留或设置该覆盖值。
+AUR 的 `!lto` 选项行为由 [#2813](https://github.com/storytold/lightcraft/issues/2813) 单独跟踪。
+
+[Cargo 的 LTO 文档](https://doc.rust-lang.org/cargo/reference/profiles.html#lto) 区分了 `false`
+和 `off`：`false` 仍可能在代码生成单元之间执行 thin local LTO（除非 `codegen-units=1`
+或 `opt-level=0`）；`off` 则明确禁用 LTO。上文的低内存配方保持不变。
+此绕过方法仅针对受影响的构建，不是新的默认建议；禁用 LTO 可能改变性能、二进制大小和构建行为。
+
 **中文和日文文字**需要共享字体仓库，这是一个可选的构建输入（所有正式发布版都会包含它）：
 
 ```sh
