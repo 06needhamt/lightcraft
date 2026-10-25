@@ -553,8 +553,7 @@ pub fn analyze_source(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings) -> A
 /// cache miss instead of building it again.
 fn analyze_cached(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, plane: Option<&Plane>) -> Analysis {
     static CACHE: Mutex<Vec<(u64, Analysis)>> = Mutex::new(Vec::new());
-    let key = crate::optics::fingerprint(src)
-        ^ lightcraft_develop::DevelopSettings { optics: s.optics, orientation: s.orientation, ..Default::default() }.hash64().rotate_left(17);
+    let key = analysis_key(src, info, s);
     if let Ok(c) = CACHE.lock()
         && let Some((_, a)) = c.iter().find(|(k, _)| *k == key)
     {
@@ -571,6 +570,17 @@ fn analyze_cached(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, plane: O
         }
     }
     a
+}
+
+/// What an analysis depends on: the source's pixels, the optics and orientation settings, and the
+/// lens the frame is corrected for (`info.lens`, which [`analysis_plane`] reads through the frame).
+pub(crate) fn analysis_key(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut lens = std::collections::hash_map::DefaultHasher::new();
+    format!("{:?}", info.lens).hash(&mut lens);
+    crate::optics::fingerprint(src)
+        ^ lightcraft_develop::DevelopSettings { optics: s.optics, orientation: s.orientation, ..Default::default() }.hash64().rotate_left(17)
+        ^ lens.finish().rotate_left(29)
 }
 
 /// The image an analysis reads: the lens-corrected source (optics applied, no perspective or crop)

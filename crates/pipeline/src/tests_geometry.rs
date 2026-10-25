@@ -597,3 +597,19 @@ fn auto_straighten_takes_the_roll_from_converging_verticals() {
     let deg = auto_level(&line_drawing(&lines)).expect("the vanishing point");
     assert!((deg + 3.0).abs() < 0.3, "{deg}");
 }
+
+/// The cached analysis tells lenses apart: the analysis image is corrected for `info.lens`, and
+/// Auto straighten reads the horizon from a fresh image and the lines from the cache, so a hit
+/// for another lens would mix two frames (review of #2809).
+#[test]
+fn the_analysis_cache_tells_lenses_apart() {
+    let src = tilted_scene(2.0, 30.0);
+    let s = DevelopSettings::default();
+    let plain = SourceInfo::default();
+    let vignette = lightcraft_develop::EmbeddedVignette::default();
+    let lens =
+        SourceInfo { lens: Some(lightcraft_develop::EmbeddedLens { vignette: Some(vignette), ..Default::default() }), ..SourceInfo::default() };
+    let key = crate::upright::analysis_key;
+    assert_eq!(key(&src, &plain, &s), key(&src, &plain.clone(), &s), "the same source, settings and lens");
+    assert_ne!(key(&src, &plain, &s), key(&src, &lens, &s), "another lens");
+}
