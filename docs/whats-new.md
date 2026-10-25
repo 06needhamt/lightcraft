@@ -5,8 +5,10 @@
 ### Importing a folder from a network share waits less
 - After the import review, the import used to check that each photo was still as the review had seen it by asking the
   disk about one photo after another, so on a network share every photo waited for a round trip to the server. It now
-  asks about 16 photos at a time, the same wait for every 16 instead of for each one. Reading the photos in the review
+  asks about up to 16 photos at a time, the same wait for every 16 instead of for each one. Reading the photos in the review
   is unchanged.
+- Looking for each photo's `.xmp` sidecar, which asks the disk several names for every photo, also goes up to 16
+  photos at a time.
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
