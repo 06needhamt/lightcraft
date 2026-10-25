@@ -119,7 +119,11 @@ reads the file's as-shot white; rendered files and raws without matrices use a r
 whose 6500 K / 0 is the as-shot look (the Edit panel shows it as −100..+100). The stored `wb` of such a Kelvin raw
 says `"scale": "kelvin"`; a partial settings JSON given to `develop.merge` or a preset whose `wb` sets `temp` / `tint`
 **without** `scale` keeps the relative meaning it always had (6500 = as shot) on every raw, so agents that mean
-Kelvin on a Kelvin raw pass `"scale": "kelvin"` or use `develop.set` / `develop.wb`.
+Kelvin on a Kelvin raw pass `"scale": "kelvin"` or use `develop.set` / `develop.wb`. A partial that names only one
+of `temp` / `tint` is resolved against the photo (issue #2910): the photo's white balance is first brought onto the
+partial's scale with the photo's own as-shot white, so the field the partial does not name keeps the look it had
+instead of being re-read on the partial's scale, and the stored result is back on the scale the photo is edited on
+(`"scale": "kelvin"` on a Kelvin raw). Partials naming both fields mean the same as before.
 
 Image navigation is also available directly as the UI command `view.navigate`, with
 `{zoom?: "fit" | "fill" | {"percent": number}, pan?: [x, y]}`. Percentage zoom accepts fractional

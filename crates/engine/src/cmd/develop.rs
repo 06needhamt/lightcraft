@@ -51,6 +51,49 @@ fn refit_crop_angle(touched: bool, before: CropGeometry, d: &mut DevelopSettings
 
 const CROP_ANGLE: &str = "crop.angle";
 
+/// Merge a partial settings JSON into a photo's settings (issue #2910). `DevelopSettings::merged` keeps a white
+/// balance that names no scale on the relative scale; on a photo edited in Kelvin the field the partial does not
+/// name (a partial with only `temp`, or only `tint`) would then be read on the other scale, giving a white neither
+/// the photo nor the partial asked for. A one-field white balance partial is therefore resolved against the photo
+/// first: the photo's white balance is brought onto the partial's scale with the photo's as-shot white
+/// (`kelvin_to_legacy` / `legacy_to_kelvin` via `normalize_wb`), the partial merges unchanged, and the result lands
+/// back on the photo's editing scale (`normalize_wb`), where the kept field carries the look the photo had.
+/// Partials naming both fields, or neither, mean the same as before; so do presets and the crs / Luminar importers,
+/// which always write `temp`, `tint` and `scale` together through their own paths.
+pub(crate) fn merge_settings_for_photo(
+    d: &DevelopSettings,
+    partial: &Value,
+    info: &lightcraft_pipeline::SourceInfo,
+) -> std::result::Result<DevelopSettings, serde_json::Error> {
+    let mut d = (*d).clone();
+    let wb = partial.get("wb").and_then(Value::as_object);
+    let one_field = wb.is_some_and(|wb| wb.contains_key("temp") != wb.contains_key("tint"));
+    // only a photo whose source is edited in Kelvin has two scales to trip over
+    let kelvin_source = one_field && info.raw && !info.relative_wb;
+    if kelvin_source {
+        // the scale the partial's numbers are written on: an unmentioned scale means the relative scale, as `merged` reads it
+        let partial_scale = match wb.and_then(|wb| wb.get("scale")).and_then(Value::as_str) {
+            Some("kelvin") => lightcraft_develop::WbScale::Kelvin,
+            _ => lightcraft_develop::WbScale::Legacy,
+        };
+        // put the photo onto the Kelvin scale (converting a relative look once), then onto the partial's
+        lightcraft_pipeline::local::normalize_wb(&mut d, info);
+        if d.wb.scale != partial_scale && partial_scale == lightcraft_develop::WbScale::Legacy {
+            let as_shot = (info.as_shot_temp, info.as_shot_tint);
+            let (kt, ktint) = lightcraft_pipeline::local::effective_wb(info, &d);
+            if let Some((lt, ltint)) = lightcraft_pipeline::local::kelvin_to_legacy(kt, ktint, as_shot) {
+                (d.wb.mode, d.wb.temp, d.wb.tint, d.wb.scale) = (WbMode::Custom, lt, ltint, lightcraft_develop::WbScale::Legacy);
+            }
+        }
+    }
+    let mut out = d.merged(partial)?;
+    if kelvin_source {
+        // and the result back onto the scale this photo is edited on
+        lightcraft_pipeline::local::normalize_wb(&mut out, info);
+    }
+    Ok(out)
+}
+
 /// `v` as a list of numbers; `None` unless it is an array of nothing but numbers.
 fn numbers(v: Option<&Value>) -> Option<Vec<f64>> {
     v?.as_array()?.iter().map(Value::as_f64).collect()
@@ -256,8 +299,10 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("develop.merge", "Apply Settings JSON", [], None, "{settings: partial DevelopSettings JSON, label?}", has_active, |s, p| {
             let partial = p.get("settings").cloned().ok_or_else(|| bad("develop.merge", "missing settings"))?;
             let label = str_param(p, "label").unwrap_or("Edit").to_string();
+            let id = active(s, "develop.merge")?;
+            let info = s.source_info(id);
             edit(s, "develop.merge", &label, |d| {
-                *d = d.merged(&partial).map_err(|e| bad("develop.merge", e.to_string()))?;
+                *d = merge_settings_for_photo(d, &partial, &info).map_err(|e| bad("develop.merge", e.to_string()))?;
                 Ok(())
             })
         }),

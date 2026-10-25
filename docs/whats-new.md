@@ -1,5 +1,17 @@
 # What's new in LightCraft
 
+## 2026-10-25
+
+### A one-field white balance edit no longer shifts the other one
+- Settings that name only a white balance temperature, or only a tint — `develop.merge`,
+  `lightcraft-cli render --settings`, an MCP `develop.merge` call, or a hand-written preset — used to change the
+  colour balance of photos they never mentioned. On a raw edited in Kelvin the field the partial kept was re-read
+  on the other scale: `wb {temp: 5800}` on a photo at 5000 K / +12 tint came back at 5800 K with the +12 read as a
+  relative shift, moving the green–magenta balance by a visible amount. The kept field now carries the look the
+  photo had, and the result is stored on the scale that photo is edited on. Presets, XMP import and settings that
+  name both fields (or neither) behave exactly as before, and a partial that says `"scale": "kelvin"` is still
+  read in Kelvin.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
