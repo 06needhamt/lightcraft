@@ -132,7 +132,9 @@ fn set_visible(workspace: &mut Workspace, panel: Panel, visible: bool) -> Result
     // beside the photo instead.
     if workspace.hidden.iter().any(|(hidden, _)| *hidden == panel) {
         let mut next = workspace.clone();
-        if next.set_visible(panel, true, None, permissions).is_ok() && validate(&next).is_ok() {
+        // A saved place that can't be rebuilt falls back to joining the fallback's tabs. The
+        // photo view takes no tabs, so that is refused and the panel opens beside it below.
+        if next.set_visible(panel, true, Some(Panel::Canvas), permissions).is_ok() && validate(&next).is_ok() {
             *workspace = next;
             return Ok(());
         }
@@ -603,5 +605,26 @@ mod tests {
             let location = workspace.layout.location(&panel).unwrap();
             assert_eq!((location.anchor, location.placement), (Some(Panel::Canvas), Placement::Split(zone)), "{panel:?}");
         }
+    }
+
+    #[test]
+    fn a_panel_whose_saved_place_is_gone_opens_beside_the_photo_on_its_side() {
+        let root = split(SplitAxis::Horizontal, SplitSize::FixedSecond(300.0), tabs(Panel::Canvas), tabs(Panel::Tools));
+        let mut workspace = Workspace::new(Layout { root: Some(root), floating: Vec::new() });
+        // Presets, the panel Library went back beside, is neither shown nor hidden.
+        let location: craft_ui::docking::Location<Panel> = serde_json::from_value(json!({
+            "floating": null,
+            "anchor": "presets",
+            "placement": {"Split": "Left"},
+            "size": {"FixedFirst": 280.0},
+            "stack": null,
+            "sibling": ["presets"]
+        }))
+        .unwrap();
+        workspace.hidden.push((Panel::Library, location));
+        validate(&workspace).unwrap();
+        set_visible(&mut workspace, Panel::Library, true).unwrap();
+        let location = workspace.layout.location(&Panel::Library).unwrap();
+        assert_eq!((location.anchor, location.placement), (Some(Panel::Canvas), Placement::Split(Zone::Left)));
     }
 }
