@@ -45,6 +45,30 @@ fn release(h: &mut Headless, pos: egui::Pos2) {
 }
 
 #[test]
+fn window_menu_reopens_closed_panels_in_their_dock_columns() {
+    use craft_ui::docking::Side;
+    let mut h = app();
+    let columns = |h: &Headless, side| {
+        crate::docking::columns(h.app.ui.docking.as_ref().unwrap(), side).into_iter().map(|(_, groups)| groups).collect::<Vec<_>>()
+    };
+    let end = vec![vec![vec![Panel::Tools]], vec![vec![Panel::Presets]]];
+    h.app.run("panel.presets", json!({})).unwrap();
+    h.step();
+    assert_eq!(columns(&h, Side::End), end, "Presets opens on Tools' photo side");
+    dock(&mut h, json!({"operation":"close","panel":"tools"}));
+    assert_eq!(h.app.ui.right, RightPanel::None);
+    h.app.run("panel.edit", json!({})).unwrap();
+    h.step();
+    assert_eq!(columns(&h, Side::End), end, "Tools reopens at the window edge");
+    let width = crate::docking::columns(h.app.ui.docking.as_ref().unwrap(), Side::Start).first().unwrap().0;
+    dock(&mut h, json!({"operation":"close","panel":"library"}));
+    assert!(!h.app.ui.left_panel);
+    h.app.run("view.leftPanel", json!({})).unwrap();
+    h.step();
+    assert_eq!(crate::docking::columns(h.app.ui.docking.as_ref().unwrap(), Side::Start), [(width, vec![vec![Panel::Library]])]);
+}
+
+#[test]
 fn inactive_same_mode_commands_reveal_without_closing_or_editing() {
     let mut h = app();
     dock(&mut h, json!({"operation":"move","panel":"tools","target":"library","zone":"center"}));
@@ -271,8 +295,8 @@ fn covered_keyword_rejects_hierarchy_move_and_uncovered_target_moves_exact_keywo
 #[test]
 fn reset_during_held_divider_drag_keeps_replacement_layout_on_later_movement() {
     let mut h = app();
-    let divider = egui::Id::new("lightcraft-docking").with(("split", Vec::<bool>::new()));
-    let from = h.view.ctx.read_response(divider).expect("the custom workspace root divider is rendered").rect.center();
+    let divider = egui::Id::new("lightcraft-docking").with(("column-resize", Some(Panel::Library)));
+    let from = h.view.ctx.read_response(divider).expect("the Library column's divider is rendered").rect.center();
     let before = h.app.ui.docking.as_ref().unwrap().layout.clone();
     h.app.synthetic.push(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
     h.step();
@@ -303,7 +327,7 @@ fn reset_during_held_divider_drag_keeps_replacement_layout_on_later_movement() {
 
 fn held_divider_replacement_route(route: &str) {
     let mut h = app();
-    let divider = egui::Id::new("lightcraft-docking").with(("split", Vec::<bool>::new()));
+    let divider = egui::Id::new("lightcraft-docking").with(("column-resize", Some(Panel::Library)));
     let from = h.view.ctx.read_response(divider).unwrap().rect.center();
     let photos = serde_json::to_value(h.app.session.catalog.photos().map(|photo| photo.as_ref()).collect::<Vec<_>>()).unwrap();
     h.app.synthetic.push(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });

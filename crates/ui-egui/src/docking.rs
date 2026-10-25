@@ -2,8 +2,8 @@
 //! Document contents remain owned by their existing view implementations.
 
 use craft_ui::docking::{
-    Action, DockArea, DockCommand, DockError, DockOperation, DockStyle, FloatSpace, Layout, Node, PanelLimits, PanelState, Permissions, Placement,
-    UiDock, Zone,
+    Action, Column, ColumnLocation, DockArea, DockCommand, DockError, DockOperation, DockStyle, FloatSpace, Group, GroupLocation, Layout, Location,
+    Node, PanelLimits, PanelState, Permissions, Placement, Side, UiDock, Zone,
 };
 use craft_ui::layout::{SplitAxis, SplitSize};
 use serde::{Deserialize, Serialize};
@@ -36,14 +36,36 @@ impl Panel {
             Self::Presets => "Presets",
         }
     }
-    fn default_side(self) -> Zone {
+    /// The dock the panel opens in when it has no recorded place.
+    fn home_side(self) -> Side {
+        if self == Self::Library { Side::Start } else { Side::End }
+    }
+    /// The width of the panel's own column in the default workspace.
+    fn home_width(self) -> f32 {
         match self {
-            Self::Canvas => Zone::Right,
-            Self::Library => Zone::Left,
-            Self::Tools => Zone::Right,
-            Self::Presets => Zone::Right,
+            Self::Canvas => crate::state::MIN_PHOTO_WIDTH,
+            Self::Library => crate::state::LEFT_WIDTH.default,
+            Self::Tools => crate::state::RIGHT_WIDTH.default,
+            Self::Presets => PRESETS_WIDTH,
         }
     }
+}
+
+const PRESETS_WIDTH: f32 = 300.0;
+
+/// The arrangement generation saved as `UiState::docking_version`. Settings without it hold the
+/// side panels in split frames; they start again from [`default_workspace`].
+pub const DOCKING_VERSION: u32 = 1;
+
+/// Drops saved settings' arrangement from before [`DOCKING_VERSION`], with the places of its
+/// closed panels, so the app starts from the default workspace; every other setting stays.
+/// Returns true when an arrangement was dropped.
+pub fn drop_outdated(settings: &mut serde_json::Map<String, Value>) -> bool {
+    if settings.get("dockingVersion").and_then(Value::as_u64).is_some_and(|version| version >= u64::from(DOCKING_VERSION)) {
+        return false;
+    }
+    settings.insert("dockingVersion".into(), json!(DOCKING_VERSION));
+    settings.remove("docking").is_some_and(|docking| !docking.is_null())
 }
 
 fn permissions(panel: &Panel) -> Permissions {
@@ -62,21 +84,47 @@ fn split(axis: SplitAxis, size: SplitSize, first: Node<Panel>, second: Node<Pane
 /// The saved arrangement. Closed panels keep their last group, side, size or floating rect.
 pub type Workspace = craft_ui::docking::Workspace<Panel>;
 
-pub fn default_workspace() -> Workspace {
+fn column(panel: Panel, width: f32) -> Column<Panel> {
+    Column::new(vec![Group::new(vec![panel], 0)], width)
+}
+
+/// Library in a start dock and Tools in an end dock beside the photo. Presets has a column of
+/// its own on Tools' photo side rather than a group under Tools: both are tall lists that are
+/// read side by side while trying presets, and stacking them would halve both.
+fn docked(left: f32, right: f32) -> Workspace {
+    let start = Node::Dock { side: Side::Start, columns: vec![column(Panel::Library, left)] };
+    let end = Node::Dock { side: Side::End, columns: vec![column(Panel::Tools, right), column(Panel::Presets, PRESETS_WIDTH)] };
     Workspace::new(Layout {
         root: Some(split(
             SplitAxis::Horizontal,
-            SplitSize::FixedFirst(crate::state::LEFT_WIDTH.default),
-            tabs(Panel::Library),
-            split(
-                SplitAxis::Horizontal,
-                SplitSize::FixedSecond(crate::state::RIGHT_WIDTH.default),
-                split(SplitAxis::Horizontal, SplitSize::FixedSecond(300.0), tabs(Panel::Canvas), tabs(Panel::Presets)),
-                tabs(Panel::Tools),
-            ),
+            SplitSize::FixedFirst(left),
+            start,
+            split(SplitAxis::Horizontal, SplitSize::FixedSecond(right + PRESETS_WIDTH), tabs(Panel::Canvas), end),
         )),
         floating: Vec::new(),
     })
+}
+
+pub fn default_workspace() -> Workspace {
+    docked(crate::state::LEFT_WIDTH.default, crate::state::RIGHT_WIDTH.default)
+}
+
+/// Where a panel without a usable recorded place opens: its own column at its dock's window
+/// edge, or Presets on the photo side of Tools while Tools is in the end dock.
+fn home(workspace: &Workspace, panel: Panel) -> Location<Panel> {
+    let column = ColumnLocation { side: panel.home_side(), width: panel.home_width(), iconic: false, iconic_width: None };
+    let docked_at =
+        |other: Panel| workspace.layout.location(&other).ok().and_then(|location| location.group).and_then(|group| group.column).map(|c| c.side);
+    let beside = (panel == Panel::Presets && docked_at(Panel::Tools) == Some(Side::End)).then_some(Panel::Tools);
+    Location {
+        floating: None,
+        anchor: beside,
+        placement: if beside.is_some() { Placement::Column { after: true } } else { Placement::Tab { before: None } },
+        size: None,
+        stack: None,
+        sibling: Vec::new(),
+        group: Some(GroupLocation { minimized: false, height: None, column: Some(column) }),
+    }
 }
 
 fn error(error: DockError) -> String {
@@ -118,7 +166,7 @@ fn apply(workspace: &mut Workspace, action: Action<Panel>) -> Result<(), String>
     Ok(())
 }
 
-/// Shows a panel at its recorded place, else beside the photo on its usual side. A panel that
+/// Shows a panel at its recorded place, else in its dock column ([`home`]). A panel that
 /// already has the asked visibility keeps its tab selection.
 fn set_visible(workspace: &mut Workspace, panel: Panel, visible: bool) -> Result<(), String> {
     if workspace.layout.contains(&panel) == visible {
@@ -128,18 +176,23 @@ fn set_visible(workspace: &mut Workspace, panel: Panel, visible: bool) -> Result
         return apply(workspace, Action::Close { panel });
     }
     validate(workspace)?;
-    // Without a recorded place craft-ui opens the panel at the right edge; LightCraft puts it
-    // beside the photo instead.
+    // A recorded place that can't be rebuilt falls back to joining the fallback's tabs. The
+    // photo view takes no tabs, so that is refused and the panel goes to its home column below.
     if workspace.hidden.iter().any(|(hidden, _)| *hidden == panel) {
         let mut next = workspace.clone();
-        // A saved place that can't be rebuilt falls back to joining the fallback's tabs. The
-        // photo view takes no tabs, so that is refused and the panel opens beside it below.
         if next.set_visible(panel, true, Some(Panel::Canvas), permissions).is_ok() && validate(&next).is_ok() {
             *workspace = next;
             return Ok(());
         }
     }
-    apply(workspace, Action::OpenAt { panel, anchor: Panel::Canvas, placement: Placement::Split(panel.default_side()) })
+    let mut next = workspace.clone();
+    next.hidden.retain(|(hidden, _)| *hidden != panel);
+    let location = home(&next, panel);
+    next.hidden.push((panel, location));
+    next.set_visible(panel, true, Some(Panel::Canvas), permissions).map_err(error)?;
+    validate(&next)?;
+    *workspace = next;
+    Ok(())
 }
 
 /// Membership is passive state; an explicit command also exposes the panel's body.
@@ -177,14 +230,7 @@ fn run(workspace: &mut Workspace, params: &Value) -> Result<(), String> {
 }
 
 fn from_ui(app: &crate::LightcraftApp) -> Workspace {
-    let mut workspace = default_workspace();
-    if let Some(Node::Split { size, second, .. }) = workspace.layout.root.as_mut() {
-        *size = SplitSize::FixedFirst(crate::state::LEFT_WIDTH.clamp(app.ui.left_width));
-        if let Node::Split { size, .. } = second.as_mut() {
-            *size = SplitSize::FixedSecond(crate::state::RIGHT_WIDTH.clamp(app.ui.right_width));
-        }
-    }
-    workspace
+    docked(crate::state::LEFT_WIDTH.clamp(app.ui.left_width), crate::state::RIGHT_WIDTH.clamp(app.ui.right_width))
 }
 
 fn sync(workspace: &mut Workspace, app: &crate::LightcraftApp) -> Result<(), String> {
@@ -207,10 +253,12 @@ fn publish_visibility(app: &mut crate::LightcraftApp, workspace: &Workspace) {
         let Ok(location) = workspace.layout.location(&panel) else {
             continue;
         };
-        let value = match (location.floating, location.placement, location.size) {
-            (Some([_, _, width, _]), _, _)
-            | (None, Placement::Split(Zone::Left), Some(SplitSize::FixedFirst(width)))
-            | (None, Placement::Split(Zone::Right), Some(SplitSize::FixedSecond(width))) => Some(width),
+        let column = location.group.and_then(|group| group.column);
+        let value = match (location.floating, column, location.placement, location.size) {
+            (Some([_, _, width, _]), ..) => Some(width),
+            (None, Some(column), ..) => Some(column.width),
+            (None, None, Placement::Split(Zone::Left), Some(SplitSize::FixedFirst(width)))
+            | (None, None, Placement::Split(Zone::Right), Some(SplitSize::FixedSecond(width))) => Some(width),
             // A vertical split stores height, and the opposite fixed side sizes a sibling.
             _ => None,
         };
@@ -305,8 +353,10 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     app.ui.docking = Some(workspace.clone());
     let mut style = DockStyle::from_ui(ui);
     style.min_pane = 96.0;
-    // The side panels are frames whose widths LightCraft tracks; dock columns are not offered.
-    style.new_dock_zones = false;
+    // Free docking: a panel dropped at an empty window edge makes a dock, and the photo takes
+    // drops on all four sides.
+    style.new_dock_zones = true;
+    style.side_edge_zones = false;
     style.float_label = crate::i18n::tr("Float panel").into();
     style.close_label = crate::i18n::tr("Close panel").into();
     style.move_panel_to_label = crate::i18n::tr("Move to group").into();
@@ -320,6 +370,12 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     style.close_others_label = crate::i18n::tr("Close other panels in group").into();
     style.minimize_label = crate::i18n::tr("Minimize").into();
     style.expand_label = crate::i18n::tr("Expand").into();
+    style.move_column_label = crate::i18n::tr("Move panel column").into();
+    style.collapse_to_icons_label = crate::i18n::tr("Collapse to Icons").into();
+    style.expand_panels_label = crate::i18n::tr("Expand Panels").into();
+    style.collapse_column_label = crate::i18n::tr("Collapse column").into();
+    style.expand_column_label = crate::i18n::tr("Expand column").into();
+    style.auto_collapse_label = crate::i18n::tr("Auto-Collapse Iconic Panels").into();
     style.move_window_label = crate::i18n::tr("Move panel window").into();
     style.close_window_label = crate::i18n::tr("Close panel window").into();
     style.float_hint_label = crate::i18n::tr("Hold {key} to undock").into();
@@ -399,7 +455,8 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
     }
 }
 
-/// Keep the established ui.set width controls connected to the panel's current parent split.
+/// Keep the established ui.set width controls connected to the panel's dock column, floating
+/// window or parent split.
 pub(crate) fn set_widths(state: &mut crate::UiState, params: &Value) -> Result<(), String> {
     state.left_width = crate::state::LEFT_WIDTH.clamp(state.left_width);
     state.right_width = crate::state::RIGHT_WIDTH.clamp(state.right_width);
@@ -415,6 +472,10 @@ pub(crate) fn set_widths(state: &mut crate::UiState, params: &Value) -> Result<(
             if let Some(rect) = &mut location.floating {
                 rect[2] = width;
             }
+            if let Some(column) = location.group.as_mut().and_then(|group| group.column.as_mut()) {
+                column.width = width;
+                continue;
+            }
             match location.placement {
                 Placement::Split(Zone::Left) => location.size = Some(SplitSize::FixedFirst(width)),
                 Placement::Split(Zone::Right) => location.size = Some(SplitSize::FixedSecond(width)),
@@ -426,6 +487,10 @@ pub(crate) fn set_widths(state: &mut crate::UiState, params: &Value) -> Result<(
             let mut rect = group.rect;
             rect[2] = width;
             apply(workspace, Action::MoveFloating { panel, rect })?;
+            continue;
+        }
+        if workspace.layout.location(&panel).is_ok_and(|location| location.group.is_some_and(|group| group.column.is_some())) {
+            apply(workspace, Action::ResizeColumn { panel, width })?;
             continue;
         }
         let mut nodes = workspace.layout.root.as_ref().map(|node| vec![(node, Vec::new())]).unwrap_or_default();
@@ -468,6 +533,23 @@ fn panel_limits(panel: &Panel) -> PanelLimits {
         Panel::Presets => (egui::vec2(250.0, 120.0), 520.0),
     };
     PanelLimits { min, max: egui::vec2(max_width, 1_000_000.0) }
+}
+
+/// The columns of the dock on `side`, from the window edge inwards: width and the panels of
+/// each group.
+#[cfg(test)]
+pub(crate) fn columns(workspace: &Workspace, side: Side) -> Vec<(f32, Vec<Vec<Panel>>)> {
+    let mut nodes: Vec<_> = workspace.layout.root.iter().collect();
+    while let Some(node) = nodes.pop() {
+        match node {
+            Node::Split { first, second, .. } => nodes.extend([&**first, &**second]),
+            Node::Dock { side: dock, columns } if *dock == side => {
+                return columns.iter().map(|column| (column.width, column.groups.iter().map(|group| group.panels.clone()).collect())).collect();
+            }
+            _ => {}
+        }
+    }
+    Vec::new()
 }
 
 #[cfg(test)]
@@ -533,7 +615,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_width_publication_reads_own_horizontal_and_floating_widths() {
+    fn legacy_width_publication_reads_own_split_and_floating_widths() {
         for (size, first) in [(SplitSize::FixedFirst(310.0), true), (SplitSize::FixedSecond(310.0), false)] {
             let workspace = tools_split(SplitAxis::Horizontal, size, first);
             let mut app = app_with_widths();
@@ -597,18 +679,125 @@ mod tests {
     }
 
     #[test]
-    fn a_panel_without_a_recorded_place_opens_beside_the_photo_on_its_side() {
-        for (panel, zone) in [(Panel::Library, Zone::Left), (Panel::Presets, Zone::Right)] {
-            let root = split(SplitAxis::Horizontal, SplitSize::FixedSecond(300.0), tabs(Panel::Canvas), tabs(Panel::Tools));
-            let mut workspace = Workspace::new(Layout { root: Some(root), floating: Vec::new() });
-            set_visible(&mut workspace, panel, true).unwrap();
-            let location = workspace.layout.location(&panel).unwrap();
-            assert_eq!((location.anchor, location.placement), (Some(Panel::Canvas), Placement::Split(zone)), "{panel:?}");
+    fn default_workspace_docks_library_at_the_start_and_tools_and_presets_at_the_end() {
+        let workspace = default_workspace();
+        validate(&workspace).unwrap();
+        assert_eq!(columns(&workspace, Side::Start), [(crate::state::LEFT_WIDTH.default, vec![vec![Panel::Library]])]);
+        assert_eq!(
+            columns(&workspace, Side::End),
+            [(crate::state::RIGHT_WIDTH.default, vec![vec![Panel::Tools]]), (PRESETS_WIDTH, vec![vec![Panel::Presets]])],
+            "Presets has its own column on Tools' photo side"
+        );
+        let Some(Node::Split { second, .. }) = &workspace.layout.root else { panic!("{:?}", workspace.layout.root) };
+        let Node::Split { first, .. } = &**second else { panic!("{second:?}") };
+        assert_eq!(**first, tabs(Panel::Canvas), "the photo sits between the docks");
+        assert!(workspace.layout.floating.is_empty());
+        let app = app_with_widths();
+        let workspace = from_ui(&app);
+        assert_eq!(columns(&workspace, Side::Start).first().map(|column| column.0), Some(333.0));
+        assert_eq!(columns(&workspace, Side::End).first().map(|column| column.0), Some(410.0));
+    }
+
+    #[test]
+    fn dock_column_widths_publish_and_follow_width_controls() {
+        let mut app = app_with_widths();
+        let workspace = docked(300.0, 310.0);
+        publish_visibility(&mut app, &workspace);
+        assert_eq!((app.ui.left_width, app.ui.right_width), (300.0, 310.0));
+        let mut state = crate::UiState { docking: Some(workspace), left_width: 350.0, right_width: 400.0, ..Default::default() };
+        set_visible(state.docking.as_mut().unwrap(), Panel::Library, false).unwrap();
+        set_widths(&mut state, &json!({"leftWidth":350.0, "rightWidth":400.0})).unwrap();
+        let workspace = state.docking.as_mut().unwrap();
+        assert_eq!(columns(workspace, Side::End).first().map(|column| column.0), Some(400.0), "Tools' column");
+        set_visible(workspace, Panel::Library, true).unwrap();
+        assert_eq!(columns(workspace, Side::Start), [(350.0, vec![vec![Panel::Library]])], "the closed Library's column");
+    }
+
+    #[test]
+    fn a_panel_without_a_recorded_place_opens_in_its_dock() {
+        let root = split(
+            SplitAxis::Horizontal,
+            SplitSize::FixedSecond(300.0),
+            tabs(Panel::Canvas),
+            Node::Dock { side: Side::End, columns: vec![column(Panel::Tools, 300.0)] },
+        );
+        let mut workspace = Workspace::new(Layout { root: Some(root), floating: Vec::new() });
+        set_visible(&mut workspace, Panel::Presets, true).unwrap();
+        set_visible(&mut workspace, Panel::Library, true).unwrap();
+        validate(&workspace).unwrap();
+        assert_eq!(columns(&workspace, Side::Start), [(crate::state::LEFT_WIDTH.default, vec![vec![Panel::Library]])]);
+        assert_eq!(columns(&workspace, Side::End), [(300.0, vec![vec![Panel::Tools]]), (PRESETS_WIDTH, vec![vec![Panel::Presets]])]);
+        // Without Tools in the end dock, Presets takes the dock's window edge.
+        let mut workspace = default_workspace();
+        set_visible(&mut workspace, Panel::Presets, false).unwrap();
+        workspace.hidden.clear();
+        apply(&mut workspace, Action::Float { panel: Panel::Tools, rect: [12.0, 34.0, 390.0, 450.0] }).unwrap();
+        set_visible(&mut workspace, Panel::Presets, true).unwrap();
+        assert_eq!(columns(&workspace, Side::End), [(PRESETS_WIDTH, vec![vec![Panel::Presets]])]);
+    }
+
+    fn saved_settings(docking: Value, version: Option<u32>) -> serde_json::Map<String, Value> {
+        let ui = crate::UiState { thumb_size: 210.0, filmstrip: false, presets: true, ..Default::default() };
+        let mut saved = serde_json::to_value(&ui).unwrap();
+        let fields = saved.as_object_mut().unwrap();
+        fields.insert("docking".into(), docking);
+        match version {
+            Some(version) => fields.insert("dockingVersion".into(), json!(version)),
+            None => fields.remove("dockingVersion"),
+        };
+        fields.clone()
+    }
+
+    #[test]
+    fn a_saved_split_frame_layout_without_a_docking_version_loads_as_the_default_docks() {
+        let frames = split(
+            SplitAxis::Horizontal,
+            SplitSize::FixedFirst(333.0),
+            tabs(Panel::Library),
+            split(SplitAxis::Horizontal, SplitSize::FixedSecond(410.0), tabs(Panel::Canvas), tabs(Panel::Tools)),
+        );
+        let frames = Workspace::new(Layout { root: Some(frames), floating: Vec::new() });
+        validate(&frames).unwrap();
+        for version in [None, Some(0)] {
+            let mut fields = saved_settings(serde_json::to_value(&frames).unwrap(), version);
+            assert!(drop_outdated(&mut fields));
+            let ui: crate::UiState = serde_json::from_value(Value::Object(fields)).unwrap();
+            assert!(ui.docking.is_none());
+            assert_eq!(ui.docking_version, DOCKING_VERSION);
+            assert_eq!((ui.thumb_size, ui.filmstrip, ui.presets), (210.0, false, true), "other settings stay");
+            let mut app = app_with_widths();
+            app.ui = ui;
+            command(&mut app, false, &json!({"operation":"activate","panel":"tools"})).unwrap();
+            let workspace = app.ui.docking.as_ref().unwrap();
+            assert!(!workspace.layout.contains(&Panel::Library), "the Library panel stays closed");
+            assert_eq!(
+                columns(workspace, Side::End),
+                [(crate::state::RIGHT_WIDTH.default, vec![vec![Panel::Tools]]), (PRESETS_WIDTH, vec![vec![Panel::Presets]])]
+            );
         }
     }
 
     #[test]
-    fn a_panel_whose_saved_place_is_gone_opens_beside_the_photo_on_its_side() {
+    fn a_saved_dock_layout_round_trips() {
+        let mut workspace = default_workspace();
+        apply(&mut workspace, Action::ResizeColumn { panel: Panel::Tools, width: 333.0 }).unwrap();
+        apply(
+            &mut workspace,
+            Action::Move { panel: Panel::Presets, anchor: Panel::Library, placement: Placement::Group { below: true, height: None } },
+        )
+        .unwrap();
+        set_visible(&mut workspace, Panel::Library, false).unwrap();
+        let mut fields = saved_settings(serde_json::to_value(&workspace).unwrap(), Some(DOCKING_VERSION));
+        assert!(!drop_outdated(&mut fields));
+        let ui: crate::UiState = serde_json::from_value(Value::Object(fields)).unwrap();
+        let loaded = ui.docking.unwrap();
+        validate(&loaded).unwrap();
+        assert_eq!(loaded, workspace);
+        assert_eq!(serde_json::to_value(crate::UiState::default()).unwrap()["dockingVersion"], DOCKING_VERSION, "saves write the version");
+    }
+
+    #[test]
+    fn a_panel_whose_saved_place_is_gone_opens_in_its_dock() {
         let root = split(SplitAxis::Horizontal, SplitSize::FixedSecond(300.0), tabs(Panel::Canvas), tabs(Panel::Tools));
         let mut workspace = Workspace::new(Layout { root: Some(root), floating: Vec::new() });
         // Presets, the panel Library went back beside, is neither shown nor hidden.
@@ -624,7 +813,7 @@ mod tests {
         workspace.hidden.push((Panel::Library, location));
         validate(&workspace).unwrap();
         set_visible(&mut workspace, Panel::Library, true).unwrap();
-        let location = workspace.layout.location(&Panel::Library).unwrap();
-        assert_eq!((location.anchor, location.placement), (Some(Panel::Canvas), Placement::Split(Zone::Left)));
+        validate(&workspace).unwrap();
+        assert_eq!(columns(&workspace, Side::Start), [(crate::state::LEFT_WIDTH.default, vec![vec![Panel::Library]])]);
     }
 }

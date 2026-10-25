@@ -259,10 +259,12 @@ fn load_prefs(in_memory: bool) -> (Option<UiState>, Option<String>, bool) {
     load_prefs_at(&path, !in_memory)
 }
 
-/// Compatibility recovery is limited to persisted docking, not runtime UiState commands.
+/// Compatibility recovery is limited to persisted docking, not runtime UiState commands. An
+/// arrangement from an older docking version starts again from the default without a warning.
 fn decode_saved_ui(bytes: &[u8]) -> Result<(UiState, bool), String> {
     let mut saved: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
     let fields = saved.as_object_mut().ok_or("settings must be an object")?;
+    lightcraft_ui_egui::docking::drop_outdated(fields);
     let recovered =
         fields.get("docking").is_some_and(|value| match serde_json::from_value::<Option<lightcraft_ui_egui::docking::Workspace>>(value.clone()) {
             Ok(Some(workspace)) => lightcraft_ui_egui::docking::validate(&workspace).is_err(),

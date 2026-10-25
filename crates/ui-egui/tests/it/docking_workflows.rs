@@ -1,5 +1,5 @@
 //! Real library/tool panel moves preserve the selected tool and saved arrangement.
-use craft_ui::docking::{DockArea, Hit, Node};
+use craft_ui::docking::{DockArea, Hit, Node, Side};
 use egui::{Event, Modifiers, PointerButton, vec2};
 use egui_kittest::{Harness, kittest::Queryable};
 use lightcraft_ui_egui::{LightcraftApp, Services, UiState, docking::Panel, state::RightPanel};
@@ -100,42 +100,45 @@ fn dragging_a_group_by_its_bar_moves_the_whole_group() {
         .expect("the Tools and Presets group draws its drag bar");
     let target = h.get_by_role_and_label(egui::accesskit::Role::Tab, "Library").rect().center();
     drag(&mut h, bar.center(), target);
-    let layout = &h.state().ui.docking.as_ref().unwrap().layout;
-    let mut nodes: Vec<_> = layout.root.iter().collect();
-    let mut groups = Vec::new();
-    while let Some(node) = nodes.pop() {
-        match node {
-            Node::Split { first, second, .. } => nodes.extend([&**first, &**second]),
-            Node::Tabs { panels, .. } => groups.push(panels.clone()),
-            _ => {}
-        }
-    }
-    let mut library = groups.into_iter().find(|panels| panels.contains(&Panel::Library)).unwrap();
+    let mut library = start_dock(&h).into_iter().flatten().find(|panels| panels.contains(&Panel::Library)).unwrap();
     library.sort_by_key(|panel| panel.id());
     assert_eq!(library, [Panel::Library, Panel::Presets, Panel::Tools], "both panels of the dragged group joined Library");
     assert_eq!(h.state().ui.right, RightPanel::Edit);
 }
 
-/// LightCraft's side panels live in frames; a drop at the window's edge makes no dock column.
+/// The start dock's columns from the window edge inwards, each as its groups' panels.
+fn start_dock(h: &Harness<'_, LightcraftApp>) -> Vec<Vec<Vec<Panel>>> {
+    let layout = &h.state().ui.docking.as_ref().unwrap().layout;
+    let mut nodes: Vec<_> = layout.root.iter().collect();
+    while let Some(node) = nodes.pop() {
+        match node {
+            Node::Split { first, second, .. } => nodes.extend([&**first, &**second]),
+            Node::Dock { side: Side::Start, columns } => {
+                return columns.iter().map(|column| column.groups.iter().map(|group| group.panels.clone()).collect()).collect();
+            }
+            _ => {}
+        }
+    }
+    Vec::new()
+}
+
+/// In a dock column, a group's top third stacks above it, its photo-side third adds a column
+/// there and its middle joins its tabs.
 #[test]
-fn an_edge_drop_does_not_create_a_dock() {
-    for at_right in [false, true] {
+fn a_tab_dropped_on_a_dock_group_stacks_adds_a_column_or_joins_by_where_it_lands() {
+    let cases: [(fn(egui::Rect) -> egui::Pos2, Vec<Vec<Vec<Panel>>>); 3] = [
+        (|r| egui::pos2(r.center().x, r.top() + r.height() / 6.0), vec![vec![vec![Panel::Tools], vec![Panel::Library]]]),
+        (|r| egui::pos2(r.right() - r.width() / 6.0, r.center().y), vec![vec![vec![Panel::Library]], vec![vec![Panel::Tools]]]),
+        (|r| r.center(), vec![vec![vec![Panel::Library, Panel::Tools]]]),
+    ];
+    for (at, expected) in cases {
         let mut h = harness(None, 1400.0, 1.0);
         let library = h.state().widgets.iter().find(|(id, _)| id == "panel:left_panel").unwrap().1;
-        let tools = h.state().widgets.iter().find(|(id, _)| id == "panel:right_panel").unwrap().1;
-        let x = if at_right { tools.right() - 4.0 } else { library.left() + 4.0 };
         let source = h.get_by_role_and_label(egui::accesskit::Role::Tab, "Tools").rect().center();
-        drag(&mut h, source, egui::pos2(x, 500.0));
-        let layout = &h.state().ui.docking.as_ref().unwrap().layout;
-        assert!(layout.contains(&Panel::Tools));
-        let mut nodes: Vec<_> = layout.root.iter().collect();
-        while let Some(node) = nodes.pop() {
-            match node {
-                Node::Split { first, second, .. } => nodes.extend([&**first, &**second]),
-                Node::Dock { .. } => panic!("a drop at x = {x} made a dock: {layout:?}"),
-                _ => {}
-            }
-        }
+        drag(&mut h, source, at(library));
+        assert_eq!(start_dock(&h), expected, "dropped at {:?} of {library:?}", at(library));
+        lightcraft_ui_egui::docking::validate(h.state().ui.docking.as_ref().unwrap()).unwrap();
+        assert_eq!(h.state().ui.right, RightPanel::Edit);
     }
 }
 
