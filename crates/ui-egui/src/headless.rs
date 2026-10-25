@@ -2955,17 +2955,11 @@ mod tests {
         h.settle(SETTLE);
         let buttons = |h: &mut Headless| h.request("ui.widgets", json!({"filter": "infoFor"}), t)["result"].to_string();
         assert!(buttons(&mut h).contains("button:infoFor-selected"), "the choice shows with two photos selected");
-        assert!(!h.app.ui.settings.info_selected_photos, "Target Photo by default");
-        // Target Photo: the title field holds the active photo's title, and what is typed after it
-        // goes to both photos
-        ask(&mut h, "ui.clickWidget", json!({"id": "field:title"}));
-        ask(&mut h, "ui.key", json!({"key": "End"}));
-        ask(&mut h, "ui.text", json!({"text": "!"}));
-        ask(&mut h, "ui.key", json!({"key": "Tab"}));
-        h.settle(SETTLE);
-        assert_eq!((meta(&h, a).title, meta(&h, b).title), ("Dawn!".into(), "Dawn!".into()));
-        // Selected Photos, from its button
-        exec(&mut h, "photo.setMeta", json!({"ids": [ids[1]], "title": "Dusk"}));
+        assert!(h.app.ui.settings.info_selected_photos, "Selected Photos by default");
+        exec(&mut h, "photo.setMeta", json!({"ids": [ids[0]], "title": "Dawn!"}));
+        // Target Photo and back to Selected Photos, from their buttons
+        ask(&mut h, "ui.clickWidget", json!({"id": "button:infoFor-target"}));
+        assert!(!h.app.ui.settings.info_selected_photos);
         ask(&mut h, "ui.clickWidget", json!({"id": "button:infoFor-selected"}));
         assert!(h.app.ui.settings.info_selected_photos);
         // a mixed field left untouched saves nothing
@@ -3018,17 +3012,49 @@ mod tests {
         assert_eq!(exec(&mut h, "view.infoSelectedPhotos", json!({"on": false}))["on"], false);
         assert!(!h.app.ui.settings.info_selected_photos);
         assert_eq!(exec(&mut h, "view.infoSelectedPhotos", json!({}))["on"], true, "no params toggles");
-        // the choice is saved with the app settings; settings saved before it read as Target Photo
+        // the choice is saved with the app settings; settings saved before it read as Selected Photos
+        exec(&mut h, "view.infoSelectedPhotos", json!({"on": false}));
         let saved = serde_json::to_value(&h.app.ui.settings).unwrap();
-        assert_eq!(saved["infoSelectedPhotos"], true);
+        assert_eq!(saved["infoSelectedPhotos"], false);
         let read: crate::state::AppSettings = serde_json::from_value(saved).unwrap();
-        assert!(read.info_selected_photos);
+        assert!(!read.info_selected_photos);
         let old: crate::state::AppSettings = serde_json::from_value(json!({"filmNames": false})).unwrap();
-        assert!(!old.info_selected_photos);
+        assert!(old.info_selected_photos);
         // one photo selected: no choice to make
         exec(&mut h, "library.select", json!({"ids": [ids[0]]}));
         h.settle(SETTLE);
         assert!(!buttons(&mut h).contains("infoFor-"), "{}", buttons(&mut h));
+    }
+
+    /// With several photos selected and the settings as they come, an edit to a field where the
+    /// photos differ starts from an empty field: the photos get what was typed, not the active
+    /// photo's value with the typing added.
+    #[test]
+    fn info_edits_of_a_multi_selection_start_from_mixed_fields_by_default() {
+        let mut h = demo([1300.0, 1000.0]);
+        let t = Duration::from_secs(10);
+        let ask = |h: &mut Headless, method: &str, params: serde_json::Value| {
+            let r = h.request(method, params.clone(), t);
+            assert_eq!(r["ok"], true, "{method} {params}: {r}");
+            h.step();
+            h.step();
+        };
+        let exec = |h: &mut Headless, command: &str, params: serde_json::Value| {
+            ask(h, "engine.execute", json!({"command": command, "params": params}));
+        };
+        let ids: Vec<u64> = h.app.session.visible_cloned().iter().take(2).map(|p| p.0).collect();
+        let caption = |h: &Headless, i: usize| h.app.session.catalog.photo(lightcraft_catalog::PhotoId(ids[i])).unwrap().meta.caption.clone();
+        exec(&mut h, "photo.setMeta", json!({"ids": [ids[0]], "caption": "Dawn"}));
+        exec(&mut h, "photo.setMeta", json!({"ids": [ids[1]], "caption": "Dusk"}));
+        h.request("ui.set", json!({"view": "detail", "right": "info"}), t);
+        exec(&mut h, "library.select", json!({"ids": ids, "active": ids[0]}));
+        h.settle(SETTLE);
+        ask(&mut h, "ui.clickWidget", json!({"id": "field:caption"}));
+        ask(&mut h, "ui.key", json!({"key": "End"}));
+        ask(&mut h, "ui.text", json!({"text": "Harbor"}));
+        ask(&mut h, "ui.key", json!({"key": "Tab"}));
+        h.settle(SETTLE);
+        assert_eq!((caption(&h, 0), caption(&h, 1)), ("Harbor".into(), "Harbor".into()));
     }
 
     /// The fields the Info panel marks as mixed: each text field, the copyright status and GPS
