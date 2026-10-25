@@ -50,11 +50,15 @@ maintainer decision. The ONNX reader and CPU/GPU executor are our Rust implement
 no darktable, RawSpeed, LibRaw or other GPL decoder/runtime code is included.
 
 Builds made with craft-fonts (the optional CRAFT_FONTS_DIR build input; all official releases)
-also embed the fonts listed in https://github.com/storytold/craft-fonts/blob/main/ATTRIBUTION.md
-(BIZ UDPGothic, BIZ UDMincho, Shippori Mincho, Noto Sans CJK SC, Noto Sans Arabic and Noto Sans
-Thai), under the SIL Open Font License 1.1. The web build embeds BIZ UDPGothic Regular and Noto
-Sans Thai Regular, and loads Noto Sans CJK SC separately. Release packages include each font's
-licence as OFL-<family>.txt; Windows installers include their texts in FONT-LICENCES.txt.
+also embed the default fonts listed in
+https://github.com/storytold/craft-fonts/blob/b076417b5880bd4154bd22f00695b1d28c6bea83/ATTRIBUTION.md (BIZ UDPGothic, BIZ UDMincho,
+Shippori Mincho, Noto Sans CJK SC, Noto Sans Arabic, Noto Sans Thai, Noto Sans Georgian,
+NanumGothic, Noto Sans Symbols, Noto Sans Symbols 2, Noto Sans Hebrew and
+Noto Sans Devanagari), under the SIL Open Font License 1.1. The opt-in LXGW WenKai Lite face
+(fonts/simplified-chinese-manifest.txt in craft-fonts) is not embedded. The web build embeds
+BIZ UDPGothic Regular, Noto Sans Thai Regular and Noto Sans Georgian Regular, and loads Noto Sans
+CJK SC separately. Release packages include each font's licence as OFL-<family>.txt; Windows
+installers include their texts in FONT-LICENCES.txt.
 
 Place names for reverse geocoding (Photo > Fill Location from GPS) are not part of LightCraft and
 are never distributed with it. On the user's request (Photo > Download Place Names) the app
@@ -62,3 +66,21 @@ downloads cities15000.zip, admin1CodesASCII.txt and countryInfo.txt from GeoName
 (https://download.geonames.org/export/dump/) into the settings folder. GeoNames data is licensed
 under Creative Commons Attribution 4.0 (https://creativecommons.org/licenses/by/4.0/);
 attribution: "GeoNames, geonames.org". The lookup code (crates/geocode) is our own.
+
+
+The UI's egui-icons.ttf subset and emoji-icon-font.ttf fallback are provided by epaint_default_fonts
+and registered through egui's default font definitions. They derive from emoji-icon-font by
+John Slegers, under the MIT License. The subset and full face share the following upstream notice.
+Source: https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a/crates/epaint_default_fonts/fonts
+Original: https://github.com/jslegers/emoji-icon-font
+The following text is reproduced verbatim from emoji-icon-font-mit-license.txt:
+
+MIT License
+
+Copyright (c) 2014 John Slegers
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

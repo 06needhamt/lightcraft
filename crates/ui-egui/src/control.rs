@@ -227,6 +227,23 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                 app.widgets.iter().filter(|(id, _)| id.contains(filter)).map(|(id, r)| json!({"id": id, "rect": rect_json(*r)})).collect(),
             ))
         }
+        "ui.dropFiles" => {
+            // every entry must be a string: a script is not told `ok` for a part of what it sent
+            let Some(paths) =
+                p.get("paths").and_then(Value::as_array).and_then(|a| a.iter().map(|v| v.as_str().map(str::to_string)).collect::<Option<Vec<_>>>())
+            else {
+                return err("ui.dropFiles: paths must be an array of strings");
+            };
+            if p.get("hover").and_then(Value::as_bool).unwrap_or(false) {
+                app.drop_hover = paths;
+            } else {
+                // the drag ends with the drop, as it does for the OS
+                app.drop_hover.clear();
+                app.drop_pending = paths;
+            }
+            ctx.request_repaint();
+            ok(Value::Null)
+        }
         "ui.clickWidget" | "ui.dragWidget" | "ui.hoverWidget" | "ui.move" | "ui.click" | "ui.drag" | "ui.pointer" | "ui.key" | "ui.text"
         | "ui.clipboard" | "ui.scroll" => {
             // Geometry and input events are resolved only after a fresh completed layout; the
@@ -287,8 +304,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                             | crate::state::Dialog::SamModel { .. }
                             | crate::state::Dialog::SmartRules { .. }
                             | crate::state::Dialog::SaveEffect { .. }
+                            | crate::state::Dialog::CaptureTime { .. }
                     ))
                     || (r.is_ok() && crate::panels::dialogs::keeps_open(app, &d))
+                    || (r.is_err() && crate::lightroom_destination::keeps_open_on_error(app, &d))
                 {
                     app.ui.dialog = Some(d);
                 }
