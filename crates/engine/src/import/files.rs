@@ -238,6 +238,92 @@ pub(crate) fn probe_all(
         .collect()
 }
 
+/// What the disk says about a file ([`stat_all`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Seen {
+    /// Not asked about: `cancel` was set first.
+    Unchecked,
+    /// Not there, or not readable.
+    Gone,
+    At { is_file: bool, len: u64 },
+}
+
+/// [`Seen`] of `path` from the file system.
+fn stat_file(path: &str) -> Seen {
+    match std::fs::metadata(path) {
+        Ok(m) => Seen::At { is_file: m.is_file(), len: m.len() },
+        Err(_) => Seen::Gone,
+    }
+}
+
+/// Names asked about at once: a stat on a network share is a round trip (50 ms and more under load)
+/// that waits for nothing but the server, so a few more than the readers' threads.
+#[cfg(not(target_arch = "wasm32"))]
+const STAT_THREADS: usize = 16;
+
+/// Ask `stat` about each of `paths`, several at once (one at a time, a folder of thousands of photos
+/// on a network share waited minutes for its stats alone). The answers come in the order of `paths`;
+/// the ones not reached once `cancel` is set are [`Seen::Unchecked`].
+pub(crate) fn stat_all(paths: &[&str], cancel: &std::sync::atomic::AtomicBool, stat: impl Fn(&str) -> Seen + Sync) -> Vec<Seen> {
+    use std::sync::atomic::Ordering::Relaxed;
+    let mut seen = vec![Seen::Unchecked; paths.len()];
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let n = STAT_THREADS.min(paths.len());
+        if n > 1 {
+            let next = std::sync::atomic::AtomicUsize::new(0);
+            let answers: Vec<Vec<(usize, Seen)>> = std::thread::scope(|sc| {
+                let readers: Vec<_> = (0..n)
+                    .map(|_| {
+                        sc.spawn(|| {
+                            let mut mine = Vec::new();
+                            loop {
+                                let i = next.fetch_add(1, Relaxed);
+                                let Some(path) = paths.get(i) else { break };
+                                if cancel.load(Relaxed) {
+                                    break;
+                                }
+                                mine.push((i, stat(path)));
+                            }
+                            mine
+                        })
+                    })
+                    .collect();
+                // (a reader that died leaves its files unchecked)
+                readers.into_iter().map(|r| r.join().unwrap_or_default()).collect()
+            });
+            for (i, s) in answers.into_iter().flatten() {
+                if let Some(slot) = seen.get_mut(i) {
+                    *slot = s;
+                }
+            }
+            return seen;
+        }
+    }
+    for (slot, path) in seen.iter_mut().zip(paths) {
+        if cancel.load(Relaxed) {
+            break;
+        }
+        *slot = stat(path);
+    }
+    seen
+}
+
+/// The probes in `cache` of `files` that are still true: the file is looked at ([`stat_all`]) and
+/// `ok` says it is as it was probed. `None` for a file with no probe in `cache`, one that changed,
+/// and one not looked at because `cancel` was set.
+pub(super) fn reusable_probes(
+    files: &[String],
+    cache: &mut HashMap<String, ProbeInfo>,
+    cancel: &std::sync::atomic::AtomicBool,
+    ok: impl Fn(Seen, &ProbeInfo) -> bool,
+) -> Vec<Option<ProbeInfo>> {
+    let held: Vec<Option<ProbeInfo>> = files.iter().map(|f| cache.remove(f)).collect();
+    let asked: Vec<&str> = files.iter().zip(&held).filter(|(_, h)| h.is_some()).map(|(f, _)| f.as_str()).collect();
+    let mut seen = stat_all(&asked, cancel, stat_file).into_iter();
+    held.into_iter().map(|h| h.filter(|info| seen.next().is_some_and(|s| s != Seen::Unchecked && ok(s, info)))).collect()
+}
+
 /// Copy `src` into `dir` as `name` (default: its own name), made unique with -1, -2…; returns the
 /// new path. The copy is verified ([`crate::import_move::copy_new`]: a new file, synced and
 /// checked against `probe_hash`, the content hash the probe computed — or compared byte for byte
@@ -369,5 +455,88 @@ mod prepared_tests {
         // at most the files the (up to 8) readers had already started
         assert!(seen.load(Relaxed) <= 8, "read {} files after cancel", seen.load(Relaxed));
         assert!(prepared.items.is_empty());
+    }
+
+    /// Given files on a network share, when an import checks the probes a scan left, then it asks
+    /// the disk about several files at once: one at a time, 5,990 photos spent 300 s on stats alone
+    /// (99 % of the import's time), each a round trip to the server.
+    #[test]
+    fn stats_are_asked_for_several_files_at_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+        let (active, together) = (AtomicUsize::new(0), AtomicUsize::new(0));
+        let names: Vec<String> = (0..6).map(|i| format!("file-{i}")).collect();
+        let paths: Vec<&str> = names.iter().map(String::as_str).collect();
+        let seen = stat_all(&paths, &std::sync::atomic::AtomicBool::new(false), |p| {
+            active.fetch_add(1, Relaxed);
+            // waits (at most a second) for another file to be asked about while this one is
+            let end = std::time::Instant::now() + std::time::Duration::from_secs(1);
+            while active.load(Relaxed) < 2 && std::time::Instant::now() < end {
+                std::thread::yield_now();
+            }
+            together.fetch_max(active.load(Relaxed), Relaxed);
+            active.fetch_sub(1, Relaxed);
+            Seen::At { is_file: true, len: p.trim_start_matches("file-").parse().unwrap_or(u64::MAX) }
+        });
+        assert!(together.load(Relaxed) >= 2, "the files were asked about one at a time");
+        let lens: Vec<Seen> = (0..6).map(|len| Seen::At { is_file: true, len }).collect();
+        assert_eq!(seen, lens, "the answers keep the order of the files");
+    }
+
+    /// ✕ while the stats run: the files not asked about yet stay unchecked, and no more are asked.
+    #[test]
+    fn stats_stop_when_cancelled() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
+        let (cancel, asked) = (AtomicBool::new(false), AtomicUsize::new(0));
+        let names: Vec<String> = (0..400).map(|i| format!("file-{i}")).collect();
+        let paths: Vec<&str> = names.iter().map(String::as_str).collect();
+        let seen = stat_all(&paths, &cancel, |_| {
+            asked.fetch_add(1, Relaxed);
+            cancel.store(true, Relaxed);
+            Seen::Gone
+        });
+        assert_eq!(seen.len(), 400);
+        // at most the files the (up to 16) readers had already started
+        assert!(asked.load(Relaxed) <= 16, "asked about {} files after cancel", asked.load(Relaxed));
+        assert_eq!(seen.iter().filter(|s| **s == Seen::Gone).count(), asked.load(Relaxed));
+        assert!(seen.iter().all(|s| matches!(s, Seen::Gone | Seen::Unchecked)));
+    }
+
+    /// A probe a scan left is used again for a file that is as it was, and only for it: a file that
+    /// changed size, one that is gone and one with no probe are read.
+    #[test]
+    fn a_scans_probe_is_reused_only_for_a_file_as_it_was() {
+        use std::sync::atomic::Ordering::Relaxed;
+        let dir = std::env::temp_dir().join(format!("lightcraft-reuse-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut files = Vec::new();
+        for (name, bytes) in [("same.jpg", 10usize), ("grown.jpg", 10), ("fresh.jpg", 10)] {
+            let p = dir.join(name);
+            std::fs::write(&p, vec![0u8; bytes]).unwrap();
+            files.push(p.to_string_lossy().to_string());
+        }
+        let gone = dir.join("gone.jpg").to_string_lossy().to_string();
+        files.push(gone.clone());
+        let mut s = Session::new();
+        let mut job = ImportJob::new(&mut s, ImportOptions { mode: ImportMode::Add, ..ImportOptions::default() }).unwrap();
+        let probed = |size: u64| ProbeInfo { format: "JPEG".into(), file_size: size, ..ProbeInfo::default() };
+        job.cache.insert(files[0].clone(), probed(10));
+        job.cache.insert(files[1].clone(), probed(5));
+        job.cache.insert(gone.clone(), probed(10));
+        let read = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let read_in_probe = read.clone();
+        job.probe = Some(std::sync::Arc::new(move |p: &str| {
+            read_in_probe.lock().unwrap().push(p.to_string());
+            Ok(probed(10))
+        }));
+        let prepared = job.prepare_files(files.clone(), &std::sync::atomic::AtomicBool::new(false));
+        let mut read = read.lock().unwrap().clone();
+        read.sort();
+        let mut expect = vec![files[1].clone(), files[2].clone(), gone];
+        expect.sort();
+        assert_eq!(read, expect, "only what was not as the scan saw it is read");
+        assert_eq!(job.read_total.load(Relaxed), 3);
+        assert_eq!(prepared.items.len(), 4);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

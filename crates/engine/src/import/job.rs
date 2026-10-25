@@ -1,5 +1,5 @@
 use super::commit::{How, Plan, Slot, Transfer, commit_prepared, name_family, run_transfers, system_clock};
-use super::files::{expand, probe_all};
+use super::files::{Seen, expand, probe_all, reusable_probes, sidecars_of};
 use super::types::{ImportCandidate, ImportMode, ImportOptions, ImportReport, Kept, OnDeleted};
 use super::{HashMap, MediaKind, Path, PathBuf, Photo, PhotoId, ProbeInfo, Session, Source};
 
@@ -44,7 +44,7 @@ pub struct ImportJob {
     pub(super) probe: Option<crate::media::FileProbe>,
     file_bytes: Option<crate::merge::ByteReader>,
     /// Probes from a preceding scan (not read again).
-    cache: HashMap<String, ProbeInfo>,
+    pub(super) cache: HashMap<String, ProbeInfo>,
     naming: crate::sidecar::SidecarNaming,
     now: String,
     seq: usize,
@@ -270,15 +270,10 @@ impl ImportJob {
 
         // files a preceding scan already probed are not read again (a network share is slow to read),
         // as long as they are still there, as they were: a file gone or changed since is probed again
-        let cached: Vec<Option<ProbeInfo>> = todo
-            .iter()
-            .map(|f| {
-                // (the web's files are not std::fs files: kept as probed)
-                self.cache
-                    .remove(f)
-                    .filter(|info| cfg!(target_arch = "wasm32") || std::fs::metadata(f).is_ok_and(|m| m.is_file() && m.len() == info.file_size))
-            })
-            .collect();
+        let cached = reusable_probes(&todo, &mut self.cache, cancel, |seen, info| {
+            // (the web's files are not std::fs files: kept as probed)
+            cfg!(target_arch = "wasm32") || matches!(seen, Seen::At { is_file: true, len } if len == info.file_size)
+        });
         let missing: Vec<String> = todo.iter().zip(&cached).filter(|(_, c)| c.is_none()).map(|(f, _)| f.clone()).collect();
         // Reading the files is the slow part of adding them where they are: it is counted on its
         // own, and `cancel` stops it too (a large library takes long enough to want both).
