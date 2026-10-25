@@ -520,8 +520,9 @@ pub fn parse_xmp(s: &str) -> Result<XmpData, XmpError> {
     find_descriptions(&tree, &mut descs);
     let mut props = BTreeMap::new();
     let mut values = BTreeMap::new();
+    // One budget for the whole document: several descriptions cannot each spend a fresh one.
+    let mut key_budget = MAX_KEY_BYTES;
     for d in descs {
-        let mut key_budget = MAX_KEY_BYTES;
         collect_description(d, "", &mut props, &mut key_budget);
         if let XmpValue::Struct(m) = node_struct(d) {
             values.extend(m);
@@ -1208,7 +1209,10 @@ mod tests {
         for _ in 0..4 {
             doc.push_str(&format!("<lc:{level} rdf:parseType=\"Resource\">"));
         }
-        doc.push_str(&"<lc:leaf lc:att=\"v\"/>".repeat(3000));
+        // each leaf has a name of its own, so each one adds a key
+        for i in 0..3000 {
+            doc.push_str(&format!("<lc:leaf{i} lc:att=\"v\"/>"));
+        }
         doc.push_str("</lc:root>");
         for _ in 0..4 {
             doc.push_str(&format!("</lc:{level}>"));

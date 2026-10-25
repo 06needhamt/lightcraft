@@ -314,6 +314,9 @@ fn walk_tiff(w: &mut Want, origin: u64, data: &[u8], extra: &[u16]) -> Result<Ra
     };
     let mut stack = vec![first];
     let mut seen = HashSet::new();
+    // Every offset ever queued: the pending cap counts distinct IFDs, so a thousand references to
+    // one child cost one visit, not a thousand.
+    let mut queued = HashSet::from([first]);
     // Every IFD table and out-of-line value, collected and merged once at the end: an insert
     // per entry would scan the ranges of every entry before it — quadratic in the metadata
     // this walker collects.
@@ -369,6 +372,9 @@ fn walk_tiff(w: &mut Want, origin: u64, data: &[u8], extra: &[u16]) -> Result<Ra
             let take = if tag == t::SUB_IFDS { count.min(MAX_CHILDREN) } else { count.min(1) };
             for k in 0..take {
                 if let Some(v) = unsigned(data, order, typ, start + k * typ.size() as u64) {
+                    if v == 0 || v >= len || !queued.insert(v) {
+                        continue;
+                    }
                     if stack.len() >= MAX_PENDING {
                         return Err("too many child IFDs queued to visit");
                     }
@@ -376,7 +382,7 @@ fn walk_tiff(w: &mut Want, origin: u64, data: &[u8], extra: &[u16]) -> Result<Ra
                 }
             }
         }
-        if complete && let Some(next) = offset_at(table_end) {
+        if complete && let Some(next) = offset_at(table_end).filter(|&next| next != 0 && next < len && queued.insert(next)) {
             if stack.len() >= MAX_PENDING {
                 return Err("too many child IFDs queued to visit");
             }

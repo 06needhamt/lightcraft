@@ -109,6 +109,12 @@ pub fn read_image(data: &[u8], info: &ImageInfo, order: ByteOrder, packing: Pack
     // a few times the output buffer's: everything decoded at once would retain the whole image twice, and
     // a hostile tile table's chosen padding could stretch that much further (issue #1517). One group
     // still decodes in parallel; the grid order groups make, the copies stay disjoint.
+    // The tile grid decides how much is decoded, whatever the file's bytes: the nominal sizes of all
+    // the chunks stay within a few times the image (edge tiles pad it) before any is decoded.
+    let nominal = chunks.iter().fold(0usize, |sum, c| sum.saturating_add(chunk_samples(c, ccpp)));
+    if nominal > total.saturating_mul(4).saturating_add(1 << 24) {
+        return Err(RawError::Corrupt("the tile grid is much larger than the image".into()));
+    }
     let group_samples = (total / 4).max(1 << 20);
     let mut out_u16 = if float { Vec::new() } else { vec![0u16; total] };
     let mut out_f32 = if float { vec![0f32; total] } else { Vec::new() };
@@ -118,7 +124,7 @@ pub fn read_image(data: &[u8], info: &ImageInfo, order: ByteOrder, packing: Pack
         let mut taken = 0usize;
         for (k, c) in chunks[decode_from..].iter().enumerate() {
             let n = chunk_samples(c, ccpp);
-            if taken > 0 && taken + n > group_samples {
+            if taken > 0 && taken.saturating_add(n) > group_samples {
                 break;
             }
             taken = taken.saturating_add(n);
@@ -164,6 +170,21 @@ pub fn read_image(data: &[u8], info: &ImageInfo, order: ByteOrder, packing: Pack
         decode_from = to;
     }
     Ok(if float { RawData::F32(out_f32) } else { RawData::U16(out_u16) })
+}
+
+/// Bytes that `n` samples take in a row of an uncompressed or inflated chunk, laid out as
+/// [`unpack_chunk`] reads them: whole bytes or 16-bit words, or 32-bit words for `Words32Msb`.
+fn packed_row_bytes(n: u64, bits: u32, packing: Packing, float: bool) -> u64 {
+    if float {
+        return n.saturating_mul(u64::from(bits.div_ceil(8)));
+    }
+    let bit_len = n.saturating_mul(u64::from(bits));
+    match (bits, packing) {
+        (8, _) => n,
+        (16, _) | (_, Packing::Word16) => n.saturating_mul(2),
+        (_, Packing::Msb | Packing::Lsb) => bit_len.div_ceil(8),
+        (_, Packing::Words32Msb) => bit_len.div_ceil(32).saturating_mul(4),
+    }
 }
 
 /// A chunk's nominal decoded size in samples (per plane, as the decoder builds it).
@@ -219,9 +240,8 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
             Ok(ChunkPx::U16(v))
         }
         comp::ADOBE_DEFLATE | comp::DEFLATE => {
-            let bytes_per = if float { bits.div_ceil(8) as usize } else { 0 };
             // row bytes in u64: a wrapping `cw · cpp · …` in usize could come out small on 32-bit targets and slip past the gate
-            let row_bytes = if float { cw as u64 * cpp as u64 * bytes_per as u64 } else { (cw as u64 * cpp as u64 * bits as u64).div_ceil(8) };
+            let row_bytes = packed_row_bytes(cw as u64 * cpp as u64, bits, packing, float);
             // the gate caps at MAX_SAMPLES (≤ 2^30), so the `usize` cast below is lossless on 32-bit targets too
             let inflate_len =
                 crate::checked_pixel_count(row_bytes, ch as u64).ok_or_else(|| RawError::Corrupt("bad TIFF chunk dimensions".into()))?;
@@ -234,7 +254,7 @@ fn decode_chunk(data: &[u8], info: &ImageInfo, c: &Chunk, order: ByteOrder, pack
             let raw = inflate(src, inflate_len as usize)?;
             // The stream has to reach the last row inside the image (edge strips may stop there);
             // it is laid out in nominal rows, so shorter is a truncated chunk, not a picture.
-            let last = if float { vw as u64 * cpp as u64 * bytes_per as u64 } else { (vw as u64 * cpp as u64 * bits as u64).div_ceil(8) };
+            let last = packed_row_bytes(vw as u64 * cpp as u64, bits, packing, float);
             let visible = row_bytes.saturating_mul(vh.saturating_sub(1) as u64).saturating_add(last);
             if (raw.len() as u64) < visible {
                 return Err(RawError::Corrupt(format!(
@@ -533,17 +553,27 @@ mod lossy_tests {
     /// from the JPEG's own dimensions.
     #[test]
     fn an_oversized_lossy_jpeg_header_is_refused_before_decoding() {
-        let mut j = vec![0xff, 0xd8]; // SOI
-        // SOF0: precision 8, 40000 (0x9c40) x 40000, three components
-        j.extend([0xff, 0xc0, 0x00, 0x11, 0x08, 0x9c, 0x40, 0x9c, 0x40, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
-        // SOS with three components so header parsing completes normally, then EOI
-        j.extend([0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x00, 0x03, 0x11, 0x00, 0x00, 0x3f, 0x00, 0x00, 0xff, 0xd9]);
-        let e = lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).unwrap_err();
-        assert!(matches!(e, RawError::Corrupt(_)), "{e:?}");
-        // a header inside the budget passes the check (and then fails to decode only for lack of data)
-        j[12..14].copy_from_slice(&1024u16.to_be_bytes());
-        j[14..16].copy_from_slice(&1024u16.to_be_bytes());
-        assert!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).is_ok() || matches!(lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES), Err(RawError::Corrupt(_))));
+        // A real 8 × 8 baseline JPEG, whose frame header then claims other dimensions: the decoder
+        // parses the header, and the size check is what refuses it.
+        let px = vec![128u8; 8 * 8 * 3];
+        let mut j = Vec::new();
+        jpeg_encoder::Encoder::new(&mut j, 90).encode(&px, 8, 8, jpeg_encoder::ColorType::Rgb).unwrap();
+        // SOF0: marker, length, precision, then the height and the width
+        let sof = j.windows(2).position(|w| w == [0xff, 0xc0]).expect("a baseline frame header");
+        let claim = |j: &mut Vec<u8>, size: u16| {
+            j[sof + 5..sof + 7].copy_from_slice(&size.to_be_bytes());
+            j[sof + 7..sof + 9].copy_from_slice(&size.to_be_bytes());
+        };
+        claim(&mut j, 40_000);
+        let RawError::Corrupt(refused) = lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES).unwrap_err() else { panic!("a corrupt-data error") };
+        assert!(refused.contains("would exceed"), "{refused}");
+        // a header inside the budget passes the size check (and then fails to decode only for lack of data)
+        claim(&mut j, 1024);
+        match lossy_jpeg(&j, 3, MAX_JPEG_SAMPLES) {
+            Ok(_) => {}
+            Err(RawError::Corrupt(m)) => assert!(!m.contains("would exceed"), "the smaller header was refused for its size: {m}"),
+            Err(other) => panic!("unexpected error: {other:?}"),
+        }
     }
 
     /// A lossy tile whose JPEG decodes far less than the nominal tile is fine: the rows the JPEG
