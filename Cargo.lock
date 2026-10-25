@@ -1084,12 +1084,12 @@ dependencies = [
 [[package]]
 name = "craft-docpath"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=4dc543cb449cc232e4c3d58f78a05c1ab169db9e#4dc543cb449cc232e4c3d58f78a05c1ab169db9e"
+source = "git+https://github.com/storytold/craft-libs?rev=b6d35e28f4d19145c9c7595742cc3ea6fb8352d5#b6d35e28f4d19145c9c7595742cc3ea6fb8352d5"
 
 [[package]]
 name = "craft-ui"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=4dc543cb449cc232e4c3d58f78a05c1ab169db9e#4dc543cb449cc232e4c3d58f78a05c1ab169db9e"
+source = "git+https://github.com/storytold/craft-libs?rev=b6d35e28f4d19145c9c7595742cc3ea6fb8352d5#b6d35e28f4d19145c9c7595742cc3ea6fb8352d5"
 dependencies = [
  "egui",
  "log",
