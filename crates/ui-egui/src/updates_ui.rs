@@ -107,9 +107,15 @@ pub(crate) fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         let rt = &mut app.updates_rt;
         (rt.manual_window_open, rt.status_message) = match rt.updater.status() {
             Status::Idle => (false, None),
-            Status::Checking => (true, Some("Checking for updates…".to_string())),
-            Status::UpToDate => (true, Some(format!("LightCraft {} is currently the newest version available.", env!("CARGO_PKG_VERSION")))),
-            Status::Failed(e) => (true, Some(format!("Could not check for updates:\n{e}"))),
+            Status::Checking => (true, Some(crate::i18n::tr("Checking for updates…").to_string())),
+            Status::UpToDate => (
+                true,
+                Some(
+                    crate::i18n::tr("LightCraft {version} is currently the newest version available.")
+                        .replace("{version}", env!("CARGO_PKG_VERSION")),
+                ),
+            ),
+            Status::Failed(e) => (true, Some(crate::i18n::tr("Could not check for updates:\n{error}").replace("{error}", e))),
         };
     }
 
