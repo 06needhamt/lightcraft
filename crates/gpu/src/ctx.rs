@@ -100,8 +100,9 @@ fn pop_scopes(scopes: [wgpu::ErrorScopeGuard; 2]) -> Option<String> {
 /// Build every kernel. A kernel the driver's compiler refuses is a validation or an internal error,
 /// and then there is no GPU, not a half-built one.
 ///
-/// Issue #2936: built one after another, the 27 pipelines took 1.7–7 s on an Intel iGPU under DX12,
-/// where FXC (issue #471) compiles each one, single-threaded, inside `create_compute_pipeline`. The
+/// Issue #2936: built one after another, the 27 pipelines took ~2.2 s on an Intel iGPU under DX12
+/// (device start-up 1.7–4.4 s in all, 7 s on the first run after an install), where FXC (issue #471)
+/// compiles each one, single-threaded, inside `create_compute_pipeline`. The
 /// device takes pipeline creation from any thread, so the entry points are shared out to worker
 /// threads. This thread works too: every kernel is built even when no thread can be started.
 fn build_kernels(device: &wgpu::Device) -> Result<HashMap<&'static str, Kernel>, String> {
