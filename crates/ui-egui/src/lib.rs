@@ -302,6 +302,10 @@ pub struct Services {
     pub pick_slideshow_templates: Option<PickFiles>,
     /// Save dialog for an exported slideshow template (`.json`).
     pub save_slideshow_template: Option<SaveFile>,
+    /// Open dialog for print template files (`.lcprint`; File ▸ Print… ▸ Templates ▸ Import…).
+    pub pick_print_templates: Option<PickFiles>,
+    /// Save dialog for an exported print template (`.lcprint`).
+    pub save_print_template: Option<SaveFile>,
     pub write: Option<WriteFn>,
     /// Create-new writer (never replaces an existing path), for screenshots of destinations that
     /// did not exist when the request was admitted. Required for such captures: falling back to

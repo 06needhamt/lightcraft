@@ -228,6 +228,8 @@ fn services(originals: Originals, backend: Option<Backend>, files: Files, frozen
         save_curve_preset_file: None,
         pick_slideshow_templates: None,
         save_slideshow_template: None,
+        pick_print_templates: None,
+        save_print_template: None,
         write: Some(Box::new(download)),
         // the browser download path has no meaningful create-new file write; the control channel
         // (and therefore screenshot paths) is not available on the web
