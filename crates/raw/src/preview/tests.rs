@@ -199,6 +199,20 @@ fn picks_largest_dct_jpeg() {
     }
 }
 
+/// #2569: `PRVW` box and JPEG lengths near `u32::MAX` (which wrap `usize` on wasm32) find no preview, never panic.
+#[test]
+fn cr3_preview_box_huge_lengths_are_rejected() {
+    let j = fake_jpeg(300);
+    for (size, len) in [(u32::MAX, u32::MAX), (u32::MAX, u32::MAX - 23), (24 + j.len() as u32, u32::MAX - 3)] {
+        let mut cr3 = b"   ftypcrx    crx isom".to_vec();
+        cr3.extend_from_slice(&size.to_be_bytes());
+        cr3.extend_from_slice(b"PRVW     T8 ");
+        cr3.extend_from_slice(&len.to_be_bytes());
+        cr3.extend_from_slice(&j);
+        assert_eq!(cr3_preview_boxes(&cr3), None, "size {size:#x}, len {len:#x}");
+    }
+}
+
 /// A JPEG like [`fake_jpeg`] whose frame header says `w` x `h` with `nc` components.
 fn sized_jpeg(w: u16, h: u16, nc: u8, n: usize) -> Vec<u8> {
     let mut j = vec![0xff, 0xd8, 0xff, 0xc0, 0x00, 8 + 3 * nc, 8];
