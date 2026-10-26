@@ -5,6 +5,8 @@
 
 use serde_json::{Value, json};
 
+use super::frame::{choices, field};
+use super::*;
 use crate::LightcraftApp;
 use crate::pick::{PickKind, PickRequest, Picked};
 
@@ -69,6 +71,61 @@ pub fn poll(app: &mut LightcraftApp, ctx: &egui::Context) {
         None => crate::i18n::tr("Export stopped unexpectedly").to_string(),
     };
     app.toast(ctx, msg);
+}
+
+/// A labelled row (fixed label column).
+/// View ▸ Export Slideshow…: what to write (PDF, JPEG sequence, video) and how big; where comes
+/// after (a save dialog).
+pub(super) fn slideshow_export_body(app: &mut LightcraftApp, ui: &mut egui::Ui, settings: &mut lightcraft_engine::slideshow_export::ExportSettings) {
+    use lightcraft_engine::slideshow_export::{ExportSettings, Format};
+    let t = Tokens::get(ui.ctx());
+    let photos = app.session.visible_cloned().len();
+    let slide = app.session.slideshow.slide_duration;
+    let (intro, ending) = app.session.slide_titles.durations(slide);
+    let titles = usize::from(intro.is_some()) + usize::from(ending.is_some());
+    let seconds = photos as f64 * slide + intro.unwrap_or(0.0) + ending.unwrap_or(0.0);
+    let summary = crate::i18n::tr_format!(
+        "{n} photos in view · {slides} slides · {time}",
+        n = photos,
+        slides = photos + titles,
+        time = format!("{}:{:02}", (seconds / 60.0).floor() as u64, (seconds % 60.0).round() as u64)
+    );
+    ui.label(egui::RichText::new(summary).color(t.text_dim));
+    let before = settings.format;
+    choices(ui, "Format", "slideshowExportFormat", &[(Format::Pdf, "PDF"), (Format::Jpeg, "JPEG"), (Format::Video, "Video")], &mut settings.format);
+    if settings.format != before {
+        *settings = ExportSettings { full_screen: settings.full_screen, ..ExportSettings::for_format(settings.format) };
+    }
+    match settings.format {
+        Format::Video => {
+            choices(ui, "Size", "slideshowExportSize", &[(720, "720p"), (1080, "1080p")], &mut settings.size);
+            choices(ui, "Frame rate", "slideshowExportFps", &[(24, "24 fps"), (30, "30 fps")], &mut settings.fps);
+            let mut webm = settings.container == "webm";
+            choices(ui, "Container", "slideshowExportContainer", &[(false, "MP4"), (true, "WebM")], &mut webm);
+            settings.container = if webm { "webm".into() } else { "mp4".into() };
+        }
+        _ => {
+            choices(ui, "Size", "slideshowExportSize", &[(1024, "1024 px"), (1920, "1920 px"), (3840, "3840 px")], &mut settings.size);
+        }
+    }
+    field(ui, "Quality", |ui| {
+        let r = ui.add(egui::Slider::new(&mut settings.quality, 1..=100));
+        crate::widgets::register(ui, "slider:slideshowExportQuality", r.rect);
+    });
+    let note = match settings.format {
+        Format::Pdf => {
+            let r = ui.checkbox(&mut settings.full_screen, crate::i18n::tr("Automatically show full screen"));
+            crate::widgets::register(ui, "check:slideshowExportFullScreen", r.rect);
+            "One page per slide (the long side in pixels = points), with the slide duration and fade for the viewer's presentation mode."
+        }
+        Format::Jpeg => "Numbered JPEG files (name-001.jpg…) in a new folder named in the next step.",
+        Format::Video => "AV1 video, each slide held for its duration with its fades. No sound: music is not exported yet.",
+    };
+    ui.label(egui::RichText::new(crate::i18n::tr(note)).color(t.text_dim));
+    ui.label(
+        egui::RichText::new(crate::i18n::tr("Slides use the slideshow's layout, overlays and intro and ending screens, in view order."))
+            .color(t.text_dim),
+    );
 }
 
 #[cfg(test)]
