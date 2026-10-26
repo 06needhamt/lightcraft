@@ -23,7 +23,6 @@ mod frame_rate;
 pub mod headless;
 pub mod i18n;
 pub mod icons;
-pub mod import;
 pub mod lightroom_destination;
 pub mod lightroom_import;
 pub mod links;
@@ -66,6 +65,7 @@ use serde_json::Value;
 
 pub use command_error::CommandError;
 pub use control::{ControlRequest, ControlResponse};
+pub use dialogs::import;
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
