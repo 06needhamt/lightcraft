@@ -222,7 +222,6 @@ impl Server {
 }
 
 #[cfg(test)]
-#[path = "progress_tests.rs"]
 mod shutdown_tests;
 
 #[cfg(test)]
