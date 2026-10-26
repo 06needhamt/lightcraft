@@ -261,13 +261,15 @@ fn load_prefs(in_memory: bool) -> (Option<UiState>, Option<String>, bool) {
     load_prefs_at(&path, !in_memory)
 }
 
-/// Compatibility recovery is limited to persisted docking, not runtime UiState commands.
+/// Compatibility recovery is limited to persisted docking, not runtime UiState commands. An
+/// arrangement from an older docking version starts again from the default without a warning.
 fn decode_saved_ui(bytes: &[u8]) -> Result<(UiState, bool), String> {
     let mut saved: serde_json::Value = serde_json::from_slice(bytes).map_err(|error| error.to_string())?;
     let fields = saved.as_object_mut().ok_or("settings must be an object")?;
+    lightcraft_ui_egui::docking::drop_outdated(fields);
     let recovered =
         fields.get("docking").is_some_and(|value| match serde_json::from_value::<Option<lightcraft_ui_egui::docking::Workspace>>(value.clone()) {
-            Ok(Some(workspace)) => workspace.validate().is_err(),
+            Ok(Some(workspace)) => lightcraft_ui_egui::docking::validate(&workspace).is_err(),
             Ok(None) => false,
             Err(_) => true,
         });
@@ -378,7 +380,7 @@ impl PrefsWriter {
         }
         let Some(path) = self.path.clone() else { return Ok(()) };
         if let Some(workspace) = &ui.docking {
-            workspace.validate()?;
+            lightcraft_ui_egui::docking::validate(workspace)?;
         }
         let bytes = serde_json::to_vec_pretty(ui).map_err(|e| e.to_string())?;
         if bytes == self.written {
@@ -881,6 +883,11 @@ fn panic_log_path_with(env: impl Fn(&str) -> Option<std::ffi::OsString>, temp: s
 }
 
 fn main() -> eframe::Result {
+    // Windows: the update helper is a copy of this program started with `--finish-update`.
+    #[cfg(windows)]
+    if let Some(result) = craft_update::self_update::finish(&craft_update::suite::LIGHTCRAFT, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
+        std::process::exit(i32::from(result.is_err()));
+    }
     // First, so every start-up record is kept for the log file (`logging`).
     let logger = logging::install();
     lightcraft_engine::guard::install_hook(panic_log_path_with(|name| std::env::var_os(name), std::env::temp_dir()));
@@ -1009,6 +1016,7 @@ fn main() -> eframe::Result {
                 // HDR display: SDR unless the surface, platform and display all allow HDR
                 hdr_display::report(cc.wgpu_render_state.as_ref().map(|r| r.target_format));
                 let mut app = LightcraftApp::new(session, services(cc, app_log_file.as_deref()));
+                app.set_startup_update_check(true);
                 if let Some(ui) = prefs {
                     app.ui = ui;
                 }
@@ -1277,7 +1285,7 @@ mod tests {
         restored_app.ui = restored.unwrap();
         restored_app.run("ui.dock", serde_json::json!({"operation":"open", "panel":"tools"})).unwrap();
         assert_eq!(
-            restored_app.ui.docking.as_ref().unwrap().layout.floating.iter().find(|g| g.panels.contains(&Panel::Tools)).unwrap().rect,
+            restored_app.ui.docking.as_ref().unwrap().layout.floating.iter().find(|g| g.contains(&Panel::Tools)).unwrap().rect,
             [70.0, 80.0, 310.0, 500.0]
         );
         std::fs::remove_dir_all(d).unwrap();

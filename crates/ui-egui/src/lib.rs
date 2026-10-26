@@ -49,7 +49,7 @@ pub mod sync;
 pub mod tasks;
 pub mod text_field;
 pub mod theme;
-pub mod titlebar;
+pub mod updates_ui;
 pub mod widgets;
 pub mod window_place;
 
@@ -394,6 +394,8 @@ pub struct LightcraftApp {
     pub perf: Perf,
     /// macOS: the host draws the traffic lights over our top bar.
     pub integrated_titlebar: bool,
+    /// The `movable` flag last given to the window (macOS, `craft_window::title_bar::sync_movable`).
+    pub window_movable: Option<bool>,
     /// The host installed a native menu bar (no in-window menus then).
     pub native_menu: bool,
     /// Shortcuts the native menu bar currently handles (`Cmd+Z`, `G`…): the egui shortcut handler
@@ -409,6 +411,7 @@ pub struct LightcraftApp {
     pub headless_host: bool,
     /// Warnings to show one at a time (damaged settings files…, issue #103).
     pub notices: Vec<String>,
+    pub(crate) updates_rt: updates_ui::Runtime,
     /// Quitting was stopped to ask first: changes couldn't be saved, or tasks are running.
     pub quit_prompt: Option<QuitPrompt>,
     /// Keyboard/focus/input state for the prompt above, including its one-frame creation barrier.
@@ -609,12 +612,14 @@ impl LightcraftApp {
             perf: Perf::default(),
             caches: Caches::default(),
             integrated_titlebar: false,
+            window_movable: None,
             native_menu: false,
             native_shortcuts: Default::default(),
             recording_shortcut: None,
             text_focus: false,
             headless_host: false,
             notices: vec![],
+            updates_rt: Default::default(),
             quit_prompt: None,
             notice_input: Default::default(),
             quit_confirmed: false,
@@ -1966,6 +1971,7 @@ impl LightcraftApp {
         lightroom_import::tick(self, ctx);
         recheck::tick(self);
         tasks::poll(self, ctx);
+        updates_ui::tick(self, ctx);
         self.preview_build_status(ctx);
         self.save_status(ctx);
         self.ai_mask_detail(ctx, now);
@@ -2123,7 +2129,7 @@ impl LightcraftApp {
         // Recent-library checks and launch-list keys read focus/time/keys: they belong to the UI
         // phase, not the hidden-capable `logic` tick (plan §4.5 / migration input contract).
         panels::library_problem::logic(self, ctx);
-        if self.fonts_ready {
+        if self.fonts_ready && !updates_ui::blocks_input(self) {
             shortcuts::handle(self, ctx);
         }
     }
@@ -2626,6 +2632,7 @@ impl LightcraftApp {
                 panels::notices::hide_background_pointer(&ctx);
             }
             panels::dialogs::show(self, &ctx, notice_blocks);
+            updates_ui::show(self, &ctx);
             panels::library_problem::show(self, &ctx, notice_blocks);
             panels::toast(self, &ctx);
             drop_overlay::show(self, &ctx);
@@ -2656,6 +2663,7 @@ impl LightcraftApp {
             panels::notices::hide_background_pointer(&ctx);
         }
         panels::dialogs::show(self, &ctx, notice_blocks);
+        updates_ui::show(self, &ctx);
         panels::library_problem::show(self, &ctx, notice_blocks);
         export_task::poll(self, &ctx);
         slideshow_export::poll(self, &ctx);
@@ -2668,6 +2676,10 @@ impl LightcraftApp {
         panels::keyword_list::drag_feedback(self, &ctx);
         panels::toast(self, &ctx);
         drop_overlay::show(self, &ctx);
+        // AppKit moves the window on a drag anywhere in the title-bar band unless the window isn't
+        // movable: it stops being movable while the pointer is on a bar control or a panel over it
+        #[cfg(target_os = "macos")]
+        craft_window::title_bar::sync_movable(&ctx, &mut self.window_movable);
         if notice_blocks {
             // Keep the real press/release state for the next pass: an ordinary click spans host
             // frames, and resetting it above must only hide it from this pass's dialogs.

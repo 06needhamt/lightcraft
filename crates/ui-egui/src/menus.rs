@@ -263,6 +263,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     // Settings ▸ Display
     ("app.displayProfile", "Display Profile", None, ""),
     ("app.about", "About LightCraft", None, "Help"),
+    ("app.checkForUpdates", "Check for Updates…", None, "Help"),
     ("app.systemInfo", "System Info…", None, "Help"),
     ("app.openLogFolder", "Open Log Folder", None, "Help"),
     // the frame-rate display (`frame_rate`): a debugging aid, never saved
@@ -892,7 +893,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                     app.ui.tool.clear();
                 }
                 let _ = app.session.end_interaction();
-            } else {
+            } else if app.ui.right == RightPanel::None {
                 let p = match std::mem::take(&mut app.ui.right_hidden) {
                     RightPanel::None => RightPanel::Edit,
                     p => p,
@@ -905,6 +906,8 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
                     app.ui.tool = "remove".into();
                 }
             }
+            // A right panel that is open but not showing (minimized, or behind another tab)
+            // keeps its mode; reveal_command brings it to the front.
             Ok(json!({"open": app.ui.right != RightPanel::None}))
         }
         "view.beforeAfter" => {
@@ -1587,6 +1590,7 @@ pub fn run_ui_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Option<Re
             app.ui.dialog = Some(Dialog::About);
             Ok(Value::Null)
         }
+        "app.checkForUpdates" => crate::updates_ui::check(app),
         "photo.editInPhotoCraft" => edit_in(app, &ctx, p, true),
         "photo.editInExternal" => edit_in(app, &ctx, p, false),
         "photo.openOriginalInExternal" => open_original_in(app, &ctx, p),
