@@ -258,6 +258,23 @@ fn the_keyword_list_sets_and_marks_the_keyword_shortcut() {
     assert!(!has(&h, "keywordShortcut:Weddings"), "no longer in the keyword shortcut");
 }
 
+/// A name too long for its row is cut short before the dot and the +, so both stay clear of the
+/// Show photos arrow.
+#[test]
+fn a_long_keyword_name_leaves_room_for_its_marks() {
+    let (mut h, _) = keywords_panel();
+    let name = "Weddings and receptions at the harbor in the summer of the year before last";
+    run(&mut h, "keyword.create", json!({"name": name}));
+    run(&mut h, "keyword.setDefaultParent", json!({"keyword": name}));
+    run(&mut h, "keyword.setShortcut", json!({"keywords": [name]}));
+    find(&mut h, "receptions");
+    let arrow = rect(&h, &format!("keywordShow:{name}"));
+    for mark in ["keywordDefault", "keywordShortcut"] {
+        let r = rect(&h, &format!("{mark}:{name}"));
+        assert!(r.right() <= arrow.left(), "{mark} {r:?} runs into the arrow {arrow:?}");
+    }
+}
+
 /// With a keyword shortcut set, a photo's context menu offers Add Keyword with its keywords, which
 /// gives them to the selected photos; with none it offers nothing.
 #[test]

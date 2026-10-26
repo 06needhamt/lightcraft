@@ -229,6 +229,19 @@ fn the_keyword_shortcut_keeps_a_name_with_a_comma() {
     assert_eq!(r["keywords"], json!(["France", "Paris"]), "changed text is split at its commas");
 }
 
+/// A `keywords` value that is neither text nor a list of text is an error, and the keyword
+/// shortcut keeps its keywords.
+#[test]
+fn the_keyword_shortcut_refuses_keywords_that_are_not_text() {
+    let mut s = Session::with_demo();
+    s.execute("keyword.setShortcut", &json!({"keywords": ["beach", "sunset"]})).unwrap();
+    for keywords in [json!(7), json!(["beach", 7]), json!({"name": "beach"})] {
+        let e = s.execute("keyword.setShortcut", &json!({"keywords": keywords})).unwrap_err().to_string();
+        assert!(e.contains("`keywords` must be a string or an array of strings"), "{keywords}: {e}");
+        assert_eq!(s.execute("keyword.shortcut", &json!({})).unwrap()["keywords"], json!(["beach", "sunset"]), "{keywords}");
+    }
+}
+
 /// The keyword shortcut follows its keywords when they are moved, renamed or merged, and loses one
 /// that is deleted; setting it is one undo step, and undo brings a deleted one back.
 #[test]

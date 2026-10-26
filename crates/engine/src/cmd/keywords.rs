@@ -144,12 +144,16 @@ pub fn slots(typed: &[String]) -> Vec<String> {
 /// cleaned, a new name goes inside the default parent as the Keywording box puts it, and each is
 /// kept once whatever its case; empty ones are dropped. The text Set Keyword Shortcut… shows (the
 /// keyword shortcut's keywords joined with ", ") keeps them as they are, commas in a name included.
-fn shortcut_keywords(s: &Session, p: &Value) -> Vec<String> {
+/// Any other value is an error, and the keyword shortcut is left as it was.
+fn shortcut_keywords(s: &Session, p: &Value) -> Result<Vec<String>> {
     let now = s.catalog.keyword_shortcut();
+    let invalid = || bad("keyword.setShortcut", "`keywords` must be a string or an array of strings");
     let typed: Vec<String> = match p.get("keywords") {
-        Some(Value::String(text)) if !now.is_empty() && text.trim() == now.join(", ") => return now,
+        Some(Value::String(text)) if !now.is_empty() && text.trim() == now.join(", ") => return Ok(now),
         Some(Value::String(text)) => text.split(',').map(str::to_string).collect(),
-        _ => strs(p, "keywords"),
+        Some(Value::Array(a)) => a.iter().map(|k| k.as_str().map(str::to_string).ok_or_else(invalid)).collect::<Result<_>>()?,
+        None | Some(Value::Null) => Vec::new(),
+        Some(_) => return Err(invalid()),
     };
     let mut out: Vec<String> = Vec::new();
     for k in typed {
@@ -158,7 +162,7 @@ fn shortcut_keywords(s: &Session, p: &Value) -> Vec<String> {
             out.push(k);
         }
     }
-    out
+    Ok(out)
 }
 
 /// The nine keywords ⌥1–⌥9 apply: the current set's, or the recent ones.
@@ -343,7 +347,7 @@ pub fn specs() -> Vec<CommandSpec> {
             "{keywords: [..] or \"a, b\" (none clears it)}: sets the keyword shortcut, a mark on its keywords in the keyword list (a new name is listed; one undo step) → {keywords}",
             always,
             |s, p| {
-                let op = s.catalog.set_keyword_shortcut_ops(&shortcut_keywords(s, p));
+                let op = s.catalog.set_keyword_shortcut_ops(&shortcut_keywords(s, p)?);
                 commit_keywords(s, "Set Keyword Shortcut", op, |k| Some(k.to_string()))?;
                 Ok(json!({"keywords": s.catalog.keyword_shortcut()}))
             }
