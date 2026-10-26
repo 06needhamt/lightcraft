@@ -11,7 +11,6 @@ pub mod button;
 pub mod canvas_keys;
 mod command_error;
 pub mod control;
-pub mod date_picker;
 pub mod dialogs;
 pub mod docking;
 mod drop_overlay;
@@ -67,6 +66,7 @@ pub use menus::menu_level;
 pub use menus::menubar;
 pub use state::UiState;
 pub use widgets::album_picker;
+pub use widgets::date_picker;
 
 const TOAST_SECONDS: f64 = 1.4;
 /// The `path` of a display profile read from the screen rather than chosen as a file.
