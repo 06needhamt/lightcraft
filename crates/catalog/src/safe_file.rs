@@ -301,13 +301,13 @@ fn compare_files(a: &Path, b: &Path, strict: bool) -> io::Result<bool> {
             return Ok(false);
         }
         // A hard link has its own path but shares the volume serial number and file index with
-        // its original. A volume that does not report them is compared by resolved path below.
+        // its original. A volume that reports file index 0 is compared by resolved path below.
         // On ReFS two files can share the 64-bit file index, so the lengths are compared first.
         #[cfg(windows)]
         {
-            match ::same_file::is_same_file(a, b) {
-                Ok(true) => return Ok(true),
-                Ok(false) => {}
+            match file_ids(a, b) {
+                Ok((ia, ib)) if same_file_id(ia, ib) => return Ok(true),
+                Ok(_) => {}
                 Err(e) if strict => return Err(e),
                 Err(_) => {}
             }
@@ -317,6 +317,22 @@ fn compare_files(a: &Path, b: &Path, strict: bool) -> io::Result<bool> {
             _ => false,
         })
     }
+}
+
+/// The volume serial number and file index of `a` and `b`, read while both files are open.
+#[cfg(windows)]
+fn file_ids(a: &Path, b: &Path) -> io::Result<((u64, u64), (u64, u64))> {
+    use winapi_util::{Handle, file::information};
+    let (ha, hb) = (Handle::from_path_any(a)?, Handle::from_path_any(b)?);
+    let (ia, ib) = (information(&ha)?, information(&hb)?);
+    Ok(((ia.volume_serial_number(), ia.file_index()), (ib.volume_serial_number(), ib.file_index())))
+}
+
+/// Whether two (volume serial number, file index) pairs name one file. A file index of 0 is not
+/// an identity and matches nothing.
+#[cfg(any(windows, test))]
+fn same_file_id(a: (u64, u64), b: (u64, u64)) -> bool {
+    a.1 != 0 && b.1 != 0 && a == b
 }
 
 #[cfg(test)]
@@ -479,5 +495,14 @@ mod tests {
         assert!(!same_file_strict(&d.join("missing.jpg"), &p).unwrap(), "a missing original is another file");
         assert!(!same_file_strict(&p.join("under-a-file.jpg"), &p).unwrap());
         let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_zero_file_index_is_not_a_file_identity() {
+        assert!(same_file_id((7, 42), (7, 42)));
+        assert!(!same_file_id((7, 42), (7, 43)));
+        assert!(!same_file_id((7, 42), (8, 42)));
+        assert!(!same_file_id((7, 0), (7, 0)), "two files on a volume that reports index 0 are not the same file");
+        assert!(!same_file_id((0, 0), (0, 0)));
     }
 }
