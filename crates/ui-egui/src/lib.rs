@@ -25,7 +25,6 @@ pub mod icons;
 pub mod lightroom_import;
 pub mod links;
 pub mod menu_level;
-pub mod menubar;
 pub mod menus;
 mod model_setup;
 pub mod panels;
@@ -66,6 +65,7 @@ pub use dialogs::merge;
 pub use dialogs::print_view;
 pub use dialogs::slideshow_export;
 pub use dialogs::updates_ui;
+pub use menus::menubar;
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;

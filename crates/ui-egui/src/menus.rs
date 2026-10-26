@@ -8,6 +8,8 @@ use crate::LightcraftApp;
 use crate::pick::{PickRequest, Picked};
 use crate::state::{BeforeAfter, Dialog, RightPanel, ViewMode, Zoom};
 
+pub mod menubar;
+
 /// (id, label, shortcut, menu path)
 pub type UiCommand = (&'static str, &'static str, Option<&'static str>, &'static str);
 
