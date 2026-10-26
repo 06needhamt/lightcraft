@@ -11,8 +11,8 @@
 use egui::RichText;
 use serde_json::{Value, json};
 
-use super::settings::{check, heading, hint};
 use crate::LightcraftApp;
+use crate::panels::settings::{check, heading, hint};
 use crate::theme::Tokens;
 use crate::widgets::register;
 

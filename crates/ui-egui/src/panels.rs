@@ -9,7 +9,6 @@ pub mod denoise;
 pub mod detail;
 pub mod edit;
 pub mod empty_library;
-pub mod faces;
 pub mod filterbar;
 pub mod grid;
 pub mod histogram;
@@ -43,6 +42,7 @@ use egui::{Align2, Rect, pos2, vec2};
 
 use crate::LightcraftApp;
 pub use crate::dialogs;
+pub use crate::dialogs::faces;
 pub use crate::dialogs::settings;
 use crate::theme::Tokens;
 

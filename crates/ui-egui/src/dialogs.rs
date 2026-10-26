@@ -8,6 +8,7 @@ use crate::state::Dialog;
 use crate::theme::Tokens;
 
 pub mod credits;
+pub mod faces;
 pub mod import;
 pub mod lightroom_destination;
 pub mod merge;
