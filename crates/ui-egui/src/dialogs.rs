@@ -10,6 +10,7 @@ use crate::theme::Tokens;
 pub mod import;
 pub mod merge;
 pub mod print_view;
+pub mod slideshow_export;
 
 /// Rows the Rename dialog previews.
 const RENAME_PREVIEW_ROWS: usize = 6;

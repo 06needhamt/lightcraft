@@ -40,7 +40,6 @@ pub mod reload;
 pub mod render;
 pub mod shortcuts;
 pub mod sidebar;
-pub mod slideshow_export;
 pub mod softpaint;
 pub mod state;
 pub mod sync;
@@ -66,6 +65,7 @@ pub use control::{ControlRequest, ControlResponse};
 pub use dialogs::import;
 pub use dialogs::merge;
 pub use dialogs::print_view;
+pub use dialogs::slideshow_export;
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
