@@ -7,7 +7,6 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod brush_live;
-pub mod button;
 pub mod canvas_keys;
 mod command_error;
 pub mod control;
@@ -66,6 +65,7 @@ pub use menus::menu_level;
 pub use menus::menubar;
 pub use state::UiState;
 pub use widgets::album_picker;
+pub use widgets::button;
 pub use widgets::date_picker;
 
 const TOAST_SECONDS: f64 = 1.4;
