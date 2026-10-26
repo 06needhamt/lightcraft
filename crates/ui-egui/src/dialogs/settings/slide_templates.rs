@@ -13,8 +13,8 @@ use egui::{RichText, Sense, Stroke, vec2};
 use lightcraft_engine::slide_template::{PREVIOUS, SlideLook, Template};
 use serde_json::json;
 
-use super::settings::{heading, hint};
 use crate::LightcraftApp;
+use crate::panels::settings::{heading, hint};
 use crate::text_field::TextField;
 use crate::theme::Tokens;
 use crate::widgets::{register, register_response};
