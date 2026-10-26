@@ -592,3 +592,44 @@ fn lenient_ids<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D:
     let value = serde_json::Value::deserialize(d)?;
     Ok(value.as_array().into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect())
 }
+
+/// The navigation/document/modal/panel state a gesture was admitted under. The same automation
+/// id can mean a different control after any of these changes; the request is canceled rather
+/// than retargeted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct GestureFrame {
+    pub(crate) view: crate::state::ViewMode,
+    pub(crate) active: Option<lightcraft_catalog::PhotoId>,
+    pub(crate) library: u64,
+    pub(crate) dialog: Option<std::mem::Discriminant<crate::state::Dialog>>,
+    pub(crate) left_panel: bool,
+    pub(crate) right: crate::state::RightPanel,
+    pub(crate) presets: bool,
+    pub(crate) filmstrip: bool,
+}
+
+/// A pointer press delivered to the UI, kept so a canceled gesture knows that a button is down.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct InjectedPress {
+    pub(crate) button: egui::PointerButton,
+}
+
+/// A file `ui.dropFiles` delivers as dropped, as a real OS drop arrives in `raw.dropped_files`.
+#[derive(Debug)]
+pub(crate) struct InjectedDrop(pub(crate) std::path::PathBuf);
+
+impl egui::DroppedFile for InjectedDrop {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn bytes_async(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Vec<u8>, String>> + '_>> {
+        Box::pin(async { Err("the web build has no files to read".to_string()) })
+    }
+}
