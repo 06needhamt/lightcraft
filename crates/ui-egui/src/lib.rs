@@ -29,7 +29,6 @@ pub mod links;
 pub mod menu_level;
 pub mod menubar;
 pub mod menus;
-pub mod merge;
 mod model_setup;
 pub mod panels;
 pub mod pick;
@@ -65,6 +64,7 @@ use serde_json::Value;
 pub use command_error::CommandError;
 pub use control::{ControlRequest, ControlResponse};
 pub use dialogs::import;
+pub use dialogs::merge;
 pub use dialogs::print_view;
 pub use state::UiState;
 
