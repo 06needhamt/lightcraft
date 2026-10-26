@@ -40,6 +40,8 @@ pub mod widgets;
 pub mod window_place;
 
 #[cfg(test)]
+mod test_budget;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 use tests::panels as tests_panels;
