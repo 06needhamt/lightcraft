@@ -333,11 +333,7 @@ fn preview_loading_plans_the_smallest_covering_jpeg() {
         assert!(&window == want, "a {edge} px box takes the {which} JPEG");
         let quick = quick_image_srgb(&header, &window, read.adobe_rgb, edge).expect("the window holds a decodable preview");
         let whole = embedded_preview_srgb(&file, edge).expect("the whole file decodes too");
-        assert_eq!(
-            (quick.width, quick.height, quick.data),
-            (whole.width, whole.height, whole.data),
-            "{edge} px: the plan and the whole file agree"
-        );
+        assert_eq!((quick.width, quick.height, quick.data), (whole.width, whole.height, whole.data), "{edge} px: the plan and the whole file agree");
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -994,8 +990,7 @@ fn darkened_ramp(rows: std::ops::Range<usize>, height: usize) -> ([[u8; 4]; 3], 
     let colour = CameraColourModel { wb, matrix: lightcraft_color::Mat3::IDENTITY, gain: 1.0, tables: None, hue_sat: None };
     let w = 1600usize;
     let k = |x: usize| 0.8 + 0.55 * x as f32 / (w - 1) as f32;
-    let sensor =
-        Rgb32f::from_fn(w, height, |x, y| if rows.contains(&y) { [0.9 * k(x), k(x), 0.8 * k(x)].map(|v| v.min(1.0)) } else { [0.01; 3] });
+    let sensor = Rgb32f::from_fn(w, height, |x, y| if rows.contains(&y) { [0.9 * k(x), k(x), 0.8 * k(x)].map(|v| v.min(1.0)) } else { [0.01; 3] });
     let y = (rows.start + rows.end) / 2;
     let first = (0..w).find(|&x| sensor.get(x, y)[1] >= HIGHLIGHT_CLIP).unwrap();
     let mut img = sensor.clone();
@@ -1126,10 +1121,9 @@ fn corpus_clipped_sky_beside_a_tree_has_no_coloured_halo() {
             (a..b).map(|x| chroma(row[x])).fold([0f64; 2], |s, c| [s[0] + c[0] as f64 / n, s[1] + c[1] as f64 / n])
         };
         let (n0, n1, f0, f1) = (px(8.0 / 6000.0, w).max(2), px(40.0 / 6000.0, w), (200.0 * k) as usize, (320.0 * k) as usize);
-        for (side, (n, f)) in
-            [(mean(left - n1, left - n0), mean(left - f1, left - f0)), (mean(right + n0, right + n1), mean(right + f0, right + f1))]
-                .into_iter()
-                .enumerate()
+        for (side, (n, f)) in [(mean(left - n1, left - n0), mean(left - f1, left - f0)), (mean(right + n0, right + n1), mean(right + f0, right + f1))]
+            .into_iter()
+            .enumerate()
         {
             for c in 0..2 {
                 near[side][c] += n[c];

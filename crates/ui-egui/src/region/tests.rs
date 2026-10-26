@@ -586,14 +586,8 @@ fn the_margin_grows_with_the_zoom_up_to_a_cap() {
 #[test]
 fn a_tile_is_drawn_only_while_it_shows_what_the_loupe_shows() {
     use lightcraft_catalog::PhotoId;
-    let v = RegionView {
-        photo: PhotoId(1),
-        before: false,
-        key: 7,
-        full: (6000, 4000),
-        window: PixelWindow { x: 0, y: 0, w: 256, h: 256 },
-        settings: 11,
-    };
+    let v =
+        RegionView { photo: PhotoId(1), before: false, key: 7, full: (6000, 4000), window: PixelWindow { x: 0, y: 0, w: 256, h: 256 }, settings: 11 };
     assert!(v.is_current(PhotoId(1), (6000, 4000), 11, false));
     assert!(!v.is_current(PhotoId(2), (6000, 4000), 11, false), "another photo");
     assert!(!v.is_current(PhotoId(1), (6000, 4001), 11, false), "another zoom");

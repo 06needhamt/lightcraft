@@ -136,10 +136,7 @@ fn renaming_a_keyword_carries_its_listing_along() {
     let op = c.rename_keyword_ops("Travel", "Places|Europe").unwrap();
     let undo = c.apply(op).unwrap();
     assert_eq!(kws(&c, ids[0]), ["Places|Europe|italy"]);
-    assert_eq!(
-        listed(&c),
-        [("Places|Europe".to_string(), with_synonyms(&["trip"])), ("Places|Europe|Spain".to_string(), KeywordInfo::default())]
-    );
+    assert_eq!(listed(&c), [("Places|Europe".to_string(), with_synonyms(&["trip"])), ("Places|Europe|Spain".to_string(), KeywordInfo::default())]);
     c.apply(undo).unwrap();
     assert_eq!(c.to_snapshot(), before);
 }
@@ -161,11 +158,8 @@ fn merging_keeps_the_targets_attributes_and_gathers_synonyms() {
     let (mut c, _) = lib(&[&["holiday"], &["travel"]]);
     let person = KeywordInfo { person: true, ..with_synonyms(&["trip"]) };
     c.apply(Op::SetKeyword { path: "travel".into(), info: Some(person.clone()) }).unwrap();
-    c.apply(Op::SetKeyword {
-        path: "holiday".into(),
-        info: Some(KeywordInfo { include_on_export: false, ..with_synonyms(&["vacation", "Trip"]) }),
-    })
-    .unwrap();
+    c.apply(Op::SetKeyword { path: "holiday".into(), info: Some(KeywordInfo { include_on_export: false, ..with_synonyms(&["vacation", "Trip"]) }) })
+        .unwrap();
     let op = c.merge_keywords_ops(&["holiday".into()], "travel").unwrap();
     c.apply(op).unwrap();
     assert_eq!(listed(&c), [("travel".to_string(), KeywordInfo { person: true, ..with_synonyms(&["trip", "vacation"]) })]);
@@ -529,8 +523,11 @@ fn a_photo_supreme_vocabulary_file_reads() {
     let paths: Vec<&str> = read.iter().map(|(p, _)| p.as_str()).collect();
     assert_eq!(
         paths,
-        ["Places", "Portugal", "Portugal|Lisbon", "Portugal|Lisbon|Alfama", "Portugal|Porto", "Spain", "Spain|Seville"]
-            .map(|p| if p == "Places" { p.to_string() } else { format!("Places|{p}") })
+        ["Places", "Portugal", "Portugal|Lisbon", "Portugal|Lisbon|Alfama", "Portugal|Porto", "Spain", "Spain|Seville"].map(|p| if p == "Places" {
+            p.to_string()
+        } else {
+            format!("Places|{p}")
+        })
     );
     assert!(!read[0].1.include_on_export, "the category organizes: it isn't exported");
     assert!(read[1..].iter().all(|(_, i)| i.include_on_export));

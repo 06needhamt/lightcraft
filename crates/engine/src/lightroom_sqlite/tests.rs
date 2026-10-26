@@ -249,10 +249,7 @@ fn synthetic_btree_substitutes_rowid_and_reads_schema() {
     malformed[92..96].copy_from_slice(&1u32.to_be_bytes());
     malformed[28..32].copy_from_slice(&3u32.to_be_bytes());
     let oversized = Scratch::new(&malformed);
-    assert_eq!(
-        Database::open_file_with_wal(FileSource::open(&oversized.0).unwrap(), &[]).err().unwrap(),
-        "SQLite header page count exceeds image"
-    );
+    assert_eq!(Database::open_file_with_wal(FileSource::open(&oversized.0).unwrap(), &[]).err().unwrap(), "SQLite header page count exceeds image");
 }
 
 #[test]

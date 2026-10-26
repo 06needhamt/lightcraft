@@ -43,8 +43,7 @@ fn reference_conv(x: &Tensor, wd: &[f32], dims: [usize; 4], bias: &[f32], s: usi
                         for kx in 0..kw {
                             let (iy, ix) = ((oy * s + ky) as isize - p as isize, (ox * s + kx) as isize - p as isize);
                             if iy >= 0 && ix >= 0 && (iy as usize) < h && (ix as usize) < wi {
-                                acc +=
-                                    x.data[((g * cin_g + cl) * h + iy as usize) * wi + ix as usize] * wd[((co * cin_g + cl) * kh + ky) * kw + kx];
+                                acc += x.data[((g * cin_g + cl) * h + iy as usize) * wi + ix as usize] * wd[((co * cin_g + cl) * kh + ky) * kw + kx];
                             }
                         }
                     }
@@ -73,10 +72,8 @@ fn convolutions_match_a_slow_reference() {
         let bias: Vec<f32> = (0..cout).map(|i| i as f32 * 0.25 - 0.5).collect();
         let x = input(cin, h, wi, |i| ((i * 13 % 17) as f32 - 8.0) * 0.2);
         let attrs = [("group", Attr::Int(groups as i64)), ("strides", Attr::Ints(vec![s as i64; 2])), ("pads", Attr::Ints(vec![p as i64; 4]))];
-        let g = graph(
-            vec![node("Conv", &["x", "w", "b"], &attrs)],
-            vec![("w", w(&[cout, cin_g, k, k], wd.clone())), ("b", w(&[cout], bias.clone()))],
-        );
+        let g =
+            graph(vec![node("Conv", &["x", "w", "b"], &attrs)], vec![("w", w(&[cout, cin_g, k, k], wd.clone())), ("b", w(&[cout], bias.clone()))]);
         let got = run(g, x.clone()).unwrap();
         let want = reference_conv(&x, &wd, [cout, cin_g, k, k], &bias, s, p, groups);
         assert_eq!(got.shape, want.shape, "{cin} {cout} {groups} {k} {s} {p}");
@@ -102,8 +99,8 @@ fn the_small_operators() {
     .unwrap();
     assert_eq!((m.shape.clone(), m.data.clone()), (vec![1, 1, 2, 2], vec![-1.0, 1.0, 7.0, 9.0]));
     // Resize x2 nearest
-    let z = run(graph(vec![node("Resize", &["x", "", "s"], &[])], vec![("s", w(&[4], vec![1.0, 1.0, 2.0, 2.0]))]), input(1, 2, 2, |i| i as f32))
-        .unwrap();
+    let z =
+        run(graph(vec![node("Resize", &["x", "", "s"], &[])], vec![("s", w(&[4], vec![1.0, 1.0, 2.0, 2.0]))]), input(1, 2, 2, |i| i as f32)).unwrap();
     assert_eq!(z.shape, vec![1, 1, 4, 4]);
     assert_eq!(&z.data[..8], &[0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]);
     // Add
@@ -364,10 +361,7 @@ fn unsupported_and_inconsistent_models_are_errors() {
     let x = input(1, 3, 3, |i| i as f32);
     for (what, g) in [
         ("unknown op", graph(vec![node("Softmax", &["x"], &[])], vec![])),
-        (
-            "dilated conv",
-            graph(vec![node("Conv", &["x", "w"], &[("dilations", Attr::Ints(vec![2, 2]))])], vec![("w", w(&[1, 1, 1, 1], vec![1.0]))]),
-        ),
+        ("dilated conv", graph(vec![node("Conv", &["x", "w"], &[("dilations", Attr::Ints(vec![2, 2]))])], vec![("w", w(&[1, 1, 1, 1], vec![1.0]))])),
         ("conv without weights", graph(vec![node("Conv", &["x", "w"], &[])], vec![])),
         ("channels do not match", graph(vec![node("Conv", &["x", "w"], &[])], vec![("w", w(&[1, 5, 1, 1], vec![1.0; 5]))])),
         ("kernel too big", graph(vec![node("Conv", &["x", "w"], &[])], vec![("w", w(&[1, 1, 5, 5], vec![1.0; 25]))])),
@@ -378,10 +372,7 @@ fn unsupported_and_inconsistent_models_are_errors() {
             graph(vec![node("Conv", &["x", "w"], &[("pads", Attr::Ints(vec![-1, 0, 0, 0]))])], vec![("w", w(&[1, 1, 1, 1], vec![1.0]))]),
         ),
         ("bad perm", graph(vec![node("Transpose", &["x"], &[("perm", Attr::Ints(vec![0, 0, 1, 2]))])], vec![])),
-        (
-            "huge reshape",
-            graph(vec![node("Reshape", &["x", "s"], &[])], vec![("s", Weight { dims: vec![2], data: Data::I64(vec![i64::MAX, 1]) })]),
-        ),
+        ("huge reshape", graph(vec![node("Reshape", &["x", "s"], &[])], vec![("s", Weight { dims: vec![2], data: Data::I64(vec![i64::MAX, 1]) })])),
         ("reshape mismatch", graph(vec![node("Reshape", &["x", "s"], &[])], vec![("s", Weight { dims: vec![2], data: Data::I64(vec![4, 4]) })])),
         ("non-integer resize", graph(vec![node("Resize", &["x", "", "s"], &[])], vec![("s", w(&[4], vec![1.0, 1.0, 1.5, 1.5]))])),
         ("add that broadcasts", graph(vec![node("Add", &["x", "c"], &[])], vec![])),

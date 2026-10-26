@@ -266,11 +266,9 @@ fn a_zoomed_window_is_still_zoomed_on_another_screen_where_the_system_does_not_s
 fn nothing_waits_while_the_window_is_full_screen_or_minimized() {
     let rest = place([1300.0, 800.0], false);
     for live in [true, false] {
-        for away in [
-            Seen { full_screen: true, ..window(SCREEN) },
-            Seen { minimized: true, ..window([160.0, 28.0]) },
-            Seen { size: None, ..window(SCREEN) },
-        ] {
+        for away in
+            [Seen { full_screen: true, ..window(SCREEN) }, Seen { minimized: true, ..window([160.0, 28.0]) }, Seen { size: None, ..window(SCREEN) }]
+        {
             let mut watch = WindowWatch::told_live(live);
             watch.note(Some(rest), &window([1500.0, 900.0]), 1.0);
             assert!(watch.waits(1.0).is_some());

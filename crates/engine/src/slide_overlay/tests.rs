@@ -117,10 +117,8 @@ fn rating_stars_count_matches_the_rating() {
 fn text_with_a_shadow_draws_the_shadow_at_its_angle() {
     let l = layout(800, 500);
     let s = OverlaySettings::default()
-        .merged(
-            &json!({"texts": [{"text": "Shadow", "size": 0.08, "color": "#ffffff", "opacity": 1, "anchor": "center", "offsetX": 0, "offsetY": 0,
-            "shadow": true, "shadowOpacity": 1, "shadowOffset": 0.02, "shadowRadius": 0, "shadowAngle": -90}]}),
-        )
+        .merged(&json!({"texts": [{"text": "Shadow", "size": 0.08, "color": "#ffffff", "opacity": 1, "anchor": "center", "offsetX": 0, "offsetY": 0,
+            "shadow": true, "shadowOpacity": 1, "shadowOffset": 0.02, "shadowRadius": 0, "shadowAngle": -90}]}))
         .unwrap();
     let o = SlideOverlays::resolve(&s, Some(&photo()));
     let b = o.boxes(&l)[0].1;
@@ -165,10 +163,9 @@ fn identity_plate_image_draws_at_its_opacity_and_a_missing_one_is_reported() {
     let behind = s.merged(&json!({"identityPlate": {"behind": true, "anchor": "center"}})).unwrap();
     let photo_img = Image::filled(30, 20, [0u8, 0, 255, 255]);
     let ob = SlideOverlays::resolve(&behind, None);
-    let (img, l2) =
-        lightcraft_slideshow::compose_with(&photo_img, None, &lightcraft_slideshow::SlideSettings::default(), 800, 500, &mut |i, l| {
-            ob.draw_behind(i, l)
-        });
+    let (img, l2) = lightcraft_slideshow::compose_with(&photo_img, None, &lightcraft_slideshow::SlideSettings::default(), 800, 500, &mut |i, l| {
+        ob.draw_behind(i, l)
+    });
     let _ = l2;
     assert_eq!(img.get(400, 250), [0, 0, 255, 255], "the photo is on top");
     // a missing file: reported, nothing drawn, no panic
@@ -249,14 +246,10 @@ fn hostile_settings_are_refused_or_clamped_and_never_panic() {
     wild.texts[0].place.offset_y = f64::INFINITY;
     wild.watermark.size = f32::NAN;
     let w = wild.sanitized();
-    assert_eq!(
-        (w.identity_plate.size, w.texts[0].place.offset_y, w.watermark.size),
-        (IdentityPlate::default().size, 0.0, Watermark::default().size)
-    );
+    assert_eq!((w.identity_plate.size, w.texts[0].place.offset_y, w.watermark.size), (IdentityPlate::default().size, 0.0, Watermark::default().size));
     // drawing hostile text at every size: empty, huge, CJK, RTL, control characters
     let huge = "W".repeat(50_000);
-    for text in ["", " ", "\n\n", huge.as_str(), "日本語のテキスト", "שלום עולם", "مرحبا", "a\u{0}b\u{7}c\r\n", "{caption}{"]
-    {
+    for text in ["", " ", "\n\n", huge.as_str(), "日本語のテキスト", "שלום עולם", "مرحبا", "a\u{0}b\u{7}c\r\n", "{caption}{"] {
         let s = d
             .merged(&json!({"identityPlate": {"enabled": true, "text": text, "size": PLATE_SIZE_MAX}, "ratingStars": {"enabled": true}, "addText": {"text": text, "size": TEXT_SIZE_MAX, "shadow": true, "shadowRadius": SHADOW_RADIUS_MAX}, "showWatermark": true, "watermark": text}))
             .unwrap();

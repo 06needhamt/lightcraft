@@ -147,12 +147,9 @@ fn a_block_that_disagrees_is_ignored() {
 
 #[test]
 fn missing_or_garbage_frame_size_gets_a_small_box_and_edges_are_clipped() {
-    for fs in [
-        Value::Undefined(vec![0, 0, 0, 0, 0, 0]),
-        Value::Undefined(vec![1]),
-        Value::Short(vec![5]),
-        Value::Undefined(vec![0xaf, 0, 0xb4, 0, 0, 0]),
-    ] {
+    for fs in
+        [Value::Undefined(vec![0, 0, 0, 0, 0, 0]), Value::Undefined(vec![1]), Value::Short(vec![5]), Value::Undefined(vec![0xaf, 0, 0xb4, 0, 0, 0])]
+    {
         let mut ifd = alpha1();
         set(&mut ifd, FOCUS_FRAME_SIZE, fs);
         let f = sony(&ifd, ByteOrder::Little, Orientation::Normal).unwrap();
@@ -416,16 +413,8 @@ fn real_sony_files_match_exiftool() {
     // (file, EXIF orientation, ExifTool's FocusLocation and FocusFrameSize, the words we show; None = no point)
     let cases: [(&str, u16, Want); 8] = [
         // α1, AF-C, Wide, Face tracking, AFAreaMode Animal Eye Tracking
-        (
-            "2023/11-november/17th/_DSC6954.ARW",
-            1,
-            Some(([8640.0, 5760.0, 3226.0, 1980.0], [175.0, 180.0], &["AF-C", "Wide", "Animal Eye Tracking"])),
-        ),
-        (
-            "2023/11-november/17th/_DSC6894.ARW",
-            1,
-            Some(([8640.0, 5760.0, 4725.0, 1860.0], [135.0, 132.0], &["AF-C", "Wide", "Animal Eye Tracking"])),
-        ),
+        ("2023/11-november/17th/_DSC6954.ARW", 1, Some(([8640.0, 5760.0, 3226.0, 1980.0], [175.0, 180.0], &["AF-C", "Wide", "Animal Eye Tracking"]))),
+        ("2023/11-november/17th/_DSC6894.ARW", 1, Some(([8640.0, 5760.0, 4725.0, 1860.0], [135.0, 132.0], &["AF-C", "Wide", "Animal Eye Tracking"]))),
         // α1, manual focus (the location 4441 3060 is where the frame was parked)
         ("2023/11-november/15th/_DSC6613.ARW", 1, None),
         // α1 portrait, AF-S, Wide, Multi at the exact centre 4320 2880
@@ -433,11 +422,7 @@ fn real_sony_files_match_exiftool() {
         // α1 APS-C crop mode portrait, AF-C, Wide, Lock On AF, AFAreaMode Tracking
         ("2022/12-december/16th/_DSC1575.ARW", 8, Some(([5616.0, 3744.0, 4071.0, 1848.0], [280.0, 280.0], &["AF-C", "Wide", "Tracking"]))),
         // A7S III portrait, AF-A, Wide, Face tracking, Animal Eye Tracking
-        (
-            "2020/10-october/31st/DSC00065.ARW",
-            8,
-            Some(([4240.0, 2832.0, 1192.0, 1675.0], [278.0, 277.0], &["AF-A", "Wide", "Animal Eye Tracking"])),
-        ),
+        ("2020/10-october/31st/DSC00065.ARW", 8, Some(([4240.0, 2832.0, 1192.0, 1675.0], [278.0, 277.0], &["AF-A", "Wide", "Animal Eye Tracking"]))),
         // A7S III upside down, AF-C, a centred Flexible Spot: a real point
         ("2021/11-november/7th/DSC05975.ARW", 3, Some(([4240.0, 2832.0, 2120.0, 1416.0], [251.0, 224.0], &["AF-C", "Flexible Spot"]))),
         // A7S III, manual focus

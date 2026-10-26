@@ -354,8 +354,7 @@ fn select_by_submenu_and_text_prompt() {
     let mut app = app();
     let bar = menu_bar(&app);
     let edit = &bar.iter().find(|(t, _)| t == "Edit").unwrap().1;
-    let Some(MenuNode::Submenu { children, .. }) = edit.iter().find(|n| matches!(n, MenuNode::Submenu { label, .. } if label == "Select by"))
-    else {
+    let Some(MenuNode::Submenu { children, .. }) = edit.iter().find(|n| matches!(n, MenuNode::Submenu { label, .. } if label == "Select by")) else {
         panic!("no Select by submenu")
     };
     let Some(MenuNode::Item { id, params, .. }) = children.first() else { panic!() };
@@ -468,10 +467,8 @@ fn in_window_menu_headings_are_spaced_apart() {
 fn a_refused_backup_from_the_menu_shows_why() {
     // the host refuses, as the web one does while changes are still unsaved (issue #1508)
     let refusal = "Backup not started: 1 change could not be saved to browser storage yet";
-    let services = crate::Services {
-        backup_library: Some(Box::new(move |_: &mut lightcraft_engine::Session| Err(refusal.to_string()))),
-        ..Default::default()
-    };
+    let services =
+        crate::Services { backup_library: Some(Box::new(move |_: &mut lightcraft_engine::Session| Err(refusal.to_string()))), ..Default::default() };
     let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), services);
     let mut h = crate::headless::Headless::new(app, [1400.0, 900.0], 1.0);
     let t = std::time::Duration::from_secs(30);

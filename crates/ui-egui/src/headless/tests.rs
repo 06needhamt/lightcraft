@@ -886,11 +886,9 @@ fn a_persons_page_shows_their_faces_and_back_returns_to_everyone() {
         description: None,
     };
     // Jane Doe twice in the first photo and once in the second; John Roe in the third
-    for (id, regions) in [
-        (ids[0], vec![face(0.1, "Jane Doe"), face(0.5, "jane doe")]),
-        (ids[1], vec![face(0.3, "Jane Doe")]),
-        (ids[2], vec![face(0.3, "John Roe")]),
-    ] {
+    for (id, regions) in
+        [(ids[0], vec![face(0.1, "Jane Doe"), face(0.5, "jane doe")]), (ids[1], vec![face(0.3, "Jane Doe")]), (ids[2], vec![face(0.3, "John Roe")])]
+    {
         let mut meta = h.app.session.catalog.photo(id).unwrap().meta.clone();
         meta.regions = regions;
         h.app.session.commit("setup", Op::SetMeta { id, meta: Box::new(meta) }).unwrap();
@@ -994,8 +992,7 @@ fn person_more_confirms_all_above_with_one_undo_step() {
         pending: 0,
     };
     let set_page = |h: &mut Headless| {
-        h.app.caches.person_page =
-            Some(("Jane Doe".into(), h.app.session.catalog.revision, h.app.caches.faces_indexed, 0.0, Arc::new(page.clone())));
+        h.app.caches.person_page = Some(("Jane Doe".into(), h.app.session.catalog.revision, h.app.caches.faces_indexed, 0.0, Arc::new(page.clone())));
         h.step();
     };
     h.app.ui.dismissed_faces.insert((ids[4].0, 0));
@@ -1009,15 +1006,7 @@ fn person_more_confirms_all_above_with_one_undo_step() {
     let names = |h: &Headless| ids.iter().map(|id| h.app.session.catalog.photo(*id).unwrap().meta.regions[0].name.clone()).collect::<Vec<_>>();
     assert_eq!(
         names(&h),
-        vec![
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            None,
-            None,
-            Some("John Roe".into())
-        ]
+        vec![Some("Jane Doe".into()), Some("Jane Doe".into()), Some("Jane Doe".into()), Some("Jane Doe".into()), None, None, Some("John Roe".into())]
     );
     assert_eq!(h.app.session.undo.len(), undo + 1);
     h.request("engine.execute", json!({"command": "edit.undo"}), t);
@@ -1058,15 +1047,7 @@ fn person_more_confirms_all_above_with_one_undo_step() {
     h.step();
     assert_eq!(
         names(&h),
-        vec![
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            Some("Jane Doe".into()),
-            None,
-            None,
-            Some("John Roe".into())
-        ]
+        vec![Some("Jane Doe".into()), Some("Jane Doe".into()), Some("Jane Doe".into()), Some("Jane Doe".into()), None, None, Some("John Roe".into())]
     );
     assert_eq!(h.app.session.undo.len(), undo + 1);
     h.request("engine.execute", json!({"command": "view.photoGrid"}), t);
@@ -2061,8 +2042,7 @@ fn a_slow_photos_import_never_blocks_the_window() {
         Ok(lightcraft_engine::apple_photos::Output { status: Some(0), stdout: "ID\n".repeat(n), stderr: String::new() })
     }));
     let t0 = Instant::now();
-    let r =
-        h.request("engine.execute", json!({"command": "export.addToPhotos", "params": {"paths": [file.to_string_lossy()], "album": "Slow"}}), t);
+    let r = h.request("engine.execute", json!({"command": "export.addToPhotos", "params": {"paths": [file.to_string_lossy()], "album": "Slow"}}), t);
     assert!(t0.elapsed() < Duration::from_secs(5), "answered at once: {r}");
     assert_eq!(r["result"]["running"], true, "{r}");
     go.send(()).unwrap();
@@ -2108,8 +2088,7 @@ fn a_headless_run_waits_for_its_photos_import_before_ending() {
         std::fs::write(&m, b"done").unwrap();
         Ok(lightcraft_engine::apple_photos::Output { status: Some(0), stdout: "ID\n".into(), stderr: String::new() })
     }));
-    let r =
-        h.request("engine.execute", json!({"command": "export.addToPhotos", "params": {"paths": [file.to_string_lossy()], "wait": false}}), t);
+    let r = h.request("engine.execute", json!({"command": "export.addToPhotos", "params": {"paths": [file.to_string_lossy()], "wait": false}}), t);
     assert_eq!(r["result"]["running"], true, "{r}");
     assert!(!marker.exists(), "still importing");
     let release = std::thread::spawn(move || {
@@ -2214,11 +2193,8 @@ fn drag_photos_onto_an_album() {
     h.settle(SETTLE);
     let rect = |h: &mut Headless, id: &str| {
         let w = h.request("ui.widgets", json!({"filter": id}), t);
-        let r = w["result"]
-            .as_array()
-            .and_then(|a| a.iter().find(|x| x["id"] == id))
-            .map(|x| x["rect"].clone())
-            .unwrap_or_else(|| panic!("{id}: {w}"));
+        let r =
+            w["result"].as_array().and_then(|a| a.iter().find(|x| x["id"] == id)).map(|x| x["rect"].clone()).unwrap_or_else(|| panic!("{id}: {w}"));
         let f = |i: usize| r[i].as_f64().unwrap();
         (f(0) + f(2) / 2.0, f(1) + f(3) / 2.0)
     };
@@ -2616,25 +2592,12 @@ fn info_mixed_fields_are_the_ones_that_differ() {
     let ids: Vec<u64> = s.visible_cloned().iter().take(3).map(|p| p.0).collect();
     let all = |key: &str, v: serde_json::Value| json!({"ids": ids, key: v});
     // (every field the panel compares starts the same on the three photos)
-    let fields = [
-        "title",
-        "caption",
-        "altText",
-        "extendedDescription",
-        "copyright",
-        "usageTerms",
-        "copyrightUrl",
-        "creator",
-        "location",
-        "state",
-        "country",
-    ];
+    let fields =
+        ["title", "caption", "altText", "extendedDescription", "copyright", "usageTerms", "copyrightUrl", "creator", "location", "state", "country"];
     for key in fields {
         s.execute("photo.setMeta", &all(key, json!(""))).unwrap();
     }
-    for (key, v) in
-        [("title", json!("Same")), ("city", json!("Porto")), ("copyrightStatus", json!("copyrighted")), ("gps", json!([41.15, -8.61]))]
-    {
+    for (key, v) in [("title", json!("Same")), ("city", json!("Porto")), ("copyrightStatus", json!("copyrighted")), ("gps", json!([41.15, -8.61]))] {
         s.execute("photo.setMeta", &all(key, v)).unwrap();
     }
     let photos: Vec<lightcraft_catalog::PhotoId> = ids.iter().map(|&i| lightcraft_catalog::PhotoId(i)).collect();
@@ -3279,8 +3242,7 @@ fn browsing_the_same_folder_again_does_not_restart() {
         }
         Ok(lightcraft_engine::media::ProbeInfo { format: "PNG".into(), ..Default::default() })
     }));
-    let browse =
-        |h: &mut Headless| h.request("engine.execute", json!({"command": "library.browse", "params": {"path": dir.to_string_lossy()}}), t);
+    let browse = |h: &mut Headless| h.request("engine.execute", json!({"command": "library.browse", "params": {"path": dir.to_string_lossy()}}), t);
     assert_eq!(browse(&mut h)["result"]["scanning"], true);
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(browse(&mut h)["result"]["scanning"], true);
@@ -3585,8 +3547,7 @@ fn import_review_offers_recently_deleted_files() {
         for i in 0..2u8 {
             let data: Vec<[u8; 4]> = (0..40 * 30).map(|k| [(k % 40 * 6) as u8, i * 90, 7, 255]).collect();
             let img = lightcraft_raster::Rgba8 { width: 40, height: 30, data };
-            let png =
-                lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+            let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
             std::fs::write(dir.join(format!("img{i}.png")), png).unwrap();
         }
         let services = crate::Services { png: None, ..Default::default() };
@@ -3594,8 +3555,7 @@ fn import_review_offers_recently_deleted_files() {
         app.ui.view = crate::state::ViewMode::PhotoGrid;
         let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
         let t = Duration::from_secs(10);
-        let r =
-            h.request("engine.execute", json!({"command": "library.import", "params": {"paths": [dir.join("img0.png").to_string_lossy()]}}), t);
+        let r = h.request("engine.execute", json!({"command": "library.import", "params": {"paths": [dir.join("img0.png").to_string_lossy()]}}), t);
         let id = r["result"]["imported"][0].as_u64().unwrap();
         h.request("engine.execute", json!({"command": "photo.rate", "params": {"ids": [id], "rating": 3}}), t);
         h.request("engine.execute", json!({"command": "photo.delete", "params": {"ids": [id]}}), t);
@@ -4066,8 +4026,7 @@ fn import_rename_tags_insert_at_the_cursor() {
     app.ui.view = crate::state::ViewMode::PhotoGrid;
     let mut h = Headless::new(app, [1300.0, 1000.0], 1.0);
     let t = Duration::from_secs(10);
-    let r =
-        h.request("engine.execute", json!({"command": "file.addPhotos", "params": {"paths": [dir.join("IMG_0007.png").to_string_lossy()]}}), t);
+    let r = h.request("engine.execute", json!({"command": "file.addPhotos", "params": {"paths": [dir.join("IMG_0007.png").to_string_lossy()]}}), t);
     assert_eq!(r["result"]["scanning"], true, "{r}");
     h.settle(SETTLE);
     let r = h.request("ui.clickWidget", json!({"id": "button:importCopy"}), t);
@@ -4142,8 +4101,7 @@ fn display_profile_converts_previews() {
     let mut h = demo([1000.0, 700.0]);
     let t = Duration::from_secs(10);
     h.request("ui.set", json!({"view": "detail"}), t);
-    let thumb_slot =
-        |h: &Headless| h.app.renderer.textures.keys().copied().filter(|s| matches!(s, Slot::Thumb(_))).min_by_key(|s| format!("{s:?}"));
+    let thumb_slot = |h: &Headless| h.app.renderer.textures.keys().copied().filter(|s| matches!(s, Slot::Thumb(_))).min_by_key(|s| format!("{s:?}"));
     let ready = |h: &Headless| {
         h.app.renderer.textures.get(&Slot::Main).is_some_and(|t| t.pixels.is_some())
             && thumb_slot(h).is_some()

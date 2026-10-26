@@ -413,8 +413,7 @@ fn the_writer_follows_the_window_from_frame_to_frame() {
     let mut writer = PrefsWriter::default();
     let ctx = egui::Context::default();
     let pass = |look: &mut dyn FnMut(&egui::Context)| {
-        let raw =
-            egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 800.0))), ..Default::default() };
+        let raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1300.0, 800.0))), ..Default::default() };
         let mut out = ctx.run_ui(raw, |ui| look(ui.ctx()));
         out.textures_delta.clear();
         out.viewport_output.get(&egui::ViewportId::ROOT).map(|v| v.repaint_delay)

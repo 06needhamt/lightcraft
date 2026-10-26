@@ -87,11 +87,8 @@ fn catalogs_load() {
 /// `locales/*.json`, sorted.
 fn catalog_files() -> Vec<std::path::PathBuf> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("locales");
-    let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .collect();
+    let mut files: Vec<std::path::PathBuf> =
+        std::fs::read_dir(dir).unwrap().map(|entry| entry.unwrap().path()).filter(|path| path.extension().is_some_and(|ext| ext == "json")).collect();
     files.sort();
     files
 }
@@ -282,11 +279,8 @@ fn catalog_characters_are_paintable() {
         ctx.fonts_mut(|fonts| {
             for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into())] {
                 let font = egui::FontId::new(13.0, family.clone());
-                let mut missing: Vec<char> = messages
-                    .values()
-                    .flat_map(|message| message.chars())
-                    .filter(|ch| !ch.is_whitespace() && !fonts.has_glyph(&font, *ch))
-                    .collect();
+                let mut missing: Vec<char> =
+                    messages.values().flat_map(|message| message.chars()).filter(|ch| !ch.is_whitespace() && !fonts.has_glyph(&font, *ch)).collect();
                 missing.sort_unstable();
                 missing.dedup();
                 assert!(
@@ -426,9 +420,8 @@ fn choice_values_read_as_words_in_every_language() {
 fn problems_read_in_every_language() {
     use lightcraft_catalog::rules::Issue;
     let cat = lightcraft_catalog::Catalog::new();
-    let problems = |rules: serde_json::Value| {
-        serde_json::from_value::<lightcraft_catalog::RuleSet>(serde_json::json!({"rules": rules})).unwrap().check(&cat)
-    };
+    let problems =
+        |rules: serde_json::Value| serde_json::from_value::<lightcraft_catalog::RuleSet>(serde_json::json!({"rules": rules})).unwrap().check(&cat);
     let p = problems(serde_json::json!([{"field": "rating", "op": "gte", "value": 3}, {"field": "title", "op": "contains", "value": ""}]));
     assert_eq!(problem_text_in(Locale::En, &p[0]), "Title: needs something to look for (or use “is empty”)");
     assert_eq!(problem_line_in(Locale::En, &p[0]), "#2 Title: needs something to look for (or use “is empty”)");
@@ -566,11 +559,7 @@ fn german_switches_via_menu_and_control_and_persists() {
     assert!(rules_label(&album, &catalog).ends_with(" “Ausgeschlossen”"), "{}", rules_label(&album, &catalog));
     let rules = lightcraft_catalog::RuleSet {
         mode: lightcraft_catalog::Match::All,
-        rules: vec![lightcraft_catalog::Rule::Field {
-            field: "copyrightStatus".into(),
-            op: "is".into(),
-            value: serde_json::json!("publicDomain"),
-        }],
+        rules: vec![lightcraft_catalog::Rule::Field { field: "copyrightStatus".into(), op: "is".into(), value: serde_json::json!("publicDomain") }],
     };
     let public_domain = format!(" {}", choice_text_in(Locale::De, "copyrightStatus", "publicDomain"));
     assert!(rules_label(&rules, &catalog).ends_with(&public_domain), "{}", rules_label(&rules, &catalog));
@@ -596,10 +585,8 @@ fn german_switches_via_menu_and_control_and_persists() {
     assert_eq!(filter_label(&both, &app.session.catalog), format!("{label}: {red} {and} {blue}"));
     let both = lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Blue, lightcraft_catalog::ColorLabel::Green], ..both };
     assert_eq!(filter_label(&both, &app.session.catalog), format!("{label}: {red} {and} ({blue} {or} {green})"));
-    let filter = lightcraft_catalog::Filter {
-        labels: vec![lightcraft_catalog::ColorLabel::Red, lightcraft_catalog::ColorLabel::Blue],
-        ..Default::default()
-    };
+    let filter =
+        lightcraft_catalog::Filter { labels: vec![lightcraft_catalog::ColorLabel::Red, lightcraft_catalog::ColorLabel::Blue], ..Default::default() };
     let blue = color_label(&app.session.catalog, lightcraft_catalog::ColorLabel::Blue);
     let red = color_label(&app.session.catalog, lightcraft_catalog::ColorLabel::Red);
     let label = filter_label(&filter, &app.session.catalog);
@@ -773,9 +760,7 @@ fn craft_fonts_render_cjk_in_the_ui() {
         set_language(language);
         let ctx = fonts_ctx(lightcraft_engine::CRAFT_FONTS);
         ctx.fonts_mut(|fonts| {
-            for family in
-                [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into()), egui::FontFamily::Monospace]
-            {
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Name(crate::theme::FONT_SEMIBOLD.into()), egui::FontFamily::Monospace] {
                 let font = egui::FontId::new(13.0, family);
                 for ch in sample.chars() {
                     assert!(fonts.has_glyph(&font, ch), "{language:?}: {ch} in {font:?}");
@@ -952,12 +937,8 @@ fn translation_gaps_report() {
     let messages: std::collections::BTreeSet<String> = plain_messages().into_iter().filter(|m| !notes.contains(&m.as_str())).collect();
     let formats = format_messages();
     let quoted = |list: &[&str]| list.iter().map(|m| format!("{m:?}")).collect::<Vec<_>>().join(", ");
-    let mut out = format!(
-        "Translation gaps, shown in English ({} messages, {} formats, {} What's New lines):\n",
-        messages.len(),
-        formats.len(),
-        notes.len()
-    );
+    let mut out =
+        format!("Translation gaps, shown in English ({} messages, {} formats, {} What's New lines):\n", messages.len(), formats.len(), notes.len());
     for language in Locale::ALL.iter().filter(|language| **language != Locale::En) {
         let catalog = language.catalog();
         let own_formats = formats_catalog(language.code());
@@ -1051,11 +1032,8 @@ fn formats_catalog(code: &str) -> BTreeMap<String, String> {
 /// Every format message: the keys of every formats catalog and the message of every
 /// `tr_format!` call in `src/` outside its test modules.
 fn format_messages() -> std::collections::BTreeSet<String> {
-    let mut all: std::collections::BTreeSet<String> = Locale::ALL
-        .iter()
-        .filter(|language| **language != Locale::En)
-        .flat_map(|language| formats_catalog(language.code()).into_keys())
-        .collect();
+    let mut all: std::collections::BTreeSet<String> =
+        Locale::ALL.iter().filter(|language| **language != Locale::En).flat_map(|language| formats_catalog(language.code()).into_keys()).collect();
     let mut dirs = vec![std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")];
     while let Some(dir) = dirs.pop() {
         for path in std::fs::read_dir(&dir).unwrap().map(|entry| entry.unwrap().path()) {
@@ -1125,8 +1103,7 @@ fn a_dropped_photos_notice_names_every_outcome_of_the_import_and_is_silent_for_d
     let png = |name: &str, seed: u8| {
         let data: Vec<[u8; 4]> = (0..48 * 32).map(|i| [(i % 48 * 5) as u8, (i / 48 * 7) as u8, seed, 255]).collect();
         let img = lightcraft_raster::Rgba8 { width: 48, height: 32, data };
-        let bytes =
-            lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+        let bytes = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
         std::fs::write(dir.join(name), bytes).unwrap();
         dir.join(name).to_string_lossy().into_owned()
     };

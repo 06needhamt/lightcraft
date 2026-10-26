@@ -687,25 +687,13 @@ mod issue1771 {
     #[test]
     fn issue1771_repeat_event_opens_once_and_detail_keeps_selection() {
         let mut h = grid(ViewMode::PhotoGrid);
-        h.events.push(egui::Event::Key {
-            key: egui::Key::Enter,
-            physical_key: None,
-            pressed: true,
-            repeat: true,
-            modifiers: egui::Modifiers::NONE,
-        });
+        h.events.push(egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: true, modifiers: egui::Modifiers::NONE });
         h.step();
         h.step();
         assert_eq!(h.app.ui.view, ViewMode::Detail);
         assert_eq!(h.app.session.active(), Some(PhotoId(2)));
         assert_eq!(h.app.session.selection.ids.len(), 3);
-        h.events.push(egui::Event::Key {
-            key: egui::Key::Enter,
-            physical_key: None,
-            pressed: true,
-            repeat: true,
-            modifiers: egui::Modifiers::NONE,
-        });
+        h.events.push(egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: true, modifiers: egui::Modifiers::NONE });
         h.step();
         h.step();
         assert_eq!(h.app.ui.view, ViewMode::Detail);

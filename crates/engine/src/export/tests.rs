@@ -77,9 +77,7 @@ fn hdr_jpeg_size_limit_respected() {
         width: img.width,
         height: img.height,
         space: OutputSpace::Srgb,
-        samples: DeepSamples::F32(
-            img.data.iter().flat_map(|p| p[..3].iter().map(|v| lightcraft_color::transfer::decode_srgb8(*v) * 4.0)).collect(),
-        ),
+        samples: DeepSamples::F32(img.data.iter().flat_map(|p| p[..3].iter().map(|v| lightcraft_color::transfer::decode_srgb8(*v) * 4.0)).collect()),
     };
     let opts = ExportOptions { hdr: true, quality: 100, limit_kb: Some(u32::MAX), ..Default::default() };
     let full = encode_gain_map_jpeg(&img, &hdr, &opts, None).unwrap();
@@ -375,8 +373,7 @@ fn watermark_preview_scales_the_minimum_text_size() {
 }
 
 fn vertical_japanese() -> Watermark {
-    let options =
-        ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
+    let options = ExportOptions::from_json(&json!({"watermark": {"text": "日本語", "vertical": true, "size": 0.1, "shadow": false, "opacity": 1.0}}));
     options.watermark.unwrap()
 }
 
@@ -543,14 +540,8 @@ fn graphic_watermark_is_placed_scaled_and_blended() {
     std::fs::write(&logo_path, png).unwrap();
     let mut img = Rgba8::new(400, 300);
     img.data.iter_mut().for_each(|p| *p = [0, 0, 0, 255]);
-    let wm = Watermark {
-        image: logo_path.to_string_lossy().into(),
-        image_width: 0.25,
-        opacity: 1.0,
-        inset_x: 0.0,
-        inset_y: 0.0,
-        ..Default::default()
-    };
+    let wm =
+        Watermark { image: logo_path.to_string_lossy().into(), image_width: 0.25, opacity: 1.0, inset_x: 0.0, inset_y: 0.0, ..Default::default() };
     draw_watermark(&mut img, &wm);
     // 100 px wide × 50 px high in the bottom-right corner
     assert!(img.get(310, 280)[0] > 200, "opaque half: {:?}", img.get(310, 280));
@@ -836,8 +827,7 @@ fn every_space_embeds_its_own_profile_and_round_trips() {
         let src = lightcraft_raster::Rgb32f::filled(16, 16, [0.18; 3]);
         let base = lightcraft_pipeline::RenderRequest::fit(16, 16);
         move |space| {
-            lightcraft_pipeline::render(&src, &Default::default(), &Default::default(), &lightcraft_pipeline::RenderRequest { space, ..base })
-                .image
+            lightcraft_pipeline::render(&src, &Default::default(), &Default::default(), &lightcraft_pipeline::RenderRequest { space, ..base }).image
         }
     };
     let reference =
@@ -915,11 +905,8 @@ fn sixteen_bit_tiff_and_png_have_no_banding() {
     assert!(levels > 10 * levels8, "{levels}");
     assert_eq!(d.space.named, Some(NamedSpace::DisplayP3));
     // sharpening and watermarking work on deep images too
-    let o = ExportOptions {
-        sharpen: SharpenFor::Matte,
-        watermark: Some(Watermark { text: "LC".into(), size: 0.5, ..Default::default() }),
-        ..tiff(None)
-    };
+    let o =
+        ExportOptions { sharpen: SharpenFor::Matte, watermark: Some(Watermark { text: "LC".into(), size: 0.5, ..Default::default() }), ..tiff(None) };
     assert!(encode_rendered(&r16, &o, None).is_ok());
 }
 
@@ -1176,10 +1163,7 @@ fn destination_mode_param() {
     assert!(e.contains("`destinationMode` must be one of specificFolder|sameAsOriginal"), "{e}");
     assert!(ExportOptions::from_params(&json!({"destinationMode": 1})).is_err());
     assert!(
-        ExportOptions::from_params(&json!({"destinationMod": "sameAsOriginal"}))
-            .unwrap_err()
-            .to_string()
-            .contains("did you mean `destinationMode`")
+        ExportOptions::from_params(&json!({"destinationMod": "sameAsOriginal"})).unwrap_err().to_string().contains("did you mean `destinationMode`")
     );
     // saved (a preset, `lastExport`) and read back
     let o = ExportOptions { destination_mode: DestinationMode::SameAsOriginal, subfolder: "Exports".into(), ..Default::default() };
@@ -1207,8 +1191,7 @@ fn accepted_choices_are_the_ones_exported() {
             assert_eq!(read("metadata", &v).unwrap().metadata, want, "metadata: {v}");
         }
     }
-    for (name, want) in [("none", SharpenFor::None), ("screen", SharpenFor::Screen), ("matte", SharpenFor::Matte), ("glossy", SharpenFor::Glossy)]
-    {
+    for (name, want) in [("none", SharpenFor::None), ("screen", SharpenFor::Screen), ("matte", SharpenFor::Matte), ("glossy", SharpenFor::Glossy)] {
         assert_eq!(read("sharpen", &name.to_ascii_uppercase()).unwrap().sharpen, want);
     }
     for (name, want) in [("low", SharpenAmount::Low), ("standard", SharpenAmount::Standard), ("high", SharpenAmount::High)] {
@@ -1402,9 +1385,8 @@ fn a_panic_in_progress_does_not_hang_the_lanes() {
             assert!(calls < 2, "progress panics on its second call");
             true
         };
-        let r = crate::guard::catch("test batch", || {
-            run_batch_with(items, &mut Placer::new(&o, &to, &mut write, &|_| false, true), &mut progress, 2)
-        });
+        let r =
+            crate::guard::catch("test batch", || run_batch_with(items, &mut Placer::new(&o, &to, &mut write, &|_| false, true), &mut progress, 2));
         tx.send(r.and_then(|r| r)).ok();
     });
     let r = rx.recv_timeout(std::time::Duration::from_secs(60));
@@ -1418,8 +1400,7 @@ fn side_by_side_batches_report_failures_in_order() {
     use lightcraft_catalog::{Op, Photo, PhotoId, Source};
     let mut s = crate::Session::with_demo();
     let mut ids: Vec<_> = s.visible().iter().copied().take(3).collect();
-    let gone =
-        Photo::new(PhotoId(9_496), Source::File { path: "no/such/dir/gone.jpg".into() }, "gone.jpg", "JPEG", 600, 400, "2026-10-09T00:00:00");
+    let gone = Photo::new(PhotoId(9_496), Source::File { path: "no/such/dir/gone.jpg".into() }, "gone.jpg", "JPEG", 600, 400, "2026-10-09T00:00:00");
     s.catalog.apply(Op::AddPhoto { photo: Box::new(gone) }).unwrap();
     ids.insert(1, PhotoId(9_496));
     let o = ExportOptions::from_json(&json!({"format": "jpeg", "width": 40}));

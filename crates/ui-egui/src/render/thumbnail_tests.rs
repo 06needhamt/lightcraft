@@ -92,8 +92,7 @@ fn queue_promotions_running_work_and_cancellation() {
 }
 fn queued_quick_thumbnail(id: PhotoId) -> (Arc<Photo>, QuickJob) {
     let mut session = Session::new();
-    session.media.preview_loader =
-        Some(Arc::new(|_, _| Some(lightcraft_raster::Rgba8 { width: 4, height: 4, data: vec![[200, 100, 50, 255]; 16] })));
+    session.media.preview_loader = Some(Arc::new(|_, _| Some(lightcraft_raster::Rgba8 { width: 4, height: 4, data: vec![[200, 100, 50, 255]; 16] })));
     let mut raw = (*photo()).clone();
     raw.id = id;
     raw.kind = lightcraft_catalog::MediaKind::Raw;
@@ -651,8 +650,7 @@ fn undo_to_existing_texture_supersedes_pending_edit() {
     let original = app.renderer.thumb(PhotoId(1)).unwrap().pixels.clone().unwrap();
     let mut edit = lightcraft_develop::DevelopSettings::default();
     edit.light.exposure = 1.0;
-    let undo =
-        app.session.catalog.apply(Op::SetDevelop { id: PhotoId(1), settings: Arc::new(edit), label: "edit".into(), edited: None }).unwrap();
+    let undo = app.session.catalog.apply(Op::SetDevelop { id: PhotoId(1), settings: Arc::new(edit), label: "edit".into(), edited: None }).unwrap();
     request(&mut app);
     let (_, edited) = take_job(&work);
     app.session.catalog.apply(undo).unwrap();

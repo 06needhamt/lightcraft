@@ -156,10 +156,7 @@ fn old_relative_white_balance_on_a_kelvin_camera_keeps_its_look_and_learns_the_a
     let old_info = SourceInfo { raw: true, relative_wb: true, as_shot_temp: 6500.0, as_shot_tint: 0.0, ..Default::default() };
     let old = lightcraft_pipeline::render(&pixels, &old_info, &d, &request).image.data;
     assert_eq!(new, old, "the look of an existing edit changed");
-    assert_ne!(
-        new,
-        lightcraft_pipeline::render(&pixels, &decoded, &lightcraft_develop::DevelopSettings::for_raw(4986.0, -2.0), &request).image.data
-    );
+    assert_ne!(new, lightcraft_pipeline::render(&pixels, &decoded, &lightcraft_develop::DevelopSettings::for_raw(4986.0, -2.0), &request).image.data);
     // accepting the result records the as-shot white, journaled but not undoable, and the settings are untouched
     s.accept(&r);
     let p = s.catalog.photo(id).unwrap();

@@ -102,8 +102,7 @@ fn camera_toe_requires_lower_independent_dark_error() {
                 .collect(),
         )
         .unwrap();
-        let held: Pairs =
-            sensor.data.iter().zip(&reference.data).take(600).step_by(3).map(|(x, y)| (x.map(f64::from), y.map(f64::from))).collect();
+        let held: Pairs = sensor.data.iter().zip(&reference.data).take(600).step_by(3).map(|(x, y)| (x.map(f64::from), y.map(f64::from))).collect();
         assert_eq!(held.len(), 200);
         assert!(held.iter().all(|(_, y)| (0.0003..0.015).contains(&luma(*y))));
         assert!(rank_correlation_ties(&held) > 0.99);
@@ -277,11 +276,7 @@ fn hue_table_follows_a_hue_dependent_camera_rendering() {
     for (i, (src, dst)) in sensor.data.iter_mut().zip(&mut reference.data).enumerate() {
         let ev = 0.05 + (i % 29) as f32 * 0.02;
         // mostly greys and mild colours, plus a patch of saturated yellow-green
-        *src = if i % 7 == 0 {
-            [ev * 0.75, ev, ev * 0.2]
-        } else {
-            [ev * (0.85 + (i % 11) as f32 * 0.03), ev, ev * (0.85 + (i % 13) as f32 * 0.025)]
-        };
+        *src = if i % 7 == 0 { [ev * 0.75, ev, ev * 0.2] } else { [ev * (0.85 + (i % 11) as f32 * 0.03), ev, ev * (0.85 + (i % 13) as f32 * 0.025)] };
         let (h, s) = hue_saturation(to.apply(src.map(f64::from))).unwrap();
         // the camera turns hues in 50°..110° (ProPhoto) by up to +15° and boosts their saturation
         let k = (1.0 - ((h - 80.0) / 30.0).powi(2)).max(0.0) * s.min(1.0);
@@ -1465,12 +1460,7 @@ fn corpus_arw_white_balance_in_kelvin_through_the_presets() {
         let (_, info) = crate::files::load_bytes(&bytes, 400).unwrap();
         assert_eq!(header.as_shot_wb, Some((info.as_shot_temp, info.as_shot_tint)), "{name}");
         assert!(info.raw && !info.relative_wb && info.legacy_relative_wb, "{name}: {info:?}");
-        assert!(
-            (info.as_shot_temp - kelvin).abs() <= 20.0 && info.as_shot_tint.abs() <= 2.0,
-            "{name}: {} {}",
-            info.as_shot_temp,
-            info.as_shot_tint
-        );
+        assert!((info.as_shot_temp - kelvin).abs() <= 20.0 && info.as_shot_tint.abs() <= 2.0, "{name}: {} {}", info.as_shot_temp, info.as_shot_tint);
         let camera = format!("SONY {}", lightcraft_meta::extract(&bytes).model.unwrap_or_default());
         assert!(!lightcraft_catalog::relative_wb_camera("ARW", &camera), "{camera}");
     }
@@ -1622,8 +1612,7 @@ fn clipped_sky_does_not_dull_the_look() {
         colourfulness_ratio(&old, &sensor, &reference, &clipped, mid.clone()),
         colourfulness_ratio(&old, &sensor, &reference, &clipped, bright.clone()),
     );
-    let new_ratio =
-        (colourfulness_ratio(&new, &sensor, &reference, &clipped, mid), colourfulness_ratio(&new, &sensor, &reference, &clipped, bright));
+    let new_ratio = (colourfulness_ratio(&new, &sensor, &reference, &clipped, mid), colourfulness_ratio(&new, &sensor, &reference, &clipped, bright));
     // with the clipped sky in the pairs, the bright colours lose much of their colour
     assert!(old_ratio.1 < 0.8, "earlier fit: colourfulness vs camera {old_ratio:?}, chroma {:?}", old.tone.chroma());
     // without it, the render keeps the camera's colourfulness at every brightness
@@ -1764,12 +1753,7 @@ fn a_near_black_scene_gets_tone_without_learning_colour() {
     assert!(look.hue_sat.is_none());
     let tone = ToneMap::camera(&look.tone, 0.0, 0.0, 0.0);
     let error = |tone: &ToneMap| {
-        sensor
-            .data
-            .iter()
-            .zip(&reference.data)
-            .map(|(x, y)| (luma(displayed(x.map(f64::from), tone)) - luma(y.map(f64::from))).powi(2))
-            .sum::<f64>()
+        sensor.data.iter().zip(&reference.data).map(|(x, y)| (luma(displayed(x.map(f64::from), tone)) - luma(y.map(f64::from))).powi(2)).sum::<f64>()
     };
     assert!(error(&tone) < error(&ToneMap::new(0.0, 0.0, 0.0)) * 0.001);
     assert_eq!(look.tone.apply(0.0), 0.0);
@@ -1863,8 +1847,7 @@ fn partial_look_brightens_a_dull_scene_without_learning_colour() {
     assert_eq!(look.matrix, Mat3::IDENTITY, "no colour matrix from a colourless scene");
     let tone = ToneMap::camera(&look.tone, 0.0, 0.0, 0.0);
     let neutral = ToneMap::new(0.0, 0.0, 0.0);
-    let lightness =
-        |tone: &ToneMap| sensor.data.iter().map(|p| f64::from(tone.apply(luminance_2020(*p)))).sum::<f64>() / sensor.data.len() as f64;
+    let lightness = |tone: &ToneMap| sensor.data.iter().map(|p| f64::from(tone.apply(luminance_2020(*p)))).sum::<f64>() / sensor.data.len() as f64;
     let target = reference.data.iter().map(|p| f64::from(luminance_2020(*p))).sum::<f64>() / reference.data.len() as f64;
     assert!((lightness(&tone) / target - 1.0).abs() < 0.05, "{} vs {target}", lightness(&tone));
     assert!(lightness(&neutral) < target * 0.6, "the neutral fallback is far darker");

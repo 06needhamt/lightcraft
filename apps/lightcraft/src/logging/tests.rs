@@ -47,8 +47,7 @@ fn the_default_filter_shows_lightcraft_info_and_other_crates_warnings() {
 /// `LIGHTCRAFT_LOG` keeps working exactly as it did with the old stderr-only logger.
 #[test]
 fn lightcraft_log_keeps_its_meaning() {
-    let targets =
-        ["lightcraft", "lightcraft::control_server", "lightcraft_engine::segment", "lightcraft_gpu", "wgpu_core::device", "naga", "eframe"];
+    let targets = ["lightcraft", "lightcraft::control_server", "lightcraft_engine::segment", "lightcraft_gpu", "wgpu_core::device", "naga", "eframe"];
     let levels = [log::Level::Error, log::Level::Warn, log::Level::Info, log::Level::Debug, log::Level::Trace];
     for value in ["info", "debug", "warn", "error", "verbose", "INFO"] {
         let f = Filter::parse(&filter_spec(Some(value), None));

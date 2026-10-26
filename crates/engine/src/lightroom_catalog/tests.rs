@@ -364,8 +364,7 @@ fn deferred_auto_tone_sentinels_never_become_real_slider_values() {
     let mut data = sample();
     data.photos.truncate(1);
     data.photos[0].image.remove("masterImage");
-    data.photos[0].settings =
-        "s = { AutoTone = true, Exposure2012 = -999999, Contrast2012 = -999999, Shadows2012 = 65, Temperature = 6150 }".into();
+    data.photos[0].settings = "s = { AutoTone = true, Exposure2012 = -999999, Contrast2012 = -999999, Shadows2012 = 65, Temperature = 6150 }".into();
     data.photos[0].xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="-999999" crs:Contrast2012="-999999" crs:Blacks2012="-22"/></rdf:RDF></x:xmpmeta>"#.into();
     let mut s = crate::Session::new();
     let report = apply(&mut s, data, false).unwrap();
@@ -376,8 +375,7 @@ fn deferred_auto_tone_sentinels_never_become_real_slider_values() {
     assert_eq!(p.develop.light.blacks, -22.0);
     assert!(report["unmapped"]["2"].as_array().unwrap().iter().any(|v| v.as_str().is_some_and(|v| v.contains("Deferred"))));
     let (partial, _) =
-        mapped_settings("s = { Exposure2012 = -5, Contrast2012 = -100 }", crate::crs::Target::RawAbsolute, 1.0, Orientation::Normal, 1.5)
-            .unwrap();
+        mapped_settings("s = { Exposure2012 = -5, Contrast2012 = -100 }", crate::crs::Target::RawAbsolute, 1.0, Orientation::Normal, 1.5).unwrap();
     assert_eq!(partial["light"]["exposure"], -5.0);
     assert_eq!(partial["light"]["contrast"], -100.0);
 }
@@ -804,8 +802,7 @@ fn oversized_optional_table_warns_and_is_skipped() {
     page[8..10].copy_from_slice(&u16::try_from(start).unwrap_or(0).to_be_bytes());
     page[5..7].copy_from_slice(&u16::try_from(start).unwrap_or(0).to_be_bytes());
     let db = Database::open_with_wal(main, &[]).unwrap();
-    let reader =
-        Reader { db, tables: vec![LiveTable { name: "optional_history".into(), rootpage: 2, column_names: Some(vec!["payload".into()]) }] };
+    let reader = Reader { db, tables: vec![LiveTable { name: "optional_history".into(), rootpage: 2, column_names: Some(vec!["payload".into()]) }] };
     let mut warnings = Vec::new();
     let rows = reader.optional_table("optional_history", &mut warnings).unwrap();
     assert!(rows.is_empty());

@@ -156,10 +156,7 @@ fn interval_framing_encloses_every_f64_result() {
                     };
                     let (x, y) = (x.clamp(ix.lo(), ix.hi()), y.clamp(iy.lo(), iy.hi()));
                     let (_, (fx, fy)) = wp.framing(&a, x, y);
-                    assert!(
-                        sx.lo() <= fx && fx <= sx.hi() && sy.lo() <= fy && fy <= sy.hi(),
-                        "({x}, {y}) → ({fx}, {fy}) outside {sx:?} × {sy:?}"
-                    );
+                    assert!(sx.lo() <= fx && fx <= sx.hi() && sy.lo() <= fy && fy <= sy.hi(), "({x}, {y}) → ({fx}, {fy}) outside {sx:?} × {sy:?}");
                 }
             }
         }
@@ -405,10 +402,7 @@ fn warp_rectilinear2_interval_framing_encloses_every_f64_result() {
                 for j in 0..=4 {
                     let (x, y) = ((x0 + bw * i as f64 / 4.0).clamp(ix.lo(), ix.hi()), (y0 + bh * j as f64 / 4.0).clamp(iy.lo(), iy.hi()));
                     let (_, (fx, fy)) = wp.framing(&a, x, y);
-                    assert!(
-                        sx.lo() <= fx && fx <= sx.hi() && sy.lo() <= fy && fy <= sy.hi(),
-                        "({x}, {y}) → ({fx}, {fy}) outside {sx:?} × {sy:?}"
-                    );
+                    assert!(sx.lo() <= fx && fx <= sx.hi() && sy.lo() <= fy && fy <= sy.hi(), "({x}, {y}) → ({fx}, {fy}) outside {sx:?} × {sy:?}");
                 }
             }
         }

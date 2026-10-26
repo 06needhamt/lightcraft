@@ -22,8 +22,7 @@ fn rs(v: serde_json::Value) -> RuleSet {
 #[test]
 fn f32_boundary_values_match_gte_lte() {
     let cat = Catalog::new();
-    let matches =
-        |p: &Photo, field: &str, op: &str, value: f64| rs(json!({"rules": [{"field": field, "op": op, "value": value}]})).matches(p, &cat);
+    let matches = |p: &Photo, field: &str, op: &str, value: f64| rs(json!({"rules": [{"field": field, "op": op, "value": value}]})).matches(p, &cat);
     for v in [1.4f32, 1.8, 2.8, 5.6, 0.95] {
         let mut p = photo(1);
         p.meta.aperture = Some(v);
@@ -49,9 +48,7 @@ fn fields_ops_and_groups() {
     yes(json!({"match": "any", "rules": [{"field": "rating", "op": "is", "value": 1}, {"field": "label", "op": "is", "value": "red"}]}));
     no(json!({"match": "none", "rules": [{"field": "label", "op": "is", "value": "red"}]}));
     yes(json!({"rules": [{"field": "keywords", "op": "is", "value": "italy"}]}));
-    yes(
-        json!({"rules": [{"field": "keywords", "op": "contains", "value": "ROME"}, {"field": "keywords", "op": "notContains", "value": "beach"}]}),
-    );
+    yes(json!({"rules": [{"field": "keywords", "op": "contains", "value": "ROME"}, {"field": "keywords", "op": "notContains", "value": "beach"}]}));
     no(json!({"rules": [{"field": "keywords", "op": "isEmpty"}]}));
     yes(json!({"rules": [{"field": "fileName", "op": "startsWith", "value": "img_"}, {"field": "fileName", "op": "endsWith", "value": ".cr2"}]}));
     // file path: the whole string (spaces included), either separator, case-insensitive
@@ -116,9 +113,8 @@ fn problems_and_description() {
 fn keyword_count_rules() {
     let cat = Catalog::new();
     let mut p = photo(1); // travel|italy|rome, food
-    let m = |p: &Photo, op: &str, value: serde_json::Value| {
-        rs(json!({"rules": [{"field": "keywordCount", "op": op, "value": value}]})).matches(p, &cat)
-    };
+    let m =
+        |p: &Photo, op: &str, value: serde_json::Value| rs(json!({"rules": [{"field": "keywordCount", "op": op, "value": value}]})).matches(p, &cat);
     assert!(m(&p, "gte", json!(2)) && m(&p, "lte", json!(2)) && m(&p, "is", json!(2)));
     assert!(!m(&p, "gte", json!(3)) && !m(&p, "lt", json!(2)) && m(&p, "between", json!([1, 2])));
     p.meta.keywords.push("Food".into());
@@ -167,9 +163,8 @@ fn people_rules() {
 fn shutter_speed_rules() {
     let cat = Catalog::new();
     let mut p = photo(1);
-    let m = |p: &Photo, op: &str, value: serde_json::Value| {
-        rs(json!({"rules": [{"field": "shutterSpeed", "op": op, "value": value}]})).matches(p, &cat)
-    };
+    let m =
+        |p: &Photo, op: &str, value: serde_json::Value| rs(json!({"rules": [{"field": "shutterSpeed", "op": op, "value": value}]})).matches(p, &cat);
     assert!(!m(&p, "gte", json!(0)), "no shutter speed recorded");
     p.meta.shutter = "1/250".into();
     assert!(m(&p, "is", json!("1/250")) && m(&p, "lte", json!("1/60")) && !m(&p, "gte", json!("1/60")));
@@ -279,9 +274,7 @@ fn size_rules_follow_orientation_and_crop() {
     assert!(m(&p, "megapixels", "lt", json!(20)) && !m(&p, "megapixels", "gte", json!(24)));
     assert!(m(&p, "aspect", "isNot", json!("portrait")));
     let empty = Photo::new(PhotoId(9), Source::Demo { scene: 0 }, "x.jpg", "JPEG", 0, 0, "2026-09-20T10:00:00");
-    assert!(
-        !m(&empty, "aspect", "is", json!("landscape")) && !m(&empty, "aspect", "is", json!("square")) && m(&empty, "longEdge", "is", json!(0))
-    );
+    assert!(!m(&empty, "aspect", "is", json!("landscape")) && !m(&empty, "aspect", "is", json!("square")) && m(&empty, "longEdge", "is", json!(0)));
     assert!(m(&empty, "megapixels", "is", json!(0)));
 }
 
@@ -358,8 +351,7 @@ fn yes_no_values() {
     let p = photo(1); // unedited
     assert!(rs(json!({"rules": [{"field": "edited", "op": "is", "value": "false"}]})).matches(&p, &cat), "\"false\" means no");
     assert!(
-        !rs(json!({"rules": [{"field": "edited", "op": "is", "value": "false"}, {"field": "hasGps", "op": "is", "value": "yes"}]}))
-            .matches(&p, &cat)
+        !rs(json!({"rules": [{"field": "edited", "op": "is", "value": "false"}, {"field": "hasGps", "op": "is", "value": "yes"}]})).matches(&p, &cat)
     );
     assert!(!rs(json!({"rules": [{"field": "edited", "op": "is", "value": "maybe"}]})).matches(&p, &cat), "an unreadable value matches nothing");
     let r = rs(json!({"rules": [{"field": "edited", "op": "is", "value": true}, {"field": "cropped", "op": "is", "value": "false"}]}));

@@ -191,11 +191,8 @@ fn smooth_scene(w: usize, h: usize) -> Rgb32f {
 /// input is clamped into 0..1, the only range a proxy ever stores.
 fn lab(c: [f32; 3]) -> [f64; 3] {
     let (r, g, b) = (c[0].clamp(0.0, 1.0) as f64, c[1].clamp(0.0, 1.0) as f64, c[2].clamp(0.0, 1.0) as f64);
-    let (x, y, z) = (
-        (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047,
-        0.2126 * r + 0.7152 * g + 0.0722 * b,
-        (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883,
-    );
+    let (x, y, z) =
+        ((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047, 0.2126 * r + 0.7152 * g + 0.0722 * b, (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
     let f = |t: f64| if t > 216.0 / 24389.0 { t.cbrt() } else { (841.0 / 108.0) * t + 4.0 / 29.0 };
     let (fx, fy, fz) = (f(x), f(y), f(z));
     [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
