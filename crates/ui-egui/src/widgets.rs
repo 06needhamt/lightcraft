@@ -1118,6 +1118,7 @@ pub mod date_picker;
 #[path = "widgets/tests_numeric_entry.rs"]
 mod numeric_entry_tests;
 pub mod rating;
+pub mod text_field;
 
 #[cfg(test)]
 #[path = "widgets/tests_slider_reset.rs"]

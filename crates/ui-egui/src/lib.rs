@@ -36,7 +36,6 @@ pub mod softpaint;
 pub mod state;
 pub mod sync;
 pub mod tasks;
-pub mod text_field;
 pub mod theme;
 pub mod widgets;
 pub mod window_place;
@@ -67,6 +66,7 @@ pub use widgets::album_picker;
 pub use widgets::button;
 pub use widgets::date_picker;
 pub use widgets::rating;
+pub use widgets::text_field;
 
 const TOAST_SECONDS: f64 = 1.4;
 /// The `path` of a display profile read from the screen rather than chosen as a file.
