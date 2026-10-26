@@ -876,7 +876,7 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 /// which, the three lines each of Info 1 and Info 2 shows, which of them shows briefly when the
 /// photo changes, and whether the loupe shows its loading and rendering message
 /// (`view.viewOptions`). Changes apply as they are made.
-pub(super) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+pub(crate) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     use crate::state::{InfoOverlay as I, LoupeInfo, LoupeInfoField as F};
     heading(ui, t, crate::i18n::tr("Loupe View"));
     let mut show = app.ui.info_overlay != I::Off;

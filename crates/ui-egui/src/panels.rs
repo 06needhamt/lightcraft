@@ -7,7 +7,6 @@ pub mod compare;
 pub mod crop_overlay;
 pub mod denoise;
 pub mod detail;
-pub mod dialogs;
 pub mod edit;
 pub mod empty_library;
 pub mod faces;
@@ -44,6 +43,7 @@ pub mod unnamed;
 use egui::{Align2, Rect, pos2, vec2};
 
 use crate::LightcraftApp;
+pub use crate::dialogs;
 use crate::theme::Tokens;
 
 /// Show a side panel the user resizes by dragging its inner edge. `width` (in [`crate::UiState`],
