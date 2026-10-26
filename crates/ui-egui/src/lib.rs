@@ -6,7 +6,6 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-pub mod album_picker;
 pub mod brush_live;
 pub mod button;
 pub mod canvas_keys;
@@ -67,6 +66,7 @@ pub use dialogs::updates_ui;
 pub use menus::menu_level;
 pub use menus::menubar;
 pub use state::UiState;
+pub use widgets::album_picker;
 
 const TOAST_SECONDS: f64 = 1.4;
 /// The `path` of a display profile read from the screen rather than chosen as a file.
