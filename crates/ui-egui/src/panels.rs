@@ -26,7 +26,6 @@ pub mod presets;
 pub mod profiles;
 pub mod right;
 pub mod second;
-pub mod slide_titles;
 pub mod slideshow;
 pub mod strip;
 pub mod topbar;
@@ -44,6 +43,7 @@ pub use crate::dialogs::settings;
 pub use crate::dialogs::settings::slide_layout;
 pub use crate::dialogs::settings::slide_overlays;
 pub use crate::dialogs::settings::slide_templates;
+pub use crate::dialogs::settings::slide_titles;
 use crate::theme::Tokens;
 
 /// Show a side panel the user resizes by dragging its inner edge. `width` (in [`crate::UiState`],
