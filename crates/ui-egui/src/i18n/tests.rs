@@ -1041,18 +1041,22 @@ fn format_messages() -> std::collections::BTreeSet<String> {
                 dirs.push(path);
             } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let source = std::fs::read_to_string(&path).unwrap();
-                let app = source
-                    .split(
-                        "#[cfg(test)]
-mod ",
-                    )
-                    .next()
-                    .unwrap_or_default();
+                let app = test_module_start(&source).map_or(source.as_str(), |at| &source[..at]);
                 all.extend(tr_format_messages(app));
             }
         }
     }
     all
+}
+
+/// Where the first inline `#[cfg(test)] mod x { … }` starts. A `#[cfg(test)] mod x;` line only
+/// declares a file, and app code can follow it.
+fn test_module_start(source: &str) -> Option<usize> {
+    let head = "#[cfg(test)]\nmod ";
+    source
+        .match_indices(head)
+        .map(|(at, _)| at)
+        .find(|at| source[at + head.len()..].trim_start_matches(|c: char| c.is_alphanumeric() || c == '_').starts_with(" {"))
 }
 
 /// The first argument of each `tr_format!` call in `source`, when it is a string literal.
