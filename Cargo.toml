@@ -13,6 +13,7 @@ repository = "https://github.com/storytold/lightcraft"
 craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "1e6f127844ec61b3b8afdcc2bb76e7cfe470153f", features = ["serde"] }
 craft-docpath = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "1e6f127844ec61b3b8afdcc2bb76e7cfe470153f" }
 craft-update = { git = "https://github.com/storytold/craft-libs", version = "=0.1.0", rev = "1e6f127844ec61b3b8afdcc2bb76e7cfe470153f", features = ["egui"] }
+craft-window = { git = "https://github.com/storytold/craft-libs", rev = "1e6f127844ec61b3b8afdcc2bb76e7cfe470153f", features = ["egui"] }
 # internal
 lightcraft-denoise-core = { path = "crates/denoise-core" }
 lightcraft-denoise = { path = "crates/denoise", default-features = false }
