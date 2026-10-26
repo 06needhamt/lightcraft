@@ -25,4 +25,5 @@ same-file = { workspace = true }
 
 [dev-dependencies]
 lightcraft-geom = { workspace = true }
+lightcraft-testkit = { workspace = true }
 proptest = { workspace = true }

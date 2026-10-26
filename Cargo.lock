@@ -3218,6 +3218,7 @@ dependencies = [
  "lightcraft-geom",
  "lightcraft-meta",
  "lightcraft-raw",
+ "lightcraft-testkit",
  "log",
  "proptest",
  "same-file",

@@ -279,16 +279,17 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
     }
     #[cfg(not(unix))]
     {
+        if ma.len() != mb.len() {
+            return false;
+        }
         // A hard link has its own path but shares the volume serial number and file index with
         // its original. A volume that does not report them is compared by resolved path below.
+        // On ReFS two files can share the 64-bit file index, so the lengths are compared first.
         #[cfg(windows)]
         {
             if ::same_file::is_same_file(a, b).unwrap_or(false) {
                 return true;
             }
-        }
-        if ma.len() != mb.len() {
-            return false;
         }
         match (fs::canonicalize(a), fs::canonicalize(b)) {
             (Ok(x), Ok(y)) => x == y || x.to_string_lossy().to_lowercase() == y.to_string_lossy().to_lowercase(),
@@ -413,7 +414,16 @@ mod tests {
         let p = d.join("IMG_1.jpg");
         fs::write(&p, b"original").unwrap();
         let linked = d.join("linked.png");
-        fs::hard_link(&p, &linked).unwrap();
+        match fs::hard_link(&p, &linked) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => panic!("{}: {e}", linked.display()),
+            // no hard links on this volume (FAT/exFAT, some shares), as in `publish_new`
+            Err(e) => {
+                let _ = fs::remove_dir_all(&d);
+                lightcraft_testkit::skip!(System, "no hard links in {}: {e}", d.display());
+                return;
+            }
+        }
         fs::write(d.join("copy.png"), b"original").unwrap();
         assert!(same_file(&p, &linked), "a hard link is the same file");
         assert!(same_file(&linked, &p));
