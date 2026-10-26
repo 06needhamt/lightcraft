@@ -20,6 +20,8 @@ use crate::state::{GridBadges, PREVIEW_LIMITS, StartupView};
 use crate::theme::Tokens;
 use crate::widgets::register;
 
+pub mod slide_layout;
+
 /// (id, label) of the tabs, in order.
 pub const TABS: &[(&str, &str)] = &[
     ("general", "General"),

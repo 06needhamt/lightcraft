@@ -14,8 +14,8 @@ use lightcraft_engine::slide_template::SlideLook;
 use lightcraft_slideshow::{MARGIN_MAX, SHADOW_OFFSET_MAX, SHADOW_RADIUS_MAX, STROKE_MAX};
 use serde_json::{Value, json};
 
-use super::settings::{check, choices, heading, hint, row};
 use crate::LightcraftApp;
+use crate::panels::settings::{check, choices, heading, hint, row};
 use crate::render::Slot;
 use crate::theme::Tokens;
 use crate::widgets::register;
@@ -169,7 +169,7 @@ fn screen_aspect(ctx: &egui::Context) -> f64 {
 pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f32) {
     heading(ui, t, "Preview");
     // the template the pointer is over in the Template Browser, else the settings
-    let template = super::slide_templates::hovered(ui.ctx()).and_then(|id| app.session.slide_template(&id).ok());
+    let template = crate::panels::slide_templates::hovered(ui.ctx()).and_then(|id| app.session.slide_template(&id).ok());
     let look = template.as_ref().map_or_else(|| SlideLook::of(&app.session), |t| t.look.clone());
     let s = look.layout.clone();
     let overlays = look.overlays.clone();
@@ -188,7 +188,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f3
     register(ui, "slideshow:preview", rect);
     let p = ui.painter_at(room.expand(1.0));
     p.rect_stroke(rect, 0.0, Stroke::new(1.0, t.text_dim.gamma_multiply(0.5)), egui::StrokeKind::Outside);
-    super::slide_titles::preview_choice(ui);
+    crate::panels::slide_titles::preview_choice(ui);
     if let Some(tpl) = &template {
         // (said over the bottom of the preview and not below it, which would move the page)
         let name = if tpl.builtin { crate::i18n::tr(&tpl.name).to_string() } else { tpl.name.clone() };
@@ -208,7 +208,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f3
         paint.rect_filled(band, 0.0, Color32::from_black_alpha(190));
         paint.galley(pos2(band.left() + 4.0, band.top() + 3.0), galley, Color32::WHITE);
     }
-    if let Some(title) = super::slide_titles::preview_shows(ui.ctx()) {
+    if let Some(title) = crate::panels::slide_titles::preview_shows(ui.ctx()) {
         title_preview(app, ui, t, rect, title, &look);
         return;
     }
@@ -239,7 +239,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f3
     let still = if last == key { now - since } else { 0.0 };
     // the first preview (or another photo's) at once, a changing layout once it has settled
     if current.is_none() || still >= DEBOUNCE {
-        let side = super::detail::texture_side(ui.ctx());
+        let side = crate::panels::detail::texture_side(ui.ctx());
         let edge = app.ui.settings.loupe_edge(pw.max(ph) as f32, usize::MAX, side);
         if let Some(job) = app.session.slide_job_look(&s, &overlays, id, pw, ph, Some(edge), false) {
             app.renderer.request(Slot::SlidePreview, job, 90);
@@ -252,7 +252,7 @@ pub fn preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, max_h: f3
         p.text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr("Rendering…"), t.font(11.5), Color32::from_gray(200));
         return;
     };
-    let drawn = super::detail::fit_texture_rect(rect, tex.size);
+    let drawn = crate::panels::detail::fit_texture_rect(rect, tex.size);
     p.image(tex.tex.id(), drawn, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     if s.show_guides {
         // the margins, as lines across the slide (where the image cell's edges are)
@@ -296,7 +296,7 @@ fn title_preview(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, rect: R
     let p = ui.painter_at(rect.expand(1.0));
     match app.renderer.textures.get(&Slot::SlidePreview).filter(|tex| tex.photo == lightcraft_catalog::PhotoId(0)) {
         Some(tex) => {
-            let drawn = super::detail::fit_texture_rect(rect, tex.size);
+            let drawn = crate::panels::detail::fit_texture_rect(rect, tex.size);
             p.image(tex.tex.id(), drawn, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
         None => {
