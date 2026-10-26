@@ -25,7 +25,6 @@ pub mod person;
 pub mod presets;
 pub mod profiles;
 pub mod right;
-pub mod rules_editor;
 pub mod rules_move;
 pub mod second;
 pub mod slide_layout;
@@ -43,6 +42,7 @@ use crate::LightcraftApp;
 pub use crate::dialogs;
 pub use crate::dialogs::faces;
 pub use crate::dialogs::keymap;
+pub use crate::dialogs::rules_editor;
 pub use crate::dialogs::settings;
 use crate::theme::Tokens;
 
