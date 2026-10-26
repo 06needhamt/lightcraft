@@ -13,6 +13,7 @@ pub mod lightroom_destination;
 pub mod merge;
 pub mod print_view;
 pub mod slideshow_export;
+pub mod updates_ui;
 
 /// Rows the Rename dialog previews.
 const RENAME_PREVIEW_ROWS: usize = 6;

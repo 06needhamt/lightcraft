@@ -44,7 +44,6 @@ pub mod sync;
 pub mod tasks;
 pub mod text_field;
 pub mod theme;
-pub mod updates_ui;
 pub mod widgets;
 pub mod window_place;
 
@@ -66,6 +65,7 @@ pub use dialogs::lightroom_destination;
 pub use dialogs::merge;
 pub use dialogs::print_view;
 pub use dialogs::slideshow_export;
+pub use dialogs::updates_ui;
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
