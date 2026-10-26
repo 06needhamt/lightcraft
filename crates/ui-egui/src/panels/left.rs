@@ -1040,7 +1040,7 @@ fn list_subfolders(path: &str) -> Vec<(String, String)> {
     let mut v: Vec<(String, String)> = std::fs::read_dir(path)
         .map(|rd| {
             rd.flatten()
-                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()) && !hidden_attribute(e))
                 .filter_map(|e| {
                     let name = e.file_name().to_string_lossy().to_string();
                     (!name.starts_with('.')).then(|| (name, e.path().to_string_lossy().to_string()))
@@ -1050,6 +1050,20 @@ fn list_subfolders(path: &str) -> Vec<(String, String)> {
         .unwrap_or_default();
     v.sort_by_key(|(n, _)| n.to_lowercase());
     v
+}
+
+/// On Windows a folder is hidden by an attribute (AppData in the home folder is), not by a
+/// leading dot.
+#[cfg(windows)]
+fn hidden_attribute(e: &std::fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
+    e.metadata().is_ok_and(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0)
+}
+
+#[cfg(not(windows))]
+fn hidden_attribute(_: &std::fs::DirEntry) -> bool {
+    false
 }
 
 /// How many [`fs_cached`] answers for `ctx` are being worked out right now. Rows appear (and
@@ -2368,6 +2382,27 @@ mod tests {
         }
         let l = local_places(builtin(), &[], Some("/home/example/Pictures/Trip"), None, &["/home/example".into()]);
         assert_eq!((names(&l.places), l.owner), (vec!["Pictures"], Some(0)));
+    }
+
+    /// A folder tree leaves out hidden subfolders: a leading dot everywhere, and on Windows the
+    /// hidden attribute, so Home's tree does not list AppData and open down into its temp folder.
+    #[test]
+    fn subfolders_leave_out_hidden_folders() {
+        let dir = std::env::temp_dir().join(format!("lc-ui-hidden-subfolders-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for name in ["Shown", ".dot", "Hidden"] {
+            std::fs::create_dir_all(dir.join(name)).unwrap();
+        }
+        let expected = if cfg!(windows) {
+            let status = std::process::Command::new("attrib").arg("+h").arg(dir.join("Hidden")).status().unwrap();
+            assert!(status.success(), "attrib +h: {status}");
+            vec!["Shown"]
+        } else {
+            vec!["Hidden", "Shown"]
+        };
+        let listed = super::list_subfolders(&dir.to_string_lossy());
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(listed.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), expected);
     }
 
     #[test]
