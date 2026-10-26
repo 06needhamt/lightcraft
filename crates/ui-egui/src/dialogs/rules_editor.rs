@@ -11,6 +11,8 @@ use crate::date_picker::{DatePicker, PickedDate};
 use crate::theme::Tokens;
 use crate::widgets::register;
 
+pub mod rules_move;
+
 /// A sensible starting value for `field` / `op`.
 pub fn default_value(field: &str, op: &str) -> Value {
     match (field_kind(field), op) {
