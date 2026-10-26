@@ -8,6 +8,7 @@ use crate::LightcraftApp;
 use crate::pick::{PickRequest, Picked};
 use crate::state::{BeforeAfter, Dialog, RightPanel, ViewMode, Zoom};
 
+pub mod menu_level;
 pub mod menubar;
 
 /// (id, label, shortcut, menu path)

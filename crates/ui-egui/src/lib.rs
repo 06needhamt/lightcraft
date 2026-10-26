@@ -24,7 +24,6 @@ pub mod i18n;
 pub mod icons;
 pub mod lightroom_import;
 pub mod links;
-pub mod menu_level;
 pub mod menus;
 mod model_setup;
 pub mod panels;
@@ -65,6 +64,7 @@ pub use dialogs::merge;
 pub use dialogs::print_view;
 pub use dialogs::slideshow_export;
 pub use dialogs::updates_ui;
+pub use menus::menu_level;
 pub use menus::menubar;
 pub use state::UiState;
 
