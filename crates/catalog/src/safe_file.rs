@@ -274,17 +274,22 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
     compare_files(a, b, false).unwrap_or(false)
 }
 
-/// [`same_file`] for a check that must not let an unknown identity pass: `Err` when both paths
-/// exist with the same length but the file identity of either cannot be read (on Windows, when
-/// either file cannot be opened). A path that does not exist is still `Ok(false)`.
+/// [`same_file`] for a check that must not let an unknown identity pass: `Err` when the metadata
+/// of either path cannot be read for a reason other than the path not existing (for example a
+/// folder it cannot enter), or when both paths exist with the same length but the file identity
+/// of either cannot be read (on Windows, when either file cannot be opened). A path that does not
+/// exist is still `Ok(false)`.
 pub fn same_file_strict(a: &Path, b: &Path) -> io::Result<bool> {
     compare_files(a, b, true)
 }
 
 fn compare_files(a: &Path, b: &Path, strict: bool) -> io::Result<bool> {
-    #[cfg(not(windows))]
-    let _ = strict;
-    let (Ok(ma), Ok(mb)) = (fs::metadata(a), fs::metadata(b)) else { return Ok(false) };
+    let missing = |e: &io::Error| matches!(e.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory);
+    let (ma, mb) = match (fs::metadata(a), fs::metadata(b)) {
+        (Ok(ma), Ok(mb)) => (ma, mb),
+        (Err(e), _) | (_, Err(e)) if strict && !missing(&e) => return Err(e),
+        _ => return Ok(false),
+    };
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
@@ -457,6 +462,22 @@ mod tests {
         assert!(same_file(&p, &d.join("sub/../x.jpg")));
         assert!(!same_file(&p, &d.join("y.jpg")));
         assert!(!same_file(&p, &d.join("missing.jpg")));
+        let _ = fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn strict_comparison_reports_a_path_it_cannot_query() {
+        let d = temp("strict-query");
+        let p = d.join("x.jpg");
+        fs::write(&p, b"x").unwrap();
+        // A NUL byte makes the metadata lookup fail with an error other than "not found" on
+        // every platform, as a folder the process cannot enter does.
+        let unreadable = Path::new("IMG_1\0.jpg");
+        assert!(same_file_strict(unreadable, &p).is_err());
+        assert!(same_file_strict(&p, unreadable).is_err());
+        assert!(!same_file(unreadable, &p), "the lenient comparison still answers false");
+        assert!(!same_file_strict(&d.join("missing.jpg"), &p).unwrap(), "a missing original is another file");
+        assert!(!same_file_strict(&p.join("under-a-file.jpg"), &p).unwrap());
         let _ = fs::remove_dir_all(&d);
     }
 }
