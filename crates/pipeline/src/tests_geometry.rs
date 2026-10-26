@@ -598,11 +598,10 @@ fn auto_straighten_takes_the_roll_from_converging_verticals() {
     assert!((deg + 3.0).abs() < 0.3, "{deg}");
 }
 
-/// The cached analysis tells lenses apart: the analysis image is corrected for `info.lens`, and
-/// Auto straighten reads the horizon from a fresh image and the lines from the cache, so a hit
-/// for another lens would mix two frames (review of #2809).
+/// The Upright analysis cache tells apart what changes the analysis image: another lens (`info.lens`)
+/// or the optics section switched off (review of #2809).
 #[test]
-fn the_analysis_cache_tells_lenses_apart() {
+fn the_analysis_cache_tells_lenses_and_optics_apart() {
     let src = tilted_scene(2.0, 30.0);
     let s = DevelopSettings::default();
     let plain = SourceInfo::default();
@@ -612,4 +611,8 @@ fn the_analysis_cache_tells_lenses_apart() {
     let key = crate::upright::analysis_key;
     assert_eq!(key(&src, &plain, &s), key(&src, &plain.clone(), &s), "the same source, settings and lens");
     assert_ne!(key(&src, &plain, &s), key(&src, &lens, &s), "another lens");
+    let mut off = s.clone();
+    off.disabled_sections.push("optics".into());
+    assert!(!off.section_enabled("optics"));
+    assert_ne!(key(&src, &plain, &s), key(&src, &plain, &off), "the optics section off");
 }

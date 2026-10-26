@@ -546,12 +546,6 @@ const ANALYSIS_LONG: usize = 1024;
 /// Analyse a source: the lens-corrected (optics applied, no perspective/crop) image at [`ANALYSIS_LONG`] px,
 /// segment detection and vanishing points. Cached per source + optics settings.
 pub fn analyze_source(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings) -> Analysis {
-    analyze_cached(src, info, s, None)
-}
-
-/// [`analyze_source`], reading `plane` (the [`analysis_plane`] of the same source and settings) on a
-/// cache miss instead of building it again.
-fn analyze_cached(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, plane: Option<&Plane>) -> Analysis {
     static CACHE: Mutex<Vec<(u64, Analysis)>> = Mutex::new(Vec::new());
     let key = analysis_key(src, info, s);
     if let Ok(c) = CACHE.lock()
@@ -559,10 +553,7 @@ fn analyze_cached(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, plane: O
     {
         return a.clone();
     }
-    let a = match plane {
-        Some(p) => analyze(&detect_segments(p)),
-        None => analyze(&detect_segments(&analysis_plane(src, info, s))),
-    };
+    let a = analyze(&detect_segments(&analysis_plane(src, info, s)));
     if let Ok(mut c) = CACHE.lock() {
         c.push((key, a.clone()));
         if c.len() > 8 {
@@ -572,15 +563,17 @@ fn analyze_cached(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings, plane: O
     a
 }
 
-/// What an analysis depends on: the source's pixels, the optics and orientation settings, and the
-/// lens the frame is corrected for (`info.lens`, which [`analysis_plane`] reads through the frame).
+/// What an analysis depends on: the source (by its sampled fingerprint), the optics and
+/// orientation settings, whether the optics section is on, and the lens the frame is corrected for
+/// (`info.lens`, which [`analysis_plane`] reads through the frame).
 pub(crate) fn analysis_key(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings) -> u64 {
     use std::hash::{Hash, Hasher};
-    let mut lens = std::collections::hash_map::DefaultHasher::new();
-    format!("{:?}", info.lens).hash(&mut lens);
+    let mut more = std::collections::hash_map::DefaultHasher::new();
+    format!("{:?}", info.lens).hash(&mut more);
+    s.section_enabled("optics").hash(&mut more);
     crate::optics::fingerprint(src)
         ^ lightcraft_develop::DevelopSettings { optics: s.optics, orientation: s.orientation, ..Default::default() }.hash64().rotate_left(17)
-        ^ lens.finish().rotate_left(29)
+        ^ more.finish().rotate_left(29)
 }
 
 /// The image an analysis reads: the lens-corrected source (optics applied, no perspective or crop)
@@ -600,10 +593,11 @@ pub(crate) fn analysis_plane(src: &Rgb32f, info: &SourceInfo, s: &DevelopSetting
 }
 
 /// The crop angle (degrees, clockwise +) Auto straighten levels `src` by, if it finds a horizon or
-/// plumb lines it can trust ([`crate::straighten`]). Used by the crop panel's Auto straighten.
+/// plumb lines it can trust ([`crate::straighten`]). Used by the crop panel's Auto straighten. It
+/// reads the horizon and the segments from the same analysis image, built here (not through
+/// [`analyze_source`]'s cache: it runs once per click).
 pub fn level_degrees(src: &Rgb32f, info: &SourceInfo, s: &DevelopSettings) -> Option<f64> {
-    let plane = analysis_plane(src, info, s);
-    crate::straighten::decide(&plane, &analyze_cached(src, info, s, Some(&plane)))
+    crate::straighten::level_plane(&analysis_plane(src, info, s))
 }
 
 /// The automatic Upright correction for `mode` on `src` (identity for Off and Guided).
