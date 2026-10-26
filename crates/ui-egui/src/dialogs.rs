@@ -8,6 +8,7 @@ use crate::state::Dialog;
 use crate::theme::Tokens;
 
 pub mod import;
+pub mod print_view;
 
 /// Rows the Rename dialog previews.
 const RENAME_PREVIEW_ROWS: usize = 6;

@@ -33,7 +33,6 @@ pub mod merge;
 mod model_setup;
 pub mod panels;
 pub mod pick;
-pub mod print_view;
 pub mod progress;
 pub mod rating;
 pub mod recheck;
@@ -66,6 +65,7 @@ use serde_json::Value;
 pub use command_error::CommandError;
 pub use control::{ControlRequest, ControlResponse};
 pub use dialogs::import;
+pub use dialogs::print_view;
 pub use state::UiState;
 
 const TOAST_SECONDS: f64 = 1.4;
