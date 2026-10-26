@@ -446,6 +446,25 @@ fn a_panicking_render_is_a_failure_not_a_dead_worker() {
     assert_eq!(app.renderer.live_workers(), workers);
 }
 
+/// An app built by this crate's tests renders on two workers, not the machine's six: several
+/// tests run at once, and each of them used to start six (issue #3067).
+#[test]
+fn a_test_app_renders_on_two_workers() {
+    let (mut app, _, ctx) = fixture_with(Session::new(), (*photo()).clone());
+    app.renderer.offload = None; // the real job pool
+    let slot = Slot::Thumb(PhotoId(1));
+    let job = app.session.thumb_job(PhotoId(1), 256).unwrap();
+    app.renderer.request(slot, job, 30);
+    assert_eq!(app.renderer.live_workers(), TEST_WORKERS, "the pool starts all its workers with its first job");
+    let t0 = std::time::Instant::now();
+    while app.renderer.is_pending(slot) {
+        assert!(t0.elapsed() < std::time::Duration::from_secs(20), "the render never answered");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        app.renderer.poll(&ctx, &mut app.session);
+    }
+    assert!(app.renderer.textures.contains_key(&slot), "{:?}", app.renderer.failure(slot));
+}
+
 #[test]
 fn raw_quick_path_frames_build_no_jobs() {
     // an unedited raw: the grid shows its embedded preview (held here until released) and stops
