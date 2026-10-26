@@ -13,8 +13,8 @@ use lightcraft_engine::slide_overlay::{
 };
 use serde_json::{Value, json};
 
-use super::settings::{check, choices, heading, hint, row};
 use crate::LightcraftApp;
+use crate::panels::settings::{check, choices, heading, hint, row};
 use crate::text_field::TextField;
 use crate::theme::Tokens;
 use crate::widgets::register;

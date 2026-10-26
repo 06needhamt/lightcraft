@@ -21,6 +21,7 @@ use crate::theme::Tokens;
 use crate::widgets::register;
 
 pub mod slide_layout;
+pub mod slide_overlays;
 
 /// (id, label) of the tabs, in order.
 pub const TABS: &[(&str, &str)] = &[
