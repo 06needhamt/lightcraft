@@ -824,6 +824,20 @@ fn launch_imports(args: &[String]) -> LaunchArgs {
     launch_imports_in(args, cwd.as_deref(), home.as_deref())
 }
 
+/// The library a launch argument names, after `--library` (`flag`) and `LIGHTCRAFT_LIBRARY` (`env`):
+/// the library to pass on as the flag, and whether the argument chose it (it is then remembered).
+fn launch_library_choice(
+    flag: Option<std::path::PathBuf>,
+    env: Option<&std::path::PathBuf>,
+    argument: Option<std::path::PathBuf>,
+) -> (Option<std::path::PathBuf>, bool) {
+    match (flag, env, argument) {
+        (Some(flag), _, _) => (Some(flag), false),
+        (None, None, Some(argument)) => (Some(argument), true),
+        _ => (None, false),
+    }
+}
+
 /// What the launch arguments ask for: files and folders to import, a library to open (a library's `catalog.snap`
 /// or folder, double-clicked in the file manager), and a notice for each argument
 /// left alone.
@@ -937,9 +951,10 @@ fn main() -> eframe::Result {
     // what the arguments name, resolved now: an empty or relative argument never becomes a drive
     // root, and a whole drive or home folder is not walked (issue #374)
     let LaunchArgs { files, library: launch_library, notices: launch_notices } = launch_imports(&files);
-    // a library double-clicked (its catalog.snap or folder) is the one that opens, not the last one used
-    let opened_by_argument = launch_library.is_some() && library_dir.is_none();
-    let library_dir = library_dir.or(launch_library);
+    // a library double-clicked (its catalog.snap or folder) is the one that opens, not the last one
+    // used; --library and LIGHTCRAFT_LIBRARY still win
+    let env_library: Option<std::path::PathBuf> = std::env::var_os("LIGHTCRAFT_LIBRARY").filter(|p| !p.is_empty()).map(Into::into);
+    let (library_dir, opened_by_argument) = launch_library_choice(library_dir, env_library.as_ref(), launch_library);
     let (prefs, prefs_warning, keep_prefs_file) = load_prefs(in_memory);
     // the saved language from the start, so a failed start is reported in it too
     if let Some(ui) = &prefs {
@@ -950,7 +965,7 @@ fn main() -> eframe::Result {
     let launch = lightcraft_ui_egui::panels::library_problem::launch_plan(
         in_memory,
         library_dir,
-        std::env::var_os("LIGHTCRAFT_LIBRARY").filter(|p| !p.is_empty()).map(Into::into),
+        env_library,
         prefs.as_ref().map(|u| &u.settings),
         lightcraft_engine::library::default_dir(),
     );
@@ -1204,6 +1219,19 @@ mod tests {
         let LaunchArgs { files, notices, .. } = launch_imports_in(&[".".to_string()], Some(&root), None);
         assert!(files.iter().all(|f| f.ends_with("DCIM")) && files.len() + notices.len() == 1, "{files:?} {notices:?}");
         let _ = std::fs::remove_dir_all(&home);
+    }
+
+    /// `--library` and `LIGHTCRAFT_LIBRARY` win over a library given as an argument, which is
+    /// then not remembered either.
+    #[test]
+    fn the_library_flag_and_variable_win_over_a_library_argument() {
+        use std::path::PathBuf;
+        let (flag, env, arg) = (PathBuf::from("flag"), PathBuf::from("env"), PathBuf::from("arg"));
+        assert_eq!(launch_library_choice(Some(flag.clone()), Some(&env), Some(arg.clone())), (Some(flag.clone()), false));
+        assert_eq!(launch_library_choice(None, Some(&env), Some(arg.clone())), (None, false), "the variable is passed on as itself");
+        assert_eq!(launch_library_choice(None, None, Some(arg.clone())), (Some(arg), true));
+        assert_eq!(launch_library_choice(None, None, None), (None, false));
+        assert_eq!(launch_library_choice(Some(flag.clone()), None, None), (Some(flag), false));
     }
 
     /// A library's catalog.snap (double-clicked in Explorer) or its folder given at
