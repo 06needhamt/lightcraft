@@ -12,7 +12,6 @@ pub mod button;
 pub mod canvas_keys;
 mod command_error;
 pub mod control;
-pub mod credits;
 pub mod date_picker;
 pub mod dialogs;
 pub mod docking;
@@ -61,6 +60,7 @@ use serde_json::Value;
 
 pub use command_error::CommandError;
 pub use control::{ControlRequest, ControlResponse};
+pub use dialogs::credits;
 pub use dialogs::import;
 pub use dialogs::lightroom_destination;
 pub use dialogs::merge;

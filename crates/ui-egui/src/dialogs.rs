@@ -7,6 +7,7 @@ use crate::LightcraftApp;
 use crate::state::Dialog;
 use crate::theme::Tokens;
 
+pub mod credits;
 pub mod import;
 pub mod lightroom_destination;
 pub mod merge;
