@@ -46,8 +46,8 @@ pub fn body(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &str) {
         "display" => display_tab(app, ui, &t),
         "interface" => interface_tab(app, ui, &t),
         "slideshow" => slideshow_tab(app, ui, &t, true),
-        "faces" => super::faces::settings_tab(app, ui, &t),
-        "denoise" => super::denoise::settings_tab(app, ui, &t),
+        "faces" => crate::panels::faces::settings_tab(app, ui, &t),
+        "denoise" => crate::panels::denoise::settings_tab(app, ui, &t),
         _ => general_tab(app, ui, &t),
     }
 }
@@ -105,10 +105,10 @@ pub fn window(app: &mut LightcraftApp, ui: &mut egui::Ui, tab: &mut String, max_
     // page, it scrolls with the page instead (as in the short window above).
     let mut pinned = false;
     if tab == "slideshow" {
-        let slide_h = (height * PINNED_PREVIEW_SHARE - PREVIEW_CHROME).max(super::slide_layout::PREVIEW_MIN_H);
+        let slide_h = (height * PINNED_PREVIEW_SHARE - PREVIEW_CHROME).max(crate::panels::slide_layout::PREVIEW_MIN_H);
         if height - (slide_h + PREVIEW_CHROME) >= PAGE_MIN_HEIGHT {
             let before = ui.cursor().top();
-            super::slide_layout::preview(app, ui, &Tokens::get(ui.ctx()), slide_h);
+            crate::panels::slide_layout::preview(app, ui, &Tokens::get(ui.ctx()), slide_h);
             ui.add_space(2.0);
             ui.separator();
             height = (height - (ui.cursor().top() - before)).max(PAGE_MIN_HEIGHT);
@@ -185,12 +185,12 @@ fn button_width(ui: &egui::Ui, text: &str) -> f32 {
     label_width(ui, text, egui::TextStyle::Button) + 2.0 * ui.spacing().button_padding.x
 }
 
-pub(super) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
+pub(crate) fn heading(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     ui.add_space(4.0);
     ui.label(RichText::new(crate::i18n::tr(text)).font(t.semibold(12.5)).color(t.text));
 }
 
-pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+pub(crate) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
     ui.horizontal(|ui| {
         ui.allocate_ui_with_layout(egui::vec2(LABEL_W, 24.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.set_min_width(LABEL_W);
@@ -209,19 +209,19 @@ pub(super) fn row<R>(ui: &mut egui::Ui, t: &Tokens, label: &str, add: impl FnOnc
     .inner
 }
 
-pub(super) fn hint(ui: &mut egui::Ui, t: &Tokens, text: &str) {
+pub(crate) fn hint(ui: &mut egui::Ui, t: &Tokens, text: &str) {
     ui.label(RichText::new(crate::i18n::tr(text)).size(11.0).color(t.text_dim));
 }
 
 /// A checkbox addressable as `check:{id}`; true when toggled.
-pub(super) fn check(ui: &mut egui::Ui, id: &str, value: &mut bool, label: &str) -> bool {
+pub(crate) fn check(ui: &mut egui::Ui, id: &str, value: &mut bool, label: &str) -> bool {
     let r = ui.checkbox(value, crate::i18n::tr(label));
     register(ui, format!("check:{id}"), r.rect);
     r.changed()
 }
 
 /// Mutually exclusive buttons (`button:{id}-{index}`).
-pub(super) fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, options: &[(V, &str)], value: &mut V) -> bool {
+pub(crate) fn choices<V: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, options: &[(V, &str)], value: &mut V) -> bool {
     let mut changed = false;
     ui.spacing_mut().item_spacing.x = 4.0;
     for (i, (v, l)) in options.iter().enumerate() {
@@ -876,7 +876,7 @@ fn interface_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
 /// which, the three lines each of Info 1 and Info 2 shows, which of them shows briefly when the
 /// photo changes, and whether the loupe shows its loading and rendering message
 /// (`view.viewOptions`). Changes apply as they are made.
-pub(crate) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
+pub(super) fn view_options(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens) {
     use crate::state::{InfoOverlay as I, LoupeInfo, LoupeInfoField as F};
     heading(ui, t, crate::i18n::tr("Loupe View"));
     let mut show = app.ui.info_overlay != I::Off;
@@ -948,18 +948,18 @@ fn duration_slider(app: &mut LightcraftApp, ui: &mut egui::Ui, id: &str, key: &s
 /// `with_preview` the preview is left out: [`window`] has pinned it above the page.
 fn slideshow_tab(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, with_preview: bool) {
     if with_preview {
-        super::slide_layout::preview(app, ui, t, f32::INFINITY);
+        crate::panels::slide_layout::preview(app, ui, t, f32::INFINITY);
         ui.add_space(6.0);
     }
-    super::slide_templates::section(app, ui, t);
+    crate::panels::slide_templates::section(app, ui, t);
     ui.add_space(6.0);
     playback_section(app, ui, t);
     ui.add_space(6.0);
-    super::slide_layout::sections(app, ui, t);
+    crate::panels::slide_layout::sections(app, ui, t);
     ui.add_space(6.0);
-    super::slide_overlays::sections(app, ui, t);
+    crate::panels::slide_overlays::sections(app, ui, t);
     ui.add_space(6.0);
-    super::slide_titles::sections(app, ui, t);
+    crate::panels::slide_titles::sections(app, ui, t);
     ui.add_space(6.0);
     export_section(app, ui, t);
 }

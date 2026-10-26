@@ -30,7 +30,6 @@ pub mod right;
 pub mod rules_editor;
 pub mod rules_move;
 pub mod second;
-pub mod settings;
 pub mod slide_layout;
 pub mod slide_overlays;
 pub mod slide_templates;
@@ -44,6 +43,7 @@ use egui::{Align2, Rect, pos2, vec2};
 
 use crate::LightcraftApp;
 pub use crate::dialogs;
+pub use crate::dialogs::settings;
 use crate::theme::Tokens;
 
 /// Show a side panel the user resizes by dragging its inner edge. `width` (in [`crate::UiState`],

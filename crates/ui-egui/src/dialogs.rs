@@ -12,6 +12,7 @@ pub mod import;
 pub mod lightroom_destination;
 pub mod merge;
 pub mod print_view;
+pub mod settings;
 pub mod slideshow_export;
 pub mod updates_ui;
 
