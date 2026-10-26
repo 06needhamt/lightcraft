@@ -25,7 +25,6 @@ pub mod menus;
 mod model_setup;
 pub mod panels;
 pub mod pick;
-pub mod progress;
 pub mod recheck;
 pub mod region;
 pub mod reload;
@@ -65,6 +64,7 @@ pub use state::UiState;
 pub use widgets::album_picker;
 pub use widgets::button;
 pub use widgets::date_picker;
+pub use widgets::progress;
 pub use widgets::rating;
 pub use widgets::text_field;
 
