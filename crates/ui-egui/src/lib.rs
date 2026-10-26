@@ -26,7 +26,6 @@ mod model_setup;
 pub mod panels;
 pub mod pick;
 pub mod progress;
-pub mod rating;
 pub mod recheck;
 pub mod region;
 pub mod reload;
@@ -67,6 +66,7 @@ pub use state::UiState;
 pub use widgets::album_picker;
 pub use widgets::button;
 pub use widgets::date_picker;
+pub use widgets::rating;
 
 const TOAST_SECONDS: f64 = 1.4;
 /// The `path` of a display profile read from the screen rather than chosen as a file.
