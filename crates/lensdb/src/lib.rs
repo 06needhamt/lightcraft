@@ -160,12 +160,15 @@ impl LensDb {
     /// The camera with this EXIF make and model.
     pub fn find_camera(&self, make: &str, model: &str) -> Option<&Camera> {
         let mk = tokens(make);
-        let md = strip_maker(tokens(model), &mk);
+        let raw = tokens(model);
+        let md = strip_maker(raw.clone(), &mk);
         if md.is_empty() {
             return None;
         }
         self.cameras.iter().find(|c| {
             let cm = tokens(&c.maker);
+            // with no EXIF make, the model may still start with the maker's word
+            let md = if mk.is_empty() { strip_maker(raw.clone(), &cm) } else { md.clone() };
             maker_matches(&cm, &mk) && strip_maker(tokens(&c.model), &cm) == md
         })
     }
@@ -173,7 +176,7 @@ impl LensDb {
     /// The best profile for an EXIF lens model (and lens make, when the file has one), preferring lenses for the
     /// camera's mount. `None` when no name is a convincing match.
     pub fn find_lens(&self, lens_make: Option<&str>, lens_model: &str, camera: Option<&Camera>) -> Option<&Profile> {
-        self.best_lens(lens_make, lens_model, camera, |_| true)
+        self.best_lens(lens_make, lens_model, camera, |_| true).or_else(|| self.find_fixed_lens(&tokens(lens_model), camera?))
     }
 
     /// [`find_lens`](Self::find_lens) among the profiles one of whose names is exactly `name`
@@ -206,10 +209,7 @@ impl LensDb {
                 best = Some((score, lens));
             }
         }
-        match best {
-            Some((_, l)) => Some(l),
-            None => self.find_fixed_lens(&exif, camera?),
-        }
+        best.map(|(_, l)| l)
     }
 
     /// Compact cameras with a built-in lens: lensfun names the lens after the camera and gives it the camera's own
@@ -233,6 +233,9 @@ impl LensDb {
             return (cands.len() == 1).then(|| cands[0]);
         };
         let (lo, hi) = (lo * 0.9, hi * 1.1);
+        if !lo.is_finite() || !hi.is_finite() {
+            return None;
+        }
         let mut best: Option<(f64, &Profile)> = None;
         for p in cands {
             let focals: Vec<f64> =
@@ -262,7 +265,7 @@ fn strip_maker(model: Vec<String>, maker: &[String]) -> Vec<String> {
 /// The numbers before the first "mm" in tokenised EXIF lens text: (shortest, longest) focal length.
 fn exif_focal_range(exif: &[String]) -> Option<(f64, f64)> {
     let end = exif.iter().position(|t| t == "mm")?;
-    let nums: Vec<f64> = exif.get(..end)?.iter().filter_map(|t| t.parse::<f64>().ok()).filter(|v| *v > 0.0).collect();
+    let nums: Vec<f64> = exif.get(..end)?.iter().filter_map(|t| t.parse::<f64>().ok()).filter(|v| v.is_finite() && *v > 0.0).collect();
     let lo = nums.iter().copied().fold(f64::INFINITY, f64::min);
     let hi = nums.iter().copied().fold(0.0, f64::max);
     (lo.is_finite() && hi > 0.0).then_some((lo, hi))

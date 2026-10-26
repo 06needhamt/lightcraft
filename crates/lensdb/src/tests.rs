@@ -304,6 +304,14 @@ fn built_in_lens_matches_by_camera_mount_and_focal_range() {
     let l = db.find_lens(None, "6.0-72.0 mm f/2.7-3.5", cam).unwrap();
     assert_eq!(l.mounts, ["canonS5"]);
     assert!(db.find_lens(None, "6.0-72.0 mm f/2.7-3.5", None).is_none());
+    // a file with no make still finds the camera by its full model name
+    assert!(db.find_camera("", "Canon PowerShot S5 IS").is_some());
+    // the exact-name lookup never falls back to the camera's mount
+    assert!(db.find_lens_named(None, "6.0-72.0 mm f/2.7-3.5", cam).is_none());
+    // a focal length that overflows to infinity is ignored, not taken as an unbounded range
+    let huge = format!("6.0-{}9 mm f/2.7-3.5", "9".repeat(400));
+    assert_eq!(db.find_lens(None, &huge, cam).unwrap().mounts, ["canonS5"]);
+    assert_eq!(exif_focal_range(&tokens(&huge)), Some((6.0, 6.0)));
 }
 
 /// A hand-edited or corrupt database may carry any number: infinities, NaN, enormous or negative
