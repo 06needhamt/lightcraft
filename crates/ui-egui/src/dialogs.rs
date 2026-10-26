@@ -10,6 +10,7 @@ use crate::theme::Tokens;
 pub mod credits;
 pub mod faces;
 pub mod import;
+pub mod keymap;
 pub mod lightroom_destination;
 pub mod merge;
 pub mod print_view;

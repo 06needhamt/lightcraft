@@ -12,7 +12,6 @@ pub mod empty_library;
 pub mod filterbar;
 pub mod grid;
 pub mod histogram;
-pub mod keymap;
 pub mod keyword_list;
 pub mod keywording;
 pub mod layout_overlay;
@@ -43,6 +42,7 @@ use egui::{Align2, Rect, pos2, vec2};
 use crate::LightcraftApp;
 pub use crate::dialogs;
 pub use crate::dialogs::faces;
+pub use crate::dialogs::keymap;
 pub use crate::dialogs::settings;
 use crate::theme::Tokens;
 
