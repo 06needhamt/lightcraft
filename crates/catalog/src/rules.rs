@@ -514,9 +514,11 @@ pub(crate) fn smart_album_holds(id: crate::AlbumId, photo: crate::PhotoId, match
             }
         }
     }
-    let _forget = Forget(EVALUATING.with_borrow(Vec::is_empty));
+    let outermost = EVALUATING.with_borrow(Vec::is_empty);
+    let _forget = Forget(outermost);
     let answer = evaluating(id, matches);
-    if let Some(a) = answer {
+    // (the outermost answer would be forgotten as this returns: only what a nested question worked out is kept)
+    if let (Some(a), false) = (answer, outermost) {
         ANSWERS.with_borrow_mut(|known| known.insert((id, photo), a));
     }
     answer.unwrap_or(false)
