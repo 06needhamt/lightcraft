@@ -76,8 +76,8 @@ pub(crate) fn interact(app: &mut LightcraftApp, ui: &mut egui::Ui, canvas: Rect,
     if app.space_hand.is_none() {
         return;
     }
-    let resp = ui.interact(canvas, egui::Id::new("loupe-hand"), Sense::click_and_drag());
-    crate::widgets::register(ui.ctx(), "loupe:hand", canvas);
+    let resp = ui.interact(canvas, egui::Id::unique("loupe-hand"), Sense::click_and_drag());
+    crate::widgets::register(ui, "loupe:hand", canvas);
     let at = resp.interact_pointer_pos().or(resp.hover_pos());
     let (pane, img) = match (before, at) {
         (Some((pane, img)), Some(q)) if pane.contains(q) => (pane, img),
