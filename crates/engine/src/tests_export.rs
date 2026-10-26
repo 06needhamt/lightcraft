@@ -1203,3 +1203,14 @@ fn same_folder_as_original_refuses_photos_without_a_folder() {
     assert!(e.contains("folder is missing") && e.contains(&gone), "{e}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An absurd export size is refused, not a multiply overflow (it panicked before the fix).
+#[test]
+fn huge_export_size_is_an_error() {
+    use lightcraft_pipeline::{OutputDepth, OutputSpace};
+    let mut s = Session::with_demo();
+    let id = s.active().unwrap();
+    let huge = usize::MAX >> 8;
+    assert!(s.render_export(id, huge, huge, OutputSpace::Srgb, OutputDepth::U8).is_err());
+    assert!(s.render_export(id, 70_000, 10, OutputSpace::Srgb, OutputDepth::U8).is_err());
+}
