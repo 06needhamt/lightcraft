@@ -240,6 +240,27 @@ fn the_keyword_shortcut_refuses_keywords_that_are_not_text() {
         assert!(e.contains("`keywords` must be a string or an array of strings"), "{keywords}: {e}");
         assert_eq!(s.execute("keyword.shortcut", &json!({})).unwrap()["keywords"], json!(["beach", "sunset"]), "{keywords}");
     }
+    // parameters that are not an object are an error too, not a request to clear it
+    for params in [json!(7), json!("beach"), json!(["beach"])] {
+        let e = s.execute("keyword.setShortcut", &params).unwrap_err().to_string();
+        assert!(e.contains("parameters must be an object"), "{params}: {e}");
+        assert_eq!(s.execute("keyword.shortcut", &json!({})).unwrap()["keywords"], json!(["beach", "sunset"]), "{params}");
+    }
+}
+
+/// ⇧K with an `ids` or `id` that is not photo ids is an error, with or without a keyword shortcut set.
+#[test]
+fn the_keyword_shortcut_refuses_targets_that_are_not_photo_ids() {
+    let mut s = Session::with_demo();
+    let id = s.visible_cloned()[0].0;
+    s.execute("library.select", &json!({"ids": [id]})).unwrap();
+    for shortcut in [json!([]), json!(["beach"])] {
+        s.execute("keyword.setShortcut", &json!({"keywords": shortcut})).unwrap();
+        for params in [json!({"ids": "x"}), json!({"ids": ["x"]}), json!({"id": "x"})] {
+            let e = s.execute("keyword.toggleShortcut", &params).unwrap_err().to_string();
+            assert!(e.contains("must be photo ids"), "{shortcut} {params}: {e}");
+        }
+    }
 }
 
 /// The keyword shortcut follows its keywords when they are moved, renamed or merged, and loses one

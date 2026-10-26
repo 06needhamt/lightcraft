@@ -144,8 +144,12 @@ pub fn slots(typed: &[String]) -> Vec<String> {
 /// cleaned, a new name goes inside the default parent as the Keywording box puts it, and each is
 /// kept once whatever its case; empty ones are dropped. The text Set Keyword Shortcut… shows (the
 /// keyword shortcut's keywords joined with ", ") keeps them as they are, commas in a name included.
-/// Any other value is an error, and the keyword shortcut is left as it was.
+/// Any other value, or parameters that are not an object, is an error, and the keyword shortcut is
+/// left as it was.
 fn shortcut_keywords(s: &Session, p: &Value) -> Result<Vec<String>> {
+    if !p.is_object() {
+        return Err(bad("keyword.setShortcut", "parameters must be an object"));
+    }
     let now = s.catalog.keyword_shortcut();
     let invalid = || bad("keyword.setShortcut", "`keywords` must be a string or an array of strings");
     let typed: Vec<String> = match p.get("keywords") {
@@ -361,11 +365,11 @@ pub fn specs() -> Vec<CommandSpec> {
             super::has_selection,
             |s, p| {
                 let keywords = s.catalog.keyword_shortcut();
+                let ids = s.targets(p)?;
                 // with no keyword shortcut set, ⇧K returns without changing any photo
                 if keywords.is_empty() {
                     return Ok(json!({"changed": 0, "keywords": keywords}));
                 }
-                let ids = s.targets(p)?;
                 let has = |ph: &lightcraft_catalog::Photo, k: &str| {
                     ph.meta.keywords.iter().any(|x| lightcraft_catalog::keywords::same(&clean(x), &clean(k)))
                 };
