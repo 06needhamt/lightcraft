@@ -271,30 +271,46 @@ fn same_content(path: &Path, data: &[u8]) -> io::Result<bool> {
 /// Do `a` and `b` name the same existing file (through hard links, symlinks, `..`,
 /// case-insensitive names)?
 pub fn same_file(a: &Path, b: &Path) -> bool {
-    let (Ok(ma), Ok(mb)) = (fs::metadata(a), fs::metadata(b)) else { return false };
+    compare_files(a, b, false).unwrap_or(false)
+}
+
+/// [`same_file`] for a check that must not let an unknown identity pass: `Err` when both paths
+/// exist with the same length but the file identity of either cannot be read (on Windows, when
+/// either file cannot be opened). A path that does not exist is still `Ok(false)`.
+pub fn same_file_strict(a: &Path, b: &Path) -> io::Result<bool> {
+    compare_files(a, b, true)
+}
+
+fn compare_files(a: &Path, b: &Path, strict: bool) -> io::Result<bool> {
+    #[cfg(not(windows))]
+    let _ = strict;
+    let (Ok(ma), Ok(mb)) = (fs::metadata(a), fs::metadata(b)) else { return Ok(false) };
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        ma.dev() == mb.dev() && ma.ino() == mb.ino()
+        Ok(ma.dev() == mb.dev() && ma.ino() == mb.ino())
     }
     #[cfg(not(unix))]
     {
         if ma.len() != mb.len() {
-            return false;
+            return Ok(false);
         }
         // A hard link has its own path but shares the volume serial number and file index with
         // its original. A volume that does not report them is compared by resolved path below.
         // On ReFS two files can share the 64-bit file index, so the lengths are compared first.
         #[cfg(windows)]
         {
-            if ::same_file::is_same_file(a, b).unwrap_or(false) {
-                return true;
+            match ::same_file::is_same_file(a, b) {
+                Ok(true) => return Ok(true),
+                Ok(false) => {}
+                Err(e) if strict => return Err(e),
+                Err(_) => {}
             }
         }
-        match (fs::canonicalize(a), fs::canonicalize(b)) {
+        Ok(match (fs::canonicalize(a), fs::canonicalize(b)) {
             (Ok(x), Ok(y)) => x == y || x.to_string_lossy().to_lowercase() == y.to_string_lossy().to_lowercase(),
             _ => false,
-        }
+        })
     }
 }
 
