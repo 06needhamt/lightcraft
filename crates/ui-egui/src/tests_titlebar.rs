@@ -130,6 +130,28 @@ fn without_the_integrated_title_bar_the_bar_is_not_a_window_handle() {
     assert!(bar.is_none());
 }
 
+// Scenario: the search field is centred on the window, whatever room the traffic lights take (#2365)
+#[test]
+fn the_search_field_stays_centred_on_the_window() {
+    let mut h = integrated();
+    let window_centre = 1200.0 / 2.0;
+    let windowed = widget(&h, "field:search");
+    assert_eq!(windowed.center().x, window_centre, "windowed, the field is centred on the window");
+    // the filter icon rides with the field, so it moves whenever the field does
+    let filter = widget(&h, "icon:filter").center().x;
+    h.request("ui.key", json!({"key": "f", "cmd": true, "shift": true}), T);
+    play(&mut h);
+    assert!(h.app.window_is_fullscreen);
+    let full_screen = widget(&h, "field:search");
+    assert_eq!(full_screen.center().x, window_centre, "full screen leaves it centred");
+    assert_eq!(full_screen.width(), windowed.width(), "and the same width");
+    assert_eq!(widget(&h, "icon:filter").center().x, filter);
+    h.request("ui.key", json!({"key": "f", "cmd": true, "shift": true}), T);
+    play(&mut h);
+    assert!(!h.app.window_is_fullscreen);
+    assert_eq!(widget(&h, "field:search").center().x, window_centre, "and so does leaving it");
+}
+
 // Scenario: in full screen the traffic lights are gone, so the bar's buttons move into their space
 #[test]
 fn full_screen_moves_the_left_buttons_into_the_traffic_lights_space() {
@@ -146,4 +168,26 @@ fn full_screen_moves_the_left_buttons_into_the_traffic_lights_space() {
     play(&mut h);
     assert!(!h.app.window_is_fullscreen);
     assert_eq!(widget(&h, "icon:sidebar").left(), windowed, "leaving full screen restores the room for the traffic lights");
+}
+
+// Scenario: a panel floating over the bar keeps a drag on it from moving the window (macOS's
+// title-bar band would otherwise take the drag); a bar control does too
+#[test]
+fn a_panel_floating_over_the_bar_keeps_the_window_from_moving() {
+    let mut h = integrated();
+    let bar = widget(&h, "region:titlebar");
+    let empty = empty_spot(&h);
+    let hover = |h: &mut Headless, p: egui::Pos2| {
+        h.events.push(egui::Event::PointerMoved(p));
+        play(h);
+        craft_window::title_bar::window_movable(&h.view.ctx)
+    };
+    assert!(hover(&mut h, empty), "the empty bar moves the window");
+    let help = widget(&h, "icon:help").center();
+    assert!(!hover(&mut h, help), "a bar control");
+    let params = json!({"operation": "float", "panel": "tools", "rect": [bar.left(), bar.top() + 4.0, 330.0, 500.0]});
+    let r = h.request("engine.execute", json!({"command": "ui.dock", "params": params}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    play(&mut h);
+    assert!(!hover(&mut h, empty), "the floating panel covers the empty bar there");
 }
