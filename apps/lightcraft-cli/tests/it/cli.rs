@@ -162,6 +162,24 @@ fn mcp_over_stdio_sets_exposure_and_renders() {
     assert!(b > a + 10.0, "{a} → {b}");
 }
 
+#[cfg(unix)]
+#[test]
+fn non_utf8_argument_fails_without_a_panic() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let out = tmp("non-utf8-output.png");
+    let _ = std::fs::remove_file(&out);
+    let output = Command::new(binary()).arg("render").arg(OsString::from_vec(b"bad-\xff.png".to_vec())).arg("-o").arg(&out).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("argument 2"), "{stderr}");
+    assert!(stderr.contains("UTF-8"), "{stderr}");
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert!(!out.exists());
+    assert!(Command::new(binary()).arg("--version").status().unwrap().success());
+}
+
 #[test]
 fn render_subcommand() {
     let input = tmp("r-in.png");

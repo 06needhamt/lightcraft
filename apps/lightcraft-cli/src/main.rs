@@ -155,7 +155,16 @@ fn main() -> ExitCode {
     // Warnings (a GPU render redone on the CPU, an unknown backend name) on stderr; LIGHTCRAFT_LOG
     // or RUST_LOG picks another level (#168).
     lightcraft_engine::logging::install("lightcraft-cli");
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = Vec::new();
+    for (index, arg) in std::env::args_os().skip(1).enumerate() {
+        match arg.into_string() {
+            Ok(arg) => args.push(arg),
+            Err(_) => {
+                eprintln!("lightcraft-cli: argument {} is not valid UTF-8; use a UTF-8 encoded argument", index + 1);
+                return ExitCode::FAILURE;
+            }
+        }
+    }
     let r = match args.first().map(String::as_str) {
         Some("run") => run(&args[1..]),
         Some("mcp") => mcp(&args[1..]),
