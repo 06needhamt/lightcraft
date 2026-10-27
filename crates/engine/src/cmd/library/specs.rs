@@ -575,6 +575,16 @@ pub fn specs() -> Vec<CommandSpec> {
                 cull(s, p, |s| for_targets(s, p, "Set Color Label", |id| Some(Op::SetLabel { id, label: l })))
             }
         ),
+        // `photo.label` takes the colour as a parameter, so a key can't be given to "none" alone
+        cmd!(
+            "photo.clearLabel",
+            "Clear Color Label",
+            ["Photo", "Set Color Label"],
+            None,
+            "{ids?, advance?: bool} — `photo.label` with `none`; without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| for_targets(s, p, "Set Color Label", |id| Some(Op::SetLabel { id, label: None }))) }
+        ),
         // ---- orientation
         cmd!("photo.rotateLeft", "Rotate Left", ["Photo"], Some("Cmd+["), "{ids?}", has_selection, |s, p| rotate(s, p, false)),
         cmd!("photo.rotateRight", "Rotate Right", ["Photo"], Some("Cmd+]"), "{ids?}", has_selection, |s, p| rotate(s, p, true)),

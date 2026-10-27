@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### A keyboard shortcut for Clear Color Label
+- Clear Color Label is now a command of its own in Help ▸ Keyboard Shortcuts, so it can have a key like Set Rating or
+  Set Flag; before, only the red, yellow, green and blue labels (6–9) had keys and clearing a label was menu-only. It has
+  no key until you give it one. Photo ▸ Set Color Label ▸ None runs it and shows its key. The key clears the label of
+  the selected photos as one undo step, only the active photo in Compare and Survey, and moves on with Auto Advance,
+  as the other label keys do.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin

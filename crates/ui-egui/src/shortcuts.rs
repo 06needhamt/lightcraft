@@ -584,7 +584,7 @@ fn fire_rating_key(app: &mut LightcraftApp, ctx: &egui::Context, f: &str) -> boo
             crate::i18n::tr_format!("Rated {}", "★".repeat(n.parse().unwrap_or(0)))
         };
         app.toast(ctx, label);
-    } else if matches!(f, "photo.decreaseRating" | "photo.increaseRating") {
+    } else if matches!(f, "photo.decreaseRating" | "photo.increaseRating" | "photo.clearLabel") {
         cull(app, f, json!({}), false);
     } else if let Some(l) = f.strip_prefix("label:") {
         cull(app, "photo.label", json!({"label": l}), false);
@@ -795,6 +795,10 @@ mod tests;
 #[cfg(test)]
 #[path = "shortcuts/tests_relative_ratings.rs"]
 mod relative_rating_tests;
+
+#[cfg(test)]
+#[path = "shortcuts/tests_clear_label.rs"]
+mod clear_label_tests;
 
 #[cfg(test)]
 #[path = "shortcuts/tests_flag_cycle.rs"]
