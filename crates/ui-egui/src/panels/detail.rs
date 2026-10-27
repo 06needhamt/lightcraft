@@ -184,13 +184,16 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         _ => vec![area],
     };
     let main_area = *areas.last().unwrap_or(&area);
+    // A previous crop/rotation can stay visible while its replacement renders. Its pixels
+    // must not override the current frame geometry, even when it is the same photo.
+    let current_texture = |t: &&crate::render::Tex| t.photo == id && t.look == Some((crate::render::geometry_look(&d), !crop_tool));
     let visible_texture_aspect = app
         .renderer
         .textures
         .get(&Slot::Main)
-        .filter(|t| t.photo == id)
-        .or_else(|| app.renderer.textures.get(&Slot::Preview).filter(|t| t.photo == id))
-        .or_else(|| app.renderer.thumb(id))
+        .filter(current_texture)
+        .or_else(|| app.renderer.textures.get(&Slot::Preview).filter(current_texture))
+        .or_else(|| app.renderer.thumb(id).filter(current_texture))
         .map(|tex| tex.size[0].max(1) as f32 / tex.size[1].max(1) as f32);
     // Follow the texture only where it really differs (an unsupported raw's embedded JPEG with
     // another crop): a texture's whole-pixel size is a little off the exact aspect, and the crop

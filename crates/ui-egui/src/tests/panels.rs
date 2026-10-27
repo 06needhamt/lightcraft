@@ -2206,7 +2206,13 @@ fn recognise_faces_stays_off_until_a_model_is_chosen() {
     let dir = std::env::temp_dir().join(format!("lc-ui-faces-toggle-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    h.app.session.face_models_dir = Some(dir.join("models"));
+    // This tests the recognition toggle, not GPU attachment. Seed the fresh fixture before
+    // loading a model; the mutation command also detaches the process-wide detector.
+    let models = dir.join("models");
+    std::fs::create_dir_all(&models).unwrap();
+    std::fs::write(models.join("settings.json"), br#"{"cpuOnly":true}"#).unwrap();
+    h.app.session.face_models_dir = Some(models);
+    assert_eq!(h.app.session.execute("faces.gpu", &json!({})).unwrap()["cpuOnly"], true);
     let r = h.request("engine.execute", json!({"command": "app.settings", "params": {"tab": "faces"}}), T);
     assert_eq!(r["ok"], true, "{r}");
     h.settle(SETTLE);
