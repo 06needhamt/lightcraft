@@ -1,6 +1,6 @@
 use super::dates::browse_all_photos;
 use super::rows::{INDENT_STEP, out_of_sight, row, tree_open, tree_toggle};
-use super::*;
+use super::{Icon, KeywordNode, LightcraftApp, json};
 
 /// "Keywords": the library's keyword tree with photo counts (`a|b|c` keywords nest). A click
 /// filters the grid by the keyword (children included), the triangle opens a level, and the

@@ -1,6 +1,6 @@
 use super::folders::{folder_menu, is_within};
 use super::rows::{INDENT_STEP, indent_x, row_sensed, set_tree_open, tree_open, tree_toggle};
-use super::*;
+use super::{Album, AlbumId, Align2, Icon, LibrarySource, LightcraftApp, Rect, Sense, Tokens, json, pos2, register, vec2};
 
 /// Albums: the tree of albums and the folders they are sorted into. `reveal`: an album just made,
 /// whose folders open down to it.

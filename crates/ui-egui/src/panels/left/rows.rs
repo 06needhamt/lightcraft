@@ -1,5 +1,5 @@
 use super::albums::MARK_W;
-use super::*;
+use super::{Align2, Icon, LightcraftApp, Rect, Sense, Tokens, paint, pos2, register, vec2};
 
 /// How wide the sidebar's content needs to be, from the widest row of the last frame: rows are
 /// drawn at this width (or the panel's, if wider), and the sidebar scrolls sideways when it

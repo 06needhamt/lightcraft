@@ -1,5 +1,5 @@
 use super::widgets::{choices, heading};
-use super::*;
+use super::{RichText, Tokens, register};
 
 /// Appearance Mode (`button:settingsAppearance-{0,1,2}`: Auto, Dark, Light) above the light and
 /// dark theme cards (`radio:theme-{id}`), each with a preview of the chosen theme. The card in

@@ -1,5 +1,5 @@
 use super::scan::{busy_synchronizing, running};
-use super::*;
+use super::{ImportDialog, ImportUprightMode, ImportWarning, ImportWarningCode, LightcraftApp, Ordering, Value, json};
 
 /// Files per batch in the browser build (each batch joins the catalog as it is ready, so the
 /// progress window updates); the desktop's worker uses [`lightcraft_engine::import::batch_size`].

@@ -1,5 +1,8 @@
 use super::geometry::CanvasMap;
-use super::*;
+use super::{
+    Color32, DevelopSettings, Gesture, LightcraftApp, MaskShape, Point, Pos2, Rect, Sense, Stroke, StrokeKind, Tokens, ToolOverlay, json, pos2,
+    register, vec2,
+};
 
 /// What the user did to a face box this frame.
 pub(super) enum RegionEdit {

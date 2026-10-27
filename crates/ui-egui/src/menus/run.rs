@@ -1,6 +1,6 @@
 use super::files::{edit_in, open_log_folder, open_original_in, show_in_finder, show_in_folders};
 use super::ui_commands::{UI_COMMANDS, language_from_command};
-use super::*;
+use super::{BeforeAfter, Dialog, LightcraftApp, PickRequest, Picked, RightPanel, Value, ViewMode, Zoom, json, thumb_size_view};
 
 fn panel(app: &mut LightcraftApp, ctx: &egui::Context, p: RightPanel, name: &str) {
     if app.ui.right == p && crate::docking::exposed(app, crate::docking::Panel::Tools) {
