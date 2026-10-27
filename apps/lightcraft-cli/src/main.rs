@@ -160,7 +160,7 @@ fn main() -> ExitCode {
         match arg.into_string() {
             Ok(arg) => args.push(arg),
             Err(_) => {
-                eprintln!("lightcraft-cli: argument {} is not valid UTF-8; use a UTF-8 encoded argument", index + 1);
+                eprintln!("lightcraft-cli: argument {} is not valid Unicode", index + 1);
                 return ExitCode::FAILURE;
             }
         }

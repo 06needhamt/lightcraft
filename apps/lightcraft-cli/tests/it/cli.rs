@@ -174,7 +174,26 @@ fn non_utf8_argument_fails_without_a_panic() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(stderr.contains("argument 2"), "{stderr}");
-    assert!(stderr.contains("UTF-8"), "{stderr}");
+    assert!(stderr.contains("is not valid Unicode"), "{stderr}");
+    assert!(!stderr.contains("panicked"), "{stderr}");
+    assert!(!out.exists());
+    assert!(Command::new(binary()).arg("--version").status().unwrap().success());
+}
+
+#[cfg(windows)]
+#[test]
+fn non_unicode_argument_fails_without_a_panic_on_windows() {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+
+    let out = tmp("non-unicode-output.png");
+    let _ = std::fs::remove_file(&out);
+    let name: Vec<u16> = "bad-".encode_utf16().chain([0xD800]).chain(".png".encode_utf16()).collect();
+    let output = Command::new(binary()).arg("render").arg(OsString::from_wide(&name)).arg("-o").arg(&out).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("argument 2"), "{stderr}");
+    assert!(stderr.contains("is not valid Unicode"), "{stderr}");
     assert!(!stderr.contains("panicked"), "{stderr}");
     assert!(!out.exists());
     assert!(Command::new(binary()).arg("--version").status().unwrap().success());
