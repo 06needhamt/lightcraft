@@ -1701,6 +1701,28 @@ fn assert_close(a: &serde_json::Value, b: &serde_json::Value) {
 /// Regression: the Colour Range "Pick" button armed the eyedropper, but with the Masking panel
 /// open the loupe's clicks went to the mask overlay, so no sample was ever taken.
 #[test]
+fn adding_radial_component_disarms_color_range_picker() {
+    let mut h = detail("panel.masking");
+    exec(&mut h, "mask.add", json!({"kind": "colorRange"}));
+    h.app.ui.tool.clear();
+    click(&mut h, "button:colorPick0");
+    brush_at(&mut h, 0.25, 0.5);
+    assert_eq!(color_samples(&h).as_array().map(Vec::len), Some(1));
+
+    exec(&mut h, "mask.addComponent", json!({"kind": "radial", "op": "intersect", "center": [0.5, 0.5], "rx": 0.22, "ry": 0.22}));
+    assert!(h.app.ui.tool.is_empty(), "adding a radial component disarms colour picking");
+
+    let widget = "maskHandle:1:1:1";
+    let rect = h.app.widgets.iter().find(|(id, _)| *id == widget).unwrap().1;
+    let image = h.app.image_rect.unwrap();
+    let q = rect.center();
+    let (x, y) = ((q.x - image.left()) / image.width(), (q.y - image.top()) / image.height());
+    pointer(&mut h, json!([{"kind": "down", "x": x, "y": y}, {"kind": "drag", "x": x + 0.05, "y": y}, {"kind": "up", "x": x + 0.05, "y": y}]));
+    let MaskShape::Radial { rx, .. } = develop(&h).masks[0].components[1].shape else { panic!("radial") };
+    assert!(rx > 0.22, "dragging a radial handle resizes the component: {rx}");
+}
+
+#[test]
 fn color_range_pick_button_samples_the_photo() {
     let mut h = detail("panel.masking");
     exec(&mut h, "mask.add", json!({"kind": "colorRange"}));
