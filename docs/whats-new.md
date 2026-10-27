@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### Shortcut hints on macOS read like the menu bar
+- A shortcut shown in the menu bar's labels, in a button's tooltip, in the empty-library hint or in the Keyboard
+  Shortcuts dialog now lists its modifiers in the order macOS menus use, Control, Option, Shift, Command: `⇧⌘I`
+  where it used to say `⌘⇧I`. Windows and Linux are unchanged.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
