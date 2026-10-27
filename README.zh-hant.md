@@ -516,7 +516,7 @@ egui 前端是一個可替換的 crate；它之下沒有任何東西知道 UI �
 
 安裝程式與執行檔都有程式碼簽章。安裝程式會詢問為誰安裝以及安裝位置（預設僅為目前帳戶，安裝到
 `%LOCALAPPDATA%\Programs\ArtCraft\LightCraft`；選擇「這台電腦上的所有人」則安裝到
-`C:\Program Files\ArtCraft\LightCraft`；升級時會留在你選擇的資料夾），結束時會有一頁確認 LightCraft 已安裝，
+`C:\Program Files\ArtCraft\LightCraft`（32 位元版本為 `Program Files (x86)`）；升級時會留在你選擇的資料夾），結束時會有一頁確認 LightCraft 已安裝，
 並可選擇立即啟動。無訊息安裝：`msiexec /i lightcraft-<ver>-windows-x64.msi /qn INSTALLFOLDER="D:\Apps\LightCraft\"`。
 
 ### macOS
