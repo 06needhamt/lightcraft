@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### Reading a photo from a network share asks the server less
+- Checking a photo (before an import, and for Reload, Recheck, Relink and Convert) asked for the file's size, then
+  opened it, then asked for its modification time as a question of its own. It now opens the file once and reads
+  both from the open file, so each photo costs the server fewer round trips (about a quarter less time to read a
+  set of photos from an SMB share, in one measurement on one share). What is imported and the messages for a file
+  that can't be read are the same.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
