@@ -690,6 +690,14 @@ fn adding_a_face_model_shows_its_terms_and_installs_only_once_accepted() {
     assert_eq!(r["ok"], true, "{r}");
     h.step();
     assert!(matches!(&h.app.ui.dialog, Some(Dialog::FaceModel { accepted: true, .. })));
+    // Consent is accepted, but no model is installed until confirmation. Keep this UI
+    // fixture on the CPU so it does not start an unrelated background GPU probe.
+    let models = dir.join("models");
+    std::fs::create_dir_all(&models).unwrap();
+    std::fs::write(models.join("settings.json"), br#"{"cpuOnly":true}"#).unwrap();
+    assert_eq!(h.app.session.execute("faces.gpu", &json!({})).unwrap()["cpuOnly"], true);
+    let before_confirm = h.app.session.execute("faces.models.list", &json!({})).unwrap();
+    assert!(before_confirm["models"].as_array().unwrap().iter().all(|m| m["installed"] != true), "{before_confirm}");
     let r = h.request("ui.dialog.confirm", json!({}), t);
     assert_eq!(r["ok"], true, "{r}");
     let listed = h.app.run("faces.models.list", json!({})).unwrap();
@@ -798,7 +806,13 @@ fn people_and_the_name_box_offer_to_set_face_recognition_up() {
     let dir = std::env::temp_dir().join(format!("lc-ui-facesetup-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    h.app.session.face_models_dir = Some(dir.join("models"));
+    // The setup offer tests recognition controls, not GPU attachment. Seed only this
+    // fixture's settings before any model can load, without detaching a shared detector.
+    let models = dir.join("models");
+    std::fs::create_dir_all(&models).unwrap();
+    std::fs::write(models.join("settings.json"), br#"{"cpuOnly":true}"#).unwrap();
+    h.app.session.face_models_dir = Some(models);
+    assert_eq!(h.app.session.execute("faces.gpu", &json!({})).unwrap()["cpuOnly"], true);
     let runtime = h.app.session.execute("faces.models.list", &json!({})).unwrap()["runtime"] == true;
     let id = h.app.session.active().unwrap();
     let mut meta = h.app.session.catalog.photo(id).unwrap().meta.clone();
@@ -1244,14 +1258,29 @@ fn a_screenful_of_small_faces_is_not_evicted_and_left_blank() {
     }
     // the smallest faces, so a lot of them fit on the screen
     h.request("ui.set", json!({"thumbSize": 90.0, "view": "people"}), t);
-    h.settle(SETTLE);
+    // Lay out the faces before waiting for their workers; a global settle also waits for
+    // unrelated work and hides a timed-out initial wait.
+    for _ in 0..4 {
+        h.step();
+    }
     h.step();
     let drawn = h.request("ui.widgets", json!({"filter": "unnamed-face:"}), t)["result"].as_array().map_or(0, Vec::len);
     assert!(drawn > 96, "the test needs more faces on screen than the usual budget, got {drawn}");
     // the pictures are made and kept, well beyond the old budget (a few demo photos share a scene, so two faces can share a
     // picture: the count is a little under the number of tiles)
     let started = Instant::now();
-    while h.app.renderer.variant_textures() < drawn - 20 && started.elapsed() < Duration::from_secs(60) {
+    let timeout = Duration::from_secs(300);
+    while h.app.renderer.variant_textures() < drawn - 20 {
+        let left = timeout.saturating_sub(started.elapsed());
+        assert!(
+            !left.is_zero(),
+            "variant renders did not finish: {} pictures for {drawn} faces, pending {:?}",
+            h.app.renderer.variant_textures(),
+            h.app.renderer.pending_slots()
+        );
+        // Coverage instrumentation makes the procedural scenes expensive. Wait for actual
+        // worker progress instead of continuously rebuilding a full People-view frame.
+        h.app.renderer.wait_for_worker(left.min(Duration::from_millis(250)));
         h.step();
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -2356,8 +2385,7 @@ fn click_field_in_view(h: &mut Headless, key: &str, timeout: Duration) {
 /// accessibility and place fields reach the photo.
 #[test]
 fn info_fields_keep_typing_and_save() {
-    // (tall enough for the place fields to show without scrolling)
-    let mut h = demo([1300.0, 1200.0]);
+    let mut h = demo([1300.0, 1000.0]);
     let t = Duration::from_secs(10);
     h.request("ui.set", json!({"view": "detail", "right": "info"}), t);
     h.settle(SETTLE);

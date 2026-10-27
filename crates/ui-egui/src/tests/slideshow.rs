@@ -2,14 +2,18 @@
 //! prepared ahead off the UI thread, transitions only between ready slides, keys and controls.
 //! Simulated time: every headless frame is 1/60 s, so nothing here sleeps.
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::Duration;
 
 use lightcraft_catalog::PhotoId;
 use lightcraft_engine::slideshow::Item;
 use serde_json::json;
 
-use crate::headless::Headless;
+use crate::headless::{Headless, RenderGate};
 use crate::render::Slot;
+use crate::tests_fixtures::SyntheticLibrary;
+use crate::tests_render_fixtures::{HEIGHT, RenderFixture, WIDTH};
 use crate::{LightcraftApp, Services};
 
 const T: Duration = Duration::from_secs(20);
@@ -25,6 +29,31 @@ fn grid_sized(size: [f32; 2]) -> Headless {
     let mut h = Headless::new(app, size, 1.0);
     h.step();
     h
+}
+
+/// The slideshow's 1000×700 window over `count` real 6000×4000 file-backed photos. Used only by
+/// `next_slides_are_prepared_before_they_are_due`, where the 24 MP decode/render is the point:
+/// destructure the tuple immediately with the fixture binding first, so the renderer drops first.
+fn fixture_grid(count: usize, open: Rc<Cell<bool>>) -> (RenderFixture, Headless) {
+    let fixture = RenderFixture::new("slideshow", count);
+    assert_eq!(fixture.paths().len(), count);
+    for (index, path) in fixture.paths().iter().enumerate() {
+        assert!(std::path::Path::new(path).is_file(), "the fixture photo exists");
+        assert!(!fixture.paths()[..index].contains(path), "each fixture photo has its own path");
+    }
+    let services = Services { png: None, ..Default::default() };
+    let app = LightcraftApp::new(fixture.session(), services);
+    let mut h = Headless::new(app, [1000.0, 700.0], 1.0);
+    // Control native grid work before its first frame too: asynchronous setup must not
+    // consume the wall-clock budget before the slideshow scheduling assertions begin.
+    assert!(open.get(), "the native grid setup gate starts open");
+    h.app.renderer.set_offload(Box::new(RenderGate::new(open)));
+    assert!(h.settle(SETTLE), "the grid renders settle before controlling slide renders");
+    assert_eq!(h.app.session.catalog.len(), count, "the slideshow fixture photos");
+    let id = h.app.session.active().expect("a photo is open");
+    let photo = h.app.session.catalog.photo(id).expect("it is in the catalog");
+    assert_eq!((photo.width, photo.height), (WIDTH, HEIGHT), "the slideshow fixture is a real 24 MP photo");
+    (fixture, h)
 }
 
 fn run(h: &mut Headless, command: &str, params: serde_json::Value) -> serde_json::Value {
@@ -61,12 +90,24 @@ fn slides_held(h: &Headless) -> usize {
 
 #[test]
 fn slideshow_advances_pauses_and_ends() {
-    let mut h = grid();
+    // This tests the automatic playback clock and controls; native 24 MP rendering
+    // is exercised separately by next_slides_are_prepared_before_they_are_due.
+    let library = SyntheticLibrary::with_photos("slideshow-automatic-controls", 3);
+    let mut h = Headless::new(library.app(), [1000.0, 700.0], 1.0);
+    assert!(h.settle(SETTLE), "the automatic playback fixture settles");
     let first = h.app.session.visible_cloned()[0];
-    run(&mut h, "view.slideshow", json!({"interval": 0.5, "fadeDuration": 0}));
+    // The fixture selects its first imported photo; newest-first view order differs.
+    // Establish the same first-in-view starting selection as the original demo test.
+    run(&mut h, "library.select", json!({"ids": [first.0]}));
+    assert_eq!(h.app.session.active(), Some(first), "the first visible photo is selected before playback");
+    run(&mut h, "view.slideshow", json!({"interval": 0.5, "fadeDuration": 0, "manual": false}));
+    assert!(!play(&h).settings().manual, "playback advances automatically");
     assert!(h.app.ui.fullscreen && h.app.ui.slideshow.is_some());
     assert_eq!(h.app.session.active(), Some(first), "starts at the first photo in view");
     assert!(h.step_until(SETTLE, |h| h.app.session.active() != Some(first)), "the next photo comes up and is selected");
+    let advanced = photo_up(&h);
+    assert_eq!(h.app.session.active(), Some(advanced), "selection follows automatic playback");
+    assert!(has_slide(&h, advanced), "automatic playback shows a rendered next photo");
     // Space pauses: nothing moves
     let r = h.request("ui.key", json!({"key": "space"}), T);
     assert_eq!(r["ok"], true, "{r}");
@@ -98,33 +139,54 @@ fn turning_off_the_full_screen_preview_frees_the_slides() {
 
 #[test]
 fn next_slides_are_prepared_before_they_are_due() {
-    let mut h = grid();
-    // a long slide: anything rendered for the next ones is rendered ahead of time
-    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 1, "preparePreviews": true, "seed": 7}));
+    let open = Rc::new(Cell::new(true));
+    let (fx, mut h) = fixture_grid(8, open.clone());
+    // Grid setup is complete. Hold photo slide jobs until their ahead requests are
+    // observable; opening the gate runs the actual native decode/render synchronously.
+    open.set(false);
+    let reply = run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 1, "preparePreviews": true, "seed": 7}));
+    assert_eq!(reply["settings"]["preparePreviews"], true);
+    assert_eq!(reply["settings"]["slideDuration"], 60.0);
     let ahead = play(&h).upcoming(crate::panels::slideshow::AHEAD);
-    assert_eq!(ahead.len(), 2);
+    assert_eq!(ahead.len(), crate::panels::slideshow::AHEAD);
     let start = h.time();
-    // the slide up and the next two; their renders can finish in any order
+    // The current photo and next two are queued before any slide render completes.
     let current = photo_up(&h);
+    for item in std::iter::once(Item::Photo(current)).chain(ahead.iter().copied()) {
+        assert!(h.app.renderer.is_pending(Slot::Slide(item)), "requested before it is due: {item:?}");
+        assert!(!has_slide(&h, item), "not rendered before the gate opens: {item:?}");
+    }
+    assert!(play(&h).remaining(h.time()) > 59.0, "the first slide is not due before rendering");
+    // The gate executes the actual decode/render work synchronously when polled.
+    open.set(true);
     assert!(
         h.step_until(SETTLE, |h| has_slide(h, current) && ahead.iter().all(|id| has_slide(h, *id))),
         "the slide up and the next two slides are rendered"
     );
     assert!(h.time() - start < 60.0, "before the first is due");
     assert_eq!(photo_up(&h), current, "still on the first slide");
-    h.settle(SETTLE);
+    assert!(play(&h).remaining(h.time()) > 59.0, "renders are accepted before the first slide is due");
+    assert!(h.settle(SETTLE), "enabled-prefetch renders settle");
+    drop(h);
+    drop(fx);
 
     // off: only the slide up is rendered until the next one is due
-    let mut h = grid();
-    run(&mut h, "view.slideshow", json!({"interval": 60, "preparePreviews": false}));
+    let open = Rc::new(Cell::new(true));
+    let (_fx2, mut h) = fixture_grid(8, open.clone());
+    open.set(false);
+    let reply = run(&mut h, "view.slideshow", json!({"interval": 60, "preparePreviews": false}));
+    assert_eq!(reply["settings"]["preparePreviews"], false);
     let next = play(&h).upcoming(1)[0];
     let current = photo_up(&h);
-    assert!(h.step_until(SETTLE, |h| has_slide(h, current)));
     for _ in 0..30 {
         h.step();
     }
+    assert!(h.app.renderer.is_pending(Slot::Slide(Item::Photo(current))), "the current slide is requested");
     assert!(!has_slide(&h, next) && !h.app.renderer.is_pending(Slot::Slide(next)), "not prepared");
-    h.settle(SETTLE);
+    open.set(true);
+    assert!(h.step_until(SETTLE, |h| has_slide(h, current)), "the current slide renders once allowed");
+    assert!(!has_slide(&h, next) && !h.app.renderer.is_pending(Slot::Slide(next)), "still not prepared");
+    assert!(h.settle(SETTLE), "disabled-prefetch renders settle");
 }
 
 #[test]
@@ -201,10 +263,40 @@ fn a_manual_slideshow_waits_for_the_arrow_keys() {
     // the Settings checkbox turns it on
     run(&mut h, "view.slideshowOptions", json!({}));
     h.step();
-    reveal(&mut h, "check:settings.slideshowManual");
+    let target = reveal(&mut h, "check:settings.slideshowManual");
+    let diagnose = |phase: &str, h: &Headless| {
+        let id = "check:settings.slideshowManual";
+        let rect = latest_widget_rect(h, id);
+        let hit = crate::control::widget_hit(&h.app, id);
+        let visible = rect.is_some_and(|r| crate::control::widget_target_visible(&h.view.ctx, hit, r.center()));
+        eprintln!(
+            "manual-checkbox {phase}: manual={} time={} frames={} target={target:?} rect={rect:?} room={:?} hit={hit:?} visible={visible} input={:?} dialog={:?} notices={:?} quit_prompt={} notice_barrier={} library_problem={} library_barrier={} in_flight={} pending={:?} toast={:?}",
+            h.app.session.slideshow.manual,
+            h.time(),
+            h.frames(),
+            latest_widget_rect(h, "settings:pageRoom"),
+            h.view.ctx.input(|i| (i.is_scrolling(), i.modifiers, i.keys_down.clone(), i.pointer.any_down())),
+            h.app.ui.dialog,
+            h.app.notices,
+            h.app.quit_prompt.is_some(),
+            crate::panels::notices::blocks_input(&h.app),
+            h.app.library_problem.is_some(),
+            crate::panels::library_problem::blocks_file_drops(&h.app),
+            h.app.renderer.in_flight(),
+            h.app.renderer.pending_slots(),
+            h.app.ui.toast,
+        );
+    };
+    diagnose("before-click", &h);
+    assert!(!h.app.session.slideshow.manual, "the checkbox starts unchecked before the real click");
+    let journal_before = h.app.session.journal.len();
     let r = h.request("ui.clickWidget", json!({"id": "check:settings.slideshowManual"}), T);
+    diagnose("after-request", &h);
+    eprintln!("manual-checkbox reply={r} journal_since_click={:?}", h.app.session.journal.get(journal_before..));
     assert_eq!(r["ok"], true, "{r}");
     h.step();
+    diagnose("after-existing-step", &h);
+    eprintln!("manual-checkbox journal_after_existing_step={:?}", h.app.session.journal.get(journal_before..));
     assert!(h.app.session.slideshow.manual, "the checkbox goes through slideshow.playback");
     h.settle(SETTLE);
 }
@@ -440,7 +532,9 @@ fn a_composed_slide_shows_during_playback() {
     let mut h = grid();
     let r = run(&mut h, "slideshow.layout", json!({"margins": 0.1, "backdropColor": "#ff0000"}));
     assert_eq!(r["marginTop"], 0.1);
-    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0}));
+    // This checks composed pixels and explicit navigation. Rendering can take enough
+    // headless frames to pass any automatic interval before the next slide is ready.
+    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0, "manual": true}));
     let current = photo_up(&h);
     assert!(h.step_until(SETTLE, |h| has_slide(h, current)), "the slide is composed and ready");
     h.step();
@@ -457,8 +551,10 @@ fn a_composed_slide_shows_during_playback() {
     // the next slide is composed too, and stepping shows it
     let next = play(&h).upcoming(1)[0];
     assert!(h.step_until(SETTLE, |h| has_slide(h, next)));
+    assert_eq!(photo_up(&h), current, "rendering ahead keeps the inspected slide up");
     run(&mut h, "slideshow.next", json!({}));
     h.step();
+    assert_eq!(play(&h).current(), next, "navigation shows the prepared slide");
     assert_eq!(painted(&h.paint(), 5, 5), [255, 0, 0]);
     h.settle(SETTLE);
 }
@@ -467,10 +563,13 @@ fn a_composed_slide_shows_during_playback() {
 fn the_default_layout_plays_the_photo_as_before() {
     let mut h = grid();
     assert!(h.app.session.slide_layout.is_plain());
-    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0}));
+    // Inspect one photo's aspect and backdrop without automatic playback advancing
+    // the simulated clock past it while the asynchronous renderer catches up.
+    run(&mut h, "view.slideshow", json!({"interval": 60, "fadeDuration": 0, "manual": true}));
     let current = photo_up(&h);
     assert!(h.step_until(SETTLE, |h| has_slide(h, current)));
     h.step();
+    assert_eq!(photo_up(&h), current, "the inspected photo stays up while rendering");
     // the photo's own render (its aspect, not the screen's), fitted on black, as before
     let tex = h.app.renderer.textures.get(&Slot::Slide(current.into())).unwrap();
     let aspect = h.app.session.slide_photo_aspect(current).unwrap();

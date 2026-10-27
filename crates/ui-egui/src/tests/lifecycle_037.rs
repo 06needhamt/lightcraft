@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use crate::headless::Headless;
 use crate::render::{Slot, Tex};
+use crate::tests_fixtures::SyntheticLibrary;
 use crate::{ControlResponse, LightcraftApp, MAX_PENDING_SHOTS, MAX_SHOT_BYTES, PendingShot, Services, ShotGeometry};
 use lightcraft_engine::slideshow::Item;
 
@@ -303,6 +304,42 @@ fn a_capture_completed_after_a_catalog_edit_is_still_written() {
 }
 
 #[test]
+fn headless_capture_finishes_once_and_releases_only_its_reservation() {
+    for case in ["success", "overflow", "image-cap", "aggregate-cap"] {
+        let (mut app, seen) = app_with_screenshot_files();
+        let ctx = egui::Context::default();
+        let path = temp_png(&format!("headless-finish-{case}"));
+        let (tx, rx) = reply_channel();
+        app.last_shot_geometry = Some(geometry(100.0, 100.0));
+        let target = app.session.pin_write_target(&path.to_string_lossy()).expect("pin path");
+        app.admit_shot(&ctx, Some(target), true, tx).expect("admit");
+        let mut shot = app.pending_screenshots.pop().expect("pending shot");
+        let mut image = egui::ColorImage::filled([200, 200], egui::Color32::WHITE);
+        let other_reservations = if case == "aggregate-cap" { crate::MAX_SHOT_TOTAL_BYTES - shot.reserved } else { 0 };
+        app.shot_bytes += other_reservations;
+        if case == "overflow" {
+            image.size = [usize::MAX, 2];
+        } else if case == "image-cap" {
+            image.size = [MAX_SHOT_BYTES, 1];
+        }
+        app.finish_headless_shot(&mut shot, &image);
+        let reply = rx.try_recv().expect("one reply");
+        assert_eq!(reply["ok"], case == "success", "{case}: {reply}");
+        match case {
+            "overflow" => assert_eq!(reply["error"], "ui.screenshot: the rendered image has invalid dimensions"),
+            "image-cap" => assert!(reply["error"].as_str().expect("error message").contains("per-image limit")),
+            "aggregate-cap" => assert!(reply["error"].as_str().expect("error message").contains("bytes reserved is over")),
+            _ => {}
+        }
+        assert!(rx.try_recv().is_err(), "no duplicate reply");
+        assert_eq!(app.shot_bytes, other_reservations, "{case}");
+        assert_eq!(path.exists(), case == "success", "{case}");
+        assert_eq!(seen.lock().unwrap().is_some(), case == "success", "{case}");
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[test]
 fn an_image_larger_than_its_reservation_is_grown_and_written() {
     // Wayland has no `inner_rect`, so on a hidden tick the reservation can be based on the old
     // content rect while the compositor returns the resized surface. A legal image is not an error.
@@ -559,9 +596,10 @@ fn hidden_slideshow_pauses_and_keeps_its_remaining_time() {
     // Every slide is "ready": without the hidden gate, 10 hidden seconds would advance the show.
     for id in app.session.visible_cloned() {
         let tex = ctx.load_texture(format!("slide-{}", id.0), egui::ColorImage::filled([2, 2], egui::Color32::WHITE), Default::default());
-        app.renderer
-            .textures
-            .insert(Slot::Slide(Item::Photo(id)), Tex { key: 0, photo: id, tex, size: [2, 2], histogram: None, ms: 0.0, quick: None, pixels: None });
+        app.renderer.textures.insert(
+            Slot::Slide(Item::Photo(id)),
+            Tex { look: None, key: 0, photo: id, tex, size: [2, 2], histogram: None, ms: 0.0, quick: None, pixels: None },
+        );
     }
     let first = app.ui.slideshow.as_ref().unwrap().play.current();
     let selection = app.session.active();
@@ -990,13 +1028,14 @@ fn a_maximum_step_drag_is_delivered_past_the_five_second_stall_limit() {
 
 #[test]
 fn a_click_on_a_control_under_a_nonmodal_overlay_is_refused_without_activating_the_overlay() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("control-under-overlay");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
     h.app.ui.open_sections = vec!["light".to_string()];
-    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles");
+    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "slider:light.exposure";
     assert!(h.app.widgets.iter().any(|(widget, _)| widget == id), "{id} is on screen");
     let before = h.app.session.develop_of(photo).expect("its develop settings").light.exposure;
@@ -1028,12 +1067,13 @@ fn a_click_on_a_control_under_a_nonmodal_overlay_is_refused_without_activating_t
 /// interactive centre). This is the positive control the hover-only probe lacked.
 #[test]
 fn an_unobstructed_click_on_a_subrect_reaches_the_widget() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("unobstructed-subrect");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
-    assert!(h.settle(Duration::from_secs(60)), "the detail view settles");
+    assert!(h.settle(Duration::from_secs(60)), "the detail view settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "star:bottom:2";
     assert!(h.app.widgets.iter().any(|(widget, _)| widget == id), "{id} is on screen");
     assert!(h.app.widget_hits.iter().any(|(widget, _)| widget == id), "{id} has a probe");
@@ -1047,11 +1087,12 @@ fn an_unobstructed_click_on_a_subrect_reaches_the_widget() {
 /// must not turn the release into an overlay click; the pointer is released away from the target.
 #[test]
 fn an_overlay_that_appears_after_the_press_cancels_the_release() {
-    let mut h = Headless::new(app(), [1000.0, 760.0], 1.0);
+    let files = SyntheticLibrary::new("overlay-after-press");
+    let mut h = Headless::new(files.app(), [1000.0, 760.0], 1.0);
     h.step();
     let t = Duration::from_secs(20);
     assert_eq!(h.request("ui.key", serde_json::json!({"key": ",", "cmd": true}), t)["ok"], true);
-    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles");
+    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "check:settings.confirmDelete";
     let target = h.app.widgets.iter().rev().find(|(widget, _)| widget == id).map(|(_, rect)| *rect).expect("the checkbox is on screen");
     let before = h.app.ui.settings.confirm_delete;
@@ -1096,13 +1137,14 @@ fn an_overlay_that_appears_after_the_press_cancels_the_release() {
 /// cleanup moved 8 px to suppress the click, which could start a drag and change a slider/curve.
 #[test]
 fn canceling_a_pressed_slider_releases_it_without_dragging_it() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("canceled-pressed-slider");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
     h.app.ui.open_sections = vec!["light".to_string()];
-    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles");
+    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "slider:light.exposure";
     let target = h.app.widgets.iter().rev().find(|(widget, _)| widget == id).map(|(_, rect)| *rect).expect("the slider is on screen");
     let before = h.app.session.develop_of(photo).expect("its develop settings").light.exposure;
@@ -1136,11 +1178,12 @@ fn canceling_a_pressed_slider_releases_it_without_dragging_it() {
 /// makes the target invisible too: the release is refused rather than clicking through it.
 #[test]
 fn a_nonprompt_overlay_that_appears_after_the_press_cancels_the_release() {
-    let mut h = Headless::new(app(), [1000.0, 760.0], 1.0);
+    let files = SyntheticLibrary::new("nonprompt-overlay-after-press");
+    let mut h = Headless::new(files.app(), [1000.0, 760.0], 1.0);
     h.step();
     let t = Duration::from_secs(20);
     assert_eq!(h.request("ui.key", serde_json::json!({"key": ",", "cmd": true}), t)["ok"], true);
-    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles");
+    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "check:settings.confirmDelete";
     let target = h.app.widgets.iter().rev().find(|(widget, _)| widget == id).map(|(_, rect)| *rect).expect("the checkbox is on screen");
     let before = h.app.ui.settings.confirm_delete;
@@ -1184,11 +1227,12 @@ fn a_nonprompt_overlay_that_appears_after_the_press_cancels_the_release() {
 /// `ui.clickWidget` counterpart of the press/release cancellation above.
 #[test]
 fn a_library_problem_overlay_blocks_a_control_click_in_settings() {
-    let mut h = Headless::new(app(), [1000.0, 760.0], 1.0);
+    let files = SyntheticLibrary::new("library-overlay-settings-click");
+    let mut h = Headless::new(files.app(), [1000.0, 760.0], 1.0);
     let t = Duration::from_secs(20);
     h.step();
     assert!(h.app.run("app.settings", serde_json::json!({})).is_ok(), "Settings opens");
-    assert!(h.settle(Duration::from_secs(60)), "Settings settles");
+    assert!(h.settle(Duration::from_secs(60)), "Settings settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "check:settings.confirmDelete";
     let before = h.app.ui.settings.confirm_delete;
     h.app.library_problem = Some(crate::panels::library_problem::LibraryProblem::new("/no/such/library", "test error"));
@@ -1476,10 +1520,15 @@ fn a_prompt_created_after_raw_input_hook_shields_a_held_background_press() {
 /// success after the prompt filters it.
 #[test]
 fn a_synthetic_press_already_delivered_is_canceled_by_a_prompt_created_after_raw_input_hook() {
-    let mut h = Headless::new(app(), [1200.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("press-after-raw-hook");
+    let mut h = Headless::new(files.app(), [1200.0, 900.0], 1.0);
     h.step();
     assert!(h.app.run("app.settings", serde_json::json!({})).is_ok(), "Settings opens");
-    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles before its target rect is captured");
+    assert!(
+        h.settle(Duration::from_secs(60)),
+        "the Settings dialog settles before its target rect is captured (pending slots: {:?})",
+        h.app.renderer.pending_slots()
+    );
     let id = "check:settings.confirmDelete";
     let target = h.app.widgets.iter().rev().find(|(widget, _)| widget == id).map(|(_, rect)| *rect).expect("the checkbox is on screen");
     let before = h.app.ui.settings.confirm_delete;
@@ -1512,13 +1561,14 @@ fn a_synthetic_press_already_delivered_is_canceled_by_a_prompt_created_after_raw
 /// stay unchanged.
 #[test]
 fn raw_background_gestures_at_a_settled_prompt_do_not_reach_the_covered_view() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("raw-gestures-settled-prompt");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
     assert!(h.app.run("app.settings", serde_json::json!({})).is_ok(), "Settings opens");
-    assert!(h.settle(Duration::from_secs(60)), "the detail view and Settings settle");
+    assert!(h.settle(Duration::from_secs(60)), "the detail view and Settings settle (pending slots: {:?})", h.app.renderer.pending_slots());
     let image = h.app.image_rect.expect("the detail image is on screen");
     let at = image.min + egui::vec2(12.0, 12.0);
     let before = h.app.ui.settings.confirm_delete;
@@ -1579,13 +1629,14 @@ fn a_prompt_keeps_key_releases_and_clears_held_keys() {
 /// moves/release are discarded, the pointer is released without a click, and the slider is intact.
 #[test]
 fn a_prompt_aborts_an_in_progress_synthetic_drag() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("prompt-aborts-drag");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
     h.app.ui.open_sections = vec!["light".to_string()];
-    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles");
+    assert!(h.settle(Duration::from_secs(60)), "the edit panel settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "slider:light.exposure";
     let before = h.app.session.develop_of(photo).expect("its develop settings").light.exposure;
     let (tx, rx) = reply_channel();
@@ -1736,12 +1787,13 @@ fn a_settings_notice_blocks_background_input_and_its_ok_button_works() {
 
 #[test]
 fn clipping_changed_between_the_move_and_press_is_seen_in_the_latest_registry() {
-    let mut h = Headless::new(app(), [1400.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("clipping-changed");
+    let mut h = Headless::new(files.app(), [1400.0, 900.0], 1.0);
     let photo = h.app.session.visible_cloned()[0];
     let t = Duration::from_secs(20);
     assert_eq!(h.request("engine.execute", serde_json::json!({"command": "library.select", "params": {"ids": [photo.0]}}), t)["ok"], true);
     assert_eq!(h.request("ui.set", serde_json::json!({"view": "detail", "right": "edit"}), t)["ok"], true);
-    assert!(h.settle(Duration::from_secs(60)), "the detail view settles");
+    assert!(h.settle(Duration::from_secs(60)), "the detail view settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "star:bottom:2";
     let (tx, rx) = reply_channel();
     h.app.admit_gesture(&h.view.ctx.clone(), "ui.clickWidget".into(), serde_json::json!({"id": id}), tx).expect("the click is admitted");
@@ -1811,12 +1863,13 @@ fn queued_pointer_cleanup_requests_a_repaint_without_a_synthetic_event() {
 
 #[test]
 fn a_moved_widget_cancels_before_its_first_event_and_leaves_a_later_gesture_queued() {
-    let mut h = Headless::new(app(), [1000.0, 760.0], 1.0);
+    let files = SyntheticLibrary::new("moved-widget-queued");
+    let mut h = Headless::new(files.app(), [1000.0, 760.0], 1.0);
     h.step();
     let t = Duration::from_secs(20);
     let r = h.request("ui.key", serde_json::json!({"key": ",", "cmd": true}), t);
     assert_eq!(r["ok"], true, "{r}");
-    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles");
+    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles (pending slots: {:?})", h.app.renderer.pending_slots());
     assert!(h.app.widgets.iter().any(|(id, _)| id == "check:settings.confirmDelete"));
     assert!(h.app.widgets.iter().any(|(id, _)| id == "button:settingsStartup-2"));
 
@@ -1862,12 +1915,13 @@ fn a_moved_widget_cancels_before_its_first_event_and_leaves_a_later_gesture_queu
 
 #[test]
 fn a_click_whose_target_vanishes_after_the_press_fails_and_releases_the_pointer() {
-    let mut h = Headless::new(app(), [1000.0, 760.0], 1.0);
+    let files = SyntheticLibrary::new("target-vanishes");
+    let mut h = Headless::new(files.app(), [1000.0, 760.0], 1.0);
     h.step();
     let t = Duration::from_secs(20);
     let r = h.request("ui.key", serde_json::json!({"key": ",", "cmd": true}), t);
     assert_eq!(r["ok"], true, "{r}");
-    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles");
+    assert!(h.settle(Duration::from_secs(60)), "the Settings dialog settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let before = h.app.ui.settings.confirm_delete;
 
     let (tx, rx) = reply_channel();
@@ -2053,11 +2107,12 @@ fn disclosure_rows_publish_expanded_not_toggled() {
 /// widget was clipped before delivery is refused, as is one under the non-modal library window.
 #[test]
 fn hover_widget_refuses_clipped_and_covered_targets() {
-    let mut h = Headless::new(app(), [1200.0, 900.0], 1.0);
+    let files = SyntheticLibrary::new("hover-refuses-clipped");
+    let mut h = Headless::new(files.app(), [1200.0, 900.0], 1.0);
     let t = Duration::from_secs(20);
     h.step();
     assert!(h.app.run("app.settings", serde_json::json!({})).is_ok(), "Settings opens");
-    assert!(h.settle(Duration::from_secs(60)), "Settings settles");
+    assert!(h.settle(Duration::from_secs(60)), "Settings settles (pending slots: {:?})", h.app.renderer.pending_slots());
     let id = "check:settings.confirmDelete";
     assert!(h.app.widget_hits.iter().any(|(widget, _)| widget == id), "{id} has a probe");
 
