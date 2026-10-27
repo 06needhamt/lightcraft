@@ -277,7 +277,7 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
 /// [`same_file`] for a check that must not let an unknown identity pass: `Err` when the metadata
 /// of either path cannot be read for a reason other than the path not existing (for example a
 /// folder it cannot enter), or when both paths exist with the same length but the file identity
-/// of either cannot be read (on Windows, when either file cannot be opened). A path that does not
+/// of either cannot be read (on Windows, when either file cannot be opened or reports file index 0). A path that does not
 /// exist is still `Ok(false)`.
 pub fn same_file_strict(a: &Path, b: &Path) -> io::Result<bool> {
     compare_files(a, b, true)
@@ -301,12 +301,12 @@ fn compare_files(a: &Path, b: &Path, strict: bool) -> io::Result<bool> {
             return Ok(false);
         }
         // A hard link has its own path but shares the volume serial number and file index with
-        // its original. A volume that reports file index 0 is compared by resolved path below.
+        // its original. A file index of 0 produces an error in strict mode. Lenient mode compares resolved paths.
         // On ReFS two files can share the 64-bit file index, so the lengths are compared first.
         #[cfg(windows)]
         {
-            match file_ids(a, b) {
-                Ok((ia, ib)) if same_file_id(ia, ib) => return Ok(true),
+            match file_ids(a, b).and_then(|(ia, ib)| same_file_id(ia, ib, strict)) {
+                Ok(true) => return Ok(true),
                 Ok(_) => {}
                 Err(e) if strict => return Err(e),
                 Err(_) => {}
@@ -328,11 +328,13 @@ fn file_ids(a: &Path, b: &Path) -> io::Result<((u64, u64), (u64, u64))> {
     Ok(((ia.volume_serial_number(), ia.file_index()), (ib.volume_serial_number(), ib.file_index())))
 }
 
-/// Whether two (volume serial number, file index) pairs name one file. A file index of 0 is not
-/// an identity and matches nothing.
+/// The comparison uses each file's volume serial number and file index. Strict mode returns an error for file index 0.
 #[cfg(any(windows, test))]
-fn same_file_id(a: (u64, u64), b: (u64, u64)) -> bool {
-    a.1 != 0 && b.1 != 0 && a == b
+fn same_file_id(a: (u64, u64), b: (u64, u64), strict: bool) -> io::Result<bool> {
+    if strict && (a.1 == 0 || b.1 == 0) {
+        return Err(io::Error::other("file identity is unavailable"));
+    }
+    Ok(a.1 != 0 && b.1 != 0 && a == b)
 }
 
 #[cfg(test)]
@@ -499,10 +501,14 @@ mod tests {
 
     #[test]
     fn a_zero_file_index_is_not_a_file_identity() {
-        assert!(same_file_id((7, 42), (7, 42)));
-        assert!(!same_file_id((7, 42), (7, 43)));
-        assert!(!same_file_id((7, 42), (8, 42)));
-        assert!(!same_file_id((7, 0), (7, 0)), "two files on a volume that reports index 0 are not the same file");
-        assert!(!same_file_id((0, 0), (0, 0)));
+        for strict in [false, true] {
+            assert!(same_file_id((7, 42), (7, 42), strict).unwrap());
+            assert!(!same_file_id((7, 42), (7, 43), strict).unwrap());
+            assert!(!same_file_id((7, 42), (8, 42), strict).unwrap());
+        }
+        for (a, b) in [((7, 0), (7, 0)), ((0, 0), (0, 0)), ((7, 42), (7, 0)), ((7, 0), (7, 42))] {
+            assert!(same_file_id(a, b, true).is_err(), "strict comparison must reject an unavailable identity: {a:?}, {b:?}");
+            assert!(!same_file_id(a, b, false).unwrap(), "lenient comparison can fall back to resolved paths");
+        }
     }
 }

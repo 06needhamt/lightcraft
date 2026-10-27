@@ -370,10 +370,12 @@ mod tests {
         // identity of either name cannot be read while it is held.
         let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&original).unwrap();
         let refused = s.pin_write_target(&linked.to_string_lossy()).unwrap_err();
-        assert!(refused.contains("original"), "{refused}");
+        assert!(refused.contains("cannot tell whether"), "{refused}");
         drop(held);
 
-        assert!(s.pin_write_target(&linked.to_string_lossy()).unwrap_err().contains("original"));
+        let refused = s.pin_write_target(&linked.to_string_lossy()).unwrap_err();
+        assert!(refused.contains("original"), "{refused}");
+        assert!(!refused.contains("cannot tell whether"), "{refused}");
         let _ = std::fs::remove_dir_all(&d);
     }
 }
