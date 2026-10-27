@@ -20,7 +20,7 @@ Only when something would be lost:
 - A task that can be stopped is still running, such as an import or an export. LightCraft asks **Quit while tasks are running?** Choose **Cancel** to keep working, or **Quit Anyway** to stop the task and quit.
 - Some changes couldn't be written to disk, for example because a drive was unplugged. LightCraft tries to save them again, and if that still fails it asks **Quit with unsaved changes?** Choose **Cancel** to stay, **Try Saving Again** once the drive is back, or **Quit Anyway** to give up those changes.
 
-With nothing running and everything saved, the window closes and LightCraft quits at once. Your library (including your edits) and settings are saved as the app quits.
+With nothing running and everything saved, the window closes and LightCraft quits at once. As the app quits, LightCraft saves your settings and closes your library. If either save fails, the error goes to the log file and the app quits anyway.
 
 The second window (**Window** > **Second Window**) is different: its red button, or ⌘W while it is in front, closes only that window, and LightCraft keeps running.
 
