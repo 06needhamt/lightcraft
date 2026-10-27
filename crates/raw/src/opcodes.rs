@@ -381,7 +381,7 @@ fn parse_gain_map(area: Area, reader: &mut Rd<'_>) -> Option<Opcode> {
     let origin = [reader.finite_f64()?, reader.finite_f64()?];
     let map_planes = reader.u32()?;
     let count = (points_v as usize).checked_mul(points_h as usize)?.checked_mul(map_planes as usize)?;
-    if count == 0 || count * 4 > reader.remaining() {
+    if count == 0 || count > reader.remaining() / 4 {
         return None;
     }
     let gains = (0..count).map(|_| reader.f32()).collect::<Option<_>>()?;
@@ -390,7 +390,7 @@ fn parse_gain_map(area: Area, reader: &mut Rd<'_>) -> Option<Opcode> {
 
 fn parse_delta_scale(id: u32, area: Area, reader: &mut Rd<'_>) -> Option<Opcode> {
     let count = reader.u32()? as usize;
-    if count * 4 > reader.remaining() {
+    if count > reader.remaining() / 4 {
         return None;
     }
     let values: Vec<f32> = (0..count).map(|_| reader.f32()).collect::<Option<_>>()?;
