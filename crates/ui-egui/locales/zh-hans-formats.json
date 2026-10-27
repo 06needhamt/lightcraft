@@ -135,6 +135,7 @@
   "Label Set: {name}": "标签集：{name}",
   "Quick Develop: {name}": "快速编辑：{name}",
   "Reset {name}": "重置{name}",
+  "{name} value": "{name}的值",
   "Updated “{name}”": "已更新“{name}”",
   "{verb} {n} Photo{}": "{verb} {n} 张照片{:.0}",
   "{year}": "{year}年",

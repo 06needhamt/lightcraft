@@ -115,6 +115,7 @@
   "Rendering on the CPU: {why}": "Rendu sur le processeur : {why}",
   "Replace {} with:": "Remplacer {} par :",
   "Reset {name}": "Réinitialiser {name}",
+  "{name} value": "{name} : valeur",
   "Reset {} Channel": "Réinitialiser le canal {}",
   "Restore {}": "Restaurer {}",
   "Restore {} Photo{}": "Restaurer {} photo{}",

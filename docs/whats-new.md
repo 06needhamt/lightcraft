@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### Screen readers name a slider's value field "value"
+- The number beside a slider is now named "Exposure value" (the slider's name and "value"), and "Click to type a value,
+  drag to change it" is its description. It was named "Exposure: Click to type a value, drag to change it", so
+  VoiceOver read the whole sentence each time it reached the field, once for every slider in the Edit panel.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

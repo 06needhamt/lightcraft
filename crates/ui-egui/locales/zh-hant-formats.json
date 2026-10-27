@@ -80,6 +80,7 @@
   "Rename “{name}”": "重新命名「{name}」",
   "Rendering on the CPU: {why}": "使用 CPU 算繪：{why}",
   "Reset {name}": "重設{name}",
+  "{name} value": "{name}的數值",
   "Reset {} Channel": "重設 {} 通道",
   "Restore {}": "還原為 {}",
   "Restore {} Photo{}": "還原 {} 張照片{:.0}",
