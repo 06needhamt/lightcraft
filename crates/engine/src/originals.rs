@@ -229,6 +229,10 @@ impl crate::Session {
         let parent = p.parent().filter(|d| !d.as_os_str().is_empty()).and_then(|d| std::fs::canonicalize(d).ok());
         match std::fs::symlink_metadata(p) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // nothing there yet, but a new file with a photo's sidecar name would be read as its edits
+                if is_xmp(p) {
+                    self.original_guard().check(p)?;
+                }
                 Ok(WriteTarget { path: path.to_string(), state: WriteTargetState::Absent, parent })
             }
             Err(error) => Err(format!("{path}: {error}")),
@@ -326,6 +330,12 @@ mod tests {
         assert!(g.check(&d.join("sub/IMG_1.xmp")).is_ok(), "the same name in another folder");
         assert!(g.check(&d.join("other.xmp")).is_ok(), "no photo of that name");
         assert!(g.check(&d.join("missing/IMG_1.xmp")).is_ok(), "a folder that isn't there");
+        // a write pinned ahead of time (a queued screenshot) is refused the same way
+        let mut s = crate::Session::new();
+        s.catalog = c;
+        let pinned = s.pin_write_target(&d.join("IMG_1.xmp").to_string_lossy());
+        assert!(pinned.unwrap_err().contains("XMP sidecar of IMG_1.jpg"));
+        assert!(s.pin_write_target(&d.join("sub/IMG_1.xmp").to_string_lossy()).is_ok(), "the same name in another folder");
         let _ = std::fs::remove_dir_all(&d);
     }
 
