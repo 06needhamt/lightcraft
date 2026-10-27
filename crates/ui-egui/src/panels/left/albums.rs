@@ -1,5 +1,5 @@
 use super::folders::{folder_menu, is_within};
-use super::rows::{INDENT_STEP, indent_x, row_sensed, set_tree_open, tree_open, tree_toggle};
+use super::rows::{INDENT_STEP, Row, indent_x, set_tree_open, tree_open, tree_toggle};
 use super::{Album, AlbumId, Align2, Icon, LibrarySource, LightcraftApp, Rect, Sense, Tokens, json, pos2, register, vec2};
 
 /// Albums: the tree of albums and the folders they are sorted into. `reveal`: an album just made,
@@ -34,8 +34,7 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
                 open = true;
                 set_tree_open(ui, open_id, true);
             }
-            let resp =
-                row_sensed(app, ui, &format!("folder:{}", a.id.0), Icon::Folder, &a.name, None, None, false, indent, Sense::click_and_drag(), None);
+            let resp = Row::new(&format!("folder:{}", a.id.0), Icon::Folder, &a.name).indent(indent).sense(Sense::click_and_drag()).show(app, ui);
             // a folder is no source, so its row folds it too; the triangle is the same click, aimed
             let has_children = all.get(&Some(a.id)).is_some_and(|v| !v.is_empty());
             if resp.drag_started() {
@@ -74,7 +73,12 @@ fn albums_tree(app: &mut LightcraftApp, ui: &mut egui::Ui, all: &AlbumKids, pare
             // a smart album whose rules no longer check (an album they test was deleted) says so
             let problems = app.caches.smart_album_problems(&app.session.catalog).get(&a.id).cloned().unwrap_or_default();
             let label = if problems.is_empty() { label } else { format!("⚠ {label}") };
-            let mut resp = row_sensed(app, ui, &format!("album:{}", a.id.0), icon, &label, None, Some(n), sel, indent, Sense::click_and_drag(), None);
+            let mut resp = Row::new(&format!("album:{}", a.id.0), icon, &label)
+                .count(Some(n))
+                .selected(sel)
+                .indent(indent)
+                .sense(Sense::click_and_drag())
+                .show(app, ui);
             if !problems.is_empty() {
                 crate::widgets::register(ui, format!("albumProblem:{}", a.id.0), resp.rect);
             }

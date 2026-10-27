@@ -33,17 +33,25 @@ const REGION_HANDLES: [(f32, f32, egui::CursorIcon); 8] = [
 /// on release (one undo step); the × reports the region to remove. Both are catalog-only edits:
 /// LightCraft doesn't write regions to XMP. Regions are stored on the upright (EXIF-oriented) photo;
 /// `orient` is the user's Rotate / Flip on top of it, which the loupe's normalized frame includes.
+/// What the face/pet/focus regions of a photo are drawn from.
+pub(super) struct RegionContext<'a> {
+    pub photo: &'a lightcraft_catalog::Photo,
+    /// the user's Rotate / Flip on top of the upright photo
+    pub orient: lightcraft_geom::Orientation,
+    pub hints: Option<&'a crate::panels::faces::Hints>,
+    /// the names to offer when a region is named
+    pub people: &'a [String],
+    pub setup: crate::panels::faces::Setup,
+}
+
 pub(super) fn region_overlay(
     ui: &egui::Ui,
     p: &egui::Painter,
     map: &CanvasMap,
-    photo: &lightcraft_catalog::Photo,
-    orient: lightcraft_geom::Orientation,
-    hints: Option<&crate::panels::faces::Hints>,
-    people: &[String],
+    regions: &RegionContext,
     editing: &mut Option<crate::state::NameEdit>,
-    setup: crate::panels::faces::Setup,
 ) -> Option<RegionEdit> {
+    let RegionContext { photo, orient, hints, people, setup } = *regions;
     let t = Tokens::get(p.ctx());
     let clip = p.clip_rect();
     let pointer = ui.input(|i| i.pointer.hover_pos());

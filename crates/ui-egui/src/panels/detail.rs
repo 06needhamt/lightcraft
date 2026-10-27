@@ -46,7 +46,7 @@ use info::{
     preview_only_pill, quick_name,
 };
 pub(crate) use info::{draw_focus_point, failed_pill, loupe_pill, rendering_overdue};
-use masks::{RegionEdit, color_range_pick, mask_overlay, region_overlay};
+use masks::{RegionContext, RegionEdit, color_range_pick, mask_overlay, region_overlay};
 use retouch::{eye_overlay, remove_overlay};
 pub(crate) use window::overlay_supports_window;
 use window::{WindowCtx, WindowView, draw_window, request_window};
@@ -541,7 +541,8 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         let people = if app.ui.name_edit.is_some() { app.caches.person_names(&app.session.catalog) } else { Default::default() };
         // while the name box is open and recognition is not set up, the box offers the next step
         let setup = if app.ui.name_edit.is_some() { super::faces::setup(app, ui.ctx()) } else { super::faces::Setup::Running };
-        match region_overlay(ui, &p, &map, &photo, d.orientation, hints.as_deref(), &people, &mut app.ui.name_edit, setup) {
+        let regions = RegionContext { photo: &photo, orient: d.orientation, hints: hints.as_deref(), people: &people, setup };
+        match region_overlay(ui, &p, &map, &regions, &mut app.ui.name_edit) {
             Some(RegionEdit::SetUp) => {
                 app.ui.name_edit = None;
                 super::faces::take_step(app, ui.ctx(), setup);
@@ -596,7 +597,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
                     (true, Some(before), Some(q)) if before.contains(q) => (CanvasMap::new(&frame, before_img), before_img, *before),
                     _ => (map, img_rect, main_area),
                 };
-                general_interaction(app, ui, &resp, &map, img, pane, native, aspect)
+                general_interaction(app, ui, &resp, &map, &PhotoPlacement { img, canvas: pane, native, aspect })
             }
         }
     }
@@ -761,16 +762,19 @@ fn general_cursor(app: &LightcraftApp, ui: &egui::Ui, resp: &egui::Response, img
     ui.ctx().set_cursor_icon(cursor);
 }
 
-fn general_interaction(
-    app: &mut LightcraftApp,
-    ui: &mut egui::Ui,
-    resp: &egui::Response,
-    map: &CanvasMap,
+/// Where the photo is on the canvas.
+struct PhotoPlacement {
+    /// the photo's rectangle
     img: Rect,
+    /// the canvas it is shown on
     canvas: Rect,
+    /// the photo's size in pixels
     native: [usize; 2],
     aspect: f32,
-) {
+}
+
+fn general_interaction(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, placement: &PhotoPlacement) {
+    let PhotoPlacement { img, canvas, native, aspect } = *placement;
     if app.ui.tool == "wbPicker" {
         if resp.clicked()
             && let Some(q) = resp.interact_pointer_pos()
