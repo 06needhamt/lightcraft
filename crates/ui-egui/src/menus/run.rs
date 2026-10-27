@@ -1324,24 +1324,7 @@ fn ui_commands_11(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Va
         }
         "file.findMissing" => file_find_missing_command(app, id, p),
         "photo.tagFromTracklog" => photo_tag_from_tracklog_command(app, ctx, id, p),
-        "photo.locate" => {
-            let Some(id) = app.session.active() else { return Some(Err("no photo selected".into())) };
-            let path = match p.get("path").and_then(Value::as_str) {
-                Some(x) => Some(x.to_string()),
-                None => {
-                    let req =
-                        PickRequest::file(crate::i18n::tr("Locate Missing File…"), crate::i18n::tr("Photos"), lightcraft_engine::import::EXTENSIONS);
-                    match crate::pick::ask(app, "photo.locate", p, "path", req, |s| s.pick_files.as_mut().map(|f| f())) {
-                        Picked::Now(v) => v.into_iter().next(),
-                        Picked::Later | Picked::Unavailable => None,
-                    }
-                }
-            };
-            match path {
-                Some(path) => app.run("photo.relink", json!({"id": id.0, "path": path})),
-                None => Ok(Value::Null),
-            }
-        }
+        "photo.locate" => photo_locate_command(app, p),
         "file.addFromDevice" => {
             // a camera / card: review its DCIM folder, copying into the library by default
             let path = match p.get("path").and_then(Value::as_str) {
@@ -1729,6 +1712,25 @@ fn find_missing_done(app: &mut LightcraftApp, ctx: &egui::Context, plan: Result<
     }
 }
 
+/// The `photo.locate` command.
+fn photo_locate_command(app: &mut LightcraftApp, p: &Value) -> Result<Value, String> {
+    let Some(id) = app.session.active() else { return Err("no photo selected".into()) };
+    let path = match p.get("path").and_then(Value::as_str) {
+        Some(x) => Some(x.to_string()),
+        None => {
+            let req = PickRequest::file(crate::i18n::tr("Locate Missing File…"), crate::i18n::tr("Photos"), lightcraft_engine::import::EXTENSIONS);
+            match crate::pick::ask(app, "photo.locate", p, "path", req, |s| s.pick_files.as_mut().map(|f| f())) {
+                Picked::Now(v) => v.into_iter().next(),
+                Picked::Later | Picked::Unavailable => None,
+            }
+        }
+    };
+    match path {
+        Some(path) => app.run("photo.relink", json!({"id": id.0, "path": path})),
+        None => Ok(Value::Null),
+    }
+}
+
 /// The `file.findMissing` command.
 fn file_find_missing_command(app: &mut LightcraftApp, id: &str, p: &Value) -> Result<Value, String> {
     let within = find_missing_within(p)?;
@@ -1827,27 +1829,152 @@ fn photo_tag_from_tracklog_command(app: &mut LightcraftApp, _ctx: &egui::Context
     r
 }
 
-/// The `file.importPresets` command.
-fn file_import_presets_command(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Value) -> Result<Value, String> {
-    let paths = match p.get("paths").and_then(Value::as_array) {
+/// The files a command names in `paths`, else the ones picked in a dialog. `Err` is the command's own answer when
+/// there is nothing to import (the dialog is still open or was cancelled, or none is available).
+fn paths_or_pick(
+    app: &mut LightcraftApp,
+    id: &str,
+    p: &Value,
+    request: PickRequest,
+    now: impl FnOnce(&mut crate::services::Services) -> Option<Vec<String>>,
+) -> Result<Vec<String>, Result<Value, String>> {
+    let paths: Vec<String> = match p.get("paths").and_then(Value::as_array) {
         Some(a) => a.iter().filter_map(Value::as_str).map(str::to_string).collect(),
-        None => {
-            let req = PickRequest::files(
-                Some(crate::i18n::tr("Import Presets").into()),
-                crate::i18n::tr("Presets & Profiles"),
-                crate::pick::PRESET_EXTENSIONS,
-            );
-            match crate::pick::ask(app, id, p, "paths", req, |s| s.pick_preset_files.as_mut().map(|f| f())) {
-                Picked::Now(paths) => paths,
-                Picked::Later => return Ok(Value::Null),
-                Picked::Unavailable => return Err("no file dialog on this platform".into()),
-            }
-        }
+        None => match crate::pick::ask(app, id, p, "paths", request, now) {
+            Picked::Now(paths) => paths,
+            Picked::Later => return Err(Ok(Value::Null)),
+            Picked::Unavailable => return Err(Err("no file dialog on this platform".into())),
+        },
     };
     if paths.is_empty() {
-        return Ok(Value::Null);
+        return Err(Ok(Value::Null));
     }
-    // .cube LUTs (and those inside zips / folders) become profiles
+    Ok(paths)
+}
+
+/// What an import of presets and profiles has to say: one toast for both halves (a second toast would replace the first).
+#[derive(Default)]
+struct ImportNews {
+    parts: Vec<String>,
+    /// `name: reason` for each file that couldn't be imported
+    problems: Vec<String>,
+}
+
+/// `name: reason` for each `[name, reason]` of a `failed` list.
+fn failed_files(v: &Value) -> impl Iterator<Item = String> + '_ {
+    v["failed"].as_array().into_iter().flatten().map(|f| {
+        let name = f.get(0).and_then(Value::as_str).unwrap_or_default();
+        let reason = f.get(1).and_then(Value::as_str).unwrap_or_default();
+        format!("{name}: {reason}")
+    })
+}
+
+/// `s` for a count other than one.
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+/// Import the `.cube` LUTs (and those inside zips / folders) as profiles; the answer to report back.
+fn import_luts(app: &mut LightcraftApp, lut_paths: &[&String], news: &mut ImportNews) -> Value {
+    match app.session.execute("profile.import", &json!({"paths": lut_paths})) {
+        Ok(v) => {
+            let profiles = v["imported"].as_array().map_or(0, Vec::len);
+            if profiles > 0 {
+                news.parts.push(crate::i18n::tr_format!(
+                    "Imported {profiles} profile{} (Profile browser ▸ their groups)",
+                    plural(profiles),
+                    profiles = profiles
+                ));
+            }
+            news.problems.extend(failed_files(&v));
+            v
+        }
+        Err(e) => {
+            news.problems.push(e.to_string());
+            json!({"error": e.to_string()})
+        }
+    }
+}
+
+/// The settings of imported presets that have no counterpart here (the other editor's profiles, masks…), as a note.
+fn not_carried_over(v: &Value) -> String {
+    let mut skipped: Vec<&str> = v["imported"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|i| i["unmapped"].as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .collect();
+    skipped.sort_unstable();
+    skipped.dedup();
+    if skipped.is_empty() {
+        return String::new();
+    }
+    let names: Vec<&str> = skipped.iter().take(3).copied().collect();
+    crate::i18n::tr_format!(" — not carried over: {}{}", names.join(", "), if skipped.len() > 3 { "…" } else { "" })
+}
+
+/// The sentence for the presets of an import (none when the other half already says what happened).
+fn presets_sentence(v: &Value, profile_news: bool) -> Option<String> {
+    let n = v["imported"].as_array().map_or(0, Vec::len);
+    let failed = v["failed"].as_array().map_or(0, Vec::len);
+    let msg = match (n, failed) {
+        // a zip of LUTs (or only local presets): the other half already says what happened
+        (0, 0) if profile_news => return None,
+        (0, 0) => "No new presets".to_string(),
+        (n, 0) => crate::i18n::tr_format!("Imported {n} preset{}", plural(n), n = n),
+        (n, f) => crate::i18n::tr_format!("Imported {n} preset{}, {f} file{} not readable", plural(n), plural(f), f = f, n = n),
+    };
+    Some(msg + &not_carried_over(v))
+}
+
+/// Import the preset files; adds to what `news` reports.
+fn import_preset_files(app: &mut LightcraftApp, preset_paths: &[&String], news: &mut ImportNews) -> Result<Value, String> {
+    if preset_paths.is_empty() {
+        return Ok(json!({"imported": [], "failed": [], "skipped": 0}));
+    }
+    let r = app.session.execute("preset.import", &json!({"paths": preset_paths})).map_err(|e| e.to_string());
+    if let Ok(v) = &r {
+        // Lightroom local adjustment presets land in the Masking panel's Effect menu: part of the same toast
+        if v["effects"].as_array().is_some_and(|e| !e.is_empty()) {
+            news.parts.push(crate::panels::mask_effects::import_toast(v));
+        }
+        let profile_news = !news.parts.is_empty() || !news.problems.is_empty();
+        news.parts.extend(presets_sentence(v, profile_news));
+        if v["imported"].as_array().is_some_and(|i| !i.is_empty()) {
+            app.ui.presets = true;
+        }
+    }
+    r
+}
+
+/// Show what an import did: errors if any file failed, else the parts.
+fn toast_import_news(app: &mut LightcraftApp, ctx: &egui::Context, news: &ImportNews) {
+    let mut msg = news.parts.join(" · ");
+    if news.problems.is_empty() {
+        if !msg.is_empty() {
+            app.toast(ctx, msg);
+        }
+        return;
+    }
+    let more = if news.problems.len() > 2 { "…" } else { "" };
+    let detail = format!("{}{more}", news.problems.iter().take(2).cloned().collect::<Vec<_>>().join("; "));
+    if msg.is_empty() {
+        msg = crate::i18n::tr_format!("Import failed: {e}", e = detail);
+    } else {
+        msg += &crate::i18n::tr_format!(" · {} failed: {}", news.problems.len(), detail);
+    }
+    app.toast_error(ctx, msg);
+}
+
+/// The `file.importPresets` command.
+fn file_import_presets_command(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Value) -> Result<Value, String> {
+    let request =
+        PickRequest::files(Some(crate::i18n::tr("Import Presets").into()), crate::i18n::tr("Presets & Profiles"), crate::pick::PRESET_EXTENSIONS);
+    let paths = match paths_or_pick(app, id, p, request, |s| s.pick_preset_files.as_mut().map(|f| f())) {
+        Ok(paths) => paths,
+        Err(answer) => return answer,
+    };
     let lut_paths: Vec<&String> = paths
         .iter()
         .filter(|p| {
@@ -1855,102 +1982,16 @@ fn file_import_presets_command(app: &mut LightcraftApp, ctx: &egui::Context, id:
             l.ends_with(".cube") || l.ends_with(".zip") || std::path::Path::new(p.as_str()).is_dir()
         })
         .collect();
-    // one toast for both halves (a second toast would replace the first)
-    let mut parts: Vec<String> = Vec::new();
-    // `name: reason` for each file that couldn't be imported
-    let mut problems: Vec<String> = Vec::new();
-    let mut profiles_result = Value::Null;
-    if !lut_paths.is_empty() {
-        match app.session.execute("profile.import", &json!({"paths": lut_paths})) {
-            Ok(v) => {
-                let profiles = v["imported"].as_array().map_or(0, Vec::len);
-                if profiles > 0 {
-                    parts.push(crate::i18n::tr_format!(
-                        "Imported {profiles} profile{} (Profile browser ▸ their groups)",
-                        if profiles == 1 { "" } else { "s" },
-                        profiles = profiles
-                    ));
-                }
-                problems.extend(v["failed"].as_array().into_iter().flatten().map(|f| {
-                    let name = f.get(0).and_then(Value::as_str).unwrap_or_default();
-                    let reason = f.get(1).and_then(Value::as_str).unwrap_or_default();
-                    format!("{name}: {reason}")
-                }));
-                profiles_result = v;
-            }
-            Err(e) => {
-                problems.push(e.to_string());
-                profiles_result = json!({"error": e.to_string()});
-            }
-        }
-    }
+    let mut news = ImportNews::default();
+    let profiles = if lut_paths.is_empty() { Value::Null } else { import_luts(app, &lut_paths, &mut news) };
     let preset_paths: Vec<&String> = paths.iter().filter(|p| !p.to_ascii_lowercase().ends_with(".cube")).collect();
-    let r = if preset_paths.is_empty() {
-        Ok(json!({"imported": [], "failed": [], "skipped": 0}))
-    } else {
-        app.session.execute("preset.import", &json!({"paths": preset_paths})).map_err(|e| e.to_string())
-    };
-    if let (false, Ok(v)) = (preset_paths.is_empty(), &r) {
-        let n = v["imported"].as_array().map_or(0, Vec::len);
-        let failed = v["failed"].as_array().map_or(0, Vec::len);
-        // Lightroom local adjustment presets land in the Masking panel's Effect menu: part of the same toast
-        let effects = v["effects"].as_array().map_or(0, Vec::len);
-        if effects > 0 {
-            parts.push(crate::panels::mask_effects::import_toast(v));
-        }
-        let profile_news = !parts.is_empty() || !problems.is_empty();
-        let msg = match (n, failed) {
-            // a zip of LUTs (or only local presets): the other half already says what happened
-            (0, 0) if profile_news => None,
-            (0, 0) => Some("No new presets".to_string()),
-            (n, 0) => Some(crate::i18n::tr_format!("Imported {n} preset{}", if n == 1 { "" } else { "s" }, n = n)),
-            (n, f) => Some(crate::i18n::tr_format!(
-                "Imported {n} preset{}, {f} file{} not readable",
-                if n == 1 { "" } else { "s" },
-                if f == 1 { "" } else { "s" },
-                f = f,
-                n = n
-            )),
-        };
-        if let Some(mut msg) = msg {
-            // settings with no counterpart here (the other editor's profiles, masks…)
-            let mut skipped: Vec<&str> = v["imported"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .flat_map(|i| i["unmapped"].as_array().into_iter().flatten())
-                .filter_map(Value::as_str)
-                .collect();
-            skipped.sort_unstable();
-            skipped.dedup();
-            if !skipped.is_empty() {
-                let names: Vec<&str> = skipped.iter().take(3).copied().collect();
-                msg += &crate::i18n::tr_format!(" — not carried over: {}{}", names.join(", "), if skipped.len() > 3 { "…" } else { "" });
-            }
-            parts.push(msg);
-        }
-        if n > 0 {
-            app.ui.presets = true;
-        }
-    }
-    let mut msg = parts.join(" · ");
-    if !problems.is_empty() {
-        let detail = format!("{}{}", problems.iter().take(2).cloned().collect::<Vec<_>>().join("; "), if problems.len() > 2 { "…" } else { "" });
-        if msg.is_empty() {
-            msg = crate::i18n::tr_format!("Import failed: {e}", e = detail);
-        } else {
-            msg += &crate::i18n::tr_format!(" · {} failed: {}", problems.len(), detail);
-        }
-        app.toast_error(ctx, msg);
-    } else if !msg.is_empty() {
-        app.toast(ctx, msg);
-    }
-    
+    let r = import_preset_files(app, &preset_paths, &mut news);
+    toast_import_news(app, ctx, &news);
     r.map(|mut v| {
         if !lut_paths.is_empty()
             && let Some(o) = v.as_object_mut()
         {
-            o.insert("profiles".into(), profiles_result);
+            o.insert("profiles".into(), profiles);
         }
         v
     })
@@ -2070,35 +2111,31 @@ fn file_export_mask_effects_command(app: &mut LightcraftApp, ctx: &egui::Context
 
 /// The `file.importCurvePresets` command.
 fn file_import_curve_presets_command(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Value) -> Result<Value, String> {
-    let paths: Vec<String> = match p.get("paths").and_then(Value::as_array) {
-        Some(a) => a.iter().filter_map(Value::as_str).map(str::to_string).collect(),
-        None => {
-            let req = PickRequest::files(
-                Some(crate::i18n::tr("Import Point Curve Presets").into()),
-                crate::i18n::tr("Point Curve Presets"),
-                crate::pick::CURVE_PRESET_EXTENSIONS,
-            );
-            match crate::pick::ask(app, id, p, "paths", req, |s| s.pick_curve_preset_files.as_mut().map(|f| f())) {
-                Picked::Now(paths) => paths,
-                Picked::Later => return Ok(Value::Null),
-                Picked::Unavailable => return Err("no file dialog on this platform".into()),
-            }
-        }
+    let request = PickRequest::files(
+        Some(crate::i18n::tr("Import Point Curve Presets").into()),
+        crate::i18n::tr("Point Curve Presets"),
+        crate::pick::CURVE_PRESET_EXTENSIONS,
+    );
+    let paths = match paths_or_pick(app, id, p, request, |s| s.pick_curve_preset_files.as_mut().map(|f| f())) {
+        Ok(paths) => paths,
+        Err(answer) => return answer,
     };
-    if paths.is_empty() {
-        return Ok(Value::Null);
-    }
     let r = app.session.execute("curve.importPresets", &json!({"paths": paths})).map_err(|e| e.to_string());
     if let Ok(v) = &r {
-        let n = v["imported"].as_array().map_or(0, Vec::len);
-        let failed = v["failed"].as_array().map_or(0, Vec::len);
-        let mut msg = crate::i18n::tr_format!("Imported {n} point curve preset{}", if n == 1 { "" } else { "s" }, n = n);
-        if failed > 0 {
-            msg += &crate::i18n::tr_format!(", {failed} file{} not readable", if failed == 1 { "" } else { "s" }, failed = failed);
-        }
-        app.toast(ctx, msg);
+        app.toast(ctx, curve_import_message(v));
     }
     r
+}
+
+/// What an import of point curve presets did.
+fn curve_import_message(v: &Value) -> String {
+    let n = v["imported"].as_array().map_or(0, Vec::len);
+    let failed = v["failed"].as_array().map_or(0, Vec::len);
+    let imported = crate::i18n::tr_format!("Imported {n} point curve preset{}", plural(n), n = n);
+    if failed == 0 {
+        return imported;
+    }
+    imported + &crate::i18n::tr_format!(", {failed} file{} not readable", plural(failed), failed = failed)
 }
 
 /// The `file.exportCurvePresets` command.
