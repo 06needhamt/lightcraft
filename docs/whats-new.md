@@ -1,5 +1,10 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### The macOS menu bar shows every row
+- File ▸ Export… no longer reads “Custom…”, File ▸ Export with Preset keeps its Custom… row, and Photo ▸ Add to Album keeps New Album…. When two menu rows ran the same command, the menu bar left the second one out and gave the first one its label; now each row is its own item and a click on either one runs the command. The View menu now also lists its second Layout Image row (without a key), as the in-window menu does.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
