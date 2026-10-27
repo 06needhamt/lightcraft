@@ -470,6 +470,16 @@ fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> 
                 *error = Some(e);
             }
         }
+        // a one-line prompt that is refused stays open with its text, so the name can be fixed
+        Err(e) if matches!(dlg, Dialog::TextPrompt { .. }) => app.toast_error(ctx, e),
+        // a folder made on disk says so (the new folder holds no photos yet)
+        Ok(r) if matches!(&dlg, Dialog::TextPrompt { command, .. } if command == "folder.create") => {
+            if let Dialog::TextPrompt { params, .. } = &dlg {
+                let (path, parent) = (r["path"].as_str().unwrap_or_default(), params["parent"].as_str().unwrap_or_default());
+                app.toast(ctx, crate::panels::left::created_text(path, parent));
+            }
+            closed = true;
+        }
         Ok(r) if matches!(dlg, Dialog::NewAlbum { .. }) && r.get("skipped").and_then(serde_json::Value::as_u64).is_some_and(|n| n > 0) => {
             // albums hold library photos (issue #684): say which part of the selection stayed out
             crate::panels::grid::toast_skipped(app, ctx, &r);

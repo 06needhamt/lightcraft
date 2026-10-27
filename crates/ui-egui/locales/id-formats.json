@@ -251,6 +251,7 @@
   "{what} merge cancelled": "Penggabungan {what} dibatalkan",
   "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)": "{n} foto Lokal{:.0} dilewati: album hanya dapat berisi foto pustaka (tambahkan ke Foto saya terlebih dahulu)",
   "New Folder in “{name}”": "Folder baru di “{name}”",
+  "Created folder “{name}” in “{parent}”": "Folder “{name}” dibuat di “{parent}”",
   "Moved {} photo(s)": "{} foto dipindahkan",
   "not added to Apple Photos: {e}": "tidak ditambahkan ke Apple Photos: {e}",
   "{n} added to Apple Photos album “{album}”": "{n} ditambahkan ke album Apple Photos “{album}”",

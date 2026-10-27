@@ -248,6 +248,7 @@
   "{what} merge cancelled": "{what}: слияние отменено",
   "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)": "Пропущено локальных фото: {n}{0:.0} — в альбомах только фото из библиотеки (сначала добавьте их в «Мои фото»)",
   "New Folder in “{name}”": "Новая папка в «{name}»",
+  "Created folder “{name}” in “{parent}”": "Папка «{name}» создана в «{parent}»",
   "Moved {} photo(s)": "Перемещено фото: {}",
   "not added to Apple Photos: {e}": "не добавлено в Apple Фото: {e}",
   "{n} added to Apple Photos album “{album}”": "Добавлено в альбом «{album}» Apple Фото: {n}",

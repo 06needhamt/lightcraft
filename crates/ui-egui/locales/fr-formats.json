@@ -248,6 +248,7 @@
   "{what} merge cancelled": "Fusion {what} annulée",
   "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)": "Photos locales ignorées : {n}{0:.0} — les albums contiennent des photos de la bibliothèque (ajoutez-les d’abord à Mes photos)",
   "New Folder in “{name}”": "Nouveau dossier dans « {name} »",
+  "Created folder “{name}” in “{parent}”": "Dossier « {name} » créé dans « {parent} »",
   "Moved {} photo(s)": "{} photo(s) déplacée(s)",
   "not added to Apple Photos: {e}": "non ajouté à Apple Photos : {e}",
   "{n} added to Apple Photos album “{album}”": "{n} ajouté(s) à l'album Apple Photos « {album} »",

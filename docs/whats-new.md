@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### A refused name prompt stays open and says why
+- A one-line prompt (Rename Folder, New Folder on Disk, the preset and version names, New Library for a name it can't
+  use, Auto-Tag from Tracklog) that the app refuses, for example a folder name that is taken, now stays open with what
+  you typed and shows the reason, so you can change the name. Before, it closed without a word. A New Folder on Disk
+  that works now says so: “Created folder “Selects” in “2026/Shoot””. Cancel and Esc still close the prompt.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

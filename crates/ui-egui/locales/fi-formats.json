@@ -134,6 +134,7 @@
   "Moved; {} photo(s) relinked": "Siirretty; yhdistetty uudelleen kuvia: {}",
   "Named ({named_n})": "Nimetyt ({named_n})",
   "New Folder in “{name}”": "Uusi kansio kohteessa ”{name}”",
+  "Created folder “{name}” in “{parent}”": "Kansio ”{name}” luotu kohteeseen ”{parent}”",
   "On {have} of {of} selected photos": "{have} / {of} valitulla kuvalla",
   "Painting “{k}”: click photos to add or remove it · Esc stops": "Maalataan ”{k}”: napsauta kuvia lisätäksesi tai poistaaksesi sen · Esc lopettaa",
   "Paste into {n} photo{} — only settings that were copied are pasted": "Liitä kuviin: {n}{:.0} — vain kopioidut asetukset liitetään",
