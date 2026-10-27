@@ -956,6 +956,9 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     let mut promoted = HashSet::new();
     let mut unmapped = BTreeMap::new();
     let mut preserved = 0;
+    // Library photos in Recently Deleted that a catalog photo matched: they stay there (only an
+    // import of the files themselves brings a photo back, see `OnDeleted`), and the report says so.
+    let mut in_trash = HashSet::new();
     // Masters precede their virtual copies.
     let mut photos: Vec<_> = data.photos.iter().collect();
     photos.sort_by_key(|p| number(&p.image, "masterImage") != 0);
@@ -980,6 +983,9 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             .filter(|id| s.catalog.photo(*id).is_some_and(|p| source_path(p).is_some_and(|path| key(path) == key(&src.path))));
         let existing_id = indexed.or_else(|| if master == 0 { by_path.get(&key(&src.path)).copied() } else { None });
         let mut p = if let Some(id) = existing_id.and_then(|id| s.catalog.photo(id)) {
+            if id.deleted {
+                in_trash.insert(id.id);
+            }
             (**id).clone()
         } else if master != 0 {
             let master_id = ids.get(&master).copied().ok_or_else(|| error(format!("virtual copy {}: missing master", src.source_id)))?;
@@ -991,12 +997,21 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             p.id = s.catalog.alloc_photo_id();
             p.copy_of = Some(master_id);
             p.copy_name = Some(text(&src.image, "copyName").to_string());
+            // a new copy of a master in Recently Deleted is imported, not trashed with it
+            p.deleted = false;
             p
         } else if let Some(duplicate) = duplicates.get(&key(&src.path)).and_then(|id| s.catalog.photo(*id)) {
             // Catalogs can contain distinct originals with identical bytes and independent edits.
+            // The clone is a new record of its own: never in Recently Deleted because the photo with
+            // the same bytes is (#2589), nor a virtual copy because that photo is one.
             let mut p = (**duplicate).clone();
             p.id = s.catalog.alloc_photo_id();
             p.source = Source::File { path: src.path.clone() };
+            p.deleted = false;
+            p.copy_of = None;
+            p.copy_name = None;
+            p.local_baseline = None;
+            p.imported = now.clone();
             p.file_name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().into()).unwrap_or_else(|| src.path.clone());
             p
         } else {
@@ -1105,7 +1120,7 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     }
     s.merge_undo(s.undo.len().saturating_sub(undo0), "Import Lightroom Catalog");
     Ok(AppliedImport {
-        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":album_count,"preservedExistingEdits":preserved,"missing":missing,"failed":files.failed,"warnings":warnings,"skipped":data.skipped,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
+        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":album_count,"preservedExistingEdits":preserved,"inRecentlyDeleted":in_trash.len(),"missing":missing,"failed":files.failed,"warnings":warnings,"skipped":data.skipped,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
         index: index.clone(),
     })
 }

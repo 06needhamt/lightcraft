@@ -340,6 +340,13 @@ fn result_dialog(value: &Value, summary: &str) -> crate::state::Dialog {
             missing = missing
         ));
     }
+    let in_trash = report["inRecentlyDeleted"].as_u64().unwrap_or(0);
+    if in_trash > 0 {
+        details.push(crate::i18n::tr_format!(
+            "{in_trash} catalog photos are in this library's Recently Deleted and stay there; restore them from Recently Deleted to see them.",
+            in_trash = in_trash
+        ));
+    }
     // images whose catalog records are incomplete come as data (`skipped`), said here in the UI
     // language; their ids are in the report for the CLI and agents
     let skipped = report["skipped"].as_array().map_or(0, Vec::len);
@@ -711,6 +718,18 @@ mod tests {
         assert_eq!(en.len(), 4, "{en:?}");
         assert_eq!(en[1], "3 catalog images were not imported because their records in the catalog are incomplete.");
         assert_eq!(&en[2..], ["w1", "w2"]);
+    }
+
+    #[test]
+    fn photos_left_in_recently_deleted_are_one_line() {
+        let value = json!({"report": {"photos": 3, "collections": 0, "inRecentlyDeleted": 2}});
+        crate::i18n::set_language(crate::i18n::Locale::En);
+        let crate::state::Dialog::LightroomResult { details, .. } = result_dialog(&value, "done") else { panic!("not a Lightroom result") };
+        assert_eq!(details.len(), 2, "{details:?}");
+        assert!(details[1].starts_with("2 catalog photos are in this library's Recently Deleted"), "{details:?}");
+        let value = json!({"report": {"photos": 3, "collections": 0, "inRecentlyDeleted": 0}});
+        let crate::state::Dialog::LightroomResult { details, .. } = result_dialog(&value, "done") else { panic!("not a Lightroom result") };
+        assert_eq!(details.len(), 1, "no line when none are: {details:?}");
     }
 
     #[test]

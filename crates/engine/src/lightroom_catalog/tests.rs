@@ -157,6 +157,82 @@ fn imports_copies_collections_ratings_and_mapped_edits_in_one_undo_step() {
     assert!(s.catalog.albums().next().is_none());
     assert!(data.photos[1].settings.contains("CameraProfile")); // unmapped source stays intact
 }
+/// A library photo at `path`, already committed.
+fn library_photo(s: &mut crate::Session, path: &str, edit: impl FnOnce(&mut Photo)) -> PhotoId {
+    let id = s.catalog.alloc_photo_id();
+    let mut p = Photo::new(id, Source::File { path: path.into() }, "a.ARW", "ARW", 20, 10, "before");
+    p.content_hash = Some("same-bytes".into());
+    edit(&mut p);
+    s.commit("Add", Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    id
+}
+/// A catalog photo whose file has the same bytes as a library photo in Recently Deleted (or a
+/// virtual copy) is a new record of its own: it was counted as imported but landed in Recently
+/// Deleted (or became a "copy" of nothing it was copied from), so a large import into a library
+/// with a trash went missing photo by photo (#2589).
+#[test]
+fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() {
+    let trashed: fn(&mut Photo) = |p| p.deleted = true;
+    let virtual_copy: fn(&mut Photo) = |p| {
+        p.copy_of = Some(PhotoId(999));
+        p.copy_name = Some("Copy 1".into());
+    };
+    for (case, edit) in [("trashed", trashed), ("virtual copy", virtual_copy)] {
+        let mut s = crate::Session::new();
+        let other = library_photo(&mut s, "/elsewhere/a.ARW", edit);
+        let mut data = sample();
+        data.photos.retain(|p| number(&p.image, "masterImage") == 0);
+        let files = crate::import::ImportReport {
+            duplicates: vec![crate::import::Duplicate {
+                path: "/missing/test.ARW".into(),
+                existing: Some(other.0),
+                reason: "content",
+                existing_deleted: case == "trashed",
+            }],
+            ..Default::default()
+        };
+        let undo0 = s.undo.len();
+        let r = apply_prepared(
+            &mut s,
+            data,
+            ApplyPrepared {
+                update_existing: false,
+                files,
+                index: &mut ImportIndex::default(),
+                archive_path: None,
+                missing_sources: &HashSet::new(),
+                undo0,
+            },
+        )
+        .unwrap()
+        .report;
+        assert_eq!(r["imported"], 1, "{case}: {r}");
+        assert_eq!(r["inRecentlyDeleted"], 0, "{case}: {r}");
+        let new = s.catalog.photo(PhotoId(r["mapping"]["1"].as_u64().unwrap())).unwrap();
+        assert_ne!(new.id, other, "{case}");
+        assert!(!new.deleted, "{case}: the new record must not be in Recently Deleted");
+        assert_eq!((new.copy_of, new.copy_name.as_deref()), (None, None), "{case}: the new record is no virtual copy");
+        assert_ne!(new.imported, "before", "{case}: imported now, not when the other photo was");
+        assert_eq!(new.rating, 5, "{case}: the catalog's own metadata applies");
+        assert_eq!(s.catalog.photo(other).unwrap().deleted, case == "trashed", "{case}: the other photo is left as it was");
+    }
+}
+/// A catalog photo matched (by path) to a library photo in Recently Deleted leaves it there, as
+/// the import was set up to do (a Lightroom import doesn't restore, see `OnDeleted`), and the report
+/// counts it so the photos don't go missing unexplained (#2589). A new virtual copy of it is
+/// imported, not trashed with its master.
+#[test]
+fn a_catalog_photo_matching_a_trashed_record_stays_there_and_is_counted() {
+    let mut s = crate::Session::new();
+    let trashed = library_photo(&mut s, "/missing/test.ARW", |p| p.deleted = true);
+    let r = apply(&mut s, sample(), false).unwrap();
+    assert_eq!(r["mapping"]["1"], trashed.0, "{r}");
+    assert!(s.catalog.photo(trashed).unwrap().deleted, "the photo stays in Recently Deleted");
+    assert_eq!(r["inRecentlyDeleted"], 1, "{r}");
+    let copy = s.catalog.photos().find(|p| p.copy_of == Some(trashed)).unwrap();
+    assert!(!copy.deleted, "the new virtual copy is imported, not trashed");
+    assert_eq!(r["imported"], 1, "only the copy was added: {r}");
+}
 #[test]
 fn preserves_existing_edits_and_rejects_invalid_structure_before_mutation() {
     let mut s = crate::Session::new();
