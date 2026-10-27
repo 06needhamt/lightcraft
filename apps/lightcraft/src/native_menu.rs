@@ -118,6 +118,74 @@ impl Item {
     }
 }
 
+impl SyncRow for Item {
+    fn label(&self) -> &str {
+        &self.label
+    }
+
+    fn show_label(&mut self, label: String) {
+        match &self.handle {
+            Handle::Plain(h) => h.set_text(label.replace('&', "&&")),
+            Handle::Check(h) => h.set_text(label.replace('&', "&&")),
+        }
+        self.label = label;
+    }
+
+    fn enabled(&self) -> bool {
+        self.enabled
+    }
+
+    fn show_enabled(&mut self, enabled: bool) {
+        match &self.handle {
+            Handle::Plain(h) => h.set_enabled(enabled),
+            Handle::Check(h) => h.set_enabled(enabled),
+        }
+        self.enabled = enabled;
+    }
+
+    fn show_checked(&mut self, checked: bool) {
+        if let Handle::Check(h) = &self.handle {
+            // also resyncs after AppKit toggled it on click
+            if h.is_checked() != checked {
+                h.set_checked(checked);
+            }
+            self.checked = Some(checked);
+        }
+    }
+}
+
+/// What the per-frame sync needs of a native row, so it can be run on stand-ins without a
+/// main-thread `muda::Menu` (as [`SwapTarget`] does for the swap).
+trait SyncRow {
+    fn label(&self) -> &str;
+    fn show_label(&mut self, label: String);
+    fn enabled(&self) -> bool;
+    fn show_enabled(&mut self, enabled: bool);
+    /// Only a row that is a check item takes it.
+    fn show_checked(&mut self, checked: bool);
+}
+
+/// Puts each model row's live label, enabled and checked state on its own native row, found by
+/// the row's native id (two rows may run the same command and params).
+fn sync_rows<R: SyncRow>(nodes: &[MenuNode], items: &mut HashMap<String, R>, keymap: &lightcraft_ui_egui::shortcuts::Keymap) {
+    let mut rows = Vec::new();
+    native_rows(nodes, &mut RowIds::default(), &mut rows);
+    for (native_id, node) in rows {
+        let MenuNode::Item { id, params, label, shortcut, enabled, checked } = node else { continue };
+        let Some(it) = items.get_mut(&native_id) else { continue };
+        let (native_label, _) = native_item_presentation(keymap, id, params, label, shortcut.as_deref());
+        if it.label() != native_label {
+            it.show_label(native_label);
+        }
+        if it.enabled() != *enabled {
+            it.show_enabled(*enabled);
+        }
+        if let Some(c) = checked {
+            it.show_checked(*c);
+        }
+    }
+}
+
 /// The accelerator the native item has after trying to put `want` on it: `want` when the native
 /// call worked, else what it had, so the caller sees the mismatch and tries again.
 fn settled(had: Option<Accelerator>, want: Option<Accelerator>, native_call_worked: bool) -> Option<Accelerator> {
@@ -547,34 +615,7 @@ impl NativeMenu {
         // Synchronize live labels and states row by row (accelerator ownership changes already
         // triggered a rebuild).
         let all: Vec<MenuNode> = bar.into_iter().flat_map(|(_, v)| v).collect();
-        let mut rows = Vec::new();
-        native_rows(&all, &mut RowIds::default(), &mut rows);
-        for (native_id, node) in rows {
-            let MenuNode::Item { id, params, label, shortcut, enabled, checked } = node else { continue };
-            let Some(it) = self.items.get_mut(&native_id) else { continue };
-            let (native_label, _) = native_item_presentation(&app.ui.settings.keymap, id, params, label, shortcut.as_deref());
-            if it.label != native_label {
-                match &it.handle {
-                    Handle::Plain(h) => h.set_text(native_label.replace('&', "&&")),
-                    Handle::Check(h) => h.set_text(native_label.replace('&', "&&")),
-                }
-                it.label = native_label;
-            }
-            if it.enabled != *enabled {
-                match &it.handle {
-                    Handle::Plain(h) => h.set_enabled(*enabled),
-                    Handle::Check(h) => h.set_enabled(*enabled),
-                }
-                it.enabled = *enabled;
-            }
-            if let (Handle::Check(h), Some(c)) = (&it.handle, checked) {
-                // also resyncs after AppKit toggled it on click
-                if h.is_checked() != *c {
-                    h.set_checked(*c);
-                }
-                it.checked = Some(*c);
-            }
-        }
+        sync_rows(&all, &mut self.items, &app.ui.settings.keymap);
 
         let focus = ctx.egui_wants_keyboard_input();
         let capturing = app.recording_shortcut.is_some();
@@ -671,6 +712,80 @@ mod tests {
         let mut ids = RowIds::default();
         assert_eq!(ids.next("view.layoutImage", &Value::Null), ("view.layoutImage".to_string(), false));
         assert_eq!(ids.next("view.layoutImage", &Value::Null), ("view.layoutImage#2".to_string(), true));
+    }
+
+    /// A native row's shown state, to run the per-frame sync without a main-thread `muda::Menu`.
+    #[derive(Debug, PartialEq)]
+    struct FakeRow {
+        label: String,
+        enabled: bool,
+        checked: Option<bool>,
+    }
+    impl SyncRow for FakeRow {
+        fn label(&self) -> &str {
+            &self.label
+        }
+        fn show_label(&mut self, label: String) {
+            self.label = label;
+        }
+        fn enabled(&self) -> bool {
+            self.enabled
+        }
+        fn show_enabled(&mut self, enabled: bool) {
+            self.enabled = enabled;
+        }
+        fn show_checked(&mut self, checked: bool) {
+            self.checked = Some(checked);
+        }
+    }
+
+    /// Two rows with the same command and params keep their own label, enabled and checked state
+    /// when the model changes (the sync once wrote the last row's state onto the first).
+    #[test]
+    fn the_sync_updates_rows_sharing_a_command_independently() {
+        use lightcraft_ui_egui::i18n::{Locale, set_language};
+        set_language(Locale::En);
+        let keymap = LightcraftApp::new(lightcraft_engine::Session::with_demo(), Default::default()).ui.settings.keymap.clone();
+        let item = |cmd: &str, label: &str, enabled: bool, checked: Option<bool>| MenuNode::Item {
+            id: cmd.into(),
+            params: Value::Null,
+            label: label.into(),
+            shortcut: None,
+            enabled,
+            checked,
+        };
+        let model = |a: (&str, bool, Option<bool>), b: (&str, bool, Option<bool>), c: (&str, bool, Option<bool>), d: (&str, bool, Option<bool>)| {
+            vec![
+                item("dialog.export", a.0, a.1, a.2),
+                MenuNode::Separator,
+                MenuNode::Submenu { label: "Export with Preset".into(), children: vec![item("dialog.export", b.0, b.1, b.2)] },
+                item("view.toggle", c.0, c.1, c.2),
+                MenuNode::Submenu { label: "More".into(), children: vec![item("view.toggle", d.0, d.1, d.2)] },
+            ]
+        };
+        // what the native rows show after the install
+        let installed = model(("Export…", true, None), ("Custom…", true, None), ("Show", true, Some(false)), ("Show", true, Some(false)));
+        let mut rows = Vec::new();
+        native_rows(&installed, &mut RowIds::default(), &mut rows);
+        let mut items: HashMap<String, FakeRow> = rows
+            .iter()
+            .filter_map(|(nid, n)| match n {
+                MenuNode::Item { label, enabled, checked, .. } => {
+                    Some((nid.clone(), FakeRow { label: label.clone(), enabled: *enabled, checked: *checked }))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(items.len(), 4, "a native row for each of the four rows");
+        // the model changes: each row of a pair gets a different state
+        let live = model(("Export…", false, None), ("Custom…", true, None), ("Show", true, Some(true)), ("Hide", false, Some(false)));
+        sync_rows(&live, &mut items, &keymap);
+        let shown: Vec<&FakeRow> = rows.iter().map(|(nid, _)| &items[nid]).collect();
+        let row = |label: &str, enabled: bool, checked: Option<bool>| FakeRow { label: label.into(), enabled, checked };
+        assert_eq!(shown[0], &row("Export…", false, None), "File ▸ Export… keeps its label and is disabled alone");
+        assert_eq!(shown[1], &row("Custom…", true, None), "Custom… stays enabled and keeps its label");
+        assert_eq!(shown[2], &row("Show", true, Some(true)), "the first toggle is checked alone");
+        assert_eq!(shown[3], &row("Hide", false, Some(false)), "the second toggle has its own label and state");
     }
 
     #[test]
