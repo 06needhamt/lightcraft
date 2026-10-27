@@ -422,19 +422,14 @@ fn xmp_warnings_text(warnings: &[ImportWarning]) -> String {
     )
 }
 
-/// `s` for a count other than one.
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
-
 /// The name of the import's one undo step.
 fn undo_label(task: &ImportTask) -> String {
     if task.imported == 0 && task.restored > 0 {
-        crate::i18n::tr_format!("Restore {} Photo{}", task.restored, plural(task.restored))
+        crate::i18n::tr_format!("Restore {} Photo{}", task.restored, crate::i18n::plural_s(task.restored))
     } else if task.restored > 0 {
-        crate::i18n::tr_format!("Add {} Photo{}, restore {}", task.imported, plural(task.imported), task.restored)
+        crate::i18n::tr_format!("Add {} Photo{}, restore {}", task.imported, crate::i18n::plural_s(task.imported), task.restored)
     } else {
-        crate::i18n::tr_format!("Add {} Photo{}", task.imported, plural(task.imported))
+        crate::i18n::tr_format!("Add {} Photo{}", task.imported, crate::i18n::plural_s(task.imported))
     }
 }
 
@@ -481,20 +476,20 @@ fn quiet_finish(app: &mut LightcraftApp, ctx: &egui::Context, task: &ImportTask)
     if !task.warnings.is_empty() {
         app.toast_for(ctx, xmp_warnings_text(&task.warnings), 8.0);
     } else if task.auto && task.imported > 0 {
-        app.toast(ctx, crate::i18n::tr_format!("Auto Import: added {} photo{}", task.imported, plural(task.imported)));
+        app.toast(ctx, crate::i18n::tr_format!("Auto Import: added {} photo{}", task.imported, crate::i18n::plural_s(task.imported)));
     } else if !task.auto && task.failed > 0 {
-        app.toast(ctx, crate::i18n::tr_format!("{} photo{} not readable", task.failed, plural(task.failed)));
+        app.toast(ctx, crate::i18n::tr_format!("{} photo{} not readable", task.failed, crate::i18n::plural_s(task.failed)));
     }
 }
 
 /// What an import did, in a sentence.
 fn import_summary(app: &LightcraftApp, task: &ImportTask) -> String {
     let mut msg = if task.cancelled {
-        crate::i18n::tr_format!("Import cancelled · {} photo{} added", task.imported, plural(task.imported))
+        crate::i18n::tr_format!("Import cancelled · {} photo{} added", task.imported, crate::i18n::plural_s(task.imported))
     } else if task.imported == 0 && task.restored > 0 {
-        crate::i18n::tr_format!("Restored {} photo{} from Recently Deleted", task.restored, plural(task.restored))
+        crate::i18n::tr_format!("Restored {} photo{} from Recently Deleted", task.restored, crate::i18n::plural_s(task.restored))
     } else {
-        crate::i18n::tr_format!("Imported {} photo{}", task.imported, plural(task.imported))
+        crate::i18n::tr_format!("Imported {} photo{}", task.imported, crate::i18n::plural_s(task.imported))
     };
     if task.restored > 0 && (task.imported > 0 || task.cancelled) {
         msg.push_str(&crate::i18n::tr_format!(" · {} restored from Recently Deleted", task.restored));
@@ -502,11 +497,11 @@ fn import_summary(app: &LightcraftApp, task: &ImportTask) -> String {
     if task.params["mode"] == "move" {
         msg.push_str(&crate::i18n::tr_format!(" · {} moved", task.moved));
         if task.kept > 0 {
-            msg.push_str(&crate::i18n::tr_format!(" · {} original{} left at the source", task.kept, plural(task.kept)));
+            msg.push_str(&crate::i18n::tr_format!(" · {} original{} left at the source", task.kept, crate::i18n::plural_s(task.kept)));
         }
     }
     if task.duplicates > 0 {
-        msg.push_str(&crate::i18n::tr_format!(" · {} duplicate{} skipped", task.duplicates, plural(task.duplicates)));
+        msg.push_str(&crate::i18n::tr_format!(" · {} duplicate{} skipped", task.duplicates, crate::i18n::plural_s(task.duplicates)));
         let deleted = deleted_of(app, &task.existing).len();
         if deleted > 0 {
             msg.push_str(&crate::i18n::tr_format!(" ({} in Recently Deleted)", deleted));

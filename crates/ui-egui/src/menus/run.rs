@@ -1869,11 +1869,6 @@ fn failed_files(v: &Value) -> impl Iterator<Item = String> + '_ {
     })
 }
 
-/// `s` for a count other than one.
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
-}
-
 /// Import the `.cube` LUTs (and those inside zips / folders) as profiles; the answer to report back.
 fn import_luts(app: &mut LightcraftApp, lut_paths: &[&String], news: &mut ImportNews) -> Value {
     match app.session.execute("profile.import", &json!({"paths": lut_paths})) {
@@ -1882,7 +1877,7 @@ fn import_luts(app: &mut LightcraftApp, lut_paths: &[&String], news: &mut Import
             if profiles > 0 {
                 news.parts.push(crate::i18n::tr_format!(
                     "Imported {profiles} profile{} (Profile browser ▸ their groups)",
-                    plural(profiles),
+                    crate::i18n::plural_s(profiles),
                     profiles = profiles
                 ));
             }
@@ -1922,8 +1917,14 @@ fn presets_sentence(v: &Value, profile_news: bool) -> Option<String> {
         // a zip of LUTs (or only local presets): the other half already says what happened
         (0, 0) if profile_news => return None,
         (0, 0) => "No new presets".to_string(),
-        (n, 0) => crate::i18n::tr_format!("Imported {n} preset{}", plural(n), n = n),
-        (n, f) => crate::i18n::tr_format!("Imported {n} preset{}, {f} file{} not readable", plural(n), plural(f), f = f, n = n),
+        (n, 0) => crate::i18n::tr_format!("Imported {n} preset{}", crate::i18n::plural_s(n), n = n),
+        (n, f) => crate::i18n::tr_format!(
+            "Imported {n} preset{}, {f} file{} not readable",
+            crate::i18n::plural_s(n),
+            crate::i18n::plural_s(f),
+            f = f,
+            n = n
+        ),
     };
     Some(msg + &not_carried_over(v))
 }
@@ -2131,11 +2132,11 @@ fn file_import_curve_presets_command(app: &mut LightcraftApp, ctx: &egui::Contex
 fn curve_import_message(v: &Value) -> String {
     let n = v["imported"].as_array().map_or(0, Vec::len);
     let failed = v["failed"].as_array().map_or(0, Vec::len);
-    let imported = crate::i18n::tr_format!("Imported {n} point curve preset{}", plural(n), n = n);
+    let imported = crate::i18n::tr_format!("Imported {n} point curve preset{}", crate::i18n::plural_s(n), n = n);
     if failed == 0 {
         return imported;
     }
-    imported + &crate::i18n::tr_format!(", {failed} file{} not readable", plural(failed), failed = failed)
+    imported + &crate::i18n::tr_format!(", {failed} file{} not readable", crate::i18n::plural_s(failed), failed = failed)
 }
 
 /// The `file.exportCurvePresets` command.
