@@ -642,6 +642,8 @@ fn import_targets(report: &Value) -> Result<Vec<Value>, String> {
     let mut ids: Vec<Value> = report["imported"].as_array().cloned().unwrap_or_default();
     ids.extend(report["duplicates"].as_array().into_iter().flatten().filter_map(|d| d.get("existing").filter(|v| v.is_u64()).cloned()));
     ids.extend(report["restored"].as_array().into_iter().flatten().filter(|id| id.is_u64()).cloned());
+    let mut seen = std::collections::HashSet::new();
+    ids.retain(|id| id.as_u64().is_none_or(|id| seen.insert(id)));
     if ids.is_empty() { Err("import found no photos to select; no commands were run".into()) } else { Ok(ids) }
 }
 
@@ -1065,6 +1067,12 @@ mod import_target_tests {
             import_targets(&json!({"imported": [1], "duplicates": [{"existing": null}, {"existing": 2}], "restored": [3]})).unwrap(),
             vec![json!(1), json!(2), json!(3)]
         );
+    }
+
+    #[test]
+    fn repeated_targets_are_selected_once_in_first_occurrence_order() {
+        let report = json!({"imported": [5, 7], "duplicates": [{"existing": 5}, {"existing": 8}, {"existing": 8}, {"existing": 7}, {"existing": null}], "restored": [8, 9, 5]});
+        assert_eq!(import_targets(&report).unwrap(), vec![json!(5), json!(7), json!(8), json!(9)]);
     }
 
     #[test]

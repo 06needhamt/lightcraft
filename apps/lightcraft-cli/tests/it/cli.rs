@@ -632,6 +632,43 @@ fn run_restored_import_is_selected() {
 }
 
 #[test]
+fn run_same_batch_duplicates_selects_photo_once() {
+    let dir = tmp("same-batch-duplicates");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let first = dir.join("first.png");
+    let second = dir.join("second.png");
+    gradient_png(&first);
+    std::fs::copy(&first, &second).unwrap();
+    let library = dir.join("library");
+    let (ok, lines, err) = run_cli(
+        &[
+            "--library",
+            library.to_str().unwrap(),
+            "--import",
+            first.to_str().unwrap(),
+            "--import",
+            second.to_str().unwrap(),
+            "photo.rate",
+            "rating=4",
+            "library.state",
+            "catalog.query",
+        ],
+        None,
+    );
+    assert!(ok, "{err}");
+    let selection = &lines[1]["result"]["selection"];
+    let ids = selection["ids"].as_array().unwrap();
+    assert_eq!(ids.len(), 1, "same photo selected more than once: {selection}");
+    assert_eq!(selection["active"], ids[0]);
+    let photos = lines[2]["result"]["photos"].as_array().unwrap();
+    assert_eq!(photos.len(), 1);
+    assert_eq!(photos[0]["id"], ids[0]);
+    assert_eq!(photos[0]["rating"], 4);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
 fn run_mixed_new_and_restored_import_selects_both() {
     let dir = tmp("mixed-restored-import");
     let _ = std::fs::remove_dir_all(&dir);
