@@ -245,6 +245,52 @@ fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() 
         assert_eq!(s.catalog.photo(other).unwrap().deleted, case == "trashed", "{case}: the other photo is left as it was");
     }
 }
+/// A content duplicate starts from the settings a file import gives a raw (its as-shot white
+/// balance and embedded lens corrections), as its file would on its own, before the catalog's
+/// settings go on top; not from the generic defaults (#2589).
+#[test]
+fn a_content_duplicate_raw_starts_from_its_camera_defaults() {
+    let mut s = crate::Session::new();
+    let other = library_photo(&mut s, "/elsewhere/a.DNG", |p| {
+        p.deleted = true;
+        p.format = "DNG".into();
+        p.kind = lightcraft_catalog::MediaKind::Raw;
+        p.as_shot_wb = Some((5200.0, 4.0));
+        p.embedded_lens = Some(lightcraft_develop::EmbeddedLens::default());
+    });
+    let mut data = sample();
+    data.photos.retain(|p| number(&p.image, "masterImage") == 0);
+    // a catalog row with no develop settings of its own
+    data.photos[0].settings.clear();
+    let files = crate::import::ImportReport {
+        duplicates: vec![crate::import::Duplicate {
+            path: "/missing/test.ARW".into(),
+            existing: Some(other.0),
+            reason: "content",
+            existing_deleted: true,
+        }],
+        ..Default::default()
+    };
+    let undo0 = s.undo.len();
+    let r = apply_prepared(
+        &mut s,
+        data,
+        ApplyPrepared {
+            update_existing: false,
+            files,
+            index: &mut ImportIndex::default(),
+            archive_path: None,
+            missing_sources: &HashSet::new(),
+            undo0,
+        },
+    )
+    .unwrap()
+    .report;
+    let new = s.catalog.photo(PhotoId(r["mapping"]["1"].as_u64().unwrap())).unwrap();
+    assert_eq!(*new.develop, new.camera_defaults(), "{r}");
+    assert_eq!((new.develop.wb.temp, new.develop.wb.tint), (5200.0, 4.0), "the file's as-shot white balance");
+    assert!(new.develop.optics.lens_profile, "the file's embedded lens corrections are on");
+}
 /// A catalog photo matched (by path) to a library photo in Recently Deleted leaves it there, as
 /// the import was set up to do (a Lightroom import doesn't restore, see `OnDeleted`), and the report
 /// counts it so the photos don't go missing unexplained (#2589). A new virtual copy of it is

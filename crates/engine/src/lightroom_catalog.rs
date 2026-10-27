@@ -1033,6 +1033,9 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             p.meta.iso = m.iso;
             p.meta.gps = m.gps;
             p.meta.focus = m.focus.clone();
+            // the settings a file import gives it (as-shot white balance, embedded lens
+            // corrections, the default preset); the catalog's settings apply on top
+            crate::import::apply_import_defaults(s, &mut p);
             p
         } else {
             let id = s.catalog.alloc_photo_id();
