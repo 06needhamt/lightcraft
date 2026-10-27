@@ -943,7 +943,8 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     refuse_non_media(&mut data);
     validate(&data).map_err(error)?;
     let mut warnings = data.warnings.clone();
-    let duplicates: HashMap<_, _> = files.duplicates.iter().filter_map(|d| d.existing.map(|id| (key(&d.path), PhotoId(id)))).collect();
+    let duplicates: HashMap<_, _> =
+        files.duplicates.iter().filter_map(|d| d.existing.map(|id| (key(&d.path), (PhotoId(id), d.file_meta.as_deref())))).collect();
     let mut by_path: HashMap<_, _> =
         s.catalog.photos().filter(|p| p.copy_of.is_none()).filter_map(|p| source_path(p).map(|path| (key(path), p.id))).collect();
     let mut ids = HashMap::new();
@@ -1000,11 +1001,14 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             // a new copy of a master in Recently Deleted is imported, not trashed with it
             p.deleted = false;
             p
-        } else if let Some(duplicate) = duplicates.get(&key(&src.path)).and_then(|id| s.catalog.photo(*id)).cloned() {
+        } else if let Some((duplicate, file_meta)) =
+            duplicates.get(&key(&src.path)).and_then(|(id, meta)| s.catalog.photo(*id).cloned().map(|p| (p, *meta)))
+        {
             // Catalogs can contain distinct originals with identical bytes and independent edits.
             // The new record takes only what the bytes determine from the photo with the same
             // bytes, never that photo's own state: not its Recently Deleted (#2589), virtual copy,
-            // edits, history, versions, ratings or the metadata a person writes.
+            // edits, history, versions, ratings or the metadata a person writes. Its metadata is
+            // what its own file carries, as a file import reads it (copyright, creator…).
             let name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| src.path.clone());
             let mut p = Photo::new(
                 s.catalog.alloc_photo_id(),
@@ -1024,15 +1028,20 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             p.embedded_lens = duplicate.embedded_lens;
             p.preview_only = duplicate.preview_only.clone();
             p.preview_checked = duplicate.preview_checked.clone();
-            let m = &duplicate.meta;
-            p.meta.camera = m.camera.clone();
-            p.meta.lens = m.lens.clone();
-            p.meta.focal_mm = m.focal_mm;
-            p.meta.aperture = m.aperture;
-            p.meta.shutter = m.shutter.clone();
-            p.meta.iso = m.iso;
-            p.meta.gps = m.gps;
-            p.meta.focus = m.focus.clone();
+            if let Some(meta) = file_meta {
+                p.meta = meta.clone();
+            } else {
+                // (the file wasn't read: only the exposure description, which no command edits;
+                // not GPS, which placing a photo on the map does)
+                let m = &duplicate.meta;
+                p.meta.camera = m.camera.clone();
+                p.meta.lens = m.lens.clone();
+                p.meta.focal_mm = m.focal_mm;
+                p.meta.aperture = m.aperture;
+                p.meta.shutter = m.shutter.clone();
+                p.meta.iso = m.iso;
+                p.meta.focus = m.focus.clone();
+            }
             // the settings a file import gives it (as-shot white balance, embedded lens
             // corrections, the default preset); the catalog's settings apply on top
             crate::import::apply_import_defaults(s, &mut p);

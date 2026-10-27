@@ -73,6 +73,8 @@ pub(super) enum PreparedItem {
         existing: Option<PhotoId>,
         reason: &'static str,
         hash: Option<String>,
+        /// The metadata the file itself carries, when it was read ([`Duplicate::file_meta`]).
+        file_meta: Option<Box<lightcraft_catalog::Meta>>,
     },
     Failed(String, String),
     Kept(Kept),
@@ -141,6 +143,7 @@ impl Prepared {
                     existing: Some(existing),
                     reason: if existing_path.is_some() { "path" } else { "content" },
                     hash: info.content_hash,
+                    file_meta: Some(Box::new(info.meta)),
                 });
             } else {
                 items.push(PreparedItem::Ready(Box::new(ReadyFile { path, stored, info, sidecar, placed })));
@@ -261,7 +264,7 @@ impl ImportJob {
                     self.done.fetch_add(1, Relaxed);
                 }
                 Some((id, _)) => {
-                    out.items.push(PreparedItem::Duplicate { path: f, existing: Some(id), reason: "path", hash: None });
+                    out.items.push(PreparedItem::Duplicate { path: f, existing: Some(id), reason: "path", hash: None, file_meta: None });
                     self.done.fetch_add(1, Relaxed);
                 }
                 None => todo.push(f),
@@ -326,7 +329,13 @@ impl ImportJob {
                 && let Some(existing) = self.by_hash.get(h)
             {
                 self.done.fetch_add(1, Relaxed);
-                plan.slots.push(Slot::Item(PreparedItem::Duplicate { path, existing: *existing, reason: "content", hash: Some(h.clone()) }));
+                plan.slots.push(Slot::Item(PreparedItem::Duplicate {
+                    path,
+                    existing: *existing,
+                    reason: "content",
+                    hash: Some(h.clone()),
+                    file_meta: Some(Box::new(info.meta)),
+                }));
                 continue;
             }
             // the XMP sidecar (or a raw's embedded XMP), read before copying: its capture time files

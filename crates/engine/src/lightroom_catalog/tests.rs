@@ -208,6 +208,8 @@ fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() 
                 existing: Some(other.0),
                 reason: "content",
                 existing_deleted: case == "trashed",
+                // what the file itself carries
+                file_meta: Some(Box::new(lightcraft_catalog::Meta { camera: "Same Camera".into(), ..Default::default() })),
             }],
             ..Default::default()
         };
@@ -268,6 +270,7 @@ fn a_content_duplicate_raw_starts_from_its_camera_defaults() {
             existing: Some(other.0),
             reason: "content",
             existing_deleted: true,
+            file_meta: None,
         }],
         ..Default::default()
     };
@@ -290,6 +293,59 @@ fn a_content_duplicate_raw_starts_from_its_camera_defaults() {
     assert_eq!(*new.develop, new.camera_defaults(), "{r}");
     assert_eq!((new.develop.wb.temp, new.develop.wb.tint), (5200.0, 4.0), "the file's as-shot white balance");
     assert!(new.develop.optics.lens_profile, "the file's embedded lens corrections are on");
+}
+/// A content duplicate keeps the metadata its file carries (copyright, rights, creator), as a file
+/// import of it would, when the catalog's XMP doesn't restate it; it reads the file's, not the
+/// other photo's, which a person may have edited (#2589).
+#[test]
+fn a_content_duplicate_keeps_the_rights_metadata_in_its_file() {
+    let dir = std::env::temp_dir().join(format!("lightcraft-lrcat-duplicate-rights-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("Photos")).unwrap();
+    let source = dir.join("source.lrcat");
+    std::fs::write(dir.join("Photos/test.ARW"), b"same bytes").unwrap();
+    std::fs::write(&source, native_catalog(&photo_tables((dir.to_str().unwrap(), "")))).unwrap();
+    let mut s = crate::Session::new();
+    let other = library_photo(&mut s, "/elsewhere/a.ARW", |p| {
+        p.deleted = true;
+        // edited on the other record after its import
+        p.meta.copyright = "Other photo's notice".into();
+        p.meta.creator = "Other photo's creator".into();
+        p.meta.gps = Some((1.0, 2.0));
+    });
+    let file_meta = lightcraft_catalog::Meta {
+        camera: "Same Camera".into(),
+        copyright: "© Jo Example".into(),
+        copyright_status: lightcraft_catalog::CopyrightStatus::Copyrighted,
+        usage_terms: "No reuse".into(),
+        creator: "Jo Example".into(),
+        ..Default::default()
+    };
+    let probed = file_meta.clone();
+    s.media.file_probe = Some(Arc::new(move |_| {
+        Ok(crate::media::ProbeInfo {
+            format: "ARW".into(),
+            width: 20,
+            height: 10,
+            content_hash: Some("same-bytes".into()),
+            meta: probed.clone(),
+            ..Default::default()
+        })
+    }));
+    let mut job = crate::lightroom_job::LightroomJob::new(&mut s, source, false).unwrap();
+    let prepared = job.prepare(&AtomicBool::new(false)).unwrap();
+    let r = crate::lightroom_job::commit_prepared(&mut s, prepared).unwrap().report;
+    let new = s.catalog.photos().find(|p| p.id != other).unwrap_or_else(|| panic!("no new record: {r}"));
+    assert_eq!(new.content_hash.as_deref(), Some("same-bytes"), "{r}");
+    assert_eq!(new.rating, 5, "the catalog's own metadata applies: {r}");
+    let m = &new.meta;
+    assert_eq!(
+        (m.copyright.as_str(), m.copyright_status, m.usage_terms.as_str(), m.creator.as_str(), m.camera.as_str()),
+        ("© Jo Example", file_meta.copyright_status, "No reuse", "Jo Example", "Same Camera"),
+        "the file's own metadata: {r}"
+    );
+    assert_eq!(m.gps, None, "nothing from the other photo's record");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 /// A catalog photo matched (by path) to a library photo in Recently Deleted leaves it there, as
 /// the import was set up to do (a Lightroom import doesn't restore, see `OnDeleted`), and the report
