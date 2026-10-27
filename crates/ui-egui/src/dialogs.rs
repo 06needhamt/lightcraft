@@ -109,7 +109,127 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
     {
         confirm = true;
     }
-    let title: String = match &dlg {
+    let title = dialog_title(app, &dlg);
+    let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(16, 12));
+    // The import review can be resized (its photo grid takes the room); it keeps a window id of its
+    // own so the size it is given doesn't carry over to the other dialogs. Its content scrolls
+    // rather than growing the window when the options below the grid get taller (e.g. Copy).
+    let import = matches!(dlg, Dialog::Import { .. });
+    // The Print dialog sizes itself to the window and scrolls its settings column on its own.
+    let print = matches!(dlg, Dialog::Print);
+    let window_id = window_id(&dlg);
+    // Every other dialog fits the window (#781): its options scroll when they don't, and the title
+    // bar and the button row stay outside the scroll area. The room they take is measured on the
+    // previous frame (a guess on the first one).
+    let chrome_id = window_id.with("chrome");
+    let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(DIALOG_CHROME_GUESS);
+    // Settings keeps its top edge, and the widest it has been, while tabs of different sizes are shown, so its tab
+    // row stays where it is (centred like the others, the row jumped with each tab's height)
+    let settings = matches!(dlg, Dialog::Settings { .. });
+    let top = (screen.height() * 0.08).clamp(DIALOG_SCREEN_MARGIN, 96.0);
+    let body_max =
+        if settings { screen.height() - top - DIALOG_SCREEN_MARGIN - chrome } else { screen.height() - 2.0 * DIALOG_SCREEN_MARGIN - chrome }
+            .max(DIALOG_MIN_BODY);
+    let widest_id = window_id.with("widest");
+    let widest = if settings { ctx.data(|d| d.get_temp::<f32>(widest_id)).unwrap_or(0.0).min(screen.width() * 0.9) } else { 0.0 };
+    let mut content_w = 0.0f32;
+    let mut body_h = None;
+    // before the window: drawing it closes a dropdown the click lands outside of
+    let popup_was_open = egui::Popup::is_any_open(ctx);
+    let shown = egui::Window::new(crate::i18n::tr(&title))
+        .id(window_id)
+        .collapsible(false)
+        .resizable(import)
+        .vscroll(import)
+        .resize(|r| if import { r.default_height(crate::import::DIALOG_SIZE[1]) } else { r })
+        .frame(frame)
+        .anchor(if settings { egui::Align2::CENTER_TOP } else { egui::Align2::CENTER_CENTER }, [0.0, if settings { top } else { 0.0 }])
+        .min_width(widest)
+        .default_width(match dlg {
+            Dialog::Import { .. } => crate::import::DIALOG_SIZE[0],
+            Dialog::SmartRules { .. } => 680.0,
+            Dialog::AllMetadata { .. } => 620.0,
+            Dialog::Print => 1100.0,
+            Dialog::FaceModel { .. } => 460.0,
+            Dialog::LightroomCatalog { .. } => 440.0,
+            Dialog::LightroomDestination { .. } => 480.0,
+            Dialog::ManageEffects { .. } => 560.0,
+            _ => 380.0,
+        })
+        .show(ctx, |ui| {
+            // Disabled, not skipped: the dialog keeps its layout and state, but a raw event in the
+            // first prompt frame cannot toggle a checkbox or press a button underneath it. The
+            // blocking library window gets the same treatment: it owns input while it is on screen,
+            // so the dialog behind it must not take focus or accept typed text either.
+            if raw_blocked {
+                ui.disable();
+            }
+            ui.spacing_mut().item_spacing.y = 8.0;
+            body_h = dialog_body(ui, (!import && !print).then_some(title.as_str()), body_max, |ui| {
+                dialog_content(app, ui, &t, body_max, &mut confirm, &mut dlg)
+            });
+            ui.add_space(4.0);
+            // the confirm on the right with Cancel to its left (macOS and GNOME's order), filled with
+            // the accent when it is the dialog's primary action. The row spans the width the window
+            // gives its content this frame (its default width, or its content's if wider), so it
+            // reaches the edge without widening the window.
+            let row_w = ui.available_width().max(ui.min_rect().width()).max(1.0);
+            let row_h = ui.spacing().interact_size.y;
+            ui.allocate_ui_with_layout(egui::vec2(row_w, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                button_row(app, ui, &dlg, &mut close, &mut confirm);
+            });
+            if import {
+                crate::import::note_dialog_bottom(ui);
+            }
+            content_w = ui.min_rect().width();
+        });
+    if settings && content_w > widest + 0.5 {
+        ctx.data_mut(|d| d.insert_temp(widest_id, content_w));
+    }
+    if let Some(w) = &shown {
+        // (the import review keeps its hand-picked photos however the click lands)
+        if !raw_blocked && app.ui.settings.close_dialogs_outside && !import && clicked_backdrop(ctx, w.response.rect, popup_was_open) {
+            close = true;
+        } else if raw_blocked {
+            // A press made under the prompt or library window must not be remembered as a
+            // backdrop press for a release that arrives after that covering window goes away.
+            ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("dialog-backdrop-press")));
+        }
+    }
+    if let Some(w) = shown {
+        ctx.memory_mut(|m| m.set_modal_layer(w.response.layer_id));
+        if let Some(body_h) = body_h {
+            let measured = (w.response.rect.height() - body_h).max(0.0);
+            if (measured - chrome).abs() > 0.5 {
+                ctx.data_mut(|d| d.insert_temp(chrome_id, measured));
+                ctx.request_repaint();
+            }
+        }
+        ctx.move_to_top(w.response.layer_id);
+        crate::widgets::register_response("dialog:window", w.response.rect, &w.response);
+    }
+    // (while the shortcuts editor records a key, it takes Esc itself to cancel; an open popup in
+    // the dialog, such as a date picker's calendar, takes it to close itself)
+    if !raw_blocked && ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !crate::widgets::escape_taken(ctx) {
+        close = true;
+    }
+    if !raw_blocked && confirm {
+        close |= confirmed(app, ctx, &mut dlg);
+    }
+    // a dialog opened from inside this one (a button in Settings that shows a licence) takes its place
+    if app.ui.dialog.as_ref().is_some_and(|now| *now != at_start) {
+        return;
+    }
+    if !close && !blocked {
+        let frame = ctx.cumulative_frame_nr();
+        ctx.data_mut(|d| d.insert_temp(egui::Id::unique(BACKDROP_SHOWN), frame));
+    }
+    app.ui.dialog = if close { None } else { Some(dlg) };
+}
+
+/// The title of a dialog.
+fn dialog_title(app: &LightcraftApp, dlg: &Dialog) -> String {
+    match dlg {
         Dialog::TextPrompt { title, .. } => title.as_str(),
         Dialog::NewAlbum { folder: true, .. } => "Create Folder",
         Dialog::NewAlbum { .. } => "Create Album",
@@ -165,284 +285,227 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         Dialog::Shortcuts => "Keyboard Shortcuts",
         Dialog::ViewOptions => "View Options",
     }
-    .to_string();
-    let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(16, 12));
-    // The import review can be resized (its photo grid takes the room); it keeps a window id of its
-    // own so the size it is given doesn't carry over to the other dialogs. Its content scrolls
-    // rather than growing the window when the options below the grid get taller (e.g. Copy).
-    let import = matches!(dlg, Dialog::Import { .. });
-    // The Print dialog sizes itself to the window and scrolls its settings column on its own.
-    let print = matches!(dlg, Dialog::Print);
-    let window_id = window_id(&dlg);
-    // Every other dialog fits the window (#781): its options scroll when they don't, and the title
-    // bar and the button row stay outside the scroll area. The room they take is measured on the
-    // previous frame (a guess on the first one).
-    let chrome_id = window_id.with("chrome");
-    let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(DIALOG_CHROME_GUESS);
-    // Settings keeps its top edge, and the widest it has been, while tabs of different sizes are shown, so its tab
-    // row stays where it is (centred like the others, the row jumped with each tab's height)
-    let settings = matches!(dlg, Dialog::Settings { .. });
-    let top = (screen.height() * 0.08).clamp(DIALOG_SCREEN_MARGIN, 96.0);
-    let body_max =
-        if settings { screen.height() - top - DIALOG_SCREEN_MARGIN - chrome } else { screen.height() - 2.0 * DIALOG_SCREEN_MARGIN - chrome }
-            .max(DIALOG_MIN_BODY);
-    let widest_id = window_id.with("widest");
-    let widest = if settings { ctx.data(|d| d.get_temp::<f32>(widest_id)).unwrap_or(0.0).min(screen.width() * 0.9) } else { 0.0 };
-    let mut content_w = 0.0f32;
-    let mut body_h = None;
-    // before the window: drawing it closes a dropdown the click lands outside of
-    let popup_was_open = egui::Popup::is_any_open(ctx);
-    let shown = egui::Window::new(crate::i18n::tr(&title)).id(window_id)
-        .collapsible(false)
-        .resizable(import)
-        .vscroll(import)
-        .resize(|r| if import { r.default_height(crate::import::DIALOG_SIZE[1]) } else { r })
-        .frame(frame)
-        .anchor(if settings { egui::Align2::CENTER_TOP } else { egui::Align2::CENTER_CENTER }, [0.0, if settings { top } else { 0.0 }])
-        .min_width(widest)
-        .default_width(match dlg {
-            Dialog::Import { .. } => crate::import::DIALOG_SIZE[0],
-            Dialog::SmartRules { .. } => 680.0,
-            Dialog::AllMetadata { .. } => 620.0,
-            Dialog::Print => 1100.0,
-            Dialog::FaceModel { .. } => 460.0,
-            Dialog::LightroomCatalog { .. } => 440.0,
-            Dialog::LightroomDestination { .. } => 480.0,
-            Dialog::ManageEffects { .. } => 560.0,
-            _ => 380.0,
-        })
-        .show(ctx, |ui| {
-            // Disabled, not skipped: the dialog keeps its layout and state, but a raw event in the
-            // first prompt frame cannot toggle a checkbox or press a button underneath it. The
-            // blocking library window gets the same treatment: it owns input while it is on screen,
-            // so the dialog behind it must not take focus or accept typed text either.
-            if raw_blocked {
-                ui.disable();
-            }
-            ui.spacing_mut().item_spacing.y = 8.0;
-            body_h = dialog_body(ui, (!import && !print).then_some(title.as_str()), body_max, |ui| dialog_content(app, ui, &t, body_max, &mut confirm, &mut dlg));
-            ui.add_space(4.0);
-            // the confirm on the right with Cancel to its left (macOS and GNOME's order), filled with
-            // the accent when it is the dialog's primary action. The row spans the width the window
-            // gives its content this frame (its default width, or its content's if wider), so it
-            // reaches the edge without widening the window.
-            let row_w = ui.available_width().max(ui.min_rect().width()).max(1.0);
-            let row_h = ui.spacing().interact_size.y;
-            ui.allocate_ui_with_layout(egui::vec2(row_w, row_h), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                // a model file LightCraft cannot use has nothing to confirm, nor has a dialog that
-                // only shows something (one Close, no Cancel / OK)
-                let unusable_model = matches!(&dlg, Dialog::DenoiseModel { info, .. } | Dialog::FaceModel { info, .. } if info["kind"] == "unsupported");
-                let informational = unusable_model || matches!(dlg, Dialog::LightroomResult { first: None, .. }) || only_shows(&dlg);
-                let sam = &app.session.segmenter;
-                let (sam_installed, sam_running, sam_failed) = (sam.installed(), sam.download_status().running, sam.download_status().error.is_some());
-                // no download location in this build: nothing to offer but the manual install
-                let sam_nowhere = sam_by_hand(sam);
-                let cancel = match &dlg {
-                    Dialog::SamModel { .. } if sam_running || sam_installed || sam_nowhere => "Close",
-                    Dialog::SamModel { .. } => "Not Now",
-                    Dialog::LightroomResult { .. } => "Close",
-                    _ => "Cancel",
-                };
-                let add_label;
-                let ok = match &dlg {
-                    Dialog::Import { opts } => {
-                        let n = opts.selected_paths().len();
-                        let verb = if opts.copy && opts.move_files { "Move" } else { "Import" };
-                        add_label = crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n);
-                        add_label.as_str()
-                    }
-                    Dialog::LightroomResult { first: Some(_), .. } => "Show in Library",
-                    Dialog::ContactSheet { .. } => "Choose PDF…",
-                    Dialog::SlideshowExport { .. } => "Export…",
-                    Dialog::Print => "Print to PDF…",
-                    Dialog::Merge { .. } => "Merge",
-                    Dialog::DenoiseModel { info, .. } if info["download"].is_string() => "Accept & Download",
-                    Dialog::DenoiseModel { .. } => "Install",
-                    Dialog::FaceModel { info, .. } if !informational && info["download"].is_string() => "Download",
-                    Dialog::FaceModel { .. } if !informational => "Install",
-                    Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } => "Delete",
-                    Dialog::SaveEffect { .. } => "Create",
-                    Dialog::MovePhotos { .. } => "Move",
-                    // (not "Merge": that is photo merging, HDR / panorama, in some languages)
-                    Dialog::MoveKeyword { .. } => "Merge Keywords",
-                    Dialog::KeywordSet { .. } => "Save",
-                    Dialog::KeywordTag { editing: None, .. } => "Create",
-                    Dialog::KeywordTag { .. } => "Save",
-                    Dialog::RemoveFolder { .. } => "Remove",
-                    Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
-                    d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::ok_label(d),
-                    Dialog::SynchronizeFolder { .. } if informational => "Close",
-                    Dialog::SynchronizeFolder { .. } => "Synchronize",
-                    Dialog::SamModel { then: Some(_), .. } if sam_installed => "Continue",
-                    Dialog::SamModel { .. } if sam_installed || sam_running || sam_nowhere => "",
-                    Dialog::SamModel { error, .. } if error.is_some() || sam_failed => "Try Again",
-                    Dialog::SamModel { .. } => "Download",
-                    Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
-                    _ if informational => "Close",
-                    _ => "OK",
-                };
-                // installing waits for the licence to be accepted
-                // (and Synchronize waits for the scan)
-                let rename_blocked = match &dlg {
-                    Dialog::RenamePerson { from, to, merge } => {
-                        let plan = person_rename_plan(&app.session.catalog, from, to);
-                        plan.block.is_some() || (plan.needs_merge && !*merge)
-                    }
-                    _ => false,
-                };
-                let can_confirm = !rename_blocked
-                    && (informational
-                        || !matches!(
-                            &dlg,
-                            Dialog::DenoiseModel { accepted: false, .. } | Dialog::FaceModel { accepted: false, .. } | Dialog::SynchronizeFolder { counts: None, .. }
-                        )
-                            // smart-album rules that can't mean anything wait to be fixed
-                            && !matches!(&dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty()));
-                let primary = !informational && can_confirm && confirm_style(&dlg) == ConfirmStyle::Primary;
-                use crate::button::{Button, Kind};
-                // (each kind of dialog its own buttons: the keyboard's place doesn't carry from a
-                // dialog to the one it opens)
-                let kind = std::mem::discriminant(&dlg);
-                let cancel_button = Button::new(cancel).widget("button:dialogCancel").id_salt(kind).min_width(72.0);
-                let ok_button = Button::new(ok)
-                    .kind(if primary { Kind::Primary } else { Kind::Secondary })
-                    .enabled(can_confirm)
-                    .widget("button:dialogOk")
-                    .id_salt(kind)
-                    .min_width(72.0);
-                // (Cancel first, then the confirm: the keyboard goes through them as the eye does)
-                let gap = ui.spacing().item_spacing.x;
-                let mut buttons_w = 0.0;
-                if !informational {
-                    buttons_w += cancel_button.desired_size(ui).x + gap;
-                }
-                if !ok.is_empty() {
-                    buttons_w += ok_button.desired_size(ui).x;
-                }
-                ui.add_space((ui.available_width() - buttons_w).max(0.0));
-                if !informational && cancel_button.show(ui).clicked() {
-                    close = true;
-                }
-                let r = (!ok.is_empty()).then(|| ok_button.show(ui));
-                if r.is_some_and(|r| r.clicked()) {
-                    if informational {
-                        close = true;
-                    } else {
-                        confirm = true;
-                    }
-                }
-            });
-            if import {
-                crate::import::note_dialog_bottom(ui);
-            }
-            content_w = ui.min_rect().width();
-        });
-    if settings && content_w > widest + 0.5 {
-        ctx.data_mut(|d| d.insert_temp(widest_id, content_w));
-    }
-    if let Some(w) = &shown {
-        // (the import review keeps its hand-picked photos however the click lands)
-        if !raw_blocked && app.ui.settings.close_dialogs_outside && !import && clicked_backdrop(ctx, w.response.rect, popup_was_open) {
-            close = true;
-        } else if raw_blocked {
-            // A press made under the prompt or library window must not be remembered as a
-            // backdrop press for a release that arrives after that covering window goes away.
-            ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique("dialog-backdrop-press")));
+    .to_string()
+}
+
+/// Whether a dialog only shows something: a model file LightCraft cannot use has nothing to confirm, nor has a
+/// dialog that only shows something (one Close, no Cancel / OK).
+fn is_informational(dlg: &Dialog) -> bool {
+    let unusable_model = matches!(dlg, Dialog::DenoiseModel { info, .. } | Dialog::FaceModel { info, .. } if info["kind"] == "unsupported");
+    unusable_model || matches!(dlg, Dialog::LightroomResult { first: None, .. }) || only_shows(dlg)
+}
+
+/// What the SAM 3 download looks like: installed, running, failed, and whether there is nowhere to download from.
+struct SamState {
+    installed: bool,
+    running: bool,
+    failed: bool,
+    /// no download location in this build: nothing to offer but the manual install
+    by_hand: bool,
+}
+
+impl SamState {
+    fn of(app: &LightcraftApp) -> Self {
+        let sam = &app.session.segmenter;
+        SamState {
+            installed: sam.installed(),
+            running: sam.download_status().running,
+            failed: sam.download_status().error.is_some(),
+            by_hand: sam_by_hand(sam),
         }
     }
-    if let Some(w) = shown {
-        ctx.memory_mut(|m| m.set_modal_layer(w.response.layer_id));
-        if let Some(body_h) = body_h {
-            let measured = (w.response.rect.height() - body_h).max(0.0);
-            if (measured - chrome).abs() > 0.5 {
-                ctx.data_mut(|d| d.insert_temp(chrome_id, measured));
-                ctx.request_repaint();
+}
+
+/// The label of a dialog's cancel button.
+fn cancel_label(dlg: &Dialog, sam: &SamState) -> &'static str {
+    match dlg {
+        Dialog::SamModel { .. } if sam.running || sam.installed || sam.by_hand => "Close",
+        Dialog::SamModel { .. } => "Not Now",
+        Dialog::LightroomResult { .. } => "Close",
+        _ => "Cancel",
+    }
+}
+
+/// The label of a dialog's confirm button (empty: it has none).
+fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamState) -> String {
+    let label = match dlg {
+        Dialog::Import { opts } => {
+            let n = opts.selected_paths().len();
+            let verb = if opts.copy && opts.move_files { "Move" } else { "Import" };
+            return crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n);
+        }
+        Dialog::LightroomResult { first: Some(_), .. } => "Show in Library",
+        Dialog::ContactSheet { .. } => "Choose PDF…",
+        Dialog::SlideshowExport { .. } => "Export…",
+        Dialog::Print => "Print to PDF…",
+        Dialog::Merge { .. } => "Merge",
+        Dialog::DenoiseModel { info, .. } if info["download"].is_string() => "Accept & Download",
+        Dialog::DenoiseModel { .. } => "Install",
+        Dialog::FaceModel { info, .. } if !informational && info["download"].is_string() => "Download",
+        Dialog::FaceModel { .. } if !informational => "Install",
+        Dialog::ConfirmDelete { .. } | Dialog::DeleteKeyword { .. } | Dialog::DeleteEffects { .. } => "Delete",
+        Dialog::SaveEffect { .. } => "Create",
+        Dialog::MovePhotos { .. } => "Move",
+        // (not "Merge": that is photo merging, HDR / panorama, in some languages)
+        Dialog::MoveKeyword { .. } => "Merge Keywords",
+        Dialog::KeywordSet { .. } => "Save",
+        Dialog::KeywordTag { editing: None, .. } => "Create",
+        Dialog::KeywordTag { .. } => "Save",
+        Dialog::RemoveFolder { .. } => "Remove",
+        Dialog::LightroomCatalog { .. } => "Import Lightroom Catalog…",
+        d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::ok_label(d),
+        Dialog::SynchronizeFolder { .. } if informational => "Close",
+        Dialog::SynchronizeFolder { .. } => "Synchronize",
+        Dialog::SamModel { .. } => return sam_ok_label(dlg, sam).to_string(),
+        Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
+        _ if informational => "Close",
+        _ => "OK",
+    };
+    label.to_string()
+}
+
+/// The label of the SAM 3 dialog's confirm button.
+fn sam_ok_label(dlg: &Dialog, sam: &SamState) -> &'static str {
+    match dlg {
+        Dialog::SamModel { then: Some(_), .. } if sam.installed => "Continue",
+        Dialog::SamModel { .. } if sam.installed || sam.running || sam.by_hand => "",
+        Dialog::SamModel { error, .. } if error.is_some() || sam.failed => "Try Again",
+        _ => "Download",
+    }
+}
+
+/// Whether the confirm button works: installing waits for the licence to be accepted (and Synchronize waits for the
+/// scan), a rename waits for its conflicts to be settled, smart-album rules that can't mean anything wait to be fixed.
+fn can_confirm(app: &LightcraftApp, dlg: &Dialog, informational: bool) -> bool {
+    let rename_blocked = match dlg {
+        Dialog::RenamePerson { from, to, merge } => {
+            let plan = person_rename_plan(&app.session.catalog, from, to);
+            plan.block.is_some() || (plan.needs_merge && !*merge)
+        }
+        _ => false,
+    };
+    let waiting = matches!(
+        dlg,
+        Dialog::DenoiseModel { accepted: false, .. } | Dialog::FaceModel { accepted: false, .. } | Dialog::SynchronizeFolder { counts: None, .. }
+    );
+    let bad_rules =
+        matches!(dlg, Dialog::SmartRules { id, rules, .. } if !rules.check_for(&app.session.catalog, id.map(lightcraft_catalog::AlbumId)).is_empty());
+    !rename_blocked && (informational || (!waiting && !bad_rules))
+}
+
+/// The row of buttons under a dialog: Cancel and the confirm; `close` and `confirm` are set when one is clicked.
+fn button_row(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &Dialog, close: &mut bool, confirm: &mut bool) {
+    let informational = is_informational(dlg);
+    let sam = SamState::of(app);
+    let cancel = cancel_label(dlg, &sam);
+    let ok = ok_label(app, dlg, informational, &sam);
+    let ok = ok.as_str();
+    let can_confirm = can_confirm(app, dlg, informational);
+    let primary = !informational && can_confirm && confirm_style(dlg) == ConfirmStyle::Primary;
+    use crate::button::{Button, Kind};
+    // (each kind of dialog its own buttons: the keyboard's place doesn't carry from a
+    // dialog to the one it opens)
+    let kind = std::mem::discriminant(dlg);
+    let cancel_button = Button::new(cancel).widget("button:dialogCancel").id_salt(kind).min_width(72.0);
+    let ok_button = Button::new(ok)
+        .kind(if primary { Kind::Primary } else { Kind::Secondary })
+        .enabled(can_confirm)
+        .widget("button:dialogOk")
+        .id_salt(kind)
+        .min_width(72.0);
+    // (Cancel first, then the confirm: the keyboard goes through them as the eye does)
+    let gap = ui.spacing().item_spacing.x;
+    let mut buttons_w = 0.0;
+    if !informational {
+        buttons_w += cancel_button.desired_size(ui).x + gap;
+    }
+    if !ok.is_empty() {
+        buttons_w += ok_button.desired_size(ui).x;
+    }
+    ui.add_space((ui.available_width() - buttons_w).max(0.0));
+    if !informational && cancel_button.show(ui).clicked() {
+        *close = true;
+    }
+    let r = (!ok.is_empty()).then(|| ok_button.show(ui));
+    if r.is_some_and(|r| r.clicked()) {
+        if informational {
+            *close = true;
+        } else {
+            *confirm = true;
+        }
+    }
+}
+
+/// The dialog's confirm was pressed: do it. Whether the dialog closes.
+fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> bool {
+    let mut closed = false;
+    match confirm_dialog(app, dlg) {
+        // the import review stays open on an error (e.g. an unusable folder template), and so
+        // does Export (e.g. no folder chosen) so the choices aren't lost, and Edit Capture Time
+        // (a time that isn't a date, or a shift it refuses)
+        Err(e)
+            if matches!(
+                dlg,
+                Dialog::Import { .. }
+                    | Dialog::Export { .. }
+                    | Dialog::ContactSheet { .. }
+                    | Dialog::SlideshowExport { .. }
+                    | Dialog::Print
+                    | Dialog::NewAlbum { .. }
+                    | Dialog::NewSmartAlbum { .. }
+                    | Dialog::SmartRules { .. }
+                    | Dialog::KeywordTag { .. }
+                    | Dialog::KeywordSet { .. }
+                    | Dialog::SynchronizeFolder { .. }
+                    | Dialog::SaveEffect { .. }
+                    | Dialog::CaptureTime { .. }
+            ) =>
+        {
+            app.toast(ctx, e)
+        }
+        // the SAM 3 dialog stays open to show the download (or why it can't start)
+        Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {
+            if let Dialog::SamModel { error, .. } = dlg {
+                *error = Some(e);
             }
         }
-        ctx.move_to_top(w.response.layer_id);
-        crate::widgets::register_response("dialog:window", w.response.rect, &w.response);
-    }
-    // (while the shortcuts editor records a key, it takes Esc itself to cancel; an open popup in
-    // the dialog, such as a date picker's calendar, takes it to close itself)
-    if !raw_blocked && ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !crate::widgets::escape_taken(ctx) {
-        close = true;
-    }
-    if !raw_blocked && confirm {
-        match confirm_dialog(app, &dlg) {
-            // the import review stays open on an error (e.g. an unusable folder template), and so
-            // does Export (e.g. no folder chosen) so the choices aren't lost, and Edit Capture Time
-            // (a time that isn't a date, or a shift it refuses)
-            Err(e)
-                if matches!(
-                    dlg,
-                    Dialog::Import { .. }
-                        | Dialog::Export { .. }
-                        | Dialog::ContactSheet { .. }
-                        | Dialog::SlideshowExport { .. }
-                        | Dialog::Print
-                        | Dialog::NewAlbum { .. }
-                        | Dialog::NewSmartAlbum { .. }
-                        | Dialog::SmartRules { .. }
-                        | Dialog::KeywordTag { .. }
-                        | Dialog::KeywordSet { .. }
-                        | Dialog::SynchronizeFolder { .. }
-                        | Dialog::SaveEffect { .. }
-                        | Dialog::CaptureTime { .. }
-                ) =>
-            {
-                app.toast(ctx, e)
-            }
-            // the SAM 3 dialog stays open to show the download (or why it can't start)
-            Err(e) if matches!(dlg, Dialog::SamModel { .. }) => {
-                if let Dialog::SamModel { error, .. } = &mut dlg {
-                    *error = Some(e);
-                }
-            }
-            Ok(r) if matches!(dlg, Dialog::NewAlbum { .. }) && r.get("skipped").and_then(serde_json::Value::as_u64).is_some_and(|n| n > 0) => {
-                // albums hold library photos (issue #684): say which part of the selection stayed out
-                crate::panels::grid::toast_skipped(app, ctx, &r);
-                close = true;
-            }
-            // a move says how it went, or why nothing moved
-            Ok(r) if matches!(dlg, Dialog::MovePhotos { .. }) => {
-                if let Dialog::MovePhotos { name, .. } = &dlg {
-                    let text = crate::panels::left::moved_text(r["moved"].as_u64().unwrap_or(0), name);
-                    app.toast(ctx, text);
-                }
-                close = true;
-            }
-            Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
-                app.toast(ctx, e);
-                close = true;
-            }
-            // photos whose capture time doesn't read are left as they were: say so
-            Ok(r) if matches!(dlg, Dialog::CaptureTime { .. }) && r["unreadable"].as_u64().is_some_and(|n| n > 0) => {
-                app.toast(ctx, crate::i18n::tr("Photos whose capture time can't be read were left as they were"));
-                close = true;
-            }
-            // where a Lightroom catalog goes: stays open to be corrected (a folder that isn't
-            // empty), unless the library it names has gone
-            Err(e) if matches!(dlg, Dialog::LightroomDestination { .. }) => {
-                close = !crate::lightroom_destination::keeps_open_on_error(app, &dlg);
-                app.toast(ctx, e);
-            }
-            Ok(_) if keeps_open(app, &dlg) => {
-                if let Dialog::SamModel { error, .. } = &mut dlg {
-                    *error = None;
-                }
-            }
-            _ => close = true,
+        Ok(r) if matches!(dlg, Dialog::NewAlbum { .. }) && r.get("skipped").and_then(serde_json::Value::as_u64).is_some_and(|n| n > 0) => {
+            // albums hold library photos (issue #684): say which part of the selection stayed out
+            crate::panels::grid::toast_skipped(app, ctx, &r);
+            closed = true;
         }
+        // a move says how it went, or why nothing moved
+        Ok(r) if matches!(dlg, Dialog::MovePhotos { .. }) => {
+            if let Dialog::MovePhotos { name, .. } = dlg {
+                let text = crate::panels::left::moved_text(r["moved"].as_u64().unwrap_or(0), name);
+                app.toast(ctx, text);
+            }
+            closed = true;
+        }
+        Err(e) if matches!(dlg, Dialog::MovePhotos { .. }) => {
+            app.toast(ctx, e);
+            closed = true;
+        }
+        // photos whose capture time doesn't read are left as they were: say so
+        Ok(r) if matches!(dlg, Dialog::CaptureTime { .. }) && r["unreadable"].as_u64().is_some_and(|n| n > 0) => {
+            app.toast(ctx, crate::i18n::tr("Photos whose capture time can't be read were left as they were"));
+            closed = true;
+        }
+        // where a Lightroom catalog goes: stays open to be corrected (a folder that isn't
+        // empty), unless the library it names has gone
+        Err(e) if matches!(dlg, Dialog::LightroomDestination { .. }) => {
+            closed = !crate::lightroom_destination::keeps_open_on_error(app, dlg);
+            app.toast(ctx, e);
+        }
+        Ok(_) if keeps_open(app, dlg) => {
+            if let Dialog::SamModel { error, .. } = dlg {
+                *error = None;
+            }
+        }
+        _ => closed = true,
     }
-    // a dialog opened from inside this one (a button in Settings that shows a licence) takes its place
-    if app.ui.dialog.as_ref().is_some_and(|now| *now != at_start) {
-        return;
-    }
-    if !close && !blocked {
-        let frame = ctx.cumulative_frame_nr();
-        ctx.data_mut(|d| d.insert_temp(egui::Id::unique(BACKDROP_SHOWN), frame));
-    }
-    app.ui.dialog = if close { None } else { Some(dlg) };
+
+    closed
 }
 
 /// The last frame a dialog was drawn and stayed open, for [`clicked_backdrop`].
