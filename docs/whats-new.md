@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### The histogram stays SDR when HDR is switched off
+- After an HDR edit was dragged and HDR was then switched off, dragging a slider showed the old HDR histogram (with its
+  SDR / HDR colour bar) again until the drag ended. The histogram now follows the edit: an SDR edit shows the SDR
+  histogram while you drag, too.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
