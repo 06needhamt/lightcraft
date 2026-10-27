@@ -1000,19 +1000,39 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             // a new copy of a master in Recently Deleted is imported, not trashed with it
             p.deleted = false;
             p
-        } else if let Some(duplicate) = duplicates.get(&key(&src.path)).and_then(|id| s.catalog.photo(*id)) {
+        } else if let Some(duplicate) = duplicates.get(&key(&src.path)).and_then(|id| s.catalog.photo(*id)).cloned() {
             // Catalogs can contain distinct originals with identical bytes and independent edits.
-            // The clone is a new record of its own: never in Recently Deleted because the photo with
-            // the same bytes is (#2589), nor a virtual copy because that photo is one.
-            let mut p = (**duplicate).clone();
-            p.id = s.catalog.alloc_photo_id();
-            p.source = Source::File { path: src.path.clone() };
-            p.deleted = false;
-            p.copy_of = None;
-            p.copy_name = None;
-            p.local_baseline = None;
-            p.imported = now.clone();
-            p.file_name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().into()).unwrap_or_else(|| src.path.clone());
+            // The new record takes only what the bytes determine from the photo with the same
+            // bytes, never that photo's own state: not its Recently Deleted (#2589), virtual copy,
+            // edits, history, versions, ratings or the metadata a person writes.
+            let name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| src.path.clone());
+            let mut p = Photo::new(
+                s.catalog.alloc_photo_id(),
+                Source::File { path: src.path.clone() },
+                &name,
+                &duplicate.format,
+                duplicate.width,
+                duplicate.height,
+                &now,
+            );
+            p.kind = duplicate.kind;
+            p.file_size = duplicate.file_size;
+            p.captured = duplicate.captured.clone();
+            p.duration = duplicate.duration;
+            p.as_shot_wb = duplicate.as_shot_wb;
+            p.content_hash = duplicate.content_hash.clone();
+            p.embedded_lens = duplicate.embedded_lens;
+            p.preview_only = duplicate.preview_only.clone();
+            p.preview_checked = duplicate.preview_checked.clone();
+            let m = &duplicate.meta;
+            p.meta.camera = m.camera.clone();
+            p.meta.lens = m.lens.clone();
+            p.meta.focal_mm = m.focal_mm;
+            p.meta.aperture = m.aperture;
+            p.meta.shutter = m.shutter.clone();
+            p.meta.iso = m.iso;
+            p.meta.gps = m.gps;
+            p.meta.focus = m.focus.clone();
             p
         } else {
             let id = s.catalog.alloc_photo_id();

@@ -179,7 +179,27 @@ fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() 
     };
     for (case, edit) in [("trashed", trashed), ("virtual copy", virtual_copy)] {
         let mut s = crate::Session::new();
-        let other = library_photo(&mut s, "/elsewhere/a.ARW", edit);
+        let other = library_photo(&mut s, "/elsewhere/a.ARW", |p| {
+            edit(p);
+            // the other photo's own state, which the new record must not inherit
+            let mut d = (*p.develop).clone();
+            d.light.shadows = 77.0;
+            p.develop = std::sync::Arc::new(d);
+            p.edited = Some("earlier".into());
+            p.history.push(lightcraft_catalog::HistoryStep { label: "Other photo's edit".into(), settings: p.develop.clone() });
+            p.versions.push(lightcraft_catalog::Version {
+                name: "Other photo's version".into(),
+                created: "before".into(),
+                settings: p.develop.clone(),
+                auto: false,
+            });
+            p.meta.title = "Other photo's title".into();
+            p.meta.keywords = vec!["other-photo".into()];
+            p.local_baseline = Some(7);
+            // what the bytes determine is shared
+            p.meta.camera = "Same Camera".into();
+            p.file_size = 4096;
+        });
         let mut data = sample();
         data.photos.retain(|p| number(&p.image, "masterImage") == 0);
         let files = crate::import::ImportReport {
@@ -214,6 +234,14 @@ fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() 
         assert_eq!((new.copy_of, new.copy_name.as_deref()), (None, None), "{case}: the new record is no virtual copy");
         assert_ne!(new.imported, "before", "{case}: imported now, not when the other photo was");
         assert_eq!(new.rating, 5, "{case}: the catalog's own metadata applies");
+        assert_ne!(new.develop.light.shadows, 77.0, "{case}: no edits from the other photo");
+        assert!(new.history.iter().all(|h| h.label != "Other photo's edit"), "{case}: no history from the other photo");
+        assert!(new.versions.is_empty(), "{case}: no versions from the other photo");
+        assert_ne!(new.meta.title, "Other photo's title", "{case}");
+        assert!(!new.meta.keywords.iter().any(|k| k == "other-photo"), "{case}");
+        assert_eq!(new.local_baseline, None, "{case}");
+        assert_eq!((new.meta.camera.as_str(), new.file_size), ("Same Camera", 4096), "{case}: what the bytes determine is kept");
+        assert_eq!(new.content_hash.as_deref(), Some("same-bytes"), "{case}");
         assert_eq!(s.catalog.photo(other).unwrap().deleted, case == "trashed", "{case}: the other photo is left as it was");
     }
 }
@@ -232,6 +260,41 @@ fn a_catalog_photo_matching_a_trashed_record_stays_there_and_is_counted() {
     let copy = s.catalog.photos().find(|p| p.copy_of == Some(trashed)).unwrap();
     assert!(!copy.deleted, "the new virtual copy is imported, not trashed");
     assert_eq!(r["imported"], 1, "only the copy was added: {r}");
+}
+/// Importing the catalog again after its master and virtual copy were both moved to Recently
+/// Deleted matches each through the import index: each is counted once, and neither is restored.
+#[test]
+fn a_reimport_counts_each_trashed_match_once() {
+    let mut s = crate::Session::new();
+    // one import index across both imports, as a library on disk keeps in Interop/
+    let mut index = ImportIndex::default();
+    let mut import = |s: &mut crate::Session| {
+        let undo0 = s.undo.len();
+        apply_prepared(
+            s,
+            sample(),
+            ApplyPrepared {
+                update_existing: false,
+                files: Default::default(),
+                index: &mut index,
+                archive_path: None,
+                missing_sources: &HashSet::new(),
+                undo0,
+            },
+        )
+        .unwrap()
+        .report
+    };
+    let first = import(&mut s);
+    let ids: Vec<PhotoId> = ["1", "2"].iter().map(|k| PhotoId(first["mapping"][k].as_u64().unwrap())).collect();
+    for id in &ids {
+        s.commit("Delete", Op::SetDeleted { id: *id, deleted: true }).unwrap();
+    }
+    let r = import(&mut s);
+    assert_eq!(r["mapping"], first["mapping"], "{r}");
+    assert_eq!(r["inRecentlyDeleted"], 2, "{r}");
+    assert_eq!(r["imported"], 0, "{r}");
+    assert!(ids.iter().all(|id| s.catalog.photo(*id).unwrap().deleted));
 }
 #[test]
 fn preserves_existing_edits_and_rejects_invalid_structure_before_mutation() {
