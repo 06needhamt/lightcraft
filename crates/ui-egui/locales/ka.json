@@ -403,7 +403,6 @@
   "Closing a library releases its lock explicitly (issue #680). On Linux and macOS the lock used to go with the file": "ბიბლიოთეკის დახურვა მის ბლოკს ცხადად ათავისუფლებს (ხარვეზი #680). Linux-სა და macOS-ზე ბლოკი ადრე ფაილის",
   "Cloudy": "მოღრუბლული",
   "Cmd+Shift+R, keeps the photo and clears its edits.)": "Cmd+Shift+R, ფოტოს ინარჩუნებს და მის ცვლილებებს აუქმებს.)",
-  "Collapse": "ჩაკეცვა",
   "Collapse All Stacks": "ყველა დასტის ჩაკეცვა",
   "Collapse Stack": "დასტის ჩაკეცვა",
   "Color": "ფერი",

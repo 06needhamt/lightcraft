@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-27
+
+### Screen readers name the sidebar's disclosure triangles
+- Each triangle in the left sidebar (album folders, local folders, By Date, imported folders, keywords) and in the
+  keyword list now says which row it opens or closes: "Expand Travel", "Collapse 2026". They were all named just
+  "Expand" or "Collapse", so VoiceOver read a list of identical buttons.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
