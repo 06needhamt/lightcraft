@@ -594,14 +594,7 @@ fn run(args: &[String]) -> Result<(), String> {
                     None => Headless::default(),
                 };
                 if !imports.is_empty() {
-                    let paths = expand_paths(&imports);
-                    let r = h.session.execute("library.import", &json!({"paths": paths})).map_err(|e| e.to_string())?;
-                    // what follows acts on the imported photos (already-known files are reported as duplicates)
-                    let mut ids: Vec<Value> = r["imported"].as_array().cloned().unwrap_or_default();
-                    ids.extend(r["duplicates"].as_array().into_iter().flatten().filter_map(|d| d.get("existing").filter(|v| v.is_u64()).cloned()));
-                    if let Some(first) = ids.first().cloned() {
-                        h.session.execute("library.select", &json!({"ids": ids, "active": first})).map_err(|e| e.to_string())?;
-                    }
+                    import_and_select(&mut h.session, &imports)?;
                 }
                 Box::new(h)
             }
@@ -624,6 +617,32 @@ fn run(args: &[String]) -> Result<(), String> {
     }
     drop(backend); // a library session is flushed here
     if failed > 0 { Err(format!("{failed} command(s) failed")) } else { Ok(()) }
+}
+
+fn import_and_select(session: &mut Session, imports: &[String]) -> Result<(), String> {
+    let selection = session.selection.clone();
+    let paths = expand_paths(imports);
+    let result = (|| {
+        let r = session.execute("library.import", &json!({"paths": paths})).map_err(|e| format!("import failed: {e}; no commands were run"))?;
+        let ids = import_targets(&r)?;
+        let first = ids.first().cloned().ok_or("import found no photos to select; no commands were run")?;
+        session.execute("library.select", &json!({"ids": ids, "active": first})).map_err(|e| e.to_string())?;
+        Ok::<(), String>(())
+    })();
+    if result.is_err() {
+        session.selection = selection;
+    }
+    result
+}
+
+fn import_targets(report: &Value) -> Result<Vec<Value>, String> {
+    if let Some(failed) = report["failed"].as_array().filter(|failed| !failed.is_empty()) {
+        return Err(format!("import failed for {} item(s): {}; no commands were run", failed.len(), json!(failed)));
+    }
+    let mut ids: Vec<Value> = report["imported"].as_array().cloned().unwrap_or_default();
+    ids.extend(report["duplicates"].as_array().into_iter().flatten().filter_map(|d| d.get("existing").filter(|v| v.is_u64()).cloned()));
+    ids.extend(report["restored"].as_array().into_iter().flatten().filter(|id| id.is_u64()).cloned());
+    if ids.is_empty() { Err("import found no photos to select; no commands were run".into()) } else { Ok(ids) }
 }
 
 fn take_value<'a>(args: &'a [String], i: &mut usize, flag: &str) -> Result<&'a str, String> {
@@ -1027,4 +1046,49 @@ fn denoise_serve(args: &[String]) -> Result<(), String> {
 #[cfg(not(feature = "denoise"))]
 fn denoise_serve(_: &[String]) -> Result<(), String> {
     Err("denoise-serve: this build has no denoise support (build with the `denoise` feature)".into())
+}
+
+#[cfg(test)]
+mod import_target_tests {
+    use super::{import_and_select, import_targets, json};
+
+    #[test]
+    fn empty_reports_and_duplicates_without_ids_have_no_target() {
+        assert!(import_targets(&json!({})).is_err());
+        assert!(import_targets(&json!({"imported": [], "duplicates": [{"existing": null}]})).is_err());
+    }
+
+    #[test]
+    fn restored_only_and_mixed_reports_keep_target_order() {
+        assert_eq!(import_targets(&json!({"restored": [9]})).unwrap(), vec![json!(9)]);
+        assert_eq!(
+            import_targets(&json!({"imported": [1], "duplicates": [{"existing": null}, {"existing": 2}], "restored": [3]})).unwrap(),
+            vec![json!(1), json!(2), json!(3)]
+        );
+    }
+
+    #[test]
+    fn failed_items_reject_even_when_targets_exist() {
+        let error = import_targets(&json!({"imported": [1], "failed": [["broken.png", "invalid"]]})).unwrap_err();
+        assert!(error.contains("1") && error.contains("broken.png") && error.contains("no commands were run"), "{error}");
+    }
+
+    #[test]
+    fn failed_partial_import_restores_empty_selection() {
+        let dir = std::env::temp_dir().join(format!("lightcraft-import-selection-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("valid.png");
+        let broken = dir.join("broken.png");
+        let img = lightcraft_raster::Rgba8::from_fn(2, 2, |_, _| [20, 40, 60, 255]);
+        let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &Default::default()).unwrap();
+        std::fs::write(&input, png).unwrap();
+        std::fs::write(&broken, b"not a PNG").unwrap();
+        let mut headless = lightcraft_mcp::Headless::default();
+        let session = &mut headless.session;
+        let selection = session.selection.clone();
+        assert!(selection.ids.is_empty() && selection.active.is_none());
+        assert!(import_and_select(session, &[input.to_string_lossy().into_owned(), broken.to_string_lossy().into_owned()]).is_err());
+        assert_eq!(session.selection, selection);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
