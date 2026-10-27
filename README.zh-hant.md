@@ -518,6 +518,7 @@ egui 前端是一個可替換的 crate；它之下沒有任何東西知道 UI �
 `%LOCALAPPDATA%\Programs\ArtCraft\LightCraft`；選擇「這台電腦上的所有人」則安裝到
 `C:\Program Files\ArtCraft\LightCraft`（32 位元版本為 `Program Files (x86)`）；升級時會留在你選擇的資料夾），結束時會有一頁確認 LightCraft 已安裝，
 並可選擇立即啟動。無訊息安裝：`msiexec /i lightcraft-<ver>-windows-x64.msi /qn INSTALLFOLDER="D:\Apps\LightCraft\"`。
+無訊息安裝預設僅為目前使用者安裝。`INSTALLFOLDER` 只決定安裝資料夾，不決定為誰安裝；若要為所有使用者安裝，請在提升權限的終端機或部署工具中加上 `ALLUSERS=1`。
 
 ### macOS
 
