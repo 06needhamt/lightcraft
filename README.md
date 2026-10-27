@@ -563,8 +563,9 @@ Questions, ideas or a bug you'd like to talk through first? Bring them to [Disco
 | arm64 (Snapdragon and other ARM PCs) | `lightcraft-<ver>-windows-arm64.msi` | `lightcraft-<ver>-windows-arm64-portable.zip` |
 | x86 (32-bit) | `lightcraft-<ver>-windows-x86.msi` | `lightcraft-<ver>-windows-x86-portable.zip` |
 
-Installers and executables are code-signed. The installer asks where to install (`C:\Program Files\LightCraft` by
-default; upgrades stay in the folder you chose) and ends on a page confirming LightCraft was installed, with an
+Installers and executables are code-signed. The installer asks who to install for and where (for your account only, in
+`%LOCALAPPDATA%\Programs\ArtCraft\LightCraft`, by default; "Everyone on this computer" uses
+`C:\Program Files\ArtCraft\LightCraft`; upgrades stay in the folder you chose) and ends on a page confirming LightCraft was installed, with an
 option to start it. For unattended installs: `msiexec /i lightcraft-<ver>-windows-x64.msi /qn INSTALLFOLDER="D:\Apps\LightCraft\"`.
 
 ### macOS
