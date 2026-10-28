@@ -264,6 +264,13 @@ impl GridCache {
     }
 }
 
+/// The empty view's way in: the sentence, and Import Photos' shortcut as this platform writes it
+/// and as it is bound (the menu bar's own text), `None` when it is unbound.
+pub(crate) fn import_way_in(keymap: &crate::shortcuts::Keymap, mac: bool) -> (&'static str, Option<String>) {
+    let way = crate::i18n::tr("Import photos with File → Import Photos…, or drop them here");
+    (way, crate::shortcuts::shortcut_of(keymap, "file.addPhotos").map(|sc| crate::menubar::shortcut_text(sc, mac)))
+}
+
 /// Width / height of a photo's cell: its cropped, oriented shape.
 pub(crate) fn shape_of(cat: &Catalog, id: PhotoId) -> f32 {
     let p = cat.photo(id);
@@ -341,7 +348,10 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         } else if super::empty_library::shown(&app.session) {
             super::empty_library::show(app, ui, ui.max_rect());
         } else {
-            super::empty_message(ui, ui.max_rect(), "No photos", "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here");
+            let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+            // wrapped to the grid's width, the shortcut on its own line under it
+            let (way, key) = import_way_in(&app.ui.settings.keymap, mac);
+            super::empty_state(ui, ui.max_rect(), "No photos", way, &[], key.as_deref());
         }
         return;
     }

@@ -835,7 +835,7 @@
   "Import Profiles & Presets…": "プロファイルとプリセットを読み込む…",
   "Import from Device": "デバイスから読み込む",
   "Import from Folder…": "フォルダから読み込む…",
-  "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here": "「ファイル → 写真を読み込む…」（⌘⇧I）から読み込むか、ここに写真をドロップしてください",
+  "Import photos with File → Import Photos…, or drop them here": "「ファイル → 写真を読み込む…」から読み込むか、ここに写真をドロップしてください",
   "Imported Photos": "写真を読み込み",
   "Importing": "読み込み中",
   "Importing scans the source for photos; it doesn't add the folder to Local (use Local → Browse Folder… to work in a folder without importing).": "読み込みでは写真を検索しますが、フォルダはローカルに追加されません。読み込まずに作業する場合は「ローカル → フォルダを参照…」を使ってください",

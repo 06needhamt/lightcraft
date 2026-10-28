@@ -1,5 +1,10 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### The empty photo grid names Import Photos' shortcut as it is bound
+- When a view is empty and the way in is File ▸ Import Photos…, the message under "No photos" used a fixed "Cmd+Shift+I" (or a translation's fixed copy of it) whatever the platform or the binding. It now shows the key as the menu bar writes it (on a Mac its glyphs, elsewhere Ctrl+Shift+I) on its own line under the sentence, follows a remapped key, and names no key when Import Photos has none. The sentence now wraps in a narrow window instead of running off its edge.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

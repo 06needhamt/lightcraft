@@ -802,7 +802,7 @@
   "Import Profiles & Presets…": "导入配置文件与预设…",
   "Import from Device": "从设备导入",
   "Import from Folder…": "从文件夹导入…",
-  "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here": "使用“文件 → 导入照片…”（Cmd+Shift+I）导入照片，或将照片拖放到此处",
+  "Import photos with File → Import Photos…, or drop them here": "使用“文件 → 导入照片…”导入照片，或将照片拖放到此处",
   "Imported Photos": "已导入的照片",
   "Importing": "正在导入",
   "Importing scans the source for photos; it doesn't add the folder to Local (use Local → Browse Folder… to work in a folder without importing).": "导入会扫描源中的照片，但不会将该文件夹添加到“本地”（若想在不导入的情况下处理某个文件夹，请使用“本地 → 浏览文件夹…”）。",

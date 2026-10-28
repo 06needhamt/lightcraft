@@ -803,7 +803,7 @@
   "Import Profiles & Presets…": "匯入描述檔與預設集…",
   "Import from Device": "從裝置匯入",
   "Import from Folder…": "從資料夾匯入…",
-  "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here": "使用「檔案 → 匯入照片…」（Cmd+Shift+I），或將照片拖放至此",
+  "Import photos with File → Import Photos…, or drop them here": "使用「檔案 → 匯入照片…」，或將照片拖放至此",
   "Imported Photos": "已匯入的照片",
   "Importing": "正在匯入",
   "Importing scans the source for photos; it doesn't add the folder to Local (use Local → Browse Folder… to work in a folder without importing).": "匯入會掃描來源中的照片，不會將資料夾加入本機（若要直接使用資料夾中的檔案，請選擇「本機 → 瀏覽資料夾…」）。",
