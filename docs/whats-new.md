@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### Local's standard places can't be renamed by mistake
+- The Pictures, Desktop, Downloads and Home rows of Local no longer offer Rename Folder… or Move Folder To…. Before,
+  the Rename prompt began with the row's translated label rather than the folder's name, so in German pressing OK
+  on “Bilder” renamed your real Pictures folder to “Bilder”, and Home could be renamed the same way. Folders inside
+  them, and folders you keep in Local with Browse Folder…, rename as before, starting from their real name.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
