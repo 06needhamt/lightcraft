@@ -60,3 +60,31 @@ fn the_grid_is_the_main_landmark_in_the_photo_grid() {
     assert_eq!(count(&h, Role::Main, "Photos"), 1);
     assert_eq!(count(&h, Role::Region, "Filmstrip"), 0, "the grid has no filmstrip");
 }
+
+/// A filter that hides every photo leaves the filmstrip drawn with its reason: it stays a landmark
+/// and the reason is text a screen reader reads, not paint.
+#[test]
+fn an_empty_filmstrip_is_still_a_landmark_and_says_why() {
+    let mut session = lightcraft_engine::Session::with_demo();
+    session.execute("library.filter", &serde_json::json!({"keyword": "no-such-keyword"})).expect("the filter is set");
+    assert!(session.visible_cloned().is_empty(), "the filter hides every photo");
+    let mut app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
+    app.ui.left_panel = true;
+    app.ui.view = ViewMode::Detail;
+    app.ui.right = RightPanel::Edit;
+    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).build_ui_state(
+        |ui, app: &mut LightcraftApp| {
+            app.logic(&ui.ctx().clone());
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(10);
+    assert_eq!(count(&h, Role::Region, "Filmstrip"), 1, "the empty strip is still a landmark");
+    let said = h
+        .root()
+        .children_recursive()
+        .filter_map(|n| n.accesskit_node().value().or_else(|| n.accesskit_node().label()))
+        .any(|t| t.starts_with("No photos match the filters"));
+    assert!(said, "the reason is read, not only painted");
+}
