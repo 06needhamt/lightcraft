@@ -571,15 +571,9 @@ pub(crate) fn is_protected_place(path: &Path, home: &Path) -> bool {
         .any(|p| key(&p) == path)
 }
 
-/// The user's home folder; `None` when the host has none.
-fn home_folder() -> Option<std::path::PathBuf> {
-    let home = if cfg!(windows) { std::env::var_os("USERPROFILE") } else { std::env::var_os("HOME") }?;
-    Some(home.into()).filter(|h: &std::path::PathBuf| !h.as_os_str().is_empty())
-}
-
 /// Refuses `from` when renaming or moving it would take the home folder or a standard place of it.
 fn refuse_protected_place(command: &str, from: &str) -> Result<()> {
-    refuse_protected_place_in(command, from, home_folder().as_deref())
+    refuse_protected_place_in(command, from, crate::library::home_folder().as_deref())
 }
 
 /// What `from` names once the file system has read it: made absolute against the working folder

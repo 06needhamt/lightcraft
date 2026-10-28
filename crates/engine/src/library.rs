@@ -68,6 +68,37 @@ pub fn default_dir() -> Option<PathBuf> {
     Some(PathBuf::from(home).join("Pictures").join(DEFAULT_NAME))
 }
 
+/// The user's home folder (`%USERPROFILE%` on Windows, `$HOME` elsewhere); `None` when the host has
+/// none or it is empty. The one place the home path is read for Local's built-in places, in the
+/// engine's rename/move guard and in the sidebar.
+pub fn home_folder() -> Option<PathBuf> {
+    home_folder_from(cfg!(windows), |name| std::env::var_os(name))
+}
+
+fn home_folder_from(windows: bool, var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
+    var(if windows { "USERPROFILE" } else { "HOME" }).filter(|h| !h.is_empty()).map(PathBuf::from)
+}
+
+#[cfg(test)]
+mod home_tests {
+    use super::home_folder_from;
+    use std::ffi::OsString;
+
+    #[test]
+    fn windows_reads_userprofile_and_the_rest_read_home() {
+        let env = |name: &str| match name {
+            "HOME" => Some(OsString::from("/home/example")),
+            "USERPROFILE" => Some(OsString::from("C:\\Users\\example")),
+            _ => None,
+        };
+        assert_eq!(home_folder_from(true, env).as_deref(), Some(std::path::Path::new("C:\\Users\\example")));
+        assert_eq!(home_folder_from(false, env).as_deref(), Some(std::path::Path::new("/home/example")));
+        // only the other platform's variable is set: no home, never a guess from it
+        assert_eq!(home_folder_from(true, |n| (n == "HOME").then(|| OsString::from("/home/example"))), None);
+        assert_eq!(home_folder_from(false, |_| Some(OsString::new())), None);
+    }
+}
+
 pub struct Library {
     /// The library directory, or a descriptive pseudo-path when the library isn't on disk.
     pub dir: PathBuf,

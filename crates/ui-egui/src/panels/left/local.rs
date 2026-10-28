@@ -51,9 +51,10 @@ pub(super) fn local_now(app: &mut LightcraftApp, ui: &egui::Ui) -> Option<LocalN
     Some(LocalNow { places, current, hidden })
 }
 
-/// The user's home folder; empty when the host has none.
+/// The user's home folder, the engine's own reading of it (so the menu and the rename/move guard
+/// agree); empty when the host has none.
 fn home_folder() -> String {
-    std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")).unwrap_or_default()
+    lightcraft_engine::library::home_folder().map(|h| h.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
 /// Local's built-in places under `home` as (English name, path), in order. The names are keys for
