@@ -397,23 +397,35 @@ fn drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response
     let t = Tokens::get(ui.ctx());
     ui.painter().rect_stroke(resp.rect.shrink2(vec2(8.0, 1.0)), 4.0, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
     if released {
-        match app.run("album.addPhotos", json!({"id": a.id.0, "ids": ids})) {
-            Ok(r) => {
-                let n = r.get("added").and_then(serde_json::Value::as_u64).unwrap_or(0);
-                let skipped = r.get("skipped").and_then(serde_json::Value::as_u64).unwrap_or(0);
-                let mut msg = crate::i18n::tr_format!("Added {n} photo{} to “{}”", if n == 1 { "" } else { "s" }, a.name, n = n);
-                if skipped > 0 {
-                    msg.push_str(" · ");
-                    msg.push_str(&crate::i18n::tr_format!(
-                        "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)",
-                        if skipped == 1 { "" } else { "s" },
-                        n = skipped
-                    ));
-                }
-                app.toast(ui.ctx(), msg);
-            }
-            Err(e) => app.toast(ui.ctx(), e),
-        }
+        drop_photos_on_album(app, ui, a, ids);
         app.ui.dragging_photos = None;
     }
+}
+
+/// Adds the dragged photos to the album and toasts how many went in (and how many Local ones were skipped).
+fn drop_photos_on_album(app: &mut LightcraftApp, ui: &egui::Ui, a: &Album, ids: Vec<u64>) {
+    match app.run("album.addPhotos", json!({"id": a.id.0, "ids": ids})) {
+        Ok(r) => app.toast(ui.ctx(), added_message(a, &r)),
+        Err(e) => app.toast(ui.ctx(), e),
+    }
+}
+
+/// "Added N photos to “album”", plus a note when Local photos were skipped.
+fn added_message(a: &Album, r: &serde_json::Value) -> String {
+    let n = r.get("added").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    let skipped = r.get("skipped").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    let mut msg = crate::i18n::tr_format!("Added {n} photo{} to “{}”", if n == 1 { "" } else { "s" }, a.name, n = n);
+    if skipped > 0 {
+        msg.push_str(" · ");
+        msg.push_str(&skipped_note(skipped));
+    }
+    msg
+}
+
+fn skipped_note(skipped: u64) -> String {
+    crate::i18n::tr_format!(
+        "{n} Local photo{} skipped: albums hold library photos (Add to My Photos first)",
+        if skipped == 1 { "" } else { "s" },
+        n = skipped
+    )
 }
