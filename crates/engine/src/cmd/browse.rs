@@ -584,19 +584,41 @@ fn refuse_protected_place(command: &str, from: &str) -> Result<()> {
 
 /// What `from` names once the file system has read it: made absolute against the working folder
 /// (the commands act on it that way) and with its parent's links followed, so a spelling through a
-/// linked folder (`/System/Volumes/Data/Users/me/Pictures`) is the same place. The last name is
-/// kept as written: a link that merely points at Pictures is its own folder, and renaming it
-/// renames the link.
+/// linked folder is the same place. The last name stays as written (a link that merely points at
+/// Pictures is its own folder: renaming it renames the link), except that a name which is not a
+/// link is also read in full, which turns a Windows short name (`DOWNLO~1`) into the long one.
 fn named_places(from: &str) -> Vec<std::path::PathBuf> {
     let spelled = std::path::absolute(from).unwrap_or_else(|_| from.into());
     let followed = spelled.parent().and_then(|p| p.canonicalize().ok()).zip(spelled.file_name()).map(|(p, name)| p.join(name));
-    std::iter::once(spelled).chain(followed).collect()
+    let is_link = std::fs::symlink_metadata(&spelled).is_ok_and(|m| m.file_type().is_symlink());
+    let read = if is_link { None } else { spelled.canonicalize().ok() };
+    std::iter::once(spelled).chain(followed).chain(read).collect()
+}
+
+/// The home folder and its standard places.
+fn standard_places(home: &Path) -> Vec<std::path::PathBuf> {
+    std::iter::once(home.to_path_buf()).chain(["Pictures", "Desktop", "Downloads"].map(|sub| home.join(sub))).collect()
+}
+
+/// Whether `from` is, on disk, one of `places`, however it is spelled (a firmlink or bind mount
+/// reaches the same folder under another path). A link to a place is not the place.
+#[cfg(unix)]
+fn is_one_of(from: &str, places: &[std::path::PathBuf]) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(mine) = std::fs::symlink_metadata(std::path::absolute(from).unwrap_or_else(|_| from.into())) else { return false };
+    mine.is_dir() && places.iter().filter_map(|p| std::fs::metadata(p).ok()).any(|m| (m.dev(), m.ino()) == (mine.dev(), mine.ino()))
+}
+
+#[cfg(not(unix))]
+fn is_one_of(_from: &str, _places: &[std::path::PathBuf]) -> bool {
+    false
 }
 
 fn refuse_protected_place_in(command: &str, from: &str, home: Option<&Path>) -> Result<()> {
-    let Some(home) = home else { return Ok(()) };
+    let Some(home) = home.filter(|h| !h.as_os_str().is_empty()) else { return Ok(()) };
     let homes: Vec<std::path::PathBuf> = std::iter::once(home.to_path_buf()).chain(home.canonicalize().ok()).collect();
-    if named_places(from).iter().any(|place| homes.iter().any(|h| is_protected_place(place, h))) {
+    let spelled = named_places(from).iter().any(|place| homes.iter().any(|h| is_protected_place(place, h)));
+    if spelled || is_one_of(from, &homes.iter().flat_map(|h| standard_places(h)).collect::<Vec<_>>()) {
         return Err(bad(
             command,
             format!(
@@ -674,6 +696,22 @@ mod tests {
         f[common..].iter().for_each(|_| out.push(".."));
         t[common..].iter().for_each(|c| out.push(c));
         out.to_string_lossy().to_string()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_protected_place_spelled_through_a_firmlink_is_refused() {
+        let dir = scratch("firmlink");
+        let home = dir.join("home");
+        // the data volume is also reachable under /System/Volumes/Data: the same folders, spelled otherwise
+        let real = home.canonicalize().expect("home");
+        let spelled = Path::new("/System/Volumes/Data").join(real.strip_prefix("/").expect("absolute"));
+        if spelled.is_dir() {
+            for from in [spelled.clone(), spelled.join("Pictures")] {
+                assert!(refuse_protected_place_in("folder.rename", &from.to_string_lossy(), Some(&home)).is_err(), "{}", from.display());
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[cfg(unix)]
