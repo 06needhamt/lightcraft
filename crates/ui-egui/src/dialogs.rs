@@ -329,16 +329,24 @@ fn cancel_label(dlg: &Dialog, sam: &SamState) -> &'static str {
 
 /// The label of a dialog's confirm button (empty: it has none).
 fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamState) -> String {
-    let label = match dlg {
-        Dialog::Import { opts } => {
-            let n = opts.selected_paths().len();
-            let verb = if opts.copy && opts.move_files { "Move" } else { "Import" };
-            return crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr(verb), n = n);
-        }
-        Dialog::Export { .. } => {
-            let n = app.session.selection.ids.len().max(1);
-            return crate::i18n::tr_format!("{verb} {n} Photo{}", if n == 1 { "" } else { "s" }, verb = crate::i18n::tr("Export"), n = n);
-        }
+    match dlg {
+        Dialog::Import { opts } => photos_ok_label(if opts.copy && opts.move_files { "Move" } else { "Import" }, opts.selected_paths().len()),
+        Dialog::Export { .. } => photos_ok_label("Export", app.session.selection.ids.len().max(1)),
+        Dialog::SamModel { .. } => sam_ok_label(dlg, sam).to_string(),
+        _ => fixed_ok_label(app, dlg, informational).to_string(),
+    }
+}
+
+/// "Import 3 Photos", "Export 1 Photo": a verb and how many photos it acts on.
+fn photos_ok_label(verb: &str, n: usize) -> String {
+    crate::i18n::tr_format!("{verb} {n} Photo{}", crate::i18n::plural_s(n), verb = crate::i18n::tr(verb), n = n)
+}
+
+/// The confirm labels that are one fixed phrase.
+fn fixed_ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool) -> &'static str {
+    match dlg {
+        // worded with a count or by the SAM state: `ok_label` builds them
+        Dialog::Import { .. } | Dialog::Export { .. } | Dialog::SamModel { .. } => "",
         Dialog::LightroomResult { first: Some(_), .. } => "Show in Library",
         Dialog::ContactSheet { .. } => "Choose PDF…",
         Dialog::SlideshowExport { .. } => "Export…",
@@ -376,7 +384,6 @@ fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamSta
         d @ Dialog::LightroomDestination { .. } => crate::lightroom_destination::ok_label(d),
         Dialog::SynchronizeFolder { .. } if informational => "Close",
         Dialog::SynchronizeFolder { .. } => "Synchronize",
-        Dialog::SamModel { .. } => return sam_ok_label(dlg, sam).to_string(),
         Dialog::RenamePerson { from, to, .. } if person_rename_plan(&app.session.catalog, from, to).needs_merge => "Merge",
         Dialog::RenamePerson { .. } => "Rename",
         // the dialogs that only show something, or a model file that can't be used
@@ -391,8 +398,7 @@ fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamSta
         | Dialog::LightroomResult { .. }
         | Dialog::DenoiseModel { .. }
         | Dialog::FaceModel { .. } => "Close",
-    };
-    label.to_string()
+    }
 }
 
 /// The label of the SAM 3 dialog's confirm button.
@@ -1105,13 +1111,7 @@ fn contact_sheet_body(app: &mut LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dial
     options.rows = options.rows.clamp(1, 10);
     let n = app.session.selected().len();
     let pages = n.div_ceil(options.columns * options.rows);
-    ui.label(crate::i18n::tr_format!(
-        "{n} selected photo{} · {pages} page{}",
-        if n == 1 { "" } else { "s" },
-        if pages == 1 { "" } else { "s" },
-        n = n,
-        pages = pages
-    ));
+    ui.label(contact_sheet_summary(n, pages));
     field(ui, "Paper", |ui| {
         let c = crate::widgets::combo_box("contactSheetPaper").selected_text(&options.paper).show_ui(ui, |ui| {
             ui.selectable_value(&mut options.paper, "a4".into(), "A4");
@@ -1129,6 +1129,11 @@ fn contact_sheet_body(app: &mut LightcraftApp, ui: &mut egui::Ui, dlg: &mut Dial
     ui.checkbox(&mut options.captions, crate::i18n::tr("Filename captions"));
     ui.label(crate::i18n::tr("150 dpi · sRGB · current edits · fit without cropping"));
     ui.label(crate::i18n::tr("Choose a PDF destination after confirming. Print the PDF from your viewer."));
+}
+
+/// "N selected photos · M pages".
+fn contact_sheet_summary(n: usize, pages: usize) -> String {
+    crate::i18n::tr_format!("{n} selected photo{} · {pages} page{}", crate::i18n::plural_s(n), crate::i18n::plural_s(pages), n = n, pages = pages)
 }
 
 /// The body of the Export dialog.
