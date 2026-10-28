@@ -1094,7 +1094,6 @@ fn export_body(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, dlg: &mut
     ui.add_space(4.0);
     export_naming_rows(ui, opts);
     export_destination_rows(app, ui, t, opts, dir);
-    ui.add_space(4.0);
     export_save_preset_row(app, ui, opts, *full_size, resize, *limit_kb, preset_name);
 }
 
