@@ -1059,6 +1059,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
             });
         });
     if let Some(w) = &shown {
+        crate::widgets::announce_dialog(ctx, &w.response, crate::widgets::Modal::Alert);
         // A press on the dim raises its area; keep this window (and its own buttons) above it.
         ctx.move_to_top(w.response.layer_id);
     }
@@ -1186,6 +1187,7 @@ fn show_chooser(app: &mut LightcraftApp, ctx: &egui::Context, problem: &LibraryP
             });
         });
     if let Some(w) = &shown {
+        crate::widgets::announce_dialog(ctx, &w.response, crate::widgets::Modal::Dialog);
         // A press on the dim raises its area; keep the launch list above it.
         ctx.move_to_top(w.response.layer_id);
     }

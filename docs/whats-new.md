@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### A dialog is announced as a dialog by screen readers
+- With VoiceOver, Export, Settings and the other dialogs, the library chooser and the prompts that stop the window (the quit
+  question, a library that could not be opened) are now exposed to screen readers as dialogs (a modal one, so the rest of the window is out of VoiceOver's way while
+  it is open), as is the answer to Check for Updates. Before, each was a plain group that only carried the dialog's title.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

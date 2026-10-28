@@ -123,12 +123,13 @@ fn every_interactive_node_has_a_name_in_every_view_and_tool() {
         }
         h.run_steps(6);
         problems.extend(audit(&h, dialog));
-        let windows = h.root().children_recursive().map(|n| n.accesskit_node()).filter(|n| n.role() == Role::Window).count();
+        let is_window = |role| matches!(role, Role::Window | Role::Dialog | Role::AlertDialog);
+        let windows = h.root().children_recursive().map(|n| n.accesskit_node()).filter(|n| is_window(n.role())).count();
         let untitled = h
             .root()
             .children_recursive()
             .map(|n| n.accesskit_node())
-            .filter(|n| n.role() == Role::Window && n.label().unwrap_or_default().trim().is_empty())
+            .filter(|n| is_window(n.role()) && n.label().unwrap_or_default().trim().is_empty())
             .count();
         if untitled > 0 {
             problems.push(format!("{dialog}: {untitled} of {windows} windows have no title"));
