@@ -562,8 +562,9 @@ pub(crate) fn is_protected_place(path: &Path, home: &Path) -> bool {
     if home.is_empty() {
         return false;
     }
-    // compared without case: the usual macOS and Windows volumes treat `pictures` as `Pictures`
-    let key = |p: &str| folder_key(p).to_lowercase();
+    // compared without case where the usual volumes ignore it (macOS, Windows): there `pictures` is `Pictures`
+    let fold = cfg!(any(target_os = "macos", windows));
+    let key = |p: &str| if fold { folder_key(p).to_lowercase() } else { folder_key(p) };
     let path = key(&path.to_string_lossy());
     std::iter::once(home.to_string())
         .chain(["Pictures", "Desktop", "Downloads"].map(|sub| Path::new(&*home).join(sub).to_string_lossy().to_string()))
@@ -578,20 +579,37 @@ fn home_folder() -> Option<std::path::PathBuf> {
 
 /// Refuses `from` when renaming or moving it would take the home folder or a standard place of it.
 fn refuse_protected_place(command: &str, from: &str) -> Result<()> {
-    match home_folder() {
-        Some(home) if is_protected_place(Path::new(from), &home) => Err(bad(
+    refuse_protected_place_in(command, from, home_folder().as_deref())
+}
+
+/// What `from` names once the file system has read it: made absolute against the working folder
+/// (the commands act on it that way) and with its parent's links followed, so a spelling through a
+/// linked folder (`/System/Volumes/Data/Users/me/Pictures`) is the same place. The last name is
+/// kept as written: a link that merely points at Pictures is its own folder, and renaming it
+/// renames the link.
+fn named_places(from: &str) -> Vec<std::path::PathBuf> {
+    let spelled = std::path::absolute(from).unwrap_or_else(|_| from.into());
+    let followed = spelled.parent().and_then(|p| p.canonicalize().ok()).zip(spelled.file_name()).map(|(p, name)| p.join(name));
+    std::iter::once(spelled).chain(followed).collect()
+}
+
+fn refuse_protected_place_in(command: &str, from: &str, home: Option<&Path>) -> Result<()> {
+    let Some(home) = home else { return Ok(()) };
+    let homes: Vec<std::path::PathBuf> = std::iter::once(home.to_path_buf()).chain(home.canonicalize().ok()).collect();
+    if named_places(from).iter().any(|place| homes.iter().any(|h| is_protected_place(place, h))) {
+        return Err(bad(
             command,
             format!(
                 "{from} is the home folder or one of its standard places (Pictures, Desktop, Downloads); rename or move it in the system's file manager instead"
             ),
-        )),
-        _ => Ok(()),
+        ));
     }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_protected_place;
+    use super::{is_protected_place, refuse_protected_place_in};
     use std::path::Path;
 
     #[test]
@@ -613,5 +631,69 @@ mod tests {
         // no home known: nothing is protected, and no relative path is mistaken for a place
         assert!(!is_protected_place(Path::new("Pictures"), Path::new("")));
         assert!(!is_protected_place(Path::new(""), Path::new("")));
+        // case counts only where the volume ignores it
+        assert_eq!(is_protected_place(Path::new("/home/example/pictures"), home), cfg!(any(target_os = "macos", windows)));
+    }
+
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("lightcraft-protected-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("home/Pictures")).expect("scratch home");
+        dir
+    }
+
+    #[test]
+    fn a_protected_place_is_refused_by_name_with_the_reason() {
+        let dir = scratch("named");
+        let home = dir.join("home");
+        for from in [home.clone(), home.join("Pictures"), home.join("Pictures").join(".")] {
+            let e = refuse_protected_place_in("folder.rename", &from.to_string_lossy(), Some(&home)).expect_err("refused").to_string();
+            assert!(e.contains("home folder") && e.contains("file manager"), "{e}");
+        }
+        assert!(refuse_protected_place_in("folder.move", &home.join("Pictures").join("Trip").to_string_lossy(), Some(&home)).is_ok());
+        assert!(refuse_protected_place_in("folder.rename", &home.to_string_lossy(), None).is_ok(), "no home known");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_relative_path_to_a_protected_place_is_refused() {
+        let dir = scratch("relative");
+        let home = dir.join("home");
+        // the commands act on the process's working folder, so a relative path names the real place
+        let cwd = std::env::current_dir().expect("working folder");
+        let relative = pathdiff(&home.join("Pictures"), &cwd);
+        assert!(refuse_protected_place_in("folder.rename", &relative, Some(&home)).is_err(), "{relative}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// `target` as a path relative to `from` (both absolute), with `..` steps.
+    fn pathdiff(target: &Path, from: &Path) -> String {
+        let (t, f): (Vec<_>, Vec<_>) = (target.components().collect(), from.components().collect());
+        let common = t.iter().zip(&f).take_while(|(a, b)| a == b).count();
+        let mut out = std::path::PathBuf::new();
+        f[common..].iter().for_each(|_| out.push(".."));
+        t[common..].iter().for_each(|c| out.push(c));
+        out.to_string_lossy().to_string()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_protected_place_reached_through_a_linked_parent_is_refused() {
+        let dir = scratch("linked");
+        let home = dir.join("home");
+        let alias = dir.join("alias");
+        std::os::unix::fs::symlink(&home, &alias).expect("link");
+        // the home folder is spelled one way, the path another, both naming the same folder
+        let through_the_link = alias.join("Pictures");
+        assert!(refuse_protected_place_in("folder.rename", &through_the_link.to_string_lossy(), Some(&home)).is_err());
+        assert!(
+            refuse_protected_place_in("folder.rename", &alias.join("Pictures").to_string_lossy(), Some(&alias)).is_err(),
+            "home spelled through the link"
+        );
+        // a link that merely points at Pictures is its own folder: renaming it renames the link
+        let shortcut = dir.join("shortcut");
+        std::os::unix::fs::symlink(home.join("Pictures"), &shortcut).expect("link");
+        assert!(refuse_protected_place_in("folder.rename", &shortcut.to_string_lossy(), Some(&home)).is_ok());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
