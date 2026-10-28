@@ -256,10 +256,11 @@ pub fn specs() -> Vec<CommandSpec> {
             "Rename Folder",
             [],
             None,
-            "{path, name} — rename a folder on disk (its files and sidecars go along) and relink the photos in it; one undo step (undo renames it back, refused if the old name is taken) → {path, relinked}",
+            "{path, name} — rename a folder on disk (its files and sidecars go along) and relink the photos in it; one undo step (undo renames it back, refused if the old name is taken); refused for the home folder and its Pictures, Desktop and Downloads → {path, relinked}",
             always,
             |s, p| {
                 let from = str_param(p, "path").ok_or_else(|| bad("folder.rename", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
+                refuse_protected_place("folder.rename", &from)?;
                 let name = str_param(p, "name")
                     .map(str::trim)
                     .filter(|n| !n.is_empty() && !n.contains(['/', '\\']) && *n != "." && *n != "..")
@@ -274,10 +275,11 @@ pub fn specs() -> Vec<CommandSpec> {
             "Move Folder",
             [],
             None,
-            "{path, into: destination folder} — move a folder on disk into another and relink the photos in it; one undo step (undo moves it back, refused if the old place is taken) → {path, relinked}",
+            "{path, into: destination folder} — move a folder on disk into another and relink the photos in it; one undo step (undo moves it back, refused if the old place is taken); refused for the home folder and its Pictures, Desktop and Downloads → {path, relinked}",
             always,
             |s, p| {
                 let from = str_param(p, "path").ok_or_else(|| bad("folder.move", "missing path"))?.trim_end_matches(['/', '\\']).to_string();
+                refuse_protected_place("folder.move", &from)?;
                 let into = str_param(p, "into").ok_or_else(|| bad("folder.move", "missing into"))?;
                 let name = Path::new(&from).file_name().ok_or_else(|| bad("folder.move", "bad path"))?;
                 let to = Path::new(into).join(name).to_string_lossy().to_string();
@@ -549,4 +551,67 @@ pub(crate) fn move_folder(s: &mut Session, from: &str, to: &str) -> std::result:
     }
     follow_folder(s, from, to);
     Ok(n)
+}
+
+/// Whether `path` is the user's home folder or one of its standard places (Pictures, Desktop,
+/// Downloads): the computer's own folders, which renaming or moving would break for every other
+/// program. `home` is passed in so the check can be tested; the commands read the real one.
+pub(crate) fn is_protected_place(path: &Path, home: &Path) -> bool {
+    use lightcraft_catalog::query::folder_key;
+    let home = home.to_string_lossy();
+    if home.is_empty() {
+        return false;
+    }
+    // compared without case: the usual macOS and Windows volumes treat `pictures` as `Pictures`
+    let key = |p: &str| folder_key(p).to_lowercase();
+    let path = key(&path.to_string_lossy());
+    std::iter::once(home.to_string())
+        .chain(["Pictures", "Desktop", "Downloads"].map(|sub| Path::new(&*home).join(sub).to_string_lossy().to_string()))
+        .any(|p| key(&p) == path)
+}
+
+/// The user's home folder; `None` when the host has none.
+fn home_folder() -> Option<std::path::PathBuf> {
+    let home = if cfg!(windows) { std::env::var_os("USERPROFILE") } else { std::env::var_os("HOME") }?;
+    Some(home.into()).filter(|h: &std::path::PathBuf| !h.as_os_str().is_empty())
+}
+
+/// Refuses `from` when renaming or moving it would take the home folder or a standard place of it.
+fn refuse_protected_place(command: &str, from: &str) -> Result<()> {
+    match home_folder() {
+        Some(home) if is_protected_place(Path::new(from), &home) => Err(bad(
+            command,
+            format!(
+                "{from} is the home folder or one of its standard places (Pictures, Desktop, Downloads); rename or move it in the system's file manager instead"
+            ),
+        )),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_protected_place;
+    use std::path::Path;
+
+    #[test]
+    fn the_home_folder_and_its_standard_places_are_protected() {
+        let home = Path::new("/home/example");
+        for path in [
+            "/home/example",
+            "/home/example/",
+            "/home/example/Pictures",
+            "/home/example/Pictures/",
+            "/home/example/Desktop",
+            "/home/example/Downloads",
+        ] {
+            assert!(is_protected_place(Path::new(path), home), "{path}");
+        }
+        for path in ["/home/example/Pictures/Trip", "/home/example/Documents", "/home/other", "/home", "/home/example2", "Pictures", ""] {
+            assert!(!is_protected_place(Path::new(path), home), "{path}");
+        }
+        // no home known: nothing is protected, and no relative path is mistaken for a place
+        assert!(!is_protected_place(Path::new("Pictures"), Path::new("")));
+        assert!(!is_protected_place(Path::new(""), Path::new("")));
+    }
 }
