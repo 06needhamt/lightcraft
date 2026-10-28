@@ -224,7 +224,7 @@ fn tab_walks_the_right_panels_top_to_bottom() {
             .root()
             .children_recursive()
             .map(|n| n.accesskit_node())
-            .find(|n| n.label().as_deref() == Some("Edit (E)"))
+            .find(|n| n.label().as_deref() == Some("Edit") && n.description().as_deref() == Some("E"))
             .and_then(|n| n.bounding_box())
             .map(|b| b.x0 as f32)
             .unwrap_or(f32::INFINITY);
@@ -248,4 +248,58 @@ fn tab_walks_the_right_panels_top_to_bottom() {
             assert!(w[1].1 >= w[0].1 - 30.0, "{right:?}: Tab jumps up from {:?} to {:?}\n{seen:?}", w[0], w[1]);
         }
     }
+}
+
+/// Whether a button named `name` has `help` as its accessible description (the menu bar has an
+/// "Edit" menu too, so the name alone doesn't pick the tool-strip button).
+fn button_described(h: &Harness<'_, LightcraftApp>, name: &str, help: &str) -> bool {
+    h.root()
+        .children_recursive()
+        .map(|n| n.accesskit_node())
+        .any(|n| n.role() == Role::Button && n.label().as_deref() == Some(name) && n.description().as_deref() == Some(help))
+}
+
+/// A screen reader reads a control's name every time it lands on it: the shortcut belongs in the
+/// description (macOS AXHelp, read after a pause), not in the name.
+#[test]
+fn tool_strip_and_toolbar_buttons_are_named_by_label_with_the_shortcut_as_description() {
+    let h = harness(ViewMode::Detail, RightPanel::Edit);
+    for (name, help) in [
+        ("Presets", "Shift+P"),
+        ("Edit", "E"),
+        ("Crop & Rotate", "C"),
+        ("Masking", "M"),
+        ("Versions", "Shift+V"),
+        ("History & Activity", "Y"),
+        ("Keywords", "K"),
+        ("Info", "I"),
+        ("Photo Grid", "G"),
+        ("Square Grid", "G toggles"),
+        ("Detail", "D"),
+        ("Compare", "Shift+C"),
+        ("Survey", "N"),
+        ("Before/After", "Y"),
+        ("Filmstrip", "/"),
+    ] {
+        assert!(button_described(&h, name, help), "a button named {name:?} describing {help:?}");
+    }
+    let leaked: Vec<String> = h
+        .root()
+        .children_recursive()
+        .map(|n| n.accesskit_node())
+        .filter(|n| n.role() == Role::Button)
+        .filter_map(|n| n.label())
+        .filter(|l| ["Edit (E)", "Presets (Shift+P)", "Photo Grid (G)", "Filmstrip (/)"].contains(&l.as_str()))
+        .collect();
+    assert!(leaked.is_empty(), "shortcuts left in names: {leaked:?}");
+}
+
+/// The top bar's Import button carries the key it is bound to now, written for this platform.
+#[test]
+fn import_button_describes_its_shortcut_as_this_platform_writes_it() {
+    let h = harness(ViewMode::PhotoGrid, RightPanel::Edit);
+    let mac = h.ctx.os() == egui::os::OperatingSystem::Mac;
+    let sc = lightcraft_ui_egui::shortcuts::shortcut_of(&h.state().ui.settings.keymap, "file.addPhotos").expect("Import Photos… has a shortcut");
+    let help = lightcraft_ui_egui::menubar::shortcut_text(sc, mac);
+    assert!(button_described(&h, "Import Photos…", &help), "a button named \"Import Photos…\" describing {help:?}");
 }
