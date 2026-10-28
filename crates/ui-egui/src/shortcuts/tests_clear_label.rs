@@ -112,6 +112,15 @@ fn compare_clears_only_the_active_photo_and_auto_advance_moves_on() {
     assert_eq!(app.session.active(), Some(PhotoId(2)));
 }
 
+#[test]
+fn a_label_given_to_clear_color_label_is_ignored_by_the_toast_too() {
+    let mut app = app().unwrap();
+    app.run("photo.clearLabel", json!({"label": "red"})).unwrap();
+    assert_eq!(labels(&app)[1], None, "the photo's label is cleared, whatever label was passed");
+    let toast = app.ui.toast.as_ref().expect("a toast");
+    assert_eq!((toast.0.as_str(), toast.2), ("Color label cleared", None), "not \"Red Label\"");
+}
+
 fn find<'a>(nodes: &'a [MenuNode], id: &str) -> Option<&'a MenuNode> {
     nodes.iter().find_map(|n| match n {
         MenuNode::Item { id: i, .. } if i == id => Some(n),
