@@ -108,6 +108,20 @@ fn the_control_channel_keeps_a_refused_prompt_open_too() {
         Some(Dialog::TextPrompt { value, .. }) => assert_eq!(value, "Taken", "the typed text is kept"),
         other => panic!("the prompt stays open: {other:?}"),
     }
+    assert!(toast(&h).contains("already exists"), "the reason is on screen too, as with the button: {:?}", toast(&h));
+    clean(&dir);
+}
+
+#[test]
+fn a_rename_that_keeps_a_name_with_spaces_at_its_ends_changes_nothing() {
+    let dir = shoot("rename-padded");
+    std::fs::create_dir_all(dir.join(" Pad ")).unwrap();
+    let mut h = app();
+    // Rename Folder opens with the folder's own name typed, spaces and all
+    confirm(&mut h, prompt("folder.rename", " Pad ", json!({"path": dir.join(" Pad ").to_string_lossy()}), "name"));
+    assert_eq!(h.app.ui.dialog, None, "the prompt closes");
+    assert!(toast(&h).is_empty(), "no error is shown: {:?}", toast(&h));
+    assert!(dir.join(" Pad ").is_dir() && !dir.join("Pad").exists(), "the folder keeps its name");
     clean(&dir);
 }
 

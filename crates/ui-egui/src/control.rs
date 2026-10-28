@@ -414,6 +414,10 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
         "ui.dialog.confirm" => match app.ui.dialog.take() {
             Some(d) => {
                 let r = crate::panels::dialogs::confirm_dialog(app, &d);
+                // a refused one-line prompt says why on screen, as with its button
+                if let (Err(e), crate::state::Dialog::TextPrompt { .. }) = (&r, &d) {
+                    app.toast_error(ctx, e.clone());
+                }
                 // the import review, the rule editor and the one-line prompts stay open on an error, as with their buttons
                 if (r.is_err()
                     && matches!(
