@@ -4,8 +4,8 @@
 //! catalog and the report could not name it. This reads the source for them: every `tr("…")` /
 //! `.tr("…")` call in `crates/ui-egui/src` and `apps/lightcraft/src` whose argument is one string
 //! literal (a trailing comma, as rustfmt leaves in a wrapped call, is fine), or an `if`/`match`
-//! whose branches are literals (`tr(if on { "On" } else { "Off" })`). Test code (`tests_*.rs`
-//! files, `tests/` folders and items under exactly `#[cfg(test)]`) is skipped. The scanner lexes
+//! whose branches are literals (`tr(if on { "On" } else { "Off" })`). Test code (`tests.rs` and
+//! `tests_*.rs` files, `tests/` folders and items under exactly `#[cfg(test)]`) is skipped. The scanner lexes
 //! the source (comments, strings, raw strings and chars) rather than grepping it, so a `tr(` in a
 //! comment or a string is not a use.
 //!
@@ -320,7 +320,7 @@ fn source_files(dir: &Path, out: &mut Vec<PathBuf>) {
             if name != "tests" {
                 source_files(&path, out);
             }
-        } else if name.ends_with(".rs") && !name.starts_with("tests_") {
+        } else if name.ends_with(".rs") && name != "tests.rs" && !name.starts_with("tests_") {
             out.push(path);
         }
     }
@@ -350,6 +350,23 @@ pub(super) fn source_messages() -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_named_tests_rs_is_test_code_and_is_not_read() {
+        // Given a folder with a file of the app and the `tests.rs` of a `#[cfg(test)] mod tests;`
+        let dir = std::env::temp_dir().join(format!("lightcraft-gaps-{}", std::process::id()));
+        fs::create_dir_all(dir.join("sub")).unwrap();
+        for file in ["app.rs", "sub/tests.rs", "sub/widget.rs"] {
+            fs::write(dir.join(file), "").unwrap();
+        }
+        // When the source files are listed
+        let mut files = Vec::new();
+        source_files(&dir, &mut files);
+        let names: Vec<String> = files.iter().map(|path| path.strip_prefix(&dir).unwrap().display().to_string()).collect();
+        fs::remove_dir_all(&dir).unwrap();
+        // Then the tests.rs is not among them
+        assert_eq!(names, ["app.rs", "sub/widget.rs"]);
+    }
 
     #[test]
     fn the_scanner_reads_literals_and_skips_comments_strings_and_tests() {
