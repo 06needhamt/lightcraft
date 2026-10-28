@@ -335,6 +335,10 @@ fn content_ranges() {
     assert_eq!(parse_content_range("bytes 0-0/*"), Some((0, None)));
     assert_eq!(parse_content_range("bytes 9-1/300"), None);
     assert_eq!(parse_content_range("items 1-2/3"), None);
+    assert_eq!(parse_content_range("bytes +100-+299/+300"), None);
+    assert_eq!(parse_content_range("bytes 100-+299/300"), None);
+    assert_eq!(parse_content_range("bytes 100-299/+300"), None);
+    assert_eq!(parse_content_range("bytes 1-/3"), None);
 }
 
 /// A bearer token goes only to https, only to the host the download began at, and only when there is one.
