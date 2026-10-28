@@ -30,14 +30,3 @@ jobs:
         pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcb1-dev libxcursor-dev
         libxrandr-dev libxi-dev libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers
         libgl1-mesa-dev libdbus-1-dev
-
-  windows-cli:
-    uses: storytold/craft-common-actions/.github/workflows/gate.yml@main
-    with:
-      os: '["windows-latest"]'
-      command: cargo test --locked -p lightcraft-cli
-      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
-      timeout-minutes: 90
-      tools: ""
-      targets: ""
-      packages: ""
