@@ -389,7 +389,7 @@ fn a_crop_far_past_the_photo_reads_the_source_its_bounded_frame_needs() {
         let mut d = lightcraft_develop::DevelopSettings { orientation, ..Default::default() };
         d.crop.geometry = wild;
         let r = wild.bounded(ow, oh).rect;
-        let expected = (1600.0 * w.max(h) / (r.width() * w).max(r.height() * h)) as usize;
+        let expected = (1600.0 * w.max(h) / (r.width() * ow).max(r.height() * oh)) as usize;
         assert_eq!(super::source::source_edge_needed(&p, &d, true, 1600), expected, "{orientation:?}");
     }
 }
@@ -408,12 +408,20 @@ fn crops_on_the_photo_keep_the_source_size_they_need() {
             for aspect in [None, Some(1.0), Some(3.0), Some(0.25)] {
                 let mut d = lightcraft_develop::DevelopSettings { orientation, ..Default::default() };
                 d.crop.geometry = crop_fit_angle(ow, oh, angle, aspect);
+                // the rect is in the photo as shown, so its pixels are counted in the turned size
                 let r = d.crop.geometry.rect;
-                let expected = (1600.0 * w.max(h) / (r.width() * w).max(r.height() * h)) as usize;
+                let expected = (1600.0 * w.max(h) / (r.width() * ow).max(r.height() * oh)) as usize;
                 assert_eq!(super::source::source_edge_needed(&p, &d, true, 1600), expected, "{orientation:?} {angle} {aspect:?}");
             }
         }
     }
+    // a square crop of the photo turned a quarter is the photo's short side across: shown 2000 px
+    // long it needs more than the 2560 px preview (counted in the unturned size, it asked for 2000)
+    let mut d = lightcraft_develop::DevelopSettings { orientation: Orientation::Rotate90, ..Default::default() };
+    d.crop.geometry = crop_fit_angle(h, w, 0.0, Some(1.0));
+    let needed = super::source::source_edge_needed(&p, &d, true, 2000);
+    assert_eq!(needed, (2000.0 * w.max(h) / w.min(h)) as usize);
+    assert_eq!(SourceLevel::for_size(needed), SourceLevel::Full, "{needed}");
 }
 
 // a window whose spot reads from further away than a render can hold is refused
