@@ -402,17 +402,24 @@ pub fn show(app: &mut crate::LightcraftApp, ui: &mut egui::Ui) {
         panel_limits,
         |ui, panel| match panel {
             Panel::Canvas => {
-                canvas = Some(ui.new_child(egui::UiBuilder::new().id_salt("photo-view").max_rect(ui.max_rect())));
+                let child = ui.new_child(egui::UiBuilder::new().id_salt("photo-view").max_rect(ui.max_rect()));
+                crate::widgets::announce_region(&child, egui::accesskit::Role::Main, crate::i18n::tr(Panel::Canvas.label()));
+                canvas = Some(child);
             }
             Panel::Library => {
+                crate::widgets::announce_region(ui, egui::accesskit::Role::Navigation, crate::i18n::tr(Panel::Library.label()));
                 crate::widgets::register(ui, "panel:left_panel", ui.max_rect());
                 crate::panels::left::show(app, ui);
             }
             Panel::Tools => {
+                crate::widgets::announce_region(ui, egui::accesskit::Role::Complementary, crate::i18n::tr(Panel::Tools.label()));
                 crate::widgets::register(ui, "panel:right_panel", ui.max_rect());
                 crate::panels::right::show(app, ui);
             }
-            Panel::Presets => crate::panels::presets::show(app, ui),
+            Panel::Presets => {
+                crate::widgets::announce_region(ui, egui::accesskit::Role::Complementary, crate::i18n::tr(Panel::Presets.label()));
+                crate::panels::presets::show(app, ui);
+            }
         },
     );
     if let Some(mut canvas) = canvas {

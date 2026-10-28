@@ -32,6 +32,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         .exact_size(t.top_bar_h)
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin { left, right: 12, top: 0, bottom: 0 }))
         .show(ui, |ui| {
+            crate::widgets::announce_region(ui, egui::accesskit::Role::Toolbar, crate::i18n::tr("Top bar"));
             let full = ui.max_rect();
             // The whole bar, its margins included. The search field is centred on this and not on
             // `full`, which is only what the margins leave: on macOS the left margin holds the
