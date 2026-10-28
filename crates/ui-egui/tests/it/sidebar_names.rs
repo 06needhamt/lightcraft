@@ -37,3 +37,35 @@ fn a_disclosure_triangle_names_its_row() {
     assert!(names.iter().any(|n| n == "Expand 2026"), "By Date's year: {names:?}");
     assert!(!names.iter().any(|n| n == "Expand" || n == "Collapse"), "no triangle is just a verb: {names:?}");
 }
+
+/// The Keyword List (right panel ▸ Keywords) is its own code path: its triangles name the keyword
+/// they open, by its own name and not its whole path ("Expand Italy", not "Expand Trips|Italy").
+#[test]
+fn a_keyword_list_triangle_names_its_keyword() {
+    let mut session = lightcraft_engine::Session::with_demo();
+    for (name, parent) in [("Trips", None), ("Italy", Some("Trips")), ("Rome", Some("Trips|Italy"))] {
+        let params = match parent {
+            Some(p) => serde_json::json!({"name": name, "parent": p}),
+            None => serde_json::json!({"name": name, "parent": null}),
+        };
+        session.execute("keyword.create", &params).expect("a keyword is created");
+    }
+    let mut app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
+    app.ui.left_panel = false;
+    app.ui.view = ViewMode::PhotoGrid;
+    app.ui.right = RightPanel::Keywords;
+    // Trips is open, so Italy (which has Rome below it) shows, closed
+    app.ui.keyword_list_open = vec!["trips".to_string()];
+    let mut h = Harness::builder().with_size(vec2(1500.0, 950.0)).build_ui_state(
+        |ui, app: &mut LightcraftApp| {
+            app.logic(&ui.ctx().clone());
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(10);
+    let names = button_names(&h);
+    assert!(names.iter().any(|n| n == "Collapse Trips"), "the open keyword's triangle: {names:?}");
+    assert!(names.iter().any(|n| n == "Expand Italy"), "the nested keyword's triangle: {names:?}");
+    assert!(!names.iter().any(|n| n == "Expand Trips|Italy" || n == "Expand Italy|Rome"), "no triangle is named with a path: {names:?}");
+}
