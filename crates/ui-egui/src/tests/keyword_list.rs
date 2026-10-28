@@ -196,6 +196,30 @@ fn cmd_shift_k_without_a_picked_keyword_opens_no_dialog() {
     assert_eq!(h.app.ui.dialog, None, "the picked keyword is gone");
 }
 
+/// A keyword picked in one library is not picked in the next one opened, even when that library
+/// has a keyword at the same path: ⌘⇧K there opens no dialog.
+#[test]
+fn opening_another_library_drops_the_picked_keyword() {
+    let dir = std::env::temp_dir().join(format!("lc-ui-keyword-list-switch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut session = lightcraft_engine::Session::new().with_fs();
+    session.open_library(dir.join("first"), false).unwrap();
+    let app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
+    let mut h = Headless::new(app, [1400.0, 1000.0], 1.0);
+    ask(&mut h, "ui.set", json!({"view": "photoGrid", "right": "keywords"}));
+    run(&mut h, "keyword.create", json!({"name": "Weddings"}));
+    h.app.ui.keyword_list_selected = Some("Weddings".into());
+    let r = h.app.run("app.openLibrary", json!({"path": dir.join("second").to_string_lossy()}));
+    assert!(r.is_ok(), "{r:?}");
+    h.settle(SETTLE);
+    run(&mut h, "keyword.create", json!({"name": "Weddings"}));
+    ask(&mut h, "ui.key", json!({"key": "K", "cmd": true, "shift": true}));
+    assert_eq!(h.app.ui.keyword_list_selected, None, "nothing is picked in the second library");
+    assert_eq!(h.app.ui.dialog, None, "no dialog opens");
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The − button deletes the picked keyword after asking how many photos lose it; Cancel keeps it, and undo
 /// brings a deleted one back.
 #[test]
