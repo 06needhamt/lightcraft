@@ -1174,9 +1174,9 @@ pub(crate) enum Modal {
 }
 
 /// Announces the window `response` drew as a dialog (an alert dialog for [`Modal::Alert`]), and for
-/// [`Modal::Dialog`] and [`Modal::Alert`] as modal: VoiceOver says "dialog" and keeps its cursor
-/// inside, instead of reading a group that carries the title while the rest of the application
-/// stays reachable.
+/// [`Modal::Dialog`] and [`Modal::Alert`] as modal, instead of as a group that carries the title:
+/// the platform's accessibility layer then sees a dialog and that the rest of the application is
+/// blocked while it is open.
 pub(crate) fn announce_dialog(ctx: &egui::Context, response: &Response, kind: Modal) {
     ctx.accesskit_node_builder(response.id, |node| {
         node.set_role(if kind == Modal::Alert { egui::accesskit::Role::AlertDialog } else { egui::accesskit::Role::Dialog });

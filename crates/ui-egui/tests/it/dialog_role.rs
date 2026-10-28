@@ -1,5 +1,5 @@
-//! An open dialog is a dialog to a screen reader (VoiceOver announces "dialog" and keeps its cursor
-//! inside), not a group that happens to carry the dialog's title.
+//! An open dialog is exposed to a screen reader as a dialog (a modal one, an alert dialog for the
+//! prompts), not as a group that happens to carry the dialog's title.
 use egui::accesskit::Role;
 use egui::vec2;
 use egui_kittest::{Harness, kittest::NodeT};

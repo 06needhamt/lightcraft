@@ -2,10 +2,11 @@
 
 ## 2026-10-28
 
-### A dialog is announced as a dialog by screen readers
-- With VoiceOver, Export, Settings and the other dialogs, the library chooser and the prompts that stop the window (the quit
-  question, a library that could not be opened) are now exposed to screen readers as dialogs (a modal one, so the rest of the window is out of VoiceOver's way while
-  it is open), as is the answer to Check for Updates. Before, each was a plain group that only carried the dialog's title.
+### Dialogs are exposed to screen readers as dialogs
+- Export, Settings and the other dialogs, the library chooser and the prompts that stop the window (the quit question, a
+  library that could not be opened, a settings file problem) are now exposed to screen readers as dialogs: modal ones, so the
+  rest of the window is marked as blocked while one is open, and an alert dialog for the prompts. The answer to Check for
+  Updates is a dialog too, but not a modal one. Before, each was a plain group that only carried the dialog's title.
 
 ## 2026-10-24
 
