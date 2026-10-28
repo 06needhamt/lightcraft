@@ -601,9 +601,9 @@ fn standard_places(home: &Path) -> Vec<std::path::PathBuf> {
 }
 
 /// Whether `from` is, on disk, one of `places`, however it is spelled (a firmlink or bind mount
-/// reaches the same folder under another path). A link to a place is not the place, but what a
-/// link in a place points to is the place too (the places are read through their links), since
-/// renaming it would break the place.
+/// reaches the same folder under another path). A link to a place is not the place, but a place
+/// that is itself a link stands for the folder it points to (the places are read through their
+/// links), since renaming that folder would break the place.
 #[cfg(unix)]
 fn is_one_of(from: &str, places: &[std::path::PathBuf]) -> bool {
     use std::os::unix::fs::MetadataExt;
@@ -682,6 +682,13 @@ mod tests {
     #[test]
     fn a_relative_path_to_a_protected_place_is_refused() {
         let dir = scratch("relative");
+        // the home folder is spelled through a link, so only the spelling as given can match it
+        #[cfg(unix)]
+        let home = {
+            std::os::unix::fs::symlink(dir.join("home"), dir.join("alias")).expect("link");
+            dir.join("alias")
+        };
+        #[cfg(not(unix))]
         let home = dir.join("home");
         // the commands act on the process's working folder, so a relative path names the real place
         let cwd = std::env::current_dir().expect("working folder");
