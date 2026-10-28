@@ -1186,6 +1186,13 @@ pub(crate) fn announce_dialog(ctx: &egui::Context, response: &Response, kind: Mo
     });
 }
 
+/// Gives the dialog `response` drew the words it says as its accessible description, for an alert
+/// whose content (the task names, the error) is drawn as separate labels: a screen reader then
+/// has what the alert is about when it announces the alert, not only its title.
+pub(crate) fn describe_dialog(ctx: &egui::Context, response: &Response, text: &str) {
+    ctx.accesskit_node_builder(response.id, |node| node.set_description(text));
+}
+
 /// The same for one that is on or off (a toggle, a selected row or swatch).
 pub(crate) fn announce_selected(resp: &egui::Response, name: impl Into<String>, selected: bool) {
     let name = name.into();

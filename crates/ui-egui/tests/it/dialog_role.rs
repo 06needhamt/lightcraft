@@ -85,3 +85,30 @@ fn a_library_that_could_not_be_opened_is_a_modal_alert_dialog() {
         assert_eq!((role, modal), (Role::AlertDialog, true), "{title:?} is a modal alert dialog");
     }
 }
+
+/// The description of every alert dialog in the tree.
+fn alert_descriptions(h: &Harness<'_, LightcraftApp>) -> Vec<String> {
+    h.root()
+        .children_recursive()
+        .map(|n| n.accesskit_node())
+        .filter(|n| n.role() == Role::AlertDialog)
+        .map(|n| n.data().description().unwrap_or_default().to_string())
+        .collect()
+}
+
+#[test]
+fn an_alert_carries_what_it_says_as_its_description() {
+    let mut h = harness();
+    h.state_mut().quit_prompt = Some(lightcraft_ui_egui::QuitPrompt::Tasks("1 task is still running: Import. Quitting stops it.".into()));
+    h.run_steps(6);
+    let said = alert_descriptions(&h);
+    assert!(said.iter().any(|d| d.contains("1 task is still running: Import")), "the quit prompt names the task: {said:?}");
+    let mut h = harness();
+    h.state_mut().library_problem = Some(lightcraft_ui_egui::panels::library_problem::LibraryProblem::new("/no/such/library", "No catalog here."));
+    h.run_steps(6);
+    let said = alert_descriptions(&h);
+    assert!(
+        said.iter().any(|d| d.contains("/no/such/library") && d.contains("No catalog here.") && d.contains("untouched")),
+        "the library alert has its path, error and explanation: {said:?}"
+    );
+}
