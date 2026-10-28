@@ -825,7 +825,7 @@ fn no_two_menu_commands_share_a_label() {
 }
 
 /// Edit lists Select Only Active Photo with the other Select rows and Paste Settings from Previous
-/// with the other Paste rows, not after Settings… at the very end of the menu.
+/// with the other Paste rows, not after Settings…, near the end of the menu.
 #[test]
 fn edit_menu_places_the_select_and_paste_rows_with_their_kin() {
     let a = app();
