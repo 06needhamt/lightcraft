@@ -113,6 +113,20 @@ fn the_control_channel_keeps_a_refused_prompt_open_too() {
 }
 
 #[test]
+fn the_control_channel_says_where_a_new_folder_was_made() {
+    let dir = shoot("control-ok");
+    let mut h = app();
+    h.app.ui.dialog = Some(prompt("folder.create", "Selects", json!({"parent": dir.to_string_lossy()}), "name"));
+    assert!(h.settle(SETTLE), "the prompt renders settled");
+    let r = h.request("ui.dialog.confirm", json!({}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    assert!(dir.join("Selects").is_dir(), "made on disk");
+    let parent = lightcraft_catalog::folders::folder_label(&dir.to_string_lossy());
+    assert_eq!(toast(&h), CREATED.replace("{name}", "Selects").replace("{parent}", &parent));
+    clean(&dir);
+}
+
+#[test]
 fn a_rename_that_keeps_a_name_with_spaces_at_its_ends_changes_nothing() {
     let dir = shoot("rename-padded");
     std::fs::create_dir_all(dir.join(" Pad ")).unwrap();
