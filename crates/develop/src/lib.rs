@@ -161,9 +161,7 @@ impl DevelopSettings {
             // the creative profile is not a control: the chosen look goes back to the default one,
             // and so does the camera's own local tone mapping
             Section::Profile => {
-                let d = Profile::default();
-                self.profile.id = d.id;
-                self.profile.camera_local_tone = d.camera_local_tone;
+                self.profile = Profile::default();
             }
             _ => {}
         }
@@ -331,7 +329,7 @@ mod tests {
         s.profile.id = "lc.muted.matte-soft".into();
         s.profile.amount = 40.0;
         s.reset_section(Section::Profile);
-        assert_eq!(s.profile.id, "lc.color", "the creative profile survives a Profile reset");
+        assert_eq!(s.profile.id, "lc.color", "the creative profile is reset to the default one");
         assert_eq!(s.profile.amount, 100.0);
     }
 
