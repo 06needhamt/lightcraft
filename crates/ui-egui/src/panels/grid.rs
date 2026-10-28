@@ -797,7 +797,7 @@ fn cell(app: &mut LightcraftApp, ui: &mut egui::Ui, id: PhotoId, r: Rect, square
     cell_interaction(app, ui, &resp, id, &photo);
 }
 
-fn cell_description(app: &LightcraftApp, photo: &lightcraft_catalog::Photo) -> String {
+pub(crate) fn cell_description(app: &LightcraftApp, photo: &lightcraft_catalog::Photo) -> String {
     let mut spoken = photo.file_name.clone();
     if photo.rating > 0 {
         spoken.push_str(&crate::i18n::tr_format!(", {} star{}", photo.rating, if photo.rating == 1 { "" } else { "s" }));

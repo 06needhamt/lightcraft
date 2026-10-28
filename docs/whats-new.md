@@ -1,5 +1,11 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### The photo in Detail is named with its file for screen readers
+- With VoiceOver, the photo in Detail view is now announced with its file name, rating, flag and colour label ("Photo:
+  IMG_0042.JPG, 4 stars, picked") instead of only "Photo", as the grid names the same photo.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
