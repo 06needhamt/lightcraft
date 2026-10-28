@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-28
+
+### The grid's thumbnail size slider is a slider to screen readers
+- With VoiceOver, the Thumbnail size control at the right of the grid's bottom bar is now announced as a slider with its
+  value and range, instead of a button with no value. Increment and Decrement (VoiceOver's Control-Option-Up and Down) and,
+  while it has the keyboard focus, the Up and Down arrow keys change it by one step, as the `=` and `-` keys do.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
