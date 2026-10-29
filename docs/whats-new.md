@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-29
+
+### A library on a disconnected drive is reported at launch, not replaced
+- When the library LightCraft last opened is missing at launch, because its drive or network share isn't connected
+  yet or it was moved, the window now says it couldn't open the library and offers Try Again, Choose Another
+  Library…, Continue Without Saving and Quit. Before, LightCraft quietly made a new, empty library at that path,
+  filled it with the demo photos and opened it, so it looked as if the photos and edits were gone. Nothing is
+  written there now. A library given with `--library` or `LIGHTCRAFT_LIBRARY`, and the default location on first
+  launch, are still created as before.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

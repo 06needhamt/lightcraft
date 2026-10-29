@@ -274,7 +274,9 @@ pub const ALT_SECONDS: f64 = 2.0;
 pub enum Launch {
     /// Open this library folder (`None`: there is nowhere to keep one; the problem window says
     /// so). `alt_asks`: holding Alt/Option as the window appears offers the recent libraries.
-    Open { dir: Option<PathBuf>, alt_asks: bool },
+    /// `remembered`: `dir` is the library last opened (Settings), not the default location, so a
+    /// missing one is reported instead of created anew (issue #3239).
+    Open { dir: Option<PathBuf>, alt_asks: bool, remembered: bool },
     /// Open nothing yet: the window lists the recent libraries ([`LibraryProblem::choose`]).
     Ask,
 }
@@ -284,16 +286,18 @@ pub enum Launch {
 /// `settings` is `None` without a settings file; `memory` (`--memory`) never asks.
 pub fn launch_plan(memory: bool, flag: Option<PathBuf>, env: Option<PathBuf>, settings: Option<&AppSettings>, default: Option<PathBuf>) -> Launch {
     if memory {
-        return Launch::Open { dir: None, alt_asks: false };
+        return Launch::Open { dir: None, alt_asks: false, remembered: false };
     }
     if let Some(dir) = flag.or(env) {
-        return Launch::Open { dir: Some(dir), alt_asks: false };
+        return Launch::Open { dir: Some(dir), alt_asks: false, remembered: false };
     }
     if settings.is_some_and(|s| s.at_launch == LaunchLibrary::Ask) {
         return Launch::Ask;
     }
     let last = settings.map(|s| s.library_path.clone()).filter(|p| !p.is_empty()).map(PathBuf::from);
-    Launch::Open { dir: last.or(default), alt_asks: true }
+    // the default location is made when it's missing (first launch); a remembered library isn't
+    let remembered = last.as_ref().is_some_and(|l| default.as_ref() != Some(l));
+    Launch::Open { dir: last.or(default), alt_asks: true, remembered }
 }
 
 /// One library in the launch window's list.

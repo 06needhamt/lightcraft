@@ -50,30 +50,35 @@ fn path(s: &str) -> Option<PathBuf> {
     Some(PathBuf::from(s))
 }
 
-/// `--library`, then `LIGHTCRAFT_LIBRARY`, then the setting; `--memory` never asks.
+/// `--library`, then `LIGHTCRAFT_LIBRARY`, then the setting; `--memory` never asks. Only the
+/// library remembered in Settings is `remembered` (issue #3239: a missing one is reported, not
+/// made anew), and not when it is the default location.
 #[test]
 fn the_launch_plan_puts_the_flag_and_the_variable_before_the_setting() {
     let ask = AppSettings { at_launch: LaunchLibrary::Ask, library_path: "/last".into(), ..AppSettings::default() };
     let last = AppSettings { library_path: "/last".into(), recent_libraries: vec!["/last".into(), "/older".into()], ..AppSettings::default() };
+    let at_default = AppSettings { library_path: "/default".into(), ..AppSettings::default() };
     let fresh = AppSettings::default();
-    let open = |dir: &str, alt_asks| Launch::Open { dir: path(dir), alt_asks };
+    let open = |dir: &str, alt_asks, remembered| Launch::Open { dir: path(dir), alt_asks, remembered };
     // --library, then LIGHTCRAFT_LIBRARY, whatever the setting says; neither asks on Alt
     for s in [None, Some(&ask), Some(&last)] {
-        assert_eq!(launch_plan(false, path("/flag"), path("/env"), s, path("/default")), open("/flag", false));
-        assert_eq!(launch_plan(false, None, path("/env"), s, path("/default")), open("/env", false));
+        assert_eq!(launch_plan(false, path("/flag"), path("/env"), s, path("/default")), open("/flag", false, false));
+        assert_eq!(launch_plan(false, None, path("/env"), s, path("/default")), open("/env", false, false));
     }
     // Ask me asks, with or without a recent list
     assert_eq!(launch_plan(false, None, None, Some(&ask), path("/default")), Launch::Ask);
     let ask_empty = AppSettings { at_launch: LaunchLibrary::Ask, ..AppSettings::default() };
     assert_eq!(launch_plan(false, None, None, Some(&ask_empty), None), Launch::Ask);
     // Open the last library: the last one, else the default place; Alt can still ask
-    assert_eq!(launch_plan(false, None, None, Some(&last), path("/default")), open("/last", true));
-    assert_eq!(launch_plan(false, None, None, Some(&fresh), path("/default")), open("/default", true));
-    assert_eq!(launch_plan(false, None, None, None, path("/default")), open("/default", true));
-    assert_eq!(launch_plan(false, None, None, None, None), Launch::Open { dir: None, alt_asks: true });
+    assert_eq!(launch_plan(false, None, None, Some(&last), path("/default")), open("/last", true, true));
+    assert_eq!(launch_plan(false, None, None, Some(&last), None), open("/last", true, true));
+    assert_eq!(launch_plan(false, None, None, Some(&at_default), path("/default")), open("/default", true, false));
+    assert_eq!(launch_plan(false, None, None, Some(&fresh), path("/default")), open("/default", true, false));
+    assert_eq!(launch_plan(false, None, None, None, path("/default")), open("/default", true, false));
+    assert_eq!(launch_plan(false, None, None, None, None), Launch::Open { dir: None, alt_asks: true, remembered: false });
     // --memory never asks and opens no folder
-    assert_eq!(launch_plan(true, None, None, Some(&ask), path("/default")), Launch::Open { dir: None, alt_asks: false });
-    assert_eq!(launch_plan(true, path("/flag"), None, Some(&last), None), Launch::Open { dir: None, alt_asks: false });
+    assert_eq!(launch_plan(true, None, None, Some(&ask), path("/default")), Launch::Open { dir: None, alt_asks: false, remembered: false });
+    assert_eq!(launch_plan(true, path("/flag"), None, Some(&last), None), Launch::Open { dir: None, alt_asks: false, remembered: false });
 }
 
 /// Each listed library is checked when the window opens; the last one opened is selected.
