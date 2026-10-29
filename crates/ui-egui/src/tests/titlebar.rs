@@ -191,3 +191,110 @@ fn a_panel_floating_over_the_bar_keeps_the_window_from_moving() {
     play(&mut h);
     assert!(!hover(&mut h, empty), "the floating panel covers the empty bar there");
 }
+
+// A dialog on the integrated title bar behaves like a macOS sheet: the backdrop leaves the bar
+// undimmed (the window buttons AppKit draws over it stay lit beside a bar that looks live), while
+// the bar's own controls stay inactive.
+
+fn pixel(img: &egui::ColorImage, p: egui::Pos2) -> egui::Color32 {
+    img.pixels[p.y as usize * img.size[0] + p.x as usize]
+}
+
+fn with_export_dialog(mut h: Headless) -> Headless {
+    h.app.run("dialog.export", json!({})).unwrap();
+    h.step();
+    h.step();
+    h.settle(T);
+    h
+}
+
+// Scenario: the dialog's backdrop does not dim the integrated title bar
+#[test]
+fn a_dialog_leaves_the_integrated_title_bar_undimmed() {
+    let mut h = integrated();
+    let spot = empty_spot(&h);
+    let below = egui::pos2(spot.x, widget(&h, "region:titlebar").bottom() + 60.0);
+    let closed = h.snapshot(T);
+    let mut h = with_export_dialog(h);
+    let open = h.snapshot(T);
+    assert_eq!(pixel(&open, spot), pixel(&closed, spot), "the bar keeps its color under a dialog");
+    assert_ne!(pixel(&open, below), pixel(&closed, below), "the window below the bar is dimmed");
+}
+
+// Scenario: a window with its native title bar dims everything, the top bar included
+#[test]
+fn a_dialog_dims_the_top_bar_without_the_integrated_title_bar() {
+    let services = Services { png: None, ..Default::default() };
+    let app = LightcraftApp::new(lightcraft_engine::Session::with_demo(), services);
+    let mut h = Headless::new(app, [1200.0, 800.0], 1.0);
+    h.settle(Duration::from_secs(120));
+    let spot = egui::pos2(20.0, 20.0);
+    let closed = h.snapshot(T);
+    let mut h = with_export_dialog(h);
+    let open = h.snapshot(T);
+    assert_ne!(pixel(&open, spot), pixel(&closed, spot), "the top bar is dimmed");
+}
+
+// Scenario: a click on the undimmed bar is not a click outside the dialog
+#[test]
+fn a_click_on_the_title_bar_keeps_the_dialog_open() {
+    let mut h = integrated();
+    h.app.ui.settings.close_dialogs_outside = true;
+    let mut h = with_export_dialog(h);
+    let at = empty_spot(&h);
+    h.request("ui.click", json!({"x": at.x, "y": at.y}), T);
+    play(&mut h);
+    assert!(h.app.ui.dialog.is_some(), "the bar is not the backdrop");
+    let below = egui::pos2(at.x, widget(&h, "region:titlebar").bottom() + 60.0);
+    h.request("ui.click", json!({"x": below.x, "y": below.y}), T);
+    play(&mut h);
+    assert!(h.app.ui.dialog.is_none(), "the backdrop below it still closes the dialog");
+}
+
+// Scenario: the bar's controls take no clicks under a dialog
+#[test]
+fn the_title_bar_buttons_are_inactive_under_a_dialog() {
+    let mut h = with_export_dialog(integrated());
+    let left = h.app.ui.left_panel;
+    let at = widget(&h, "icon:sidebar").center();
+    h.request("ui.click", json!({"x": at.x, "y": at.y}), T);
+    play(&mut h);
+    assert_eq!(h.app.ui.left_panel, left, "the sidebar button does nothing");
+    assert!(h.app.ui.dialog.is_some());
+}
+
+// Scenario: dragging the empty bar still moves the window under a dialog, whether the dialog is
+// tall enough to reach into the bar (Export) or not (Copy Settings)
+#[test]
+fn dragging_the_empty_bar_moves_the_window_under_a_dialog() {
+    for command in ["dialog.export", "dialog.copySettings"] {
+        let mut h = integrated();
+        h.app.run(command, json!({})).unwrap();
+        h.step();
+        h.step();
+        h.settle(T);
+        let p = empty_spot(&h);
+        h.window_commands.clear();
+        h.request("ui.drag", json!({"x": p.x, "y": p.y, "toX": p.x + 120.0, "toY": p.y + 40.0}), T);
+        play(&mut h);
+        assert_eq!(h.window_commands, vec![ViewportCommand::StartDrag], "{command}");
+    }
+}
+
+// Scenario: a tall dialog reaching into the bar keeps a press on itself from moving the window
+// (AppKit's `movable` is off while the pointer is over it), the bar beside it still moves it
+#[test]
+fn a_dialog_inside_the_bar_keeps_the_window_from_moving() {
+    let mut h = with_export_dialog(integrated());
+    let bar = widget(&h, "region:titlebar");
+    let window = widget(&h, "dialog:window");
+    assert!(window.top() < bar.bottom(), "the dialog reaches into the bar");
+    let hover = |h: &mut Headless, p: egui::Pos2| {
+        h.events.push(egui::Event::PointerMoved(p));
+        play(h);
+        craft_window::title_bar::window_movable(&h.view.ctx)
+    };
+    let spot = empty_spot(&h);
+    assert!(hover(&mut h, spot), "the bar beside the dialog moves the window");
+    assert!(!hover(&mut h, egui::pos2(window.center().x, bar.center().y)), "the dialog over the bar does not");
+}
