@@ -362,10 +362,10 @@ mod tests {
         // When the source files are listed
         let mut files = Vec::new();
         source_files(&dir, &mut files);
-        let names: Vec<String> = files.iter().map(|path| path.strip_prefix(&dir).unwrap().display().to_string()).collect();
+        let names: Vec<PathBuf> = files.iter().map(|path| path.strip_prefix(&dir).unwrap().to_path_buf()).collect();
         fs::remove_dir_all(&dir).unwrap();
-        // Then the tests.rs is not among them
-        assert_eq!(names, ["app.rs", "sub/widget.rs"]);
+        // Then the tests.rs is not among them (compared as paths: the separator is `\` on Windows)
+        assert_eq!(names, [PathBuf::from("app.rs"), Path::new("sub").join("widget.rs")]);
     }
 
     #[test]
