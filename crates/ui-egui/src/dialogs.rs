@@ -330,7 +330,7 @@ fn cancel_label(dlg: &Dialog, sam: &SamState) -> &'static str {
 /// The label of a dialog's confirm button (empty: it has none).
 fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamState) -> String {
     match dlg {
-        Dialog::Import { opts } => photos_ok_label(if opts.copy && opts.move_files { "Move" } else { "Import" }, opts.selected_paths().len()),
+        Dialog::Import { opts } => import_ok_label(opts),
         Dialog::Export { .. } => photos_ok_label("Export", app.session.selection.ids.len().max(1)),
         Dialog::SamModel { .. } => sam_ok_label(dlg, sam).to_string(),
         _ => fixed_ok_label(app, dlg, informational).to_string(),
@@ -340,6 +340,22 @@ fn ok_label(app: &LightcraftApp, dlg: &Dialog, informational: bool, sam: &SamSta
 /// "Import 3 Photos", "Export 1 Photo": a verb and how many photos it acts on.
 fn photos_ok_label(verb: &str, n: usize) -> String {
     crate::i18n::tr_format!("{verb} {n} Photo{}", crate::i18n::plural_s(n), verb = crate::i18n::tr(verb), n = n)
+}
+
+/// The import review's confirm: "Import 3 Photos", or with Move "Move 3 Photos". A checked file whose photo is in
+/// Recently Deleted is restored, not moved (its files stay where they are), so Move counts those apart:
+/// "Move 2 Photos · Restore 1 Photo", or "Restore 1 Photo" when nothing is left to move.
+fn import_ok_label(opts: &crate::import::ImportDialog) -> String {
+    let n = opts.selected_paths().len();
+    if !(opts.copy && opts.move_files) {
+        return photos_ok_label("Import", n);
+    }
+    let restored = opts.restored_count();
+    match (n - restored, restored) {
+        (_, 0) => photos_ok_label("Move", n),
+        (0, r) => photos_ok_label("Restore", r),
+        (m, r) => format!("{} · {}", photos_ok_label("Move", m), photos_ok_label("Restore", r)),
+    }
 }
 
 /// The confirm labels that are one fixed phrase.

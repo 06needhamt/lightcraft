@@ -131,6 +131,42 @@ fn export_confirm_says_how_many_photos() {
     }
 }
 
+/// With Move, a checked file whose photo is in Recently Deleted is restored, not moved: the confirm counts it apart.
+#[test]
+fn the_move_confirm_counts_restored_photos_apart_from_moved_ones() {
+    let mut h = demo();
+    let review = |copy: bool, move_files: bool, on_deleted: &str, checked: [bool; 3]| {
+        let candidates = (0..3).map(|i| lightcraft_engine::import::ImportCandidate { path: format!("img{i}.jpg"), ..Default::default() }).collect();
+        let mut opts = crate::import::ImportDialog::new(candidates);
+        opts.copy = copy;
+        opts.move_files = move_files;
+        opts.trashed = vec![true, false, false];
+        opts.on_deleted = on_deleted.into();
+        opts.checked = checked.to_vec();
+        Dialog::Import { opts: Box::new(opts) }
+    };
+    for (copy, move_files, on_deleted, checked, want) in [
+        (true, true, "restore", [true, true, true], "Move 2 Photos · Restore 1 Photo"),
+        (true, true, "restore", [true, true, false], "Move 1 Photo · Restore 1 Photo"),
+        (true, true, "restore", [true, false, false], "Restore 1 Photo"),
+        (true, true, "restore", [false, true, true], "Move 2 Photos"),
+        (true, true, "fresh", [true, true, true], "Move 3 Photos"),
+        // "Leave them" still restores a file that was checked by hand: the engine's default
+        (true, true, "", [true, true, true], "Move 2 Photos · Restore 1 Photo"),
+        (true, false, "restore", [true, true, true], "Import 3 Photos"),
+    ] {
+        show(&mut h, review(copy, move_files, on_deleted, checked));
+        // the wide review sits over the photo grid: its text (view tab, file names) is painted inside the button's rectangle too,
+        // so the label is what the rectangle's text ends with, and it names each verb as often as `want` does
+        let label = confirm_label(&h);
+        let said = |verb: &str| (label.matches(verb).count(), want.matches(verb).count());
+        let what = format!("copy {copy}, move {move_files}, {on_deleted}, {checked:?}: {label:?}");
+        assert!(label.ends_with(want), "{what}");
+        assert_eq!(said("Move").0, said("Move").1, "{what}");
+        assert_eq!(said("Restore").0, said("Restore").1, "{what}");
+    }
+}
+
 #[test]
 fn an_unusable_model_file_only_closes() {
     let mut h = demo();
