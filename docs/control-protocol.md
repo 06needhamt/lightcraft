@@ -320,7 +320,7 @@ library grid's `thumbSize`; resizing keeps the import checkboxes and duplicate m
 The shared slider also exposes `sliderValue:importThumbSize` for exact entry and
 `sliderLabel:importThumbSize` for double-click reset to 116 pt. Up/Down nudges the selected
 slider by 1 pt; Return commits typed values and Escape cancels them. Slider and command
-labels, including edit/reset feedback, are localized in every shipped catalog. Previews use bounded physical-pixel buckets through 1024 px. A smaller source is tried once per bucket; scrolling releases offscreen textures, queued work and request identities.
+labels, including edit/reset feedback, are localized in every shipped catalog. Previews use bounded physical-pixel buckets through 1024 px. A smaller source is tried once per bucket; scrolling releases offscreen textures, queued work and request identities. A renderable raw uses a render when its camera JPEG cannot cover the tile; preview-only raws, unavailable renders and failed renders retain the available camera JPEG.
 
 ## Headless rendering (no window, no GPU)
 

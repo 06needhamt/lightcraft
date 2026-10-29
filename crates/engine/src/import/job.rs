@@ -483,7 +483,16 @@ impl Session {
             (Some(l), MediaKind::Raw) => Some((c.path.clone(), l.clone(), edge)),
             _ => None,
         };
-        Some(crate::media::QuickJob { request_id: 0, photo: id, key, cached: Vec::new(), embedded, small: Some(Box::new(small)) })
+        let minimum_embedded_edge = (c.preview_only.is_none() && p.preview_only.is_none()).then_some(render_edge);
+        Some(crate::media::QuickJob {
+            request_id: 0,
+            photo: id,
+            key,
+            cached: Vec::new(),
+            embedded,
+            minimum_embedded_edge,
+            small: Some(Box::new(small)),
+        })
     }
 
     /// Use the system clock for import/edit times (native hosts).
@@ -492,3 +501,6 @@ impl Session {
         self
     }
 }
+
+#[cfg(test)]
+mod tests;

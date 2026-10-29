@@ -171,16 +171,16 @@ fn import_thumbnail_small_sources_do_not_rebuild_jobs_every_frame() {
     }
 }
 
-/// Closing the real review releases large previews through both user-facing dismissal paths.
+/// Closing the review releases large previews through the button, Escape and control channel.
 #[test]
-fn import_thumbnail_close_releases_previews_for_cancel_and_escape() {
-    for escape in [false, true] {
+fn import_thumbnail_close_releases_previews_for_all_cancel_paths() {
+    for dismissal in ["button", "escape", "control"] {
         let mut review = Review::new(1.0);
         assert!(review.h.app.renderer.textures.contains_key(&Slot::Import(0)));
-        if escape {
-            review.request("ui.key", json!({"key": "Escape"}));
-        } else {
-            review.request("ui.clickWidget", json!({"id": "button:dialogCancel"}));
+        match dismissal {
+            "escape" => review.request("ui.key", json!({"key": "Escape"})),
+            "control" => review.request("ui.dialog.cancel", json!({})),
+            _ => review.request("ui.clickWidget", json!({"id": "button:dialogCancel"})),
         }
         assert!(review.h.settle(T));
         assert!(review.h.app.ui.dialog.is_none());
