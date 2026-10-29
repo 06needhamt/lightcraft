@@ -89,6 +89,115 @@ fn the_edge_setting_hardens_or_feathers_the_transition() {
     assert!(hard < plain && plain < soft, "transition widths {hard} < {plain} < {soft}");
 }
 
+/// A dark disc (radius 0.3 of the frame) on a light background, `n × n`: the photo and its log
+/// luminance, and a model's view of it on a `side²` grid (each cell's logit from how much of the
+/// cell the disc covers, as a low-resolution segmenter sees it).
+fn disc_scene(n: usize, side: usize) -> (Rgb32f, Plane, SegMask) {
+    const R: f64 = 0.3;
+    let dark = |x: f64, y: f64| (x - 0.5).hypot(y - 0.5) < R;
+    let lum = |x: usize, y: usize| if dark((x as f64 + 0.5) / n as f64, (y as f64 + 0.5) / n as f64) { 0.05f32 } else { 0.6 };
+    let img = Rgb32f::from_fn(n, n, |x, y| [lum(x, y); 3]);
+    let log_l = img.map(crate::local::log_lum);
+    let logits: Vec<f32> = (0..side * side)
+        .map(|i| {
+            let (cx, cy) = (i % side, i / side);
+            let sub = 8;
+            let cover = (0..sub * sub)
+                .filter(|k| {
+                    dark((cx as f64 + (k % sub) as f64 / sub as f64) / side as f64, (cy as f64 + (k / sub) as f64 / sub as f64) / side as f64)
+                })
+                .count() as f32
+                / (sub * sub) as f32;
+            12.0 * (2.0 * cover - 1.0)
+        })
+        .collect();
+    (img, log_l, SegMask::from_logits(side, &logits))
+}
+
+/// Alpha along the disc's horizontal radius, `d` px outside (> 0) or inside (< 0) its edge.
+fn across_disc_edge(a: &Plane, d: i32) -> f32 {
+    let n = a.width;
+    let edge = (0.8 * n as f64).round() as i32; // first background pixel on the right
+    let x = if d > 0 { edge + d - 1 } else { edge + d };
+    a.get(x as usize, n / 2)
+}
+
+/// Issue #3272: a mask from a low-resolution model grid spilled 1–2 px onto the background (a bright
+/// outline once its Exposure was raised). Enlarged along the photo's edges, it is ≈ 0 one and two
+/// pixels outside the subject, ≈ 1 inside, and exactly what it was away from the edge.
+#[test]
+fn ai_masks_follow_the_photos_edge_when_enlarged() {
+    let (n, side) = (512, 32); // 16 px cells, as a 288² grid on a ~4600 px export
+    let (img, log_l, seg) = disc_scene(n, side);
+    let shape = MaskShape::Prompt { text: "disc".into(), seg: Some(seg), detail: vec![], edge: 0.0 };
+    let f = frame(n, n);
+    let a = shape_alpha(&shape, &f, n, n, &img, &log_l, 0.0, None);
+    for d in [1, 2] {
+        assert!(across_disc_edge(&a, d) < 0.05, "{d} px outside: {}", across_disc_edge(&a, d));
+        assert!(across_disc_edge(&a, -d) > 0.95, "{d} px inside: {}", across_disc_edge(&a, -d));
+    }
+    // all around the disc, not only along one row
+    let r_px = 0.3 * n as f64;
+    for k in 0..64 {
+        let t = k as f64 / 64.0 * std::f64::consts::TAU;
+        let at = |r: f64| a.get((256.0 + r * t.cos()) as usize, (256.0 + r * t.sin()) as usize);
+        assert!(at(r_px + 2.5) < 0.05 && at(r_px - 2.5) > 0.95, "at {t:.2} rad: {} / {}", at(r_px + 2.5), at(r_px - 2.5));
+    }
+    // away from the edge the selection is the plain sample of the grid, to the bit
+    let flat = Plane::new(n, n);
+    let plain = shape_alpha(&shape, &f, n, n, &img, &flat, 0.0, None);
+    for (x, y) in [(256, 256), (200, 300), (10, 10), (500, 256), (256, 505)] {
+        assert_eq!(a.get(x, y), plain.get(x, y), "({x}, {y})");
+    }
+}
+
+/// Refine Edges on top of an enlarged AI mask: the second filter finds the edge already in place, so
+/// there is no second halo and the edge doesn't move inwards.
+#[test]
+fn refine_edges_on_an_enlarged_ai_mask_neither_halos_nor_tightens() {
+    let (n, side) = (512, 32);
+    let (img, log_l, seg) = disc_scene(n, side);
+    let f = frame(n, n);
+    let mask = |refine: f64| Mask {
+        components: vec![MaskComponent {
+            name: None,
+            op: MaskOp::Add,
+            invert: false,
+            shape: MaskShape::Prompt { text: "disc".into(), seg: Some(seg.clone()), detail: vec![], edge: 0.0 },
+        }],
+        refine,
+        ..Default::default()
+    };
+    let crossing = |a: &Plane| (0..n).rev().find(|x| a.get(*x, n / 2) > 0.5).unwrap_or(0);
+    let plain = evaluate_one(&mask(0.0), &f, n, n, &img, &log_l, 0.0, None);
+    for refine in [50.0, 100.0] {
+        let a = evaluate_one(&mask(refine), &f, n, n, &img, &log_l, 0.0, None);
+        for d in [1, 2] {
+            assert!(across_disc_edge(&a, d) < 0.05, "refine {refine}, {d} px outside: {}", across_disc_edge(&a, d));
+            assert!(across_disc_edge(&a, -d) > 0.95, "refine {refine}, {d} px inside: {}", across_disc_edge(&a, -d));
+        }
+        assert!(crossing(&a).abs_diff(crossing(&plain)) <= 1, "refine {refine}: edge at {} vs {}", crossing(&a), crossing(&plain));
+    }
+}
+
+/// The window follows the grid, not the output: a preview and an export put the edge in the same
+/// place of the photo (and on its edge).
+#[test]
+fn enlarged_ai_masks_put_the_edge_in_the_same_place_at_any_size() {
+    let side = 32;
+    let mut edges = Vec::new();
+    for n in [256, 512, 1024] {
+        let (img, log_l, seg) = disc_scene(n, side);
+        let shape = MaskShape::Prompt { text: "disc".into(), seg: Some(seg), detail: vec![], edge: 0.0 };
+        let a = shape_alpha(&shape, &frame(n, n), n, n, &img, &log_l, 0.0, None);
+        // the edge's sub-pixel position along the row: the integral of alpha past the centre
+        let covered: f32 = (n / 2..n).map(|x| a.get(x, n / 2)).sum();
+        edges.push((n / 2) as f64 + covered as f64);
+        let x = edges.last().copied().unwrap_or(0.0) / n as f64;
+        assert!((x - 0.8).abs() < 1.0 / n as f64, "{n} px: edge at {x:.4} of the width, the disc's at 0.8");
+    }
+}
+
 #[test]
 fn ai_shapes_without_a_segmentation_select_nothing() {
     let f = frame(30, 30);
