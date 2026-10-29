@@ -33,6 +33,7 @@
   "Exporting {} of {total}": "Mengekspor {} dari {total}",
   "Filter bar — {active} active filter{}": "Bilah filter — {active} filter aktif{:.0}",
   "Healed {n} dust spot{}": "{n} bintik debu diperbaiki{:.0}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Impor foto melalui File → Impor foto… ({}), atau seret ke sini",
   "Imported {n} point curve preset{}": "{n} preset kurva titik diimpor{:.0}",
   "Imported {n} preset{}": "{n} preset{:.0} diimpor",
   "Imported {n} preset{}, {f} file{} not readable": "{n} preset diimpor{0:.0}, {f} file tidak dapat dibaca{1:.0}",

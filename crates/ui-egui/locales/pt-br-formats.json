@@ -43,6 +43,7 @@
   "Filter bar — {active} active filter{}": "Barra de filtros — {active} filtro{0} ativo{0}",
   "Healed {n} dust spot{}": "{n} mancha{0} de poeira recuperada{0}",
   "Import cancelled · {} photo{} added": "Importação cancelada · {0} foto{1} adicionada{1}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importe fotos com Arquivo → Importar fotos… ({}) ou solte-as aqui",
   "Imported {n} point curve preset{}": "{n} predefinição(ões) de curva de pontos importada(s){:.0}",
   "Imported {n} preset{}": "{n} predefinição(ões) importada(s){:.0}",
   "Imported {n} preset{}, {f} file{} not readable": "{n} predefinição(ões) importada(s){:.0}, {f} arquivo(s) não legível(is){:.0}",

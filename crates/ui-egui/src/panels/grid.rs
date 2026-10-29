@@ -341,7 +341,8 @@ fn show_inner(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         } else if super::empty_library::shown(&app.session) {
             super::empty_library::show(app, ui, ui.max_rect());
         } else {
-            super::empty_message(ui, ui.max_rect(), "No photos", "Import photos with File → Import Photos… (Cmd+Shift+I), or drop them here");
+            let mac = ui.ctx().os() == egui::os::OperatingSystem::Mac;
+            super::empty_message(ui, ui.max_rect(), "No photos", &super::empty_library::no_photos_body(&app.ui.settings.keymap, mac));
         }
         return;
     }

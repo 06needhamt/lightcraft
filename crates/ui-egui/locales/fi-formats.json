@@ -92,6 +92,7 @@
   "Healed {n} dust spot{}": "Korjattuja pölyhiukkasia: {n}{:.0}",
   "Import cancelled · {} photo{} added": "Tuonti peruttu · lisättyjä kuvia: {}{:.0}",
   "Import failed: {e}": "Tuonti epäonnistui: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Tuo kuvia valitsemalla Tiedosto → Tuo kuvia… ({}) tai pudota ne tähän",
   "Import warnings ({n}):\n{warnings}": "Tuontivaroitukset ({n}):\n{warnings}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "Tuotuja maskitehosteita: {e}{:.0} (Maskaus → Tehoste)",
   "Imported {name}": "{name} tuotu",

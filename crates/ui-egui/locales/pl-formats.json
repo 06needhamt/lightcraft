@@ -60,6 +60,7 @@
   "Healed {n} dust spot{}": "Usunięte plamki kurzu: {n}{:.0}",
   "Import cancelled · {} photo{} added": "Import anulowany · dodane zdjęcia: {}{:.0}",
   "Import failed: {e}": "Import nieudany: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importuj zdjęcia przez Plik → Importuj zdjęcia… ({}) lub przeciągnij je tutaj",
   "Imported {n} point curve preset{}": "Zaimportowane ustawienia krzywej punktowej: {n}{:.0}",
   "Imported {n} preset{}": "Zaimportowane ustawienia wstępne: {n}{:.0}",
   "Imported {n} preset{}, {f} file{} not readable": "Zaimportowane ustawienia wstępne: {n}{:.0}, nieczytelne pliki: {f}{:.0}",

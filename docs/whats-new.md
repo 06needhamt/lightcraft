@@ -2,10 +2,12 @@
 
 ## 2026-10-27
 
-### Shortcut hints on macOS read like the menu bar
-- A shortcut shown in the menu bar's labels, in a button's tooltip, in the empty-library hint or in the Keyboard
-  Shortcuts dialog now lists its modifiers in the order macOS menus use, Control, Option, Shift, Command: `⇧⌘I`
-  where it used to say `⌘⇧I`. Windows and Linux are unchanged.
+### Shortcuts read the same way everywhere on macOS
+- Wherever LightCraft shows a shortcut (the menu bar's labels, a button's tooltip, the empty-library hint, the
+  line under "No photos" in an empty album, the Keyboard Shortcuts dialog and its search) it lists the modifiers in
+  the order macOS menus use, Control, Option, Shift, Command: `⇧⌘I` where it used to say `⌘⇧I`. The line under
+  "No photos" also shows the shortcut as it is bound now, and as Ctrl+Shift+I on Windows and Linux, where it
+  always said Cmd+Shift+I. Windows and Linux otherwise keep the order a shortcut is written in.
 
 ## 2026-10-24
 

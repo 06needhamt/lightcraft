@@ -90,6 +90,7 @@
   "Healed {n} dust spot{}": "Retuscherade {n} dammfläck{}",
   "Import cancelled · {} photo{} added": "Importen avbröts · {} foto{} tillagda",
   "Import failed: {e}": "Importen misslyckades: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importera foton med Arkiv → Importera foton… ({}) eller släpp dem här",
   "Import warnings ({n}):\n{warnings}": "Importvarningar ({n}):\n{warnings}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "Importerade {e} maskeffekt{} (Maskering → Effekt)",
   "Imported {name}": "Importerade {name}",
