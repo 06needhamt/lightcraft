@@ -821,6 +821,20 @@ fn catalog_masks(partial: &mut Value, orientation: Orientation) {
     }
 }
 
+/// The catalog's XMP masks in LightCraft's frame, as [`catalog_masks`] puts the develop row's: they
+/// are on the same stored image, and they stay when the row has no masks of its own. The packet's
+/// radials come fitted to the sidecar default aspect and `sidecar::merge_into` re-fits them to the
+/// photo's size, so they are fitted to the stored image to be turned (a quarter turn swaps the
+/// radii) and handed back in the default aspect, for that re-fit to undo.
+fn catalog_xmp_masks(partial: &mut Value, orientation: Orientation, stored_aspect: f64, photo: &Photo) {
+    use crate::crs_masks::{DEFAULT_ASPECT, refit_radials};
+    let merged = if photo.width > 0 && photo.height > 0 { photo.width as f64 / photo.height as f64 } else { DEFAULT_ASPECT };
+    let fit = if stored_aspect.is_finite() && stored_aspect > 0.0 { stored_aspect } else { merged };
+    refit_radials(partial, DEFAULT_ASPECT, fit);
+    catalog_masks(partial, orientation);
+    refit_radials(partial, merged, DEFAULT_ASPECT);
+}
+
 fn strip_lua_sentinels(value: &mut crate::preset_import::Lua) -> usize {
     use crate::preset_import::Lua;
     match value {
@@ -1080,11 +1094,14 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
         if keep_develop {
             preserved += 1;
         }
+        let orientation = lightroom_orientation(text(&src.image, "orientation")).unwrap_or_default();
+        let stored_aspect = number(&src.image, "fileWidth") as f64 / number(&src.image, "fileHeight") as f64;
         if !src.xmp.is_empty() {
             match crate::sidecar::parse_sidecar(&src.xmp, crate::crs::Target::for_photo(&p)) {
                 Ok(mut sc) => {
                     if let Some(crate::sidecar::DevelopPatch::Partial(partial)) = &mut sc.develop {
                         strip_xmp_sentinels(partial);
+                        catalog_xmp_masks(partial, in_photo_frame(orientation, p.develop.orientation), stored_aspect, &p);
                     }
                     crate::sidecar::merge_into(&mut p, &sc, &now);
                 }
@@ -1105,8 +1122,6 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             p.meta.keywords = src.keywords.clone();
         }
         if !src.settings.is_empty() && !keep_develop {
-            let orientation = lightroom_orientation(text(&src.image, "orientation")).unwrap_or_default();
-            let stored_aspect = number(&src.image, "fileWidth") as f64 / number(&src.image, "fileHeight") as f64;
             match mapped_settings(
                 &src.settings,
                 crate::crs::Target::for_photo(&p),

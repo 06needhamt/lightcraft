@@ -429,6 +429,45 @@ fn imported_crops_use_the_catalog_orientation() {
     assert_eq!(r, [0.1, 0.1, 0.8, 0.6]);
 }
 
+/// Masks only the catalog's XMP has (the develop row has none to replace them) are on the stored
+/// image too: on a vertical shot (`DA`) they turn like the row's, and a radial keeps its shape on
+/// the 2:1 stored image.
+#[test]
+fn catalog_xmp_masks_follow_the_photo_orientation() {
+    let mut data = sample();
+    data.photos.truncate(1);
+    data.photos[0].image.remove("masterImage");
+    data.photos[0].image.insert("orientation".into(), json!("DA"));
+    data.photos[0].image.insert("fileWidth".into(), json!(20));
+    data.photos[0].image.insert("fileHeight".into(), json!(10));
+    data.photos[0].settings = "s = { Exposure2012 = 0.5 }".into();
+    data.photos[0].xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+ <crs:MaskGroupBasedCorrections><rdf:Seq>
+  <rdf:li><rdf:Description crs:What="Correction" crs:CorrectionAmount="1" crs:LocalExposure2012="-0.25">
+   <crs:CorrectionMasks><rdf:Seq>
+    <rdf:li crs:What="Mask/Gradient" crs:FullX="0.1" crs:FullY="0.2" crs:ZeroX="0.3" crs:ZeroY="0.6"/>
+    <rdf:li crs:What="Mask/CircularGradient" crs:Left="0.3" crs:Right="0.5" crs:Top="0.3" crs:Bottom="0.6" crs:Flipped="true" crs:Version="2"/>
+   </rdf:Seq></crs:CorrectionMasks>
+  </rdf:Description></rdf:li>
+ </rdf:Seq></crs:MaskGroupBasedCorrections>
+</rdf:Description></rdf:RDF></x:xmpmeta>"#
+        .into();
+    let mut s = crate::Session::new();
+    apply(&mut s, data, false).unwrap();
+    let p = s.catalog.photos().next().unwrap();
+    assert_eq!(p.develop.light.exposure, 0.5, "the develop row is applied too");
+    let c = &serde_json::to_value(&p.develop.masks).unwrap()[0]["components"];
+    let (linear, radial) = (&c[0]["shape"], &c[1]["shape"]);
+    let r = [&linear["start"]["x"], &linear["start"]["y"], &linear["end"]["x"], &linear["end"]["y"], &radial["center"]["x"], &radial["center"]["y"]]
+        .map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9);
+    // (x, y) → (y, 1 − x), a quarter turn counter-clockwise
+    assert_eq!(r, [0.2, 0.9, 0.6, 0.7, 0.45, 0.6], "{c}");
+    // 4 × 3 px of a 20 × 10 stored image, in long-edge units, with the axes swapped
+    let radii = [&radial["rx"], &radial["ry"]].map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9);
+    assert_eq!(radii, [0.075, 0.1], "{radial}");
+}
+
 /// A photo already in the library keeps its Rotate Left / Right on update, so the catalog's masks
 /// go through it too: an upright (`AB`) photo turned right in LightCraft gets its gradient turned.
 #[test]
