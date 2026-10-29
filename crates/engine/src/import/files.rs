@@ -137,10 +137,16 @@ pub fn library_dir_of(path: &Path) -> Option<PathBuf> {
     (path.is_dir() && crate::library::is_library(path)).then(|| path.to_path_buf())
 }
 
-/// How long a launch argument's library check may take before LightCraft gives up on it and treats the argument
-/// as photos to import (in the background). A path on a dead network mount can block a file-system query for
-/// minutes, and this check runs before the window opens.
-pub(crate) const LAUNCH_PROBE_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+/// How long the launch arguments' library checks may take, all of them together, before LightCraft gives up and
+/// treats the arguments not yet checked as photos to import (in the background). A path on a dead network mount
+/// can block a file-system query for minutes, and these checks run before the window opens.
+pub const LAUNCH_PROBE_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// When the launch arguments' library checks, starting now, must be done: [`LAUNCH_PROBE_LIMIT`] from now.
+pub fn launch_deadline() -> std::time::Instant {
+    let now = std::time::Instant::now();
+    now.checked_add(LAUNCH_PROBE_LIMIT).unwrap_or(now)
+}
 
 /// `probe`'s answer, or `None` when it takes longer than `limit`: it runs on its own thread, which is left to
 /// finish (or stay blocked) on its own. Also `None` when no thread can be started.
@@ -169,6 +175,19 @@ pub(crate) fn within<T: Send + 'static>(limit: std::time::Duration, probe: impl 
 /// or file-system root is replaced by its camera folder (`DCIM`, from `dcim`: a memory card) or
 /// refused, and so is the home folder `home`: either would walk most of the disk.
 pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: impl Fn(&Path) -> Option<PathBuf>) -> Option<LaunchPath> {
+    launch_path_until(arg, cwd, home, dcim, launch_deadline())
+}
+
+/// [`launch_path`], with its library check bounded by `deadline` (from [`launch_deadline`]), which every argument
+/// of one launch shares: several paths on a dead mount wait [`LAUNCH_PROBE_LIMIT`] in all, not each. Once it has
+/// passed, an argument is imported without the check.
+pub fn launch_path_until(
+    arg: &str,
+    cwd: Option<&Path>,
+    home: Option<&Path>,
+    dcim: impl Fn(&Path) -> Option<PathBuf>,
+    deadline: std::time::Instant,
+) -> Option<LaunchPath> {
     if arg.trim().is_empty() {
         return None;
     }
@@ -203,8 +222,11 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
     if home.is_some_and(|h| key(&h.to_string_lossy()) == key(&shown)) {
         return Some(LaunchPath::Refused { path: shown, why: "the whole home folder".into() });
     }
+    let left = deadline.saturating_duration_since(std::time::Instant::now());
     let probed = abs.clone();
-    if let Some(dir) = within(LAUNCH_PROBE_LIMIT, move || library_dir_of(&probed)) {
+    if !left.is_zero()
+        && let Some(dir) = within(left, move || library_dir_of(&probed))
+    {
         return Some(LaunchPath::Library(dir.to_string_lossy().to_string()));
     }
     Some(LaunchPath::Import(shown))
@@ -343,6 +365,21 @@ mod prepared_tests {
         assert_eq!(found, None);
         assert!(start.elapsed() < std::time::Duration::from_secs(2), "waited {:?}", start.elapsed());
         assert_eq!(within(LAUNCH_PROBE_LIMIT, || Some(1)), Some(1), "a quick answer is kept");
+    }
+
+    /// The launch arguments share one deadline (CodeRabbit on #2979): once it has passed, an argument is imported
+    /// without its library check, so several paths on a dead mount can't each wait the limit.
+    #[test]
+    fn launch_arguments_share_one_deadline() {
+        let dir = temp_dir("deadline");
+        std::fs::write(dir.join(lightcraft_catalog::journal::LOG), b"x").unwrap();
+        let arg = dir.to_string_lossy().to_string();
+        let none = |_: &Path| None;
+        assert_eq!(launch_path_until(&arg, None, None, none, launch_deadline()), Some(LaunchPath::Library(arg.clone())));
+        let start = std::time::Instant::now();
+        assert_eq!(launch_path_until(&arg, None, None, none, start), Some(LaunchPath::Import(arg.clone())), "deadline passed");
+        assert!(start.elapsed() < std::time::Duration::from_millis(500), "waited {:?}", start.elapsed());
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     /// Extensions the picker may offer: every one in [`EXTENSIONS`], minus the

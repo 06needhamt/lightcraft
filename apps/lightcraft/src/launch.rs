@@ -62,10 +62,12 @@ pub(crate) struct LaunchArgs {
 }
 
 pub(crate) fn launch_imports_in(args: &[String], cwd: Option<&std::path::Path>, home: Option<&std::path::Path>) -> LaunchArgs {
-    use lightcraft_engine::import::{LaunchPath, launch_path};
+    use lightcraft_engine::import::{LaunchPath, launch_deadline, launch_path_until};
     let (mut files, mut notices, mut library) = (Vec::new(), Vec::new(), None);
+    // one deadline for every argument's library check: they all run before the window opens
+    let deadline = launch_deadline();
     for a in args {
-        match launch_path(a, cwd, home, lightcraft_engine::devices::dcim_in) {
+        match launch_path_until(a, cwd, home, lightcraft_engine::devices::dcim_in, deadline) {
             Some(LaunchPath::Library(dir)) if library.is_none() => library = Some(std::path::PathBuf::from(dir)),
             Some(LaunchPath::Library(dir)) => {
                 log::warn!("one library at a time: not opening {dir} given at launch");
