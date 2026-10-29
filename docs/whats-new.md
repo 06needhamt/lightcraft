@@ -7,6 +7,8 @@
   library that could not be opened, a settings file problem) are now exposed to screen readers as dialogs: modal ones, so the
   rest of the window is marked as blocked while one is open, and an alert dialog for the prompts. The answer to Check for
   Updates is a dialog too, but not a modal one. Before, each was a plain group that only carried the dialog's title.
+- An alert dialog also carries what it says as its description: a screen reader can read the library problem's path, error and
+  explanation, or a prompt's text, together with the dialog.
 
 ## 2026-10-24
 
