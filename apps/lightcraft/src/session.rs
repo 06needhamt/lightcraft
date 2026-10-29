@@ -280,12 +280,9 @@ fn open_library_session(in_memory: bool, dir: Option<std::path::PathBuf>, rememb
     };
     if remembered && !lightcraft_engine::library::is_library(&dir) {
         log::error!("library {} is missing", dir.display());
-        let why = if dir.exists() {
-            "There is no LightCraft library in this folder any more."
-        } else {
-            "The library isn't there: it was moved or renamed, or its drive or network share isn't connected."
-        };
-        return (unopened(), Some(LibraryProblem::new(dir.to_string_lossy(), why)));
+        let why = lightcraft_ui_egui::panels::library_problem::missing_library_reason(&dir);
+        // Try Again must not make one there either (an empty mount point, issue #3239)
+        return (unopened(), Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(dir.to_string_lossy(), why) }));
     }
     let t0 = std::time::Instant::now();
     let mut s = Session::new().with_fs().with_default_denoise_models().with_system_clock();

@@ -1032,3 +1032,34 @@ fn found_again(multipass: bool) {
     drop(h);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Issue #3239: Try Again on a remembered library that was missing at launch makes no library in
+/// its folder when the folder is there but empty (a share's mount point before the share is
+/// connected): the window stays and says so. Once the folder holds the library again, it opens.
+#[test]
+fn try_again_on_a_missing_remembered_library_makes_nothing_in_an_empty_folder() {
+    let dir = temp("retry-existing");
+    let mount = dir.join("Share");
+    std::fs::create_dir_all(&mount).unwrap();
+    let path = mount.to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.library_problem = Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(path.clone(), "missing") });
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    settle(&mut h);
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryRetry"}), T)["ok"], true);
+    settle(&mut h);
+    assert!(!lightcraft_engine::library::is_library(&mount), "no catalog is made in the empty folder");
+    assert_eq!(std::fs::read_dir(&mount).unwrap().count(), 0, "nothing is written there");
+    assert!(h.app.session.library.is_none());
+    let p = h.app.library_problem.as_ref().expect("the window stays");
+    assert_eq!(p.error, "There is no LightCraft library in this folder any more.");
+    assert!(has(&h, "button:libraryRetry"));
+    // the share is connected again: Try Again opens the library in it
+    make_library(&mount);
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryRetry"}), T)["ok"], true);
+    settle(&mut h);
+    assert_eq!(h.app.session.library.as_ref().map(|l| l.dir.to_string_lossy().into_owned()), Some(path));
+    assert!(h.app.library_problem.is_none());
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -76,12 +76,13 @@ fn a_remembered_library_missing_at_launch_is_reported_not_made_anew() {
     let problem = problem.expect("the missing library is reported");
     assert_eq!(problem.path, lib.to_string_lossy());
     assert!(problem.can_retry, "Try Again once the drive is back");
+    assert!(problem.existing_only, "Try Again makes no library there either");
     assert!(!gone.exists(), "nothing is created where the library was");
     assert!(s.library.is_none() && s.catalog.is_empty(), "no library, no demo photos");
     // a remembered folder that is there but holds no library is reported too
     std::fs::create_dir_all(&lib).unwrap();
     let (s, problem) = open_session(false, &launch, true);
-    assert!(problem.is_some() && s.library.is_none() && s.catalog.is_empty());
+    assert!(problem.as_ref().is_some_and(|p| p.existing_only) && s.library.is_none() && s.catalog.is_empty(), "{problem:?}");
     assert!(!lightcraft_engine::library::is_library(&lib), "nothing written in it");
     // the default location (or --library) is still made when it's missing, with the demo photos
     let fresh = d.join("fresh").join("Lib");
