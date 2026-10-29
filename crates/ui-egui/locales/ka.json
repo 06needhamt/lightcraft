@@ -970,6 +970,7 @@
   "Import from Device": "იმპორტი მოწყობილობიდან",
   "Import from Folder…": "იმპორტი საქაღალდიდან…",
   "Import new photos": "ახალი ფოტოების იმპორტი",
+  "Import photos with File → Import Photos…, or drop them here": "ფოტოების იმპორტისთვის გამოიყენეთ ფაილი → ფოტოების იმპორტი…, ან ჩააგდეთ ისინი აქ",
   "Import presets from other editors: XMP presets, classic `.lrtemplate` files, \"DNG presets\" from mobile apps and `.zip`": "პრესეტების იმპორტი სხვა რედაქტორებიდან: XMP პრესეტები, კლასიკური `.lrtemplate` ფაილები, მობილური აპების „DNG პრესეტები“ და `.zip`",
   "Import ▸ Copy verifies every copy, like Move (issue #96): each file is written as a new file, synced to disk and": "იმპორტი → კოპირება ყოველ ასლს ამოწმებს, ისევე როგორც გადატანა (ხარვეზი #96): ყოველი ფაილი ახალ ფაილად იწერება, დისკზე სინქრონიზდება და",
   "Import ▸ Move: photos go into the destination (with the same folders and renaming as Copy, e.g.": "იმპორტი → გადატანა: ფოტოები დანიშნულების ადგილას გადადის (იგივე საქაღალდეებითა და გადარქმევით, რაც კოპირებისას, მაგ.",

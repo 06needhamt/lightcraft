@@ -156,7 +156,7 @@ fn the_no_photos_line_lists_modifiers_in_the_menu_order() {
     assert!(rebound.contains("⌥⇧⌘I"), "{rebound}");
     crate::shortcuts::assign(&mut keymap, "file.addPhotos", None).unwrap();
     let unbound = empty_library::no_photos_body(&keymap, true);
-    assert!(!unbound.contains('⌘') && !unbound.contains("Cmd"), "{unbound}");
+    assert!(!unbound.contains('⌘') && !unbound.contains("Cmd") && !unbound.starts_with("or "), "{unbound}");
 }
 
 #[test]
