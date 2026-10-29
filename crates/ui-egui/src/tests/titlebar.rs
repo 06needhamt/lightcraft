@@ -235,6 +235,22 @@ fn a_dialog_dims_the_top_bar_without_the_integrated_title_bar() {
     assert_ne!(pixel(&open, spot), pixel(&closed, spot), "the top bar is dimmed");
 }
 
+// Scenario: the full-screen photo view draws no top bar, so a dialog opened there has no title bar band to spare: the
+// frame the view is entered on still holds the bar's region from the frame before, and must not lay a window handle
+// over the backdrop (the band that handle covers is the strip the backdrop would leave undimmed)
+#[test]
+fn a_dialog_in_the_full_screen_photo_view_has_no_title_bar_handle() {
+    let mut h = integrated();
+    assert!(h.app.widgets.iter().any(|(w, _)| w == "region:titlebar"), "the bar was drawn the frame before");
+    h.app.run("view.fullScreenPreview", json!({})).unwrap();
+    h.app.run("dialog.export", json!({})).unwrap();
+    h.step();
+    assert!(h.app.ui.fullscreen && h.app.ui.dialog.is_some());
+    let handles = [0usize, 1].map(|i| egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("dialog-title-bar").with(i)));
+    let handle = h.view.ctx.memory(|m| handles.iter().any(|layer| m.areas().visible_last_frame(layer)));
+    assert!(!handle, "no title bar handle over the photo");
+}
+
 // Scenario: a click on the undimmed bar is not a click outside the dialog
 #[test]
 fn a_click_on_the_title_bar_keeps_the_dialog_open() {

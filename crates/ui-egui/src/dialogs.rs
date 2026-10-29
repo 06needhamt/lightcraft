@@ -238,7 +238,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
 /// without the integrated title bar (Windows, Linux, the web), in macOS full screen, and while the
 /// bar isn't on screen (the full-screen photo view).
 fn title_bar_band(app: &LightcraftApp) -> Option<egui::Rect> {
-    if !app.integrated_titlebar || app.window_is_fullscreen {
+    // (the full-screen photo view draws no top bar, so the frame it is entered on still holds last frame's region)
+    if !app.integrated_titlebar || app.window_is_fullscreen || app.ui.fullscreen {
         return None;
     }
     app.widgets.iter().find(|(id, _)| id == "region:titlebar").map(|(_, r)| *r)
