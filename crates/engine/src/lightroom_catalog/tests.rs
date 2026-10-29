@@ -431,7 +431,7 @@ fn imported_crops_use_the_catalog_orientation() {
 
 /// Masks only the catalog's XMP has (the develop row has none to replace them) are on the stored
 /// image too: on a vertical shot (`DA`) they turn like the row's, and a radial keeps its shape on
-/// the 2:1 stored image.
+/// the 2:1 stored image, also for a photo already in the library at its shown 10 × 20.
 #[test]
 fn catalog_xmp_masks_follow_the_photo_orientation() {
     let mut data = sample();
@@ -454,8 +454,12 @@ fn catalog_xmp_masks_follow_the_photo_orientation() {
 </rdf:Description></rdf:RDF></x:xmpmeta>"#
         .into();
     let mut s = crate::Session::new();
-    apply(&mut s, data, false).unwrap();
-    let p = s.catalog.photos().next().unwrap();
+    let id = s.catalog.alloc_photo_id();
+    let shown = Photo::new(id, Source::File { path: "/missing/test.ARW".into() }, "test.ARW", "ARW", 10, 20, "before");
+    s.commit("Browse folder", Op::AddPhoto { photo: Box::new(shown) }).unwrap();
+    apply(&mut s, data, true).unwrap();
+    assert_eq!(s.catalog.len(), 1, "the catalog's photo is the one already in the library");
+    let p = s.catalog.photo(id).unwrap();
     assert_eq!(p.develop.light.exposure, 0.5, "the develop row is applied too");
     let c = &serde_json::to_value(&p.develop.masks).unwrap()[0]["components"];
     let (linear, radial) = (&c[0]["shape"], &c[1]["shape"]);
