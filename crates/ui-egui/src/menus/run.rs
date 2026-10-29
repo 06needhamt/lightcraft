@@ -232,15 +232,25 @@ fn ui_commands_1(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Val
             if app.ui.keyword_painter.is_some() {
                 app.ui.keyword_painter = None;
                 Ok(json!({"keyword": null}))
-            } else if k.is_empty() {
-                app.ui.right = RightPanel::Keywords;
-                if app.ui.section_folded("keywording") {
-                    app.ui.toggle_folded("keywording");
-                }
-                app.toast(ctx, crate::i18n::tr("Type a keyword to paint in the Keywords panel"));
-                Ok(json!({"keyword": null}))
             } else {
-                run_ui_command(app, "tool.keywordPainter", &json!({"keyword": k})).unwrap_or(Ok(Value::Null))
+                // the full-screen preview covers both the grid and the Keywords panel
+                if app.ui.fullscreen {
+                    crate::panels::slideshow::end(app);
+                }
+                if k.is_empty() {
+                    app.ui.right = RightPanel::Keywords;
+                    if app.ui.tool != "wbPicker" {
+                        app.ui.tool.clear();
+                    }
+                    let _ = app.session.end_interaction();
+                    if app.ui.section_folded("keywording") {
+                        app.ui.toggle_folded("keywording");
+                    }
+                    app.toast(ctx, crate::i18n::tr("Type a keyword to paint in the Keywords panel"));
+                    Ok(json!({"keyword": null}))
+                } else {
+                    run_ui_command(app, "tool.keywordPainter", &json!({"keyword": k})).unwrap_or(Ok(Value::Null))
+                }
             }
         }
         "view.secondWindow" => {
