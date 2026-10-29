@@ -693,6 +693,7 @@ fn mapped_settings(
     aspect: f64,
     orientation: Orientation,
     stored_aspect: f64,
+    user: Orientation,
 ) -> Result<(Value, Vec<String>), String> {
     let mut root = crate::preset_import::parse_lua(text)?;
     let deferred = strip_lua_sentinels(&mut root);
@@ -709,7 +710,7 @@ fn mapped_settings(
     let mask_aspect = if stored_aspect.is_finite() && stored_aspect > 0.0 { stored_aspect } else { aspect };
     let (mut partial, mut unknown) = crate::crs::to_partial_report(&props, Some(&values), target, mask_aspect);
     catalog_crop(&mut partial, orientation, stored_aspect);
-    catalog_masks(&mut partial, orientation);
+    catalog_masks(&mut partial, in_photo_frame(orientation, user));
     if deferred > 0 {
         unknown.push("Deferred Lightroom adjustments (-999999)".into());
     }
@@ -767,6 +768,15 @@ fn catalog_crop(partial: &mut Value, orientation: Orientation, stored_aspect: f6
     let r = Rect::from_points(corner(x0, y0), corner(x1, y1));
     geometry.insert("rect".into(), json!({"x0": r.x0 / ow, "y0": r.y0 / oh, "x1": r.x1 / ow, "y1": r.y1 / oh}));
     geometry.insert("angle".into(), json!(angle));
+}
+
+/// The catalog's orientation (the stored image to the photo as Lightroom shows it), then the
+/// photo's own Rotate Left / Right and Flip in LightCraft (`user`), which an update of a photo
+/// already in the library keeps: the frame LightCraft draws masks in.
+fn in_photo_frame(catalog: Orientation, user: Orientation) -> Orientation {
+    let (flip, turns) = user.to_parts();
+    let o = if flip { catalog.flipped_h() } else { catalog };
+    (0..turns).fold(o, |o, _| o.rotated(true))
 }
 
 /// Lightroom's masks in LightCraft's frame. Like the crop's corners, their positions are on the
@@ -1103,6 +1113,7 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
                 p.width.max(1) as f64 / p.height.max(1) as f64,
                 orientation,
                 stored_aspect,
+                p.develop.orientation,
             ) {
                 Ok((partial, unknown)) => {
                     p.develop = Arc::new(lightcraft_develop::apply_partial(&p.develop, &partial, 1.0));
