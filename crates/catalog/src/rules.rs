@@ -1062,9 +1062,9 @@ const COST_ALBUM: u8 = 3;
 
 impl Rule {
     /// A rule's tier: 0 numbers, choices and yes/no questions about one photo's own record (and
-    /// anything that is false at once: an unknown field or a missing album); 1 dates, keyword and
+    /// anything that is settled at once: an unknown field or a missing album); 1 dates, keyword and
     /// people lists, short single fields, an index lookup and a plain album's list (a folder holds no photos here: an empty lookup); 2 text built
-    /// from several fields and file paths (they copy and lower-case the text); 3 a smart album,
+    /// from several fields and file paths (long strings, matched for each photo); 3 a smart album,
     /// which runs a whole rule set for the photo. A group costs as much as its dearest rule.
     fn cost(&self, cat: &Catalog) -> u8 {
         match self {
@@ -1076,9 +1076,9 @@ impl Rule {
                     Some(_) => COST_SMALL,
                 }),
                 "text" | "filePath" | "location" => COST_TEXT,
-                "keywords" | "person" | "personCount" | "stacked" | "sameContent" | "copyName" | "fileName" | "extension" | "format" | "title"
-                | "caption" | "altText" | "city" | "state" | "country" | "camera" | "lens" | "creator" | "copyright" | "captureDate"
-                | "importDate" | "editDate" | "shutterSpeed" | "aspect" => COST_SMALL,
+                "keywords" | "person" | "personCount" | "stacked" | "copyName" | "fileName" | "extension" | "format" | "title" | "caption"
+                | "altText" | "city" | "state" | "country" | "camera" | "lens" | "creator" | "copyright" | "captureDate" | "importDate"
+                | "editDate" | "shutterSpeed" | "aspect" => COST_SMALL,
                 _ => COST_SCALAR,
             },
         }

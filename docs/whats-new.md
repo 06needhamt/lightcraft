@@ -163,8 +163,8 @@
   other album is asked about them. The photos in the album and their order are the same, and the rules still show in
   the order you wrote them. (A library whose smart albums test each other in a circle, which LightCraft doesn't let
   you make, or test each other 32 deep, keeps testing the rules as written.) On a 312,000-photo test library, opening
-  one such album went from about 224 ms to about 100 ms, and opening 51 of them in turn from about 19 s to about
-  5.8 s (a busy machine, so rough numbers).
+  51 such albums in turn went from about 19 s to about 5.8 s (about 377 ms to 113 ms each; a busy machine,
+  so rough numbers).
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

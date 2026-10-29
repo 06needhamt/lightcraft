@@ -326,3 +326,40 @@ fn a_chain_as_deep_as_the_limit_keeps_the_written_order() {
     assert!(c.keeps_written_order());
     assert_eq!(ask(&c), as_written);
 }
+
+/// What was worked out from the albums (whether rules may be tested cheapest first) is worked out
+/// again after an album is added or removed: 31 smart albums in a chain are fine, a 32nd on top of
+/// it reaches the depth limit (the written order from then on), and taking it away lifts that.
+#[test]
+fn adding_or_removing_an_album_forgets_whether_the_rules_may_be_reordered() {
+    let mut c = Catalog::new();
+    let mut p = Photo::new(c.alloc_photo_id(), Source::File { path: "/a/1.jpg".into() }, "1.jpg", "JPEG", 6000, 4000, "2026-09-30T10:00:00");
+    p.flag = Flag::Pick;
+    let photo = p.id;
+    c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+    let album = |id: AlbumId| json!({"field": "album", "op": "is", "value": id.0});
+    let smart = |c: &mut Catalog, name: &str, rules: serde_json::Value| {
+        let id = c.alloc_album_id();
+        c.apply(Op::AddAlbum { album: Album { smart: Some(Box::new(filter(rules))), ..Album::new(id, name) } }).unwrap();
+        id
+    };
+    // S1 tests S2 … S30 tests S31, which tests nothing: 31 albums
+    let mut chain = vec![smart(&mut c, "S31", json!({"match": "all", "rules": []}))];
+    for i in (1..=30).rev() {
+        let next = chain[chain.len() - 1];
+        chain.push(smart(&mut c, &format!("S{i}"), json!({"match": "all", "rules": [album(next)]})));
+    }
+    let bottom = chain[0];
+    let top = chain[30];
+    let ask = |c: &Catalog| [top, bottom].map(|id| (c.album_contains(id, c.photo(photo).unwrap()), c.album_photos(id), c.album_count(id)));
+    assert!(!c.keeps_written_order(), "31 albums in a chain are under the limit (worked out, and remembered)");
+    let before = ask(&c);
+    let head = smart(&mut c, "S0", json!({"match": "all", "rules": [album(top)]}));
+    assert!(c.keeps_written_order(), "a 32nd album on top of the chain reaches the depth limit");
+    assert_eq!(c.clone().keeps_written_order(), c.keeps_written_order(), "as a catalog that worked it out afresh");
+    assert_eq!(ask(&c), ask(&c.clone()));
+    c.apply(Op::RemoveAlbum { id: head }).unwrap();
+    assert!(!c.keeps_written_order(), "without it the chain is under the limit again");
+    assert_eq!(c.clone().keeps_written_order(), c.keeps_written_order());
+    assert_eq!(ask(&c), before);
+}
