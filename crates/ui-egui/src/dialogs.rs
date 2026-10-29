@@ -255,7 +255,9 @@ fn below_title_bar(screen: egui::Rect, band: Option<egui::Rect>) -> egui::Rect {
 /// handle is the band on either side of it, and isn't run while the pointer is on the dialog (each
 /// handle records whether the window may move, and one the pointer isn't in would say yes).
 fn title_bar_handle(ctx: &egui::Context, band: egui::Rect, dialog: egui::Rect) {
-    if ctx.pointer_hover_pos().is_some_and(|p| dialog.contains(p)) {
+    // (egui lifts an area that wasn't there the frame before above the rest: a handle drawn again as the pointer leaves
+    // the dialog would sit over an open dropdown and take the press meant for its item)
+    if egui::Popup::is_any_open(ctx) || ctx.pointer_hover_pos().is_some_and(|p| dialog.contains(p)) {
         return;
     }
     let sides =

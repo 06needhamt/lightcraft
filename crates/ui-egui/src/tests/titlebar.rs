@@ -298,3 +298,31 @@ fn a_dialog_inside_the_bar_keeps_the_window_from_moving() {
     assert!(hover(&mut h, spot), "the bar beside the dialog moves the window");
     assert!(!hover(&mut h, egui::pos2(window.center().x, bar.center().y)), "the dialog over the bar does not");
 }
+
+// Scenario: with a dropdown open in the dialog, the bar's handle stays out of the way: egui lifts an area that was not
+// there the frame before above the others, so a handle drawn again as the pointer leaves the dialog would take the
+// press meant for the dropdown's item
+#[test]
+fn the_title_bar_handle_stays_below_a_dropdown_open_in_the_dialog() {
+    let mut h = with_export_dialog(integrated());
+    let spot = empty_spot(&h);
+    let handle_at = |h: &mut Headless| {
+        h.events.push(egui::Event::PointerMoved(spot));
+        play(h);
+        let handles = [0usize, 1].map(|i| egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("dialog-title-bar").with(i)));
+        h.view.ctx.memory(|m| handles.iter().any(|layer| m.areas().visible_last_frame(layer)))
+    };
+    assert!(handle_at(&mut h), "without a dropdown the bar beside the dialog is the handle's");
+    let r = h.request("ui.clickWidget", json!({"id": "combo:exportPreset"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    play(&mut h);
+    assert!(egui::Popup::is_any_open(&h.view.ctx), "the preset dropdown is open");
+    assert!(!handle_at(&mut h), "with one open, no handle sits above it");
+    assert!(egui::Popup::is_any_open(&h.view.ctx), "(and the pointer leaving the dialog did not close it)");
+    // once the dropdown is closed the handle is back, so the bar beside the dialog moves the window again
+    h.request("ui.key", json!({"key": "Escape"}), T);
+    play(&mut h);
+    assert!(!egui::Popup::is_any_open(&h.view.ctx), "Escape closes the dropdown");
+    assert!(h.app.ui.dialog.is_some(), "and leaves the dialog");
+    assert!(handle_at(&mut h), "the handle is back");
+}
