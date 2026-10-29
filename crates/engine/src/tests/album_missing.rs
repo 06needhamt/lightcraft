@@ -133,3 +133,35 @@ fn a_toggle_counts_only_the_photos_it_added() {
     assert_eq!((r["added"].as_bool(), r["toggled"].as_u64()), (Some(true), Some(1)), "two were in already: {r}");
     assert_eq!(s.catalog.album(a).unwrap().photos.len(), 3);
 }
+
+#[test]
+fn photos_named_outright_reach_the_album_commands_with_nothing_selected() {
+    let mut s = Session::with_demo();
+    let photo = s.catalog.photos().next().unwrap().id;
+    let a = album(&mut s, "Trip");
+    s.execute("album.setTarget", &json!({"id": a.0})).unwrap();
+    s.selection = Selection::default();
+
+    // ids the library lacks: the no-op result, not a refusal
+    let r = s.execute("album.addPhotos", &json!({"id": a.0, "ids": [GONE.0]})).unwrap();
+    assert_eq!((r["added"].as_u64(), r["skipped"].as_u64()), (Some(0), Some(0)), "{r}");
+    let r = s.execute("album.toggleTarget", &json!({"ids": [GONE.0]})).unwrap();
+    assert!(r["added"].is_null(), "{r}");
+
+    // ids the library has: they go in
+    let r = s.execute("album.addPhotos", &json!({"id": a.0, "ids": [photo.0]})).unwrap();
+    assert_eq!(r["added"], 1, "{r}");
+    let r = s.execute("album.toggleTarget", &json!({"ids": [photo.0]})).unwrap();
+    assert_eq!((r["added"].as_bool(), r["toggled"].as_u64()), (Some(false), Some(1)), "{r}");
+}
+
+#[test]
+fn the_album_an_add_names_is_not_a_photo_that_skips_the_selection_check() {
+    let mut s = Session::with_demo();
+    let a = album(&mut s, "Trip");
+    s.selection = Selection::default();
+    // no `ids`: the selection is what is added, and it is empty
+    assert!(matches!(s.execute("album.addPhotos", &json!({"id": a.0})), Err(crate::EngineError::Disabled(..))));
+    assert!(matches!(s.execute("album.addPhotos", &json!({"id": a.0, "ids": null})), Err(crate::EngineError::Disabled(..))));
+    assert!(matches!(s.execute("album.toggleTarget", &json!({})), Err(crate::EngineError::Disabled(..))));
+}
