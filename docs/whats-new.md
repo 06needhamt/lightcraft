@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-29
+
+### The histogram's clipping buttons read in light themes
+- The two buttons at the histogram's top corners (shadow and highlight clipping) are no longer near-black tiles with a
+  grey chevron. They take the theme's own raised fill, and the chevron stands out from it in Charcoal, Midnight, Silver
+  and Paper alike.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
