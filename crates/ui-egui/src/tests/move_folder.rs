@@ -50,8 +50,16 @@ type Asked = Arc<Mutex<Vec<(PickRequest, Sender<Vec<String>>)>>>;
 /// recorded with the sender that answers it), and a synchronous folder dialog that only counts
 /// how often it was opened on the UI thread.
 fn app_with_trip(dir: &Scratch) -> (Headless, Asked, Arc<AtomicUsize>) {
+    app_with_trip_in(dir, None)
+}
+
+/// [`app_with_trip`], with the photo imported into the library at `library` (`None`: in memory).
+fn app_with_trip_in(dir: &Scratch, library: Option<&str>) -> (Headless, Asked, Arc<AtomicUsize>) {
     write_png(&dir.path("trip/a.png"), 1);
     let mut session = lightcraft_engine::Session::new().with_fs();
+    if let Some(library) = library {
+        session.open_library(library, false).unwrap();
+    }
     session.execute("library.import", &json!({"paths": [dir.path("trip")]})).unwrap();
     let mut app = LightcraftApp::new(session, Services { png: None, ..Default::default() });
     let asked: Asked = Default::default();
@@ -135,4 +143,39 @@ fn move_folder_to_asks_off_the_ui_thread_and_moves_with_the_answer() {
     asked.lock().unwrap()[1].1.send(vec![dir.0.to_string_lossy().to_string()]).unwrap();
     h.settle(SETTLE);
     assert!(std::path::Path::new(&dir.path("trip/a.png")).exists(), "moved back");
+}
+
+/// Issue #3140: while Move Folder To… waits for its destination, the library can't be switched
+/// (the move would run in the other library, moving the folder with nothing to relink). The answer
+/// moves the folder in the library it was asked in; then switching works again.
+#[test]
+fn no_library_switch_while_move_folder_to_waits_for_its_destination() {
+    let dir = Scratch::new("switch");
+    std::fs::create_dir_all(dir.path("dest")).unwrap();
+    let (first, other) = (dir.path("First"), dir.path("Other"));
+    let (mut h, asked, _) = app_with_trip_in(&dir, Some(&first));
+    open_row_menu(&mut h, &format!("source:libfolder:{}", dir.path("trip")));
+    let r = h.request("ui.clickWidget", json!({"id": "folderMoveTo"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(asked.lock().unwrap().len(), 1, "the dialog is up");
+    let library = |h: &Headless| h.app.session.library.as_ref().map(|l| l.dir.to_string_lossy().replace('\\', "/"));
+    // another library (from the control channel or an agent, say) is refused meanwhile
+    let e = h.app.run("app.openLibrary", json!({"path": other})).expect_err("no switch while the dialog is up");
+    assert!(e.contains("Move Folder To…"), "{e}");
+    assert_eq!(library(&h), Some(first.clone()), "the first library stays open");
+    // the answer moves the folder there, and its photo follows
+    asked.lock().unwrap()[0].1.send(vec![dir.path("dest")]).unwrap();
+    h.settle(SETTLE);
+    assert!(h.app.pending_picks.is_empty());
+    assert!(std::path::Path::new(&dir.path("dest/trip/a.png")).exists(), "moved on disk");
+    assert_eq!(library(&h), Some(first));
+    let relinked = h.app.session.catalog.photos().filter(|p| p.in_library()).all(|p| match &p.source {
+        lightcraft_catalog::Source::File { path } => path.replace('\\', "/").starts_with(&dir.path("dest/trip")),
+        lightcraft_catalog::Source::Demo { .. } => false,
+    });
+    assert!(relinked, "the photo is relinked in the first library");
+    // and now the switch goes through
+    h.app.run("app.openLibrary", json!({"path": other})).expect("the switch works once the move is done");
+    assert_eq!(library(&h), Some(other));
 }

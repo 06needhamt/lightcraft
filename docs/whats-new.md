@@ -6,7 +6,8 @@
 - Move Folder To…, in the menu of a folder in Folders or Local, now opens its folder dialog the way Import and Move to
   Folder… do: the window keeps drawing and answering while you choose, and the folder moves when the dialog closes,
   with the same "Moved; N photo(s) relinked" message. Before, the dialog held up the whole window until it closed;
-  on Linux with X11 the app could stop responding altogether.
+  on Linux with X11 the app could stop responding altogether. While the dialog is open, another library can't be
+  opened (the move belongs to the library it was started in).
 
 ## 2026-10-24
 
