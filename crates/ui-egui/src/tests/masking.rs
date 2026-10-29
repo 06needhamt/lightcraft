@@ -363,6 +363,51 @@ fn mask_overlay_keys_and_pins() {
     h.settle(SETTLE);
 }
 
+/// Issue #3049: Show Pins draws a pin for an Object mask (at its first click) and a Describe
+/// mask (on what its segmentation found). Clicking one selects its mask; dragging it leaves the
+/// mask and the History alone, since neither can be moved.
+#[test]
+fn object_and_describe_masks_show_pins_that_select_but_do_not_move() {
+    use lightcraft_develop::SegMask;
+    use lightcraft_geom::Point;
+    let mut h = detail("panel.masking");
+    // a 16 × 16 segmentation found in columns 2..=5, rows 10..=13: centred on (0.25, 0.75)
+    let blob: Vec<f32> = (0..16 * 16).map(|i| if (2..=5).contains(&(i % 16)) && (10..=13).contains(&(i / 16)) { 8.0 } else { -8.0 }).collect();
+    let seg = SegMask::from_logits(16, &blob);
+    let object = MaskShape::Object { hint: vec![Point::new(0.6, 0.5)], exclude: vec![], seg: Some(seg.clone()), detail: vec![], edge: 0.0 };
+    let prompt = MaskShape::Prompt { text: "the boat".into(), seg: Some(seg), detail: vec![], edge: 0.0 };
+    exec(&mut h, "mask.add", json!({"kind": "radial", "center": [0.5, 0.5], "rx": 0.1, "ry": 0.1}));
+    exec(&mut h, "mask.update", json!({"id": 1, "shape": object}));
+    exec(&mut h, "mask.add", json!({"kind": "radial", "center": [0.5, 0.5], "rx": 0.1, "ry": 0.1}));
+    exec(&mut h, "mask.update", json!({"id": 2, "shape": prompt}));
+    assert_eq!(h.app.session.active_mask, Some(2));
+    // pins shown without the pointer over the photo
+    exec(&mut h, "view.toolOverlay", json!({"mode": "always"}));
+    h.settle(SETTLE);
+    let pin_at = |h: &Headless, id: &str| h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| r.center());
+    let (Some(object_pin), Some(prompt_pin)) = (pin_at(&h, "maskPin:1:0"), pin_at(&h, "maskPin:2:0")) else {
+        panic!("both masks have a pin: {:?}", h.app.widgets.iter().filter(|(w, _)| w.starts_with("maskPin:")).collect::<Vec<_>>())
+    };
+    // the Describe pin sits on what was found, right of and below the Object's
+    assert!(prompt_pin.x < object_pin.x && prompt_pin.y > object_pin.y, "{object_pin:?} {prompt_pin:?}");
+    // clicking a pin selects its mask
+    pointer(&mut h, json!([{"kind": "down", "x": 0.6, "y": 0.5}, {"kind": "up", "x": 0.6, "y": 0.5}]));
+    assert_eq!(h.app.session.active_mask, Some(1));
+    pointer(&mut h, json!([{"kind": "down", "x": 0.25, "y": 0.75}, {"kind": "up", "x": 0.25, "y": 0.75}]));
+    assert_eq!(h.app.session.active_mask, Some(2));
+    // dragging one changes nothing and adds no History step
+    let id = h.app.session.active().expect("active photo");
+    let before = h.app.session.catalog.photo(id).expect("photo").clone();
+    pointer(
+        &mut h,
+        json!([{"kind": "down", "x": 0.6, "y": 0.5}, {"kind": "drag", "x": 0.65, "y": 0.55}, {"kind": "drag", "x": 0.8, "y": 0.7}, {"kind": "up", "x": 0.8, "y": 0.7}]),
+    );
+    assert_eq!(h.app.session.active_mask, Some(1), "the press still selects the mask");
+    let after = h.app.session.catalog.photo(id).expect("photo").clone();
+    assert_eq!((after.develop.clone(), after.history.len()), (before.develop.clone(), before.history.len()));
+    h.settle(SETTLE);
+}
+
 /// #2210: Ctrl+Shift+O (the all-masks overlay) draws the white outline of every visible
 /// Radial/Linear mask, not just the selected one — but only the selected mask registers
 /// `maskHandle:` elements, so nothing else becomes draggable.
