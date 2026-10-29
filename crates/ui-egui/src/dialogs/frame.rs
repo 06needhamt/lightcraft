@@ -32,7 +32,7 @@ pub(super) fn clicked_backdrop(ctx: &egui::Context, window: egui::Rect, title_ba
     }
     let Some(release) = release else { return false };
     let pressed_outside = ctx.data_mut(|d| d.remove_temp::<bool>(press_id)).unwrap_or(false);
-    clicked && pressed_outside && !window.contains(release)
+    clicked && pressed_outside && !window.contains(release) && !title_bar.is_some_and(|b| b.contains(release))
 }
 
 /// Room kept free above and below a dialog (#781).

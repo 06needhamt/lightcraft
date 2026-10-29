@@ -251,6 +251,21 @@ fn a_dialog_in_the_full_screen_photo_view_has_no_title_bar_handle() {
     assert!(!handle, "no title bar handle over the photo");
 }
 
+// Scenario: a press on the backdrop just below the bar, released on the bar, is not a click outside the dialog
+#[test]
+fn a_press_below_the_title_bar_released_on_it_keeps_the_dialog_open() {
+    let mut h = integrated();
+    h.app.ui.settings.close_dialogs_outside = true;
+    let mut h = with_export_dialog(h);
+    let spot = empty_spot(&h);
+    let bar = widget(&h, "region:titlebar");
+    let below = egui::pos2(spot.x, bar.bottom() + 1.0);
+    let on_bar = egui::pos2(spot.x, bar.bottom() - 1.0);
+    h.request("ui.drag", json!({"x": below.x, "y": below.y, "toX": on_bar.x, "toY": on_bar.y}), T);
+    play(&mut h);
+    assert!(h.app.ui.dialog.is_some(), "the release on the bar is not a click on the backdrop");
+}
+
 // Scenario: a click on the undimmed bar is not a click outside the dialog
 #[test]
 fn a_click_on_the_title_bar_keeps_the_dialog_open() {
