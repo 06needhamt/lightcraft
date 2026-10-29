@@ -408,6 +408,47 @@ fn object_and_describe_masks_show_pins_that_select_but_do_not_move() {
     h.settle(SETTLE);
 }
 
+/// Issue #3049: with the Object tool on, a click on another mask's pin selects that mask instead
+/// of adding an Object click to the selected one. The tool stays on for an Object mask (its
+/// clicks refine it) and goes off for a mask with no Object selection to refine.
+#[test]
+fn the_object_tool_selects_the_mask_whose_pin_is_clicked() {
+    use lightcraft_geom::Point;
+    let mut h = detail("panel.masking");
+    // no SAM 3 model here: a stray Object click would offer the download or show an error
+    let dir = std::env::temp_dir().join(format!("lc-ui-pin-object-{}", std::process::id()));
+    h.app.session.segmenter.dir = Some(dir.clone());
+    h.app.session.segmenter.mirrors_file = Some(dir.join("none.txt"));
+    let object = |at: Point| MaskShape::Object { hint: vec![at], exclude: vec![], seg: None, detail: vec![], edge: 0.0 };
+    let radial = json!({"kind": "radial", "center": [0.5, 0.5], "rx": 0.1, "ry": 0.1});
+    exec(&mut h, "mask.add", radial.clone());
+    exec(&mut h, "mask.update", json!({"id": 1, "shape": object(Point::new(0.6, 0.5))}));
+    exec(&mut h, "mask.add", json!({"kind": "radial", "center": [0.2, 0.8], "rx": 0.05, "ry": 0.05}));
+    exec(&mut h, "mask.add", radial);
+    exec(&mut h, "mask.update", json!({"id": 3, "shape": object(Point::new(0.3, 0.3))}));
+    assert_eq!(h.app.session.active_mask, Some(3));
+    exec(&mut h, "view.toolOverlay", json!({"mode": "always"}));
+    h.app.ui.tool = "object".into();
+    h.settle(SETTLE);
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone());
+    let before = develop(&h).masks;
+    // the Object mask's pin: it is selected, its clicks and the selected mask's stay as they were
+    pointer(&mut h, json!([{"kind": "down", "x": 0.6, "y": 0.5}, {"kind": "up", "x": 0.6, "y": 0.5}]));
+    h.settle(SETTLE);
+    assert_eq!(h.app.session.active_mask, Some(1), "the pinned mask is selected");
+    assert_eq!(develop(&h).masks, before, "no Object click was added to any mask");
+    assert_eq!(h.app.ui.dialog, None, "no Object click was tried");
+    assert_eq!(h.app.ui.toast.as_ref().map(|t| t.0.clone()).filter(|t| Some(t) != toast.as_ref()), None, "no error");
+    assert_eq!(h.app.ui.tool, "object", "the tool stays on to refine the Object mask");
+    // the Radial mask's pin: selected, and the Object tool goes off (nothing for it to refine)
+    pointer(&mut h, json!([{"kind": "down", "x": 0.2, "y": 0.8}, {"kind": "up", "x": 0.2, "y": 0.8}]));
+    h.settle(SETTLE);
+    assert_eq!(h.app.session.active_mask, Some(2));
+    assert_eq!(develop(&h).masks, before);
+    assert_eq!(h.app.ui.tool, "", "the Object tool is off");
+    assert_eq!(h.app.ui.dialog, None);
+}
+
 /// #2210: Ctrl+Shift+O (the all-masks overlay) draws the white outline of every visible
 /// Radial/Linear mask, not just the selected one — but only the selected mask registers
 /// `maskHandle:` elements, so nothing else becomes draggable.

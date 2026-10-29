@@ -356,7 +356,7 @@ pub(super) fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &eg
         return;
     }
     if app.ui.tool == "object" {
-        object_tool(app, ui, resp, map);
+        object_tool(app, ui, resp, map, d, &grips);
         return;
     }
     if app.ui.tool == "brush" {
@@ -457,14 +457,42 @@ fn object_marks(app: &LightcraftApp, p: &egui::Painter, map: &CanvasMap, d: &Dev
     }
 }
 
-/// Object tool: a click includes what's under it, ⌥-click leaves it out.
-fn object_tool(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap) {
+/// The mask whose pin is under `q` (within the 10 px [`grip_gestures`] grabs at), not counting
+/// the `active` mask's own pins.
+fn other_pin_at(grips: &[(u32, usize, u8, Pos2)], active: Option<u32>, q: Pos2) -> Option<u32> {
+    grips
+        .iter()
+        .filter(|g| Some(g.0) != active && g.2 == 0 && g.3.distance(q) < 10.0)
+        .min_by(|a, b| a.3.distance(q).total_cmp(&b.3.distance(q)))
+        .map(|g| g.0)
+}
+
+/// Object tool: a click includes what's under it, ⌥-click leaves it out. A click on another
+/// mask's pin selects that mask instead of adding a click to the selected one (issue #3049);
+/// the tool then stays on only if the newly selected mask has an Object selection to refine.
+fn object_tool(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    resp: &egui::Response,
+    map: &CanvasMap,
+    d: &DevelopSettings,
+    grips: &[(u32, usize, u8, Pos2)],
+) {
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
     }
     if resp.clicked()
         && let Some(q) = resp.interact_pointer_pos()
     {
+        if let Some(mid) = other_pin_at(grips, app.session.active_mask, q) {
+            let _ = app.run("mask.select", json!({"id": mid}));
+            let has_object =
+                d.masks.iter().find(|m| m.id == mid).is_some_and(|m| m.components.iter().any(|c| matches!(c.shape, MaskShape::Object { .. })));
+            if !has_object {
+                app.ui.tool.clear();
+            }
+            return;
+        }
         let n = map.norm(q);
         let exclude = ui.input(|i| i.modifiers.alt);
         match app.run_typed("mask.objectPoint", json!({"x": n.x, "y": n.y, "exclude": exclude})) {
