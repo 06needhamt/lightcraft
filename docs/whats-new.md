@@ -1,5 +1,13 @@
 # What's new in LightCraft
 
+## 2026-10-29
+
+### Move Folder To… no longer freezes the window
+- Move Folder To…, in the menu of a folder in Folders or Local, now opens its folder dialog the way Import and Move to
+  Folder… do: the window keeps drawing and answering while you choose, and the folder moves when the dialog closes,
+  with the same "Moved; N photo(s) relinked" message. Before, the dialog held up the whole window until it closed;
+  on Linux with X11 the app could stop responding altogether.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
