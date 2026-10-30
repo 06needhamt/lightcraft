@@ -1107,3 +1107,21 @@ fn public_drop_take_preserves_reentered_barrier_order_and_clears_protection() {
         assert_eq!(photos(&h), 0, "neither taken handles nor refused arrivals replay");
     }
 }
+
+/// A watched folder that can't be listed (removed, unmounted, not allowed) is noted with the reason, for
+/// Settings ▸ Import to show, and the note goes once the folder can be read again.
+#[test]
+fn auto_import_notes_a_watched_folder_it_cannot_read() {
+    let dir = Scratch::new("auto-unreadable");
+    let mut h = app(&dir);
+    let watch = dir.path("watch");
+    h.app.session.import_defaults.auto_folder = Some(watch.clone());
+    assert!(h.step_until(T, |h| h.app.ui.auto_import_error.is_some()), "the missing folder is noted");
+    let (folder, e) = h.app.ui.auto_import_error.clone().unwrap();
+    assert_eq!(folder, watch);
+    assert!(e.starts_with(&watch) && e.len() > watch.len() + 2, "the error says why: {e}");
+    write_png(&dir.path("watch/w.png"), 3);
+    assert!(h.step_until(T, |h| h.app.ui.auto_import_error.is_none()), "readable again: the note goes");
+    assert!(h.step_until(T, |h| photos(h) == 1), "and the photo arrives");
+    h.app.session.import_defaults.auto_folder = None;
+}

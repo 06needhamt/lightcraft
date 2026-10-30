@@ -91,11 +91,27 @@ impl LightcraftApp {
                 && !self.tasks.is_running(LABEL)
             {
                 self.ui.auto_import_at = now;
-                let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&folder);
-                let done = |app: &mut LightcraftApp, _ctx: &egui::Context, listing: Result<Vec<(String, u64)>, String>| {
+                let listed = folder.clone();
+                let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&listed);
+                let done = move |app: &mut LightcraftApp, _ctx: &egui::Context, listing: Result<Vec<(String, u64)>, String>| {
                     let listing = match listing {
-                        Ok(l) => l,
-                        Err(e) => return log::debug!("auto import: {e}"),
+                        Ok(l) => {
+                            if app.ui.auto_import_error.take().is_some() {
+                                log::info!("auto import: the watched folder can be read again: {folder}");
+                            }
+                            l
+                        }
+                        // removed, renamed, unmounted or not allowed: said once, not every few seconds
+                        Err(e) => {
+                            let error = Some((folder, e));
+                            if app.ui.auto_import_error != error {
+                                if let Some((_, e)) = &error {
+                                    log::warn!("auto import: can't read the watched folder {e}");
+                                }
+                                app.ui.auto_import_error = error;
+                            }
+                            return;
+                        }
                     };
                     let p = serde_json::json!({"listing": listing, "start": false});
                     let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };

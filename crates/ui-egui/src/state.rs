@@ -166,6 +166,10 @@ pub struct UiState {
     /// scanning).
     #[serde(skip)]
     pub auto_import_at: f64,
+    /// The watched folder that couldn't be listed and why, as the last listing found it: logged once when it
+    /// starts and once when the folder can be read again, and shown in Settings ▸ Import.
+    #[serde(skip)]
+    pub auto_import_error: Option<(String, String)>,
     /// When the automatic XMP writes that failed were last tried again (monotonic app time), and how
     /// many were waiting then.
     #[serde(skip)]
@@ -421,6 +425,7 @@ impl Default for UiState {
             external_edits: Vec::new(),
             was_focused: true,
             auto_import_at: 0.0,
+            auto_import_error: None,
             sidecar_retry_at: 0.0,
             sidecars_waiting: 0,
             known_cards: None,
