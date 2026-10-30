@@ -852,9 +852,23 @@ fn waiting_files_wait_for_a_running_import_instead_of_being_dropped() {
     assert!(r.as_ref().is_err_and(|e| e.contains("waiting")), "{r:?}");
     assert_eq!(h.app.session.library.as_ref().map(|l| l.dir.clone()), Some(lib.clone()));
 
-    // the window is hidden from here on: only the background logic runs, and the waiting file
-    // still goes in once the first import ends
+    // quitting while the file waits asks first
+    assert!(!crate::panels::notices::may_close(&mut h.app));
+    h.app.quit_prompt = None;
+
+    // the window is hidden from here on: only the background logic runs. The tick that hands the
+    // file to a new import (once the first one ends) leaves that import unlisted until its own
+    // first tick, and quitting right then still asks
     let t0 = std::time::Instant::now();
+    while !h.app.waiting_import.files.is_empty() && t0.elapsed() < T {
+        let ctx = h.view.ctx.clone();
+        h.app.logic(&ctx);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(h.app.waiting_import.files.is_empty(), "the file was handed to a new import");
+    assert!(h.app.import.as_ref().is_some_and(|t| !t.listed()), "not listed before its first tick");
+    assert!(!crate::panels::notices::may_close(&mut h.app), "quitting asks about the import just handed over");
+    h.app.quit_prompt = None;
     while !(h.app.import.is_none() && h.app.session.catalog.len() == 101) && t0.elapsed() < T {
         let ctx = h.view.ctx.clone();
         h.app.logic(&ctx);
