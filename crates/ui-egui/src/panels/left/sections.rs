@@ -184,7 +184,7 @@ pub fn section_drag_feedback(app: &mut LightcraftApp, ctx: &egui::Context) {
 /// A section's header in `r`: a disclosure chevron in the gutter (where tree rows have their
 /// chevron), then the bold title; a click folds or unfolds the section (kept in the UI state, so
 /// it survives restarts), and what the section adds to its header (its button, see `header_button`) sits at
-/// the visible edge. A folded section says how many rows it holds (`rows`, with View ▸ Show Photo
+/// the visible edge. A folded section says how many rows it holds (`rows`, with View β–Έ Show Photo
 /// Counts). `pinned`: this is the copy kept at the top of the sidebar (see `pinned_header`).
 fn section_header(app: &mut LightcraftApp, ui: &mut egui::Ui, section: SidebarSection, r: Rect, rows: usize, pinned: bool) -> HeaderOutcome {
     let t = Tokens::get(ui.ctx());
@@ -350,12 +350,12 @@ pub(super) fn sections_menu(app: &mut LightcraftApp, ui: &mut egui::Ui, on: Opti
     }
 }
 
-/// The menu of Albums' +: Create Album, Smart Album, Folder…
+/// The menu of Albums' +: Create Album, Smart Album, Folderβ€¦
 fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
-    if ui.button(crate::i18n::tr("Create Album…")).clicked() {
+    if ui.button(crate::i18n::tr("Create Albumβ€¦")).clicked() {
         app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: false, parent: None, include_selected: true });
     }
-    if ui.button(crate::i18n::tr("Create Smart Album…")).clicked() {
+    if ui.button(crate::i18n::tr("Create Smart Albumβ€¦")).clicked() {
         app.ui.dialog = Some(crate::state::Dialog::SmartRules {
             id: None,
             name: String::new(),
@@ -363,16 +363,16 @@ fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
             parent: None,
         });
     }
-    if ui.button(crate::i18n::tr("Create Smart Album from Filter…")).clicked() {
+    if ui.button(crate::i18n::tr("Create Smart Album from Filterβ€¦")).clicked() {
         app.ui.dialog = Some(crate::state::Dialog::NewSmartAlbum { name: String::new(), parent: None });
     }
-    if ui.button(crate::i18n::tr("Create Folder…")).clicked() {
+    if ui.button(crate::i18n::tr("Create Folderβ€¦")).clicked() {
         app.ui.dialog = Some(crate::state::Dialog::NewAlbum { name: String::new(), folder: true, parent: None, include_selected: false });
     }
     // only once the albums were put in an order by hand
     if app.session.catalog.album_children_are_ordered(None) {
         ui.separator();
-        if ui.button(crate::i18n::tr("Sort Albums A–Z")).on_hover_text(crate::i18n::tr("Go back to listing them by name")).clicked() {
+        if ui.button(crate::i18n::tr("Sort Albums Aβ€“Z")).on_hover_text(crate::i18n::tr("Go back to listing them by name")).clicked() {
             let _ = app.run("album.sort", json!({}));
         }
     }
@@ -386,6 +386,8 @@ fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 /// ([`super::fs_cached_running`]): the Missing Photos row they add or take away moves every row
 /// below it. The timed refresh is not: it rarely changes the count, and on a share where counting
 /// takes seconds, a headless run's fast simulated clock would start the next one before settling.
+/// A catalog change during a timed refresh is pending from the frame it is seen, although its
+/// recount starts only when the refresh ends.
 pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::AcqRel, Ordering::Relaxed};
     #[derive(Clone, Default)]
@@ -394,19 +396,34 @@ pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize
         running: std::sync::Arc<AtomicBool>,
         at: f64,
         rev: u64,
+        /// A catalog change arrived while a count was running: its recount is pending work
+        /// already, held until the recount stores its result.
+        owed: bool,
     }
     let id = egui::Id::unique("missing-count");
     let now = ui.input(|i| i.time);
     let rev = app.session.catalog.revision;
     let mut job: Job = ui.data(|d| d.get_temp(id)).unwrap_or(Job { rev: u64::MAX, at: f64::MIN, ..Default::default() });
+    let running = job.running.load(Relaxed);
+    if running && job.rev != rev && !job.owed {
+        // the recount waits for the running count (a timed refresh, not waited for), but settling
+        // must wait for it from now on
+        super::local::fs_running_counter(ui.ctx()).fetch_add(1, AcqRel);
+        job.owed = true;
+        ui.data_mut(|d| d.insert_temp(id, job.clone()));
+    }
     let fresh = now - job.at < 5.0 && job.rev == rev;
-    if !fresh && !job.running.load(Relaxed) {
+    if !fresh && !running {
         // the same scope as the Missing Photos view: library photos only, never Local browse records
         let paths = lightcraft_engine::cmd::missing::candidates(&app.session.catalog);
         let pending = (job.rev != rev).then(|| super::local::fs_running_counter(ui.ctx()));
-        if let Some(p) = &pending {
+        if let Some(p) = &pending
+            && !job.owed
+        {
             p.fetch_add(1, AcqRel);
         }
+        // the recount takes over the entry held while it waited
+        job.owed = false;
         job.running.store(true, Relaxed);
         job.at = now;
         job.rev = rev;

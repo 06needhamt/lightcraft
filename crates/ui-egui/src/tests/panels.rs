@@ -1888,6 +1888,30 @@ fn settling_waits_for_the_missing_photos_count() {
     assert!(h.settle(Duration::from_secs(30)), "the sidebar settles while a slow count refreshes");
 }
 
+/// A catalog change while a slow timed refresh of the count runs: its recount starts only when
+/// the refresh ends, but settling waits for it from the frame the change is seen, so the Missing
+/// Photos row it adds is on screen once the sidebar settled.
+#[test]
+fn settling_waits_for_a_recount_owed_during_a_timed_refresh() {
+    use lightcraft_catalog::{Op, Photo, Source};
+    let dir = std::env::temp_dir().join(format!("lc-ui-missing-owed-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let here = dir.join("a.jpg");
+    std::fs::write(&here, b"photo").unwrap();
+    // settling takes the first count (2 s), in which the simulated clock passes the 5 s refresh
+    // interval: a timed refresh is running when it returns
+    let delay = Duration::from_secs(2);
+    let services = Services { png: None, ..Default::default() };
+    let mut h = folders_app_prepared(&[&here.to_string_lossy()], [1400.0, 900.0], services, |app| app.missing_count_test_delay = Some(delay));
+    assert!(!has(&h, "source:missing"), "no photo is missing yet");
+    let id = h.app.session.catalog.alloc_photo_id();
+    let gone = Photo::new(id, Source::File { path: "/lc-missing-owed/gone.jpg".into() }, "gone.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
+    h.app.session.catalog.apply(Op::AddPhoto { photo: Box::new(gone) }).unwrap();
+    assert!(h.settle(Duration::from_secs(30)), "the sidebar settles");
+    assert!(has(&h, "source:missing"), "the Missing Photos row is on screen once the sidebar settled");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// Right-click a folder ▸ Set Color Label ▸ a colour: the folder's row shows the label's dot (a
 /// row without a label shows none), and None takes it off again.
 #[test]
