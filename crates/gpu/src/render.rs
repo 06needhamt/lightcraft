@@ -1017,8 +1017,10 @@ fn masks(cx: &mut Cx<'_>, lin: &Buf, prep: &Prep, plan: &Plan<'_>, host: &mut Ho
                 }
                 MaskShape::ColorRange { samples, refine } => {
                     let tol = lightcraft_pipeline::masks::color_range_tolerance(*refine);
+                    // at most the CPU's samples (`MAX_COLOR_RANGE_SAMPLES`): cost is pixels x samples
+                    let samples = samples.iter().take(lightcraft_develop::MAX_COLOR_RANGE_SAMPLES);
                     p.extend([tol.to_bits(), ev.exp2().to_bits(), samples.len() as u32]);
-                    aux.extend(samples.iter().flat_map(|s| s.map(|v| v as f32)));
+                    aux.extend(samples.flat_map(|s| s.map(|v| v as f32)));
                     Some(3)
                 }
                 MaskShape::Brush { strokes } => {

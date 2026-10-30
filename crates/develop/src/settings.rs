@@ -921,6 +921,35 @@ impl Default for BrushStroke {
     }
 }
 
+/// Most samples a colour-range mask keeps. It compares every pixel against every sample, so render and export cost
+/// is pixels x samples; the interactive sampler stops at 5, and a sidecar, preset or `mask.add` with thousands could
+/// stall a render or lose the GPU device (issue #2556).
+pub const MAX_COLOR_RANGE_SAMPLES: usize = 64;
+
+/// Deserialize a colour range's samples, keeping the first [`MAX_COLOR_RANGE_SAMPLES`] (the rest are skipped without
+/// being stored), however the settings arrive: sidecar, catalog, history, preset or merge.
+fn de_color_range_samples<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<[f64; 3]>, D::Error> {
+    struct Capped;
+    impl<'de> serde::de::Visitor<'de> for Capped {
+        type Value = Vec<[f64; 3]>;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("a list of OkLab colours")
+        }
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Vec<[f64; 3]>, A::Error> {
+            let mut out = Vec::new();
+            while out.len() < MAX_COLOR_RANGE_SAMPLES {
+                match seq.next_element::<[f64; 3]>()? {
+                    Some(s) => out.push(s),
+                    None => return Ok(out),
+                }
+            }
+            while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+            Ok(out)
+        }
+    }
+    d.deserialize_seq(Capped)
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum MaskShape {
@@ -941,8 +970,9 @@ pub enum MaskShape {
         feather: f64,
         invert: bool,
     },
-    /// Colour range: sampled OkLab colours with a refine amount 0..100.
+    /// Colour range: sampled OkLab colours (at most [`MAX_COLOR_RANGE_SAMPLES`]) with a refine amount 0..100.
     ColorRange {
+        #[serde(deserialize_with = "de_color_range_samples")]
         samples: Vec<[f64; 3]>,
         refine: f64,
     },
