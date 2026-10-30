@@ -81,6 +81,10 @@ impl LightcraftApp {
         focus_scan::pump(self, ctx, now);
         // auto import: list the watched folder every few seconds (on a worker thread: it may be on
         // a network share), then import what's new like any import (also on a worker thread)
+        // a folder that couldn't be read stops being one once another is watched (or none)
+        if self.ui.auto_import_error.as_ref().is_some_and(|(f, _)| self.session.import_defaults.auto_folder.as_ref() != Some(f)) {
+            self.ui.auto_import_error = None;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(folder) = self.session.import_defaults.auto_folder.clone() {
             const LABEL: &str = "Auto Import";
@@ -94,9 +98,14 @@ impl LightcraftApp {
                 let listed = folder.clone();
                 let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&listed);
                 let done = move |app: &mut LightcraftApp, _ctx: &egui::Context, listing: Result<Vec<(String, u64)>, String>| {
+                    // the watched folder changed while this one was listed: its result is for nothing on screen
+                    if app.session.import_defaults.auto_folder.as_ref() != Some(&folder) {
+                        return;
+                    }
                     let listing = match listing {
                         Ok(l) => {
-                            if app.ui.auto_import_error.take().is_some() {
+                            if app.ui.auto_import_error.as_ref().is_some_and(|(f, _)| *f == folder) {
+                                app.ui.auto_import_error = None;
                                 log::info!("auto import: the watched folder can be read again: {folder}");
                             }
                             l

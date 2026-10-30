@@ -1120,6 +1120,13 @@ fn auto_import_notes_a_watched_folder_it_cannot_read() {
     let (folder, e) = h.app.ui.auto_import_error.clone().unwrap();
     assert_eq!(folder, watch);
     assert!(e.starts_with(&watch) && e.len() > watch.len() + 2, "the error says why: {e}");
+    // another folder watched: the note was about the old one, so it goes, and a listing of the old one
+    // still under way doesn't bring it back
+    h.app.session.import_defaults.auto_folder = Some(dir.path("trip"));
+    h.step();
+    assert!(h.app.ui.auto_import_error.is_none(), "{:?}", h.app.ui.auto_import_error);
+    h.app.session.import_defaults.auto_folder = Some(watch.clone());
+    assert!(h.step_until(T, |h| h.app.ui.auto_import_error.is_some()), "back to the missing folder: noted again");
     write_png(&dir.path("watch/w.png"), 3);
     assert!(h.step_until(T, |h| h.app.ui.auto_import_error.is_none()), "readable again: the note goes");
     assert!(h.step_until(T, |h| photos(h) == 1), "and the photo arrives");
