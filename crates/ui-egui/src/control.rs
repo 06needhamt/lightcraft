@@ -607,8 +607,9 @@ const MAX_GESTURE_NUMBER: f64 = 1e6;
 /// ±[`MAX_GESTURE_NUMBER`]. A larger one turns into an infinite or NaN `f32` position or scroll
 /// delta: egui asserts on NaN positions, and a release build would hand them to every widget.
 /// `count` and `steps` are clamped where they are read instead, and `ui.zoom`'s `factor` (a
-/// multiplier, not a position) is checked and clamped by its own branch.
-fn check_gesture_numbers(method: &str, p: &Value) -> Result<(), String> {
+/// multiplier, not a position) is checked and clamped by its own branch. Checked when a request
+/// is admitted and again here, for callers that resolve a gesture directly.
+pub(crate) fn check_gesture_numbers(method: &str, p: &Value) -> Result<(), String> {
     fn check(method: &str, key: &str, v: &Value) -> Result<(), String> {
         match v {
             Value::Number(n) if !matches!(key, "count" | "steps" | "factor") => match n.as_f64() {

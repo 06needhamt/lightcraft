@@ -930,6 +930,13 @@ fn gestures_refuse_numbers_that_are_not_screen_positions() {
     crate::control::gesture_events(&mut app, &ctx, "ui.drag", &serde_json::json!({"x": 1.0, "toX": 999_999.0, "steps": 1e12})).unwrap();
     assert!(!app.synthetic.is_empty());
 
+    // refused when the request is admitted: no pending slot, no wait for a layout
+    let (tx, rx) = reply_channel();
+    let e = app.admit_gesture(&ctx, "ui.click".into(), serde_json::json!({"x": 1e308}), tx).expect_err("refused at admission");
+    assert!(e.contains("between"), "{e}");
+    assert!(app.pending_gestures.is_empty());
+    drop(rx);
+
     // through the whole control channel, as an agent sends it: an error, not a panic
     let mut h = Headless::new(self::app(), [800.0, 600.0], 1.0);
     h.step();
