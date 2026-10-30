@@ -1883,6 +1883,9 @@ fn settling_waits_for_the_missing_photos_count() {
         std::thread::sleep(Duration::from_millis(5));
     }
     assert_eq!(widget(&h, "source:libfolder:/lc-missing-count/trip"), settled, "nothing moves the folder rows after settling");
+    // the timed refresh of a slow count is not waited for: the fast simulated clock would start
+    // the next one before the last finished, and settling would never end
+    assert!(h.settle(Duration::from_secs(30)), "the sidebar settles while a slow count refreshes");
 }
 
 /// Right-click a folder ▸ Set Color Label ▸ a colour: the folder's row shows the label's dot (a

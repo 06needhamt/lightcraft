@@ -381,9 +381,11 @@ fn new_album_menu(app: &mut LightcraftApp, ui: &mut egui::Ui) {
 /// How many library photos have no file (Local browse records are not checked; see
 /// `cmd::missing::checked_path`). Checking stats every file, which on a network share takes
 /// seconds, so it runs on a worker thread: the count shown is the last finished one, refreshed
-/// at most every 5 s, and at once (after the running check) when the catalog changed. The check
-/// counts as pending sidebar work ([`super::fs_cached_running`]): the Missing Photos row it adds
-/// moves every row below it.
+/// at most every 5 s, and at once (after the running check) when the catalog changed. The first
+/// count and a recount after a catalog change are pending sidebar work
+/// ([`super::fs_cached_running`]): the Missing Photos row they add or take away moves every row
+/// below it. The timed refresh is not: it rarely changes the count, and on a share where counting
+/// takes seconds, a headless run's fast simulated clock would start the next one before settling.
 pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::AcqRel, Ordering::Relaxed};
     #[derive(Clone, Default)]
@@ -401,11 +403,13 @@ pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize
     if !fresh && !job.running.load(Relaxed) {
         // the same scope as the Missing Photos view: library photos only, never Local browse records
         let paths = lightcraft_engine::cmd::missing::candidates(&app.session.catalog);
+        let pending = (job.rev != rev).then(|| super::local::fs_running_counter(ui.ctx()));
+        if let Some(p) = &pending {
+            p.fetch_add(1, AcqRel);
+        }
         job.running.store(true, Relaxed);
         job.at = now;
         job.rev = rev;
-        let pending = super::local::fs_running_counter(ui.ctx());
-        pending.fetch_add(1, AcqRel);
         #[cfg(test)]
         let test_delay = app.missing_count_test_delay;
         let (n, running, ctx, done) = (job.n.clone(), job.running.clone(), ui.ctx().clone(), pending.clone());
@@ -418,14 +422,18 @@ pub(super) fn missing_count(app: &mut LightcraftApp, ui: &mut egui::Ui) -> usize
             n.store(missing, Relaxed);
             running.store(false, Relaxed);
             // after the count is stored: a frame that sees the pending count drop also sees the row
-            done.fetch_sub(1, AcqRel);
+            if let Some(d) = done {
+                d.fetch_sub(1, AcqRel);
+            }
             ctx.request_repaint();
         };
         #[cfg(not(target_arch = "wasm32"))]
         if std::thread::Builder::new().name("lc-missing-count".into()).spawn(work).is_err() {
             // no thread to spare: keep the last count and try again after the next 5 s
             job.running.store(false, Relaxed);
-            pending.fetch_sub(1, AcqRel);
+            if let Some(p) = &pending {
+                p.fetch_sub(1, AcqRel);
+            }
         }
         #[cfg(target_arch = "wasm32")]
         work();
