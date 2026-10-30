@@ -5,6 +5,12 @@
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
 - Select Only Active Photo now sits under Deselect All, and Paste Settings from Previous under Paste Selected Settings…, instead of both after Settings…, near the end of the Edit menu. On macOS, where Settings… lives in the application menu, the Edit menu no longer shows two separator lines in a row.
 
+## 2026-10-25
+
+### `>=` and `<=` work in the search box
+- Fielded search tokens now take inclusive comparisons: `rating:>=3`, `iso:<=400`, `f:>=2.8`, `focal:<=50`. Before,
+  the `=` was read as part of the number, so such a search quietly showed no photos at all.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
