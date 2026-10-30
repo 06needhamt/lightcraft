@@ -164,19 +164,26 @@ fn truncation_details() {
 /// `SEFH` directory with one entry (type 0x08E0) whose offset counts back from `SEFH` by `back`,
 /// the directory's length and `SEFT`.
 fn with_sef_trailer(image: &[u8], back: u32, magic: &[u8; 4]) -> Vec<u8> {
+    // marker-like bytes: both decoders refuse them as a second frame header after the scan
+    sef_file(image, back, magic, 0x08E0, &[0xFF, 0xC0, 0, 0x11, 0xFF, 0xDA, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], None)
+}
+
+/// [`with_sef_trailer`] with the entry's type, the block's data after its name, and the length
+/// the entry gives (`None`: the block's own).
+fn sef_file(image: &[u8], back: u32, magic: &[u8; 4], kind: u16, data: &[u8], len: Option<u32>) -> Vec<u8> {
     let mut b = image.to_vec();
     let mut block = vec![0, 0, 0xE0, 0x08];
     block.extend_from_slice(&18u32.to_le_bytes());
     block.extend_from_slice(b"Panorama_Shot_Info");
-    // marker-like bytes: both decoders refuse them as a second frame header after the scan
-    block.extend_from_slice(&[0xFF, 0xC0, 0, 0x11, 0xFF, 0xDA, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    block.extend_from_slice(data);
     b.extend_from_slice(&block);
     let mut dir = magic.to_vec();
     dir.extend_from_slice(&106u32.to_le_bytes());
     dir.extend_from_slice(&1u32.to_le_bytes());
-    dir.extend_from_slice(&[0, 0, 0xE0, 0x08]);
+    dir.extend_from_slice(&[0, 0]);
+    dir.extend_from_slice(&kind.to_le_bytes());
     dir.extend_from_slice(&back.to_le_bytes());
-    dir.extend_from_slice(&(block.len() as u32).to_le_bytes());
+    dir.extend_from_slice(&len.unwrap_or(block.len() as u32).to_le_bytes());
     let len = dir.len() as u32;
     b.extend_from_slice(&dir);
     b.extend_from_slice(&len.to_le_bytes());
@@ -201,12 +208,19 @@ fn samsung_sef_trailer_without_eoi() {
     assert_eq!(full.image.data, reference.image.data, "the same pixels as the file with its EOI");
     let small = decode(&pano, DecodeOptions::fit(32, 32)).unwrap();
     assert_eq!((small.source_width, small.source_height), (160, 96));
-    // still truncated: no trailer, offsets outside the file or past `SEFH`, no `SEFH`, a cut
-    // before the first scan
+    // an FF D9 inside the SEF data is not the image's end
+    let eoi_in_data = sef_file(scan, block, b"SEFH", 0x08E0, &[0xFF, 0xC0, 0, 0x11, 0xFF, 0xD9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], None);
+    assert_eq!(read_header(&eoi_in_data).unwrap().width, 160);
+    let small = decode(&eoi_in_data, DecodeOptions::fit(32, 32)).unwrap();
+    assert_eq!((small.source_width, small.source_height), (160, 96));
+    // still truncated: no trailer, offsets outside the file or past `SEFH`, no `SEFH`, an empty
+    // entry, an entry whose type isn't its block's, a cut before the first scan
     assert!(read_header(scan).is_err());
     assert!(read_header(&with_sef_trailer(scan, u32::MAX, b"SEFH")).is_err());
     assert!(read_header(&with_sef_trailer(scan, block - 1, b"SEFH")).is_err());
     assert!(read_header(&with_sef_trailer(scan, block, b"SEFX")).is_err());
+    assert!(read_header(&sef_file(scan, 0, b"SEFH", 0x08E0, &[], Some(0))).is_err());
+    assert!(read_header(&sef_file(scan, block, b"SEFH", 0x0A01, &[0; 18], None)).is_err());
     let cut_in_headers = with_sef_trailer(&jpeg[..40], block, b"SEFH");
     assert!(read_header(&cut_in_headers).is_err());
     assert!(decode(&cut_in_headers, DecodeOptions::fit(32, 32)).is_err());

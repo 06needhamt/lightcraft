@@ -185,7 +185,8 @@ fn without_sef_trailer(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     use std::borrow::Cow;
     // The trailer is checked first: it reads only the file's last bytes, not the scan data.
     let Some(image) = sef_image_end(bytes).and_then(|end| bytes.get(..end)) else { return Cow::Borrowed(bytes) };
-    if reaches_eoi(bytes) {
+    // the image before the trailer: an FF D9 inside the SEF data doesn't end the scan
+    if reaches_eoi(image) {
         return Cow::Borrowed(bytes);
     }
     let mut fixed = Vec::with_capacity(image.len().saturating_add(2));
@@ -199,8 +200,9 @@ fn without_sef_trailer(bytes: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 /// Where the image ends in a file carrying a Samsung SEF trailer: the start of its earliest data
 /// block. The trailer is the file's last bytes: `SEFH`, a u32 LE version and entry count, 12-byte
 /// entries (u16 padding, u16 type, u32 LE offset of the block back from `SEFH`, u32 LE length),
-/// then the u32 LE length of that directory and `SEFT`. `None` unless every entry's block lies
-/// inside the file, before `SEFH`.
+/// then the u32 LE length of that directory and `SEFT`. Each block starts with the same padding
+/// and type as its entry. `None` unless every entry's block is nonempty, starts with its entry's
+/// type and lies inside the file, before `SEFH`.
 fn sef_image_end(b: &[u8]) -> Option<usize> {
     let le32 = |at: usize| b.get(at..at.checked_add(4)?)?.try_into().ok().map(|v| u32::from_le_bytes(v) as usize);
     let tail = b.len().checked_sub(8)?;
@@ -220,7 +222,9 @@ fn sef_image_end(b: &[u8]) -> Option<usize> {
     for i in 0..count {
         let entry = entries.checked_add(i.checked_mul(12)?)?;
         let block = dir.checked_sub(le32(entry.checked_add(4)?)?)?;
-        if block.checked_add(le32(entry.checked_add(8)?)?)? > dir {
+        let len = le32(entry.checked_add(8)?)?;
+        let kind = |at: usize| b.get(at.checked_add(2)?..at.checked_add(4)?);
+        if len < 4 || block.checked_add(len)? > dir || kind(block)? != kind(entry)? {
             return None;
         }
         start = start.min(block);
