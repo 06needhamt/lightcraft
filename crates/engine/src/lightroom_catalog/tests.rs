@@ -209,7 +209,10 @@ fn a_content_duplicate_of_a_trashed_photo_or_virtual_copy_is_a_new_live_photo() 
                 reason: "content",
                 existing_deleted: case == "trashed",
                 // what the file itself carries
-                file_meta: Some(Box::new(lightcraft_catalog::Meta { camera: "Same Camera".into(), ..Default::default() })),
+                file: Some(Box::new(crate::import::FileFacts {
+                    meta: lightcraft_catalog::Meta { camera: "Same Camera".into(), ..Default::default() },
+                    captured: None,
+                })),
             }],
             ..Default::default()
         };
@@ -270,7 +273,7 @@ fn a_content_duplicate_raw_starts_from_its_camera_defaults() {
             existing: Some(other.0),
             reason: "content",
             existing_deleted: true,
-            file_meta: None,
+            file: None,
         }],
         ..Default::default()
     };
@@ -294,11 +297,11 @@ fn a_content_duplicate_raw_starts_from_its_camera_defaults() {
     assert_eq!((new.develop.wb.temp, new.develop.wb.tint), (5200.0, 4.0), "the file's as-shot white balance");
     assert!(new.develop.optics.lens_profile, "the file's embedded lens corrections are on");
 }
-/// A content duplicate keeps the metadata its file carries (copyright, rights, creator), as a file
-/// import of it would, when the catalog's XMP doesn't restate it; it reads the file's, not the
-/// other photo's, which a person may have edited (#2589).
+/// A content duplicate keeps the metadata its file carries (copyright, rights, creator) and the
+/// capture time its file gives it, as a file import of it would, when the catalog doesn't restate
+/// them; it reads the file's, not the other photo's, which a person may have edited (#2589).
 #[test]
-fn a_content_duplicate_keeps_the_rights_metadata_in_its_file() {
+fn a_content_duplicate_keeps_the_rights_metadata_and_capture_time_in_its_file() {
     let dir = std::env::temp_dir().join(format!("lightcraft-lrcat-duplicate-rights-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("Photos")).unwrap();
@@ -312,6 +315,7 @@ fn a_content_duplicate_keeps_the_rights_metadata_in_its_file() {
         p.meta.copyright = "Other photo's notice".into();
         p.meta.creator = "Other photo's creator".into();
         p.meta.gps = Some((1.0, 2.0));
+        p.captured = Some("1999-12-31T23:00:00".into());
     });
     let file_meta = lightcraft_catalog::Meta {
         camera: "Same Camera".into(),
@@ -329,6 +333,7 @@ fn a_content_duplicate_keeps_the_rights_metadata_in_its_file() {
             height: 10,
             content_hash: Some("same-bytes".into()),
             meta: probed.clone(),
+            captured: Some("2024-05-06T07:08:09".into()),
             ..Default::default()
         })
     }));
@@ -345,6 +350,8 @@ fn a_content_duplicate_keeps_the_rights_metadata_in_its_file() {
         "the file's own metadata: {r}"
     );
     assert_eq!(m.gps, None, "nothing from the other photo's record");
+    // the catalog row has no capture time: the file's, not the other photo's edited one
+    assert_eq!(new.captured.as_deref(), Some("2024-05-06T07:08:09"), "{r}");
     std::fs::remove_dir_all(dir).unwrap();
 }
 /// A catalog photo matched (by path) to a library photo in Recently Deleted leaves it there, as

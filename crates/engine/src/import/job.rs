@@ -1,6 +1,6 @@
 use super::commit::{How, Plan, Slot, Transfer, commit_prepared, name_family, run_transfers, system_clock};
 use super::files::{expand, probe_all};
-use super::types::{ImportCandidate, ImportMode, ImportOptions, ImportReport, Kept, OnDeleted};
+use super::types::{FileFacts, ImportCandidate, ImportMode, ImportOptions, ImportReport, Kept, OnDeleted};
 use super::{HashMap, MediaKind, Path, PathBuf, Photo, PhotoId, ProbeInfo, Session, Source};
 
 /// Import files/folders. See the module docs.
@@ -73,8 +73,8 @@ pub(super) enum PreparedItem {
         existing: Option<PhotoId>,
         reason: &'static str,
         hash: Option<String>,
-        /// The metadata the file itself carries, when it was read ([`Duplicate::file_meta`]).
-        file_meta: Option<Box<lightcraft_catalog::Meta>>,
+        /// What the file itself says, when it was read ([`Duplicate::file`]).
+        file: Option<Box<FileFacts>>,
     },
     Failed(String, String),
     Kept(Kept),
@@ -143,7 +143,7 @@ impl Prepared {
                     existing: Some(existing),
                     reason: if existing_path.is_some() { "path" } else { "content" },
                     hash: info.content_hash,
-                    file_meta: Some(Box::new(info.meta)),
+                    file: Some(Box::new(FileFacts { meta: info.meta, captured: info.captured })),
                 });
             } else {
                 items.push(PreparedItem::Ready(Box::new(ReadyFile { path, stored, info, sidecar, placed })));
@@ -264,7 +264,7 @@ impl ImportJob {
                     self.done.fetch_add(1, Relaxed);
                 }
                 Some((id, _)) => {
-                    out.items.push(PreparedItem::Duplicate { path: f, existing: Some(id), reason: "path", hash: None, file_meta: None });
+                    out.items.push(PreparedItem::Duplicate { path: f, existing: Some(id), reason: "path", hash: None, file: None });
                     self.done.fetch_add(1, Relaxed);
                 }
                 None => todo.push(f),
@@ -324,20 +324,6 @@ impl ImportJob {
                     break;
                 }
             }
-            if let Some(h) = &info.content_hash
-                && !opts.local
-                && let Some(existing) = self.by_hash.get(h)
-            {
-                self.done.fetch_add(1, Relaxed);
-                plan.slots.push(Slot::Item(PreparedItem::Duplicate {
-                    path,
-                    existing: *existing,
-                    reason: "content",
-                    hash: Some(h.clone()),
-                    file_meta: Some(Box::new(info.meta)),
-                }));
-                continue;
-            }
             // the XMP sidecar (or a raw's embedded XMP), read before copying: its capture time files
             // and names the copy when the file itself has none
             let raw = info.kind == MediaKind::Raw;
@@ -358,6 +344,21 @@ impl ImportJob {
             // no date in the file or its sidecar: the file's own date, as Lightroom does
             if info.captured.is_none() {
                 info.captured = info.file_modified.clone();
+            }
+            // same bytes as a library photo: skipped, with what its file says (its capture time too)
+            if let Some(h) = &info.content_hash
+                && !opts.local
+                && let Some(existing) = self.by_hash.get(h)
+            {
+                self.done.fetch_add(1, Relaxed);
+                plan.slots.push(Slot::Item(PreparedItem::Duplicate {
+                    path,
+                    existing: *existing,
+                    reason: "content",
+                    hash: Some(h.clone()),
+                    file: Some(Box::new(FileFacts { meta: info.meta, captured: info.captured })),
+                }));
+                continue;
             }
             let stored = match (mode, &self.copy_root) {
                 (ImportMode::Copy | ImportMode::Move, Some(root))
