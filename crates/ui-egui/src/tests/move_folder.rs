@@ -179,3 +179,33 @@ fn no_library_switch_while_move_folder_to_waits_for_its_destination() {
     h.app.run("app.openLibrary", json!({"path": other})).expect("the switch works once the move is done");
     assert_eq!(library(&h), Some(other));
 }
+
+/// Issue #3140: while Open Library… waits for its folder, Move Folder To… can't start (both
+/// dialogs answer in the order opened, so the library could switch before the move ran, which
+/// would then move the folder in the other library with nothing to relink): the item is disabled,
+/// no destination is asked for, and the folder stays. Once the library dialog is cancelled it works.
+#[test]
+fn move_folder_to_waits_for_open_library_to_finish() {
+    let dir = Scratch::new("after-open");
+    std::fs::create_dir_all(dir.path("dest")).unwrap();
+    let (mut h, asked, blocking) = app_with_trip(&dir);
+    assert_eq!(h.app.run("app.openLibrary", json!({})).ok(), Some(serde_json::Value::Null));
+    assert_eq!(asked.lock().unwrap().len(), 1, "the Open Library dialog is up");
+    open_row_menu(&mut h, &format!("source:libfolder:{}", dir.path("trip")));
+    let _ = h.request("ui.clickWidget", json!({"id": "folderMoveTo"}), T);
+    h.settle(SETTLE);
+    assert_eq!(asked.lock().unwrap().len(), 1, "no destination is asked for");
+    assert_eq!(blocking.load(Ordering::Relaxed), 0, "not on the UI thread either");
+    assert!(!h.app.pending_picks.iter().any(|p| p.command == "folder.move"), "nothing waits to move");
+    assert!(std::path::Path::new(&dir.path("trip/a.png")).exists(), "the folder stays");
+    // the Open Library dialog is cancelled: Move Folder To… asks for its destination again
+    asked.lock().unwrap()[0].1.send(vec![]).unwrap();
+    h.settle(SETTLE);
+    assert!(h.app.pending_picks.is_empty());
+    open_row_menu(&mut h, &format!("source:libfolder:{}", dir.path("trip")));
+    let r = h.request("ui.clickWidget", json!({"id": "folderMoveTo"}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    h.step();
+    assert_eq!(asked.lock().unwrap().len(), 2, "the destination is asked for");
+    assert!(h.app.pending_picks.iter().any(|p| p.command == "folder.move"));
+}

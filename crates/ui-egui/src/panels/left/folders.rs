@@ -552,16 +552,35 @@ fn library_node_for(tree: &[FolderNode], path: &str) -> Option<(FolderNode, Stri
     Some((node, name))
 }
 
+/// Move Folder To… can't start while Open Library… or New Library… waits for its folder: the
+/// dialogs answer in the order they were opened ([`crate::pick::poll`]), so the library could
+/// switch first and the move then run in the other library, moving the folder on disk with
+/// nothing to relink (issue #3140).
+fn can_move_folder(app: &LightcraftApp) -> Result<(), String> {
+    for (command, label) in [("app.openLibrary", "Open Library…"), ("app.newLibrary", "New Library…")] {
+        if app.pending_picks.iter().any(|p| p.command == command) {
+            return Err(format!("wait for {label} to finish before moving a folder"));
+        }
+    }
+    Ok(())
+}
+
 /// Move Folder To… of a folder row (widget `folderMoveTo`): asks for the destination through the
 /// shared folder dialog, off the UI thread where the host has one (issue #3140: a dialog on the UI
 /// thread froze the window); `folder.move` then runs when it closes ([`crate::pick::poll`]).
+/// Disabled while a library dialog is up ([`can_move_folder`]).
 fn move_folder_item(app: &mut LightcraftApp, ui: &mut egui::Ui, path: &str) {
     if app.services.pick_folder.is_none() && app.services.picker.is_none() {
         return;
     }
-    let r = ui.button(crate::i18n::tr("Move Folder To…"));
+    let r = ui.add_enabled(can_move_folder(app).is_ok(), egui::Button::new(crate::i18n::tr("Move Folder To…")));
     register(ui, "folderMoveTo", r.rect);
     if !r.clicked() {
+        return;
+    }
+    if let Err(e) = can_move_folder(app) {
+        app.toast(ui.ctx(), e);
+        ui.close();
         return;
     }
     let req = crate::pick::PickRequest::folder(crate::i18n::tr("Move Folder To…"));

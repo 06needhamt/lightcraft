@@ -7,7 +7,8 @@
   Folder… do: the window keeps drawing and answering while you choose, and the folder moves when the dialog closes,
   with the same "Moved; N photo(s) relinked" message. Before, the dialog held up the whole window until it closed;
   on Linux with X11 the app could stop responding altogether. While the dialog is open, another library can't be
-  opened (the move belongs to the library it was started in).
+  opened (the move belongs to the library it was started in), and while Open Library… or New Library… waits for
+  its folder, Move Folder To… is unavailable.
 
 ## 2026-10-24
 
