@@ -823,8 +823,9 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
 
 /// Import the files that waited for a library, in the background like files dropped on the window
 /// (issue #374). While another import or a Synchronize Folder runs they keep waiting, and a toast
-/// says why once (issue #2779).
-fn import_waiting(app: &mut LightcraftApp, ctx: &egui::Context) {
+/// says why once (issue #2779). Called from the background logic, so they go in as soon as that
+/// ends even while the window is hidden.
+pub(crate) fn import_waiting(app: &mut LightcraftApp, ctx: &egui::Context) {
     if app.waiting_import.files.is_empty() {
         return;
     }
@@ -854,7 +855,6 @@ pub fn logic(app: &mut LightcraftApp, ctx: &egui::Context) {
         let files = app.library_problem.take().map(|p| p.pending_import).unwrap_or_default();
         app.waiting_import.files.extend(files);
     }
-    import_waiting(app, ctx);
     let batch_in_flight = app.synthetic_in_flight;
     alt_at_launch(app, ctx);
     // Alt/Option can create the launch list here, after the frame's input was accepted. Drop
