@@ -467,9 +467,16 @@ fn other_pin_at(grips: &[(u32, usize, u8, Pos2)], active: Option<u32>, q: Pos2) 
         .map(|g| g.0)
 }
 
+/// Whether `q` is on one of the `active` mask's own pins (within the same 10 px).
+fn own_pin_at(grips: &[(u32, usize, u8, Pos2)], active: Option<u32>, q: Pos2) -> bool {
+    active.is_some_and(|a| grips.iter().any(|g| g.0 == a && g.2 == 0 && g.3.distance(q) < 10.0))
+}
+
 /// Object tool: a click includes what's under it, ⌥-click leaves it out. A click on another
 /// mask's pin selects that mask instead of adding a click to the selected one (issue #3049);
-/// the tool then stays on only if the newly selected mask has an Object selection to refine.
+/// the tool then stays on only if the newly selected mask has an Object selection to refine. A
+/// click on the selected mask's own pin does nothing: its first click is already there, and a
+/// near-copy of it would use up one of the mask's limited Object clicks.
 fn object_tool(
     app: &mut LightcraftApp,
     ui: &mut egui::Ui,
@@ -491,6 +498,9 @@ fn object_tool(
             if !has_object {
                 app.ui.tool.clear();
             }
+            return;
+        }
+        if own_pin_at(grips, app.session.active_mask, q) {
             return;
         }
         let n = map.norm(q);

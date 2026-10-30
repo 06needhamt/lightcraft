@@ -449,6 +449,36 @@ fn the_object_tool_selects_the_mask_whose_pin_is_clicked() {
     assert_eq!(h.app.ui.dialog, None);
 }
 
+/// Issue #3049: with the Object tool on, a click on the selected Object mask's own pin adds no
+/// near-copy of its first click (which would use up one of its limited Object clicks): its
+/// clicks stay as they were, it stays selected and no error is shown.
+#[test]
+fn the_object_tool_adds_no_click_on_the_selected_masks_own_pin() {
+    use lightcraft_geom::Point;
+    let mut h = detail("panel.masking");
+    // no SAM 3 model here: a stray Object click would offer the download or show an error
+    let dir = std::env::temp_dir().join(format!("lc-ui-own-pin-object-{}", std::process::id()));
+    h.app.session.segmenter.dir = Some(dir.clone());
+    h.app.session.segmenter.mirrors_file = Some(dir.join("none.txt"));
+    exec(&mut h, "mask.add", json!({"kind": "radial", "center": [0.5, 0.5], "rx": 0.1, "ry": 0.1}));
+    let object = MaskShape::Object { hint: vec![Point::new(0.6, 0.5)], exclude: vec![], seg: None, detail: vec![], edge: 0.0 };
+    exec(&mut h, "mask.update", json!({"id": 1, "shape": object}));
+    assert_eq!(h.app.session.active_mask, Some(1));
+    exec(&mut h, "view.toolOverlay", json!({"mode": "always"}));
+    h.app.ui.tool = "object".into();
+    h.settle(SETTLE);
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone());
+    let before = develop(&h).masks;
+    // a little off the pin's centre, as a hand clicks it
+    pointer(&mut h, json!([{"kind": "down", "x": 0.601, "y": 0.501}, {"kind": "up", "x": 0.601, "y": 0.501}]));
+    h.settle(SETTLE);
+    assert_eq!(develop(&h).masks, before, "no Object click was added");
+    assert_eq!(h.app.session.active_mask, Some(1), "the mask stays selected");
+    assert_eq!(h.app.ui.dialog, None, "no Object click was tried");
+    assert_eq!(h.app.ui.toast.as_ref().map(|t| t.0.clone()).filter(|t| Some(t) != toast.as_ref()), None, "no error");
+    assert_eq!(h.app.ui.tool, "object", "the tool stays on");
+}
+
 /// #2210: Ctrl+Shift+O (the all-masks overlay) draws the white outline of every visible
 /// Radial/Linear mask, not just the selected one — but only the selected mask registers
 /// `maskHandle:` elements, so nothing else becomes draggable.

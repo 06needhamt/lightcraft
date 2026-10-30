@@ -7,7 +7,8 @@
   the middle of what its description found. Before, these masks had no pin on the photo, so they couldn't be picked
   there. Clicking a pin selects its mask; dragging it changes nothing, as these masks follow what they selected.
   With the Object tool on, a click on another mask's pin selects that mask too, instead of adding a click to the
-  selected Object mask. Subject, Sky, Background and the range masks still have no pin.
+  selected Object mask, and a click on the selected mask's own pin adds nothing. Subject, Sky, Background and the
+  range masks still have no pin.
 
 ## 2026-10-24
 
