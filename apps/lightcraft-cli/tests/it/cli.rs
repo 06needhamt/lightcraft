@@ -510,8 +510,19 @@ fn snapshot_starts_without_a_gpu() {
 /// milliseconds, and `:0` draws from the OS's ephemeral range (from 32768 on Linux, 49152 on
 /// macOS and Windows), where nobody puts a control server (7980, 18000–19999): the standard
 /// trade-off for a test that needs a refused connection.
+///
+/// Within this binary the window is closed: the tests that take an ephemeral port and let it go
+/// hold [`ephemeral_ports`], so `denoise-serve` can't start on a port a refused-connection test
+/// picked while it runs.
 fn unused_port() -> u16 {
     std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port()
+}
+
+/// Held by each test that picks an ephemeral port and releases it before use, for the whole test.
+fn ephemeral_ports() -> std::sync::MutexGuard<'static, ()> {
+    static PORTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // a test that failed while holding it doesn't fail the others
+    PORTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn run_cli(args: &[&str], stdin: Option<&str>) -> (bool, Vec<Value>, String) {
@@ -626,6 +637,7 @@ fn a_library_open_in_another_process_is_refused() {
 /// ADDR actually names — following the old fixed "7980" left the retry connecting elsewhere.
 #[test]
 fn connect_failure_hint_names_the_attempted_port() {
+    let _ports = ephemeral_ports();
     let port = unused_port();
     let (ok, _lines, err) = run_cli(&["--connect", &format!("127.0.0.1:{port}"), "ui.inspect"], None);
     assert!(!ok);
@@ -639,6 +651,7 @@ fn connect_failure_hint_names_the_attempted_port() {
 /// works; non-numeric, non-`ADDR`-shaped tokens (e.g. a real command id) keep falling through.
 #[test]
 fn connect_bare_port_is_treated_as_loopback_port() {
+    let _ports = ephemeral_ports();
     let port = unused_port();
     let hint = format!("--control {port}");
     // Bare port: the failure hint names that port.
@@ -800,7 +813,8 @@ fn denoise_serve_runs_tiles_for_another_computer() {
         Command::new(binary()).args(["denoise-serve", "--models", models.to_str().unwrap(), "--token-env", "LC_TEST_NO_SUCH_VAR"]).output().unwrap();
     assert!(!o.status.success() && String::from_utf8_lossy(&o.stderr).contains("LC_TEST_NO_SUCH_VAR"));
 
-    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let _ports = ephemeral_ports();
+    let port = unused_port();
     let addr = format!("127.0.0.1:{port}");
     let token = "cli-test-token-0123456789";
     let mut child = Command::new(binary())
