@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### Reliability
+- A damaged or crafted Olympus ORF, Samsung SRW, Sony ARW or Pentax PEF whose strip sizes add up past the largest
+  64-bit number no longer crashes LightCraft (debug builds) when it is read: the file is refused, or read as far as
+  its data go.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
