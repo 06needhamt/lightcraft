@@ -1495,6 +1495,11 @@ fn folders_app_sized(paths: &[&str], size: [f32; 2]) -> Headless {
 }
 
 fn folders_app_with_services(paths: &[&str], size: [f32; 2], services: Services) -> Headless {
+    folders_app_prepared(paths, size, services, |_| {})
+}
+
+/// [`folders_app_with_services`], with `prepare` run on the app before its first frame.
+fn folders_app_prepared(paths: &[&str], size: [f32; 2], services: Services, prepare: impl FnOnce(&mut LightcraftApp)) -> Headless {
     use lightcraft_catalog::{Op, Photo, Source};
     let mut session = lightcraft_engine::Session::new();
     for path in paths {
@@ -1502,7 +1507,8 @@ fn folders_app_with_services(paths: &[&str], size: [f32; 2], services: Services)
         let p = Photo::new(id, Source::File { path: (*path).into() }, "x.jpg", "JPEG", 60, 40, "2026-01-01T10:00:00");
         session.catalog.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
     }
-    let app = LightcraftApp::new(session, services);
+    let mut app = LightcraftApp::new(session, services);
+    prepare(&mut app);
     let mut h = Headless::new(app, size, 1.0);
     let r = h.request("ui.set", json!({"view": "photoGrid", "leftPanel": true}), T);
     assert_eq!(r["ok"], true, "{r}");
@@ -1855,6 +1861,28 @@ fn a_folder_menu_locates_its_missing_tree_only() {
     assert!(sources.contains(&new_trip.join("a.jpg").to_string_lossy().to_string()), "{sources:?}");
     assert!(sources.contains(&new_trip.join("day2").join("b.jpg").to_string_lossy().to_string()), "{sources:?}");
     assert!(sources.contains(&format!("{old}/other/c.jpg")), "another missing folder stays untouched: {sources:?}");
+}
+
+/// The Missing Photos row appears when the background count of missing files lands, and moves
+/// every row below it down. Settling waits for that count, so a click aimed at a folder row from
+/// the settled layout doesn't land on the row above it (on a busy machine, Locate Missing Files…
+/// above ran for `other` instead of `trip`).
+#[test]
+fn settling_waits_for_the_missing_photos_count() {
+    // longer than settling takes without the count (a few hundred ms here)
+    let delay = Duration::from_secs(1);
+    let paths = ["/lc-missing-count/other/a.jpg", "/lc-missing-count/trip/b.jpg"];
+    let services = Services { png: None, ..Default::default() };
+    let mut h = folders_app_prepared(&paths, [1400.0, 900.0], services, |app| app.missing_count_test_delay = Some(delay));
+    assert!(has(&h, "source:missing"), "the Missing Photos row is on screen once the sidebar settled");
+    click(&mut h, "libraryFolderToggle:/lc-missing-count");
+    let settled = widget(&h, "source:libfolder:/lc-missing-count/trip");
+    let t0 = std::time::Instant::now();
+    while t0.elapsed() < delay / 4 {
+        h.step();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(widget(&h, "source:libfolder:/lc-missing-count/trip"), settled, "nothing moves the folder rows after settling");
 }
 
 /// Right-click a folder ▸ Set Color Label ▸ a colour: the folder's row shows the label's dot (a
