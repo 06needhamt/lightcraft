@@ -2407,6 +2407,7 @@
   "Dropped Files": "Přetažené soubory",
   "Import dropped files without review": "Importovat přetažené soubory bez kontroly",
   "An import is running": "Import už běží",
+  "The photos are imported once it ends": "Fotky se naimportují potom",
   "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
   "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky"
 }

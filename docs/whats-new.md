@@ -1,5 +1,12 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### Photos waiting for a library wait for a running import too
+- Photos given on the command line or dropped on the launch list are imported once a library opens. If another import
+  or a Synchronize Folder is still running then, they now wait for it to end instead of being dropped, and a message
+  says so (issue #2779).
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock

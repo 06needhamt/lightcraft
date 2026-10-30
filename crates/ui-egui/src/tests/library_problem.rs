@@ -804,3 +804,42 @@ fn typing_reaches_the_launch_lists_own_new_library_prompt() {
     assert_eq!(command, "app.newLibrary");
     assert_eq!(value, "Fresh", "typing reaches the launch list's own text prompt");
 }
+
+/// Issue #2779: files waiting for a library (the command line, drops on the launch list) that
+/// find another import running when a library opens are kept, with a toast saying why, and
+/// imported once that import ends instead of being dropped.
+#[test]
+fn waiting_files_wait_for_a_running_import_instead_of_being_dropped() {
+    let dir = std::env::temp_dir().join(format!("lightcraft-waiting-import-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = |v: u8| {
+        let img = lightcraft_raster::Rgba8 { width: 8, height: 8, data: vec![[v, 3, 9, 255]; 64] };
+        lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap()
+    };
+    let (busy, waiting) = (dir.join("busy.png"), dir.join("waiting.png"));
+    std::fs::write(&busy, png(10)).unwrap();
+    std::fs::write(&waiting, png(200)).unwrap();
+
+    let app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services { png: None, ..Default::default() });
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    let lib = dir.join("lib");
+    h.app.library_problem = Some(LibraryProblem {
+        pending_import: vec![waiting.to_string_lossy().to_string()],
+        ..LibraryProblem::new(lib.to_string_lossy(), "a test error")
+    });
+    h.step();
+    // a library opens another way (File ▸ Open Library…) while an import is running
+    h.app.session.open_library(&lib, false).unwrap();
+    crate::import::start_paths(&mut h.app, vec![busy.to_string_lossy().to_string()]).unwrap();
+    h.step();
+    assert!(h.app.library_problem.is_none(), "the problem is over");
+    assert_eq!(h.app.waiting_import.files, vec![waiting.to_string_lossy().to_string()], "the waiting file is kept");
+    let toast = h.app.ui.toast.as_ref().map(|t| t.0.clone()).unwrap_or_default();
+    assert!(toast.contains("An import is running") && toast.contains("once it ends"), "{toast}");
+
+    assert!(h.step_until(T, |h| h.app.import.is_none() && h.app.session.catalog.len() == 2), "{} photos", h.app.session.catalog.len());
+    assert!(h.app.waiting_import.files.is_empty());
+    let _ = h.app.session.close_library();
+    let _ = std::fs::remove_dir_all(&dir);
+}

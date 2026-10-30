@@ -2228,6 +2228,7 @@
   "Mask Pins": "Ghim mặt nạ",
   "Photo Counts": "Số lượng ảnh",
   "An import is running": "Đang có một lần nhập chạy",
+  "The photos are imported once it ends": "Ảnh sẽ được nhập khi việc đó kết thúc",
   "An import is running. Drop photos when it has finished": "Đang có một lần nhập chạy. Hãy thả ảnh khi nó hoàn tất",
   "Close the open dialog to drop files here": "Hãy đóng hộp thoại đang mở để thả tệp vào đây",
   "Close the open dialog, then drop the files again": "Hãy đóng hộp thoại đang mở, rồi thả lại các tệp",

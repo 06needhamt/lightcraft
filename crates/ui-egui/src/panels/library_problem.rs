@@ -327,6 +327,16 @@ pub struct Chooser {
     pub over: Option<u64>,
 }
 
+/// Files that waited for a library (the command line, drops on the launch list) and found another
+/// import or a Synchronize Folder running when one opened: kept, and imported once it ends instead
+/// of being lost (issue #2779).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WaitingImport {
+    pub files: Vec<String>,
+    /// The toast already said why they wait.
+    told: bool,
+}
+
 /// A library that failed to open (set by the host at launch).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LibraryProblem {
@@ -783,12 +793,7 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
         Ok(serde_json::Value::Null) => {} // folder dialog cancelled
         Ok(_) => {
             let files = app.library_problem.take().map(|p| p.pending_import).unwrap_or_default();
-            // in the background, like files dropped on the window (issue #374)
-            if !files.is_empty()
-                && let Err(e) = crate::import::start_paths(app, files)
-            {
-                log::warn!("import: {e}");
-            }
+            app.waiting_import.files.extend(files);
         }
         Err(e) => {
             // a failed switch reopens the library that was open behind the launch list
@@ -816,6 +821,26 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
     }
 }
 
+/// Import the files that waited for a library, in the background like files dropped on the window
+/// (issue #374). While another import or a Synchronize Folder runs they keep waiting, and a toast
+/// says why once (issue #2779).
+fn import_waiting(app: &mut LightcraftApp, ctx: &egui::Context) {
+    if app.waiting_import.files.is_empty() {
+        return;
+    }
+    let files = std::mem::take(&mut app.waiting_import.files);
+    match crate::import::start_paths(app, files.clone()) {
+        Ok(_) => app.waiting_import = WaitingImport::default(),
+        Err(e) => {
+            if !app.waiting_import.told {
+                app.toast(ctx, format!("{e}. {}", crate::i18n::tr("The photos are imported once it ends")));
+            }
+            app.waiting_import = WaitingImport { files, told: true };
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        }
+    }
+}
+
 /// Clear the problem once a library is open (e.g. through Settings → Open Library…) — another
 /// one than the launch list was opened over; offer the list when Alt/Option is held as the window
 /// appears; and the list's keys.
@@ -827,12 +852,9 @@ pub fn logic(app: &mut LightcraftApp, ctx: &egui::Context) {
         // files from the command line go into the library opened another way (New Library…,
         // File ▸ Open Library…), as through the window's own buttons
         let files = app.library_problem.take().map(|p| p.pending_import).unwrap_or_default();
-        if !files.is_empty()
-            && let Err(e) = crate::import::start_paths(app, files)
-        {
-            log::warn!("import: {e}");
-        }
+        app.waiting_import.files.extend(files);
     }
+    import_waiting(app, ctx);
     let batch_in_flight = app.synthetic_in_flight;
     alt_at_launch(app, ctx);
     // Alt/Option can create the launch list here, after the frame's input was accepted. Drop
@@ -1111,12 +1133,7 @@ fn act(app: &mut LightcraftApp, choice: Choice) {
                 p.dismissed = true;
             }
             let files = app.library_problem.as_mut().map(|p| std::mem::take(&mut p.pending_import)).unwrap_or_default();
-            // in the background, like files dropped on the window (issue #374)
-            if !files.is_empty()
-                && let Err(e) = crate::import::start_paths(app, files)
-            {
-                log::warn!("import: {e}");
-            }
+            app.waiting_import.files.extend(files);
         }
         Choice::Quit => app.ui.quit = true,
     }

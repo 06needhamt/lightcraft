@@ -2360,6 +2360,7 @@
   "Dropped Files": "File rilasciati",
   "Import dropped files without review": "Importa i file rilasciati senza revisione",
   "An import is running": "Un'importazione è in corso",
+  "The photos are imported once it ends": "Le foto verranno importate dopo",
   "An import is running. Drop photos when it has finished": "Un'importazione è in corso. Trascina le foto quando è finita",
   "Finish Lightroom catalog import before adding photos": "Termina l'importazione del catalogo Lightroom prima di aggiungere foto"
 }
