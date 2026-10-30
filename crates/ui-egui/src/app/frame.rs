@@ -85,7 +85,7 @@ impl LightcraftApp {
         if let Some(folder) = self.session.import_defaults.auto_folder.clone() {
             const LABEL: &str = "Auto Import";
             if now - self.ui.auto_import_at >= 3.0
-                && self.import.is_none()
+                && !import::running(self)
                 && self.sync_run.is_none()
                 && self.lightroom.is_none()
                 && !self.tasks.is_running(LABEL)
@@ -97,9 +97,10 @@ impl LightcraftApp {
                         Ok(l) => l,
                         Err(e) => return log::debug!("auto import: {e}"),
                     };
-                    // an import, sync or Lightroom migration that started while the folder was listed: scanning
-                    // now would mark the new files as tried without importing them; the next listing picks them up
-                    if app.import.is_some() || app.sync_run.is_some() || app.lightroom.is_some() {
+                    // an import, a scan (a finished Local browse replaces `app.import`), a sync or a Lightroom
+                    // migration that started while the folder was listed: scanning now would mark the new files as
+                    // tried without importing them; the next listing picks them up
+                    if import::running(app) || app.sync_run.is_some() || app.lightroom.is_some() {
                         return;
                     }
                     let p = serde_json::json!({"listing": listing, "start": false});

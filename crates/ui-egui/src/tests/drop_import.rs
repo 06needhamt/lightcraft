@@ -1108,21 +1108,48 @@ fn public_drop_take_preserves_reentered_barrier_order_and_clears_protection() {
     }
 }
 
+/// Auto Import's second listing of `watch/w.png` on its worker thread (the first notes the file's size; the
+/// second, size unchanged, imports it).
+fn second_auto_import_listing(h: &mut Headless, dir: &Scratch) {
+    write_png(&dir.path("watch/w.png"), 3);
+    h.app.session.import_defaults.auto_folder = Some(dir.path("watch"));
+    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "the watched folder is listed");
+    assert!(h.step_until(T, |h| !h.app.tasks.is_running("Auto Import")));
+    assert_eq!(photos(h), 0);
+    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "and listed again");
+}
+
+/// Apply Auto Import's listing now, before another frame can change what runs.
+fn apply_auto_import_listing(h: &mut Headless) {
+    let ctx = h.view.ctx.clone();
+    assert!(crate::tasks::wait_for(&mut h.app, &ctx, "Auto Import", T), "the listing ends");
+}
+
 /// An import that starts while Auto Import lists its watched folder: the new photo isn't marked as
 /// tried and skipped, the next listing imports it once the other import is done.
 #[test]
 fn auto_import_waits_for_an_import_that_starts_during_its_listing() {
     let dir = Scratch::new("auto-race");
     let mut h = app(&dir);
-    write_png(&dir.path("watch/w.png"), 3);
-    h.app.session.import_defaults.auto_folder = Some(dir.path("watch"));
-    // the first listing notes the file's size, the second (size unchanged) imports it
-    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "the watched folder is listed");
-    assert!(h.step_until(T, |h| !h.app.tasks.is_running("Auto Import")));
-    assert_eq!(photos(&h), 0);
-    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "and listed again");
-    // the listing's result is applied on a later frame, after this import has started
+    second_auto_import_listing(&mut h, &dir);
     h.app.import = Some(crate::import::ImportTask::new(vec![dir.path("trip")], json!({"mode": "add"}), 0, false));
+    apply_auto_import_listing(&mut h);
     assert!(h.step_until(T, |h| photos(h) == 3), "the trip's two photos and the watched one arrive: {}", photos(&h));
+    h.app.session.import_defaults.auto_folder = None;
+}
+
+/// The same with a Local folder browse: a browse that finishes replaces `app.import`, so Auto Import
+/// doesn't start one beside it.
+#[test]
+fn auto_import_waits_for_a_browse_that_starts_during_its_listing() {
+    let dir = Scratch::new("auto-browse");
+    let mut h = app(&dir);
+    second_auto_import_listing(&mut h, &dir);
+    let scan = crate::import::stall_scan_of(&mut h.app, true);
+    apply_auto_import_listing(&mut h);
+    assert!(h.app.import.is_none(), "no Auto Import for the browse to replace");
+    drop(scan);
+    assert!(h.step_until(T, |h| h.app.scan.is_none()), "the browse ends");
+    assert!(h.step_until(T, |h| photos(h) == 1), "and the watched photo arrives: {}", photos(&h));
     h.app.session.import_defaults.auto_folder = None;
 }
