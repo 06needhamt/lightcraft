@@ -135,6 +135,11 @@ it (Enable Profile Corrections). The camera applied the same correction to its J
 `look_proxies`, which multiplies it by that gain as `fit_dng_tone` already did (`correct_vignetting`). Before
 `LOOK_VERSION` 13 the RAF fit saw the uncorrected sensor: the tone curve learned the JPEG's corrected brightness, and
 the render added the correction again. Lens-database corrections (`LIGHTCRAFT_LENSFUN_DIR`) reach the fit the same way.
+`proxies` applies the gain before it moves the sensor into the JPEG's lens geometry, so each pixel gets the gain of the
+position it samples, as in the render. The choice between the warped and the plain sensor (`alignment`) leaves out
+the pixels the warp finds no sensor for. It used to read them as black, a false edge along the border that made the
+warped candidate lose on some wide-angle shots with barrel distortion; neither change moved ΔE00 by more than 0.04 on
+the photos below.
 
 On 21 X-S10 photos the render was up to 0.3 EV brighter than the camera JPEG in the midtones (a wide-open blue-hour
 shot) and up to 0.6 EV in the darkest 3 % of the pixels (ISO 12800 indoors). On 60 other X-S10 photos, picked at

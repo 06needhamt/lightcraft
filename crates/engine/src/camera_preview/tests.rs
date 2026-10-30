@@ -661,7 +661,7 @@ fn corpus_lens_corrected_jpegs_pair_with_the_warped_sensor() {
         raw.opcodes.list3.retain(|op| !op.is_lens_correction());
         let t = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
         let (Some((plain, reference, _)), Some((chosen, chosen_reference, _))) =
-            (proxies(&raw, &bytes, &t, PROXY, 0.0, None), proxies(&raw, &bytes, &t, PROXY, 0.0, Some(&lens)))
+            (proxies(&raw, &bytes, &t, PROXY, 0.0, None, None), proxies(&raw, &bytes, &t, PROXY, 0.0, Some(&lens), None))
         else {
             continue;
         };
@@ -1348,7 +1348,7 @@ fn corpus_arw_with_dro_is_lowered_to_the_dro_off_tone() {
         let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
         let look = fit_preview(&raw, &bytes, &transform, None, None).0.expect("a camera look");
         // the look fitted to the JPEG, as before this change
-        let (sensor, reference, clipped) = proxies(&raw, &bytes, &transform, PROXY, 0.0, None).unwrap();
+        let (sensor, reference, clipped) = proxies(&raw, &bytes, &transform, PROXY, 0.0, None, None).unwrap();
         let profile = raw.metadata.model.as_deref().and_then(crate::camera_profiles::get);
         let colour = profile.as_ref().and_then(|p| Some((p.matrix().mul(&transform.matrix.inverse()?), p.hue_sat.clone())));
         let fitted = fit_look(&sensor, &reference, &clipped, colour).unwrap();
@@ -2074,6 +2074,81 @@ fn the_look_is_fitted_on_the_vignetting_corrected_sensor() {
     let (corrected, uncorrected) = (at_quarter(Some(&lens)), at_quarter(None));
     assert!((corrected - camera).abs() < 0.03, "the camera's curve at 0.25: {corrected} vs {camera}");
     assert!(uncorrected > camera + 0.03, "without the correction the curve brightens: {uncorrected} vs {camera}");
+}
+
+/// The colour fit gets the embedded vignetting correction too ([`starting_colour`] forwards it to every fit): the
+/// tinted camera JPEG of the vignetted sensor takes the colour path, not the black-and-white one.
+#[test]
+fn the_colour_look_is_fitted_on_the_vignetting_corrected_sensor() {
+    use lightcraft_develop::{EmbeddedLens, EmbeddedVignette};
+    let (w, h) = (192usize, 128usize);
+    let vignette = EmbeddedVignette { k: [1.0, 0.0, 0.0, 0.0, 0.0], center: lightcraft_geom::Point::new(0.5, 0.5), radius: 0.6 };
+    let gain = |x: usize, y: usize| {
+        let point = lightcraft_geom::Point::new(x as f64 + 0.5, y as f64 + 0.5);
+        lightcraft_pipeline::optics::embedded_vignette_gain(&vignette, point, w as f64, h as f64) as f32
+    };
+    let scene = |x: usize, y: usize| 0.01 + 0.5 * (x as f32 / w as f32) * (0.3 + 0.7 * y as f32 / h as f32);
+    let (raw, bytes) = grey_raw_with_jpeg((w, h), |x, y| scene(x, y) / gain(x, y), scene, [1.0, 0.9, 0.8]);
+    let lens = EmbeddedLens { vignette: Some(vignette), ..Default::default() };
+    let at_quarter = |embedded: Option<&EmbeddedLens>| {
+        let (_, _, look) = starting_colour(&mut raw.clone(), &bytes, None, embedded);
+        let look = look.expect("a colour look");
+        assert!(look.matrix != Mat3::IDENTITY || look.hue_sat.is_some(), "the colour fit, not the black-and-white one");
+        ToneMap::camera(&look.tone, 0.0, 0.0, 0.0).apply(0.25)
+    };
+    let (corrected, uncorrected) = (at_quarter(Some(&lens)), at_quarter(None));
+    assert!(uncorrected > corrected + 0.03, "without the correction the curve brightens: {uncorrected} vs {corrected}");
+}
+
+/// A lens-warped sensor proxy gets the vignetting gain of the position it samples, as the render applies it: the
+/// vignetted sensor, corrected, gives the proxy of the same sensor without vignetting.
+#[test]
+fn the_vignetting_correction_is_applied_before_the_lens_warp() {
+    use lightcraft_develop::{EmbeddedLens, EmbeddedVignette};
+    // twice the 384 px proxy edge: the demosaiced proxy of this linear raw is then the size a warp needs (bins of 2)
+    let (w, h) = (768usize, 512usize);
+    let vignette = EmbeddedVignette { k: [1.0, 0.0, 0.0, 0.0, 0.0], center: lightcraft_geom::Point::new(0.5, 0.5), radius: 0.6 };
+    let gain = |x: usize, y: usize| {
+        let point = lightcraft_geom::Point::new(x as f64 + 0.5, y as f64 + 0.5);
+        lightcraft_pipeline::optics::embedded_vignette_gain(&vignette, point, w as f64, h as f64) as f32
+    };
+    // a texture for the warped candidate to line up with: the JPEG shows the sensor's centre zoomed by 1 / 0.8
+    let texture = |x: f64, y: f64| 0.2 * (1.0 + 0.3 * ((x / 48.0).floor() + (y / 48.0).floor()).rem_euclid(2.0)) as f32;
+    let warp = LensGeometry { k: [0.8, 0.0, 0.0, 0.0], center: [0.5, 0.5] };
+    let (cx, cy) = ((w - 1) as f64 / 2.0, (h - 1) as f64 / 2.0);
+    let jpeg = |x: usize, y: usize| texture(cx + (x as f64 - cx) * 0.8, cy + (y as f64 - cy) * 0.8);
+    let sensor_proxy = |vignetted: bool, embedded: Option<&EmbeddedLens>| {
+        let sensor = |x: usize, y: usize| texture(x as f64, y as f64) / if vignetted { gain(x, y) } else { 1.0 };
+        let (raw, bytes) = grey_raw_with_jpeg((w, h), sensor, jpeg, [1.0; 3]);
+        let t = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
+        let (plain, _, _) = proxies(&raw, &bytes, &t, PROXY, 0.0, None, embedded).unwrap();
+        let (sensor, _, _) = proxies(&raw, &bytes, &t, PROXY, 0.0, Some(&warp), embedded).unwrap();
+        assert!(sensor.data.iter().zip(&plain.data).any(|(a, b)| a != b), "the warped candidate is chosen");
+        sensor
+    };
+    let lens = EmbeddedLens { vignette: Some(vignette), ..Default::default() };
+    let (corrected, expected) = (sensor_proxy(true, Some(&lens)), sensor_proxy(false, None));
+    let worst = corrected.data.iter().zip(&expected.data).map(|(a, b)| (a[1] / b[1] - 1.0).abs()).filter(|d| d.is_finite()).fold(0.0, f32::max);
+    assert!(worst < 0.02, "largest deviation {worst}");
+}
+
+/// [`alignment`] leaves out the pixels a proxy lacks (NaN outside a lens-warped one): read as black, they made a
+/// false edge around the border, and the warped candidate lost against a worse unwarped one.
+#[test]
+fn alignment_leaves_out_missing_pixels() {
+    let (w, h) = (48usize, 32usize);
+    let mut a = Rgb32f::new(w, h);
+    for (i, p) in a.data.iter_mut().enumerate() {
+        *p = [0.1 + 0.05 * ((i * 7919) % 13) as f32; 3];
+    }
+    let mut b = a.clone();
+    for (i, p) in b.data.iter_mut().enumerate() {
+        let (x, y) = (i % w, i / w);
+        if x < 4 || y < 4 || x >= w - 4 || y >= h - 4 {
+            *p = [f32::NAN; 3];
+        }
+    }
+    assert!(alignment(&a, &b) > 0.999, "{}", alignment(&a, &b));
 }
 
 /// The black-and-white fit has the partial look's checks: a JPEG of another picture, or one the default curve

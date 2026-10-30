@@ -214,7 +214,9 @@ pub(super) fn fit_dng_tone(
         }
         None
     };
-    let Some((mut sensor, reference, clipped)) = proxies(raw, bytes, transform, PROXY, MIN_PREVIEW_FRACTION, None) else { return refuse("preview") };
+    let Some((mut sensor, reference, clipped)) = proxies(raw, bytes, transform, PROXY, MIN_PREVIEW_FRACTION, None, None) else {
+        return refuse("preview");
+    };
     // As the loader renders it: the profile's tables around the baseline exposure.
     let xy = lightcraft_raw::color::as_shot_white_xy(raw);
     if let Some(tables) = lightcraft_raw::profile::ProfileTables::new(&raw.color.profile, lightcraft_raw::color::illuminant_weight(&raw.color, xy)) {
@@ -265,7 +267,7 @@ pub(super) fn clips_more(sensor: &Rgb32f, reference: &Rgb32f, fitted: &ToneMap, 
 }
 
 /// The proxies a photo's look is fitted on ([`proxies`] at [`PROXY`]), the sensor's with the embedded vignetting
-/// correction the render applies ([`correct_vignetting`]). Without it the tone curve learns the camera JPEG's corrected
+/// correction the render applies. Without it the tone curve learns the camera JPEG's corrected
 /// brightness from the uncorrected sensor, and the render then corrects it again: 21 X-S10 RAFs rendered up to 0.3 EV
 /// brighter in their midtones and 0.6 EV in their shadows than their camera JPEGs, about 0.05 EV once corrected.
 pub(super) fn look_proxies(
@@ -275,9 +277,7 @@ pub(super) fn look_proxies(
     lens: Option<&LensGeometry>,
     embedded: Option<&lightcraft_develop::EmbeddedLens>,
 ) -> Option<(Rgb32f, Rgb32f, Vec<bool>)> {
-    let (mut sensor, reference, clipped) = proxies(raw, bytes, transform, PROXY, 0.0, lens)?;
-    correct_vignetting(&mut sensor, embedded, raw.orientation);
-    Some((sensor, reference, clipped))
+    proxies(raw, bytes, transform, PROXY, 0.0, lens, embedded)
 }
 
 /// Multiply the sensor proxy (sensor orientation, default crop) by the embedded vignetting correction, the gain the
