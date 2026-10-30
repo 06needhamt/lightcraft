@@ -1138,18 +1138,24 @@ fn auto_import_waits_for_an_import_that_starts_during_its_listing() {
     h.app.session.import_defaults.auto_folder = None;
 }
 
-/// The same with a Local folder browse: a browse that finishes replaces `app.import`, so Auto Import
-/// doesn't start one beside it.
+/// The same with a Local folder browse: a browse that finishes replaces `app.import` with its own, so
+/// Auto Import doesn't start one beside it.
 #[test]
 fn auto_import_waits_for_a_browse_that_starts_during_its_listing() {
+    use lightcraft_engine::import::{ImportCandidate, ScanOutput};
     let dir = Scratch::new("auto-browse");
     let mut h = app(&dir);
     second_auto_import_listing(&mut h, &dir);
     let scan = crate::import::stall_scan_of(&mut h.app, true);
     apply_auto_import_listing(&mut h);
     assert!(h.app.import.is_none(), "no Auto Import for the browse to replace");
-    drop(scan);
-    assert!(h.step_until(T, |h| h.app.scan.is_none()), "the browse ends");
-    assert!(h.step_until(T, |h| photos(h) == 1), "and the watched photo arrives: {}", photos(&h));
+    // the browse finds one photo of its own and imports it
+    let Ok(tx) = scan.downcast::<std::sync::mpsc::Sender<ScanOutput>>() else { panic!("the stalled scan's sender") };
+    let found = ImportCandidate { path: dir.path("trip/a.png"), ..Default::default() };
+    tx.send(ScanOutput { candidates: vec![found], probes: Default::default() }).unwrap();
+    drop(tx);
+    assert!(h.step_until(T, |h| h.app.import.is_some()), "the browse starts its import");
+    assert!(h.step_until(T, |h| h.app.import.is_none()), "and it ends");
+    assert!(h.step_until(T, |h| photos(h) == 2), "the browsed photo and the watched one arrive: {}", photos(&h));
     h.app.session.import_defaults.auto_folder = None;
 }
