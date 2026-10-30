@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### Samsung panoramas import
+- Some panoramas from Samsung phones were refused as truncated ("the image data doesn't end with an end-of-image
+  marker"), although other apps open them whole: their image data runs straight into the Samsung (SEF) block at the
+  end of the file, with no end-of-image marker in between. When the file ends with a valid SEF block, the image now
+  ends where that block begins, so these photos import, show and build previews. A JPEG that is really cut short is
+  still refused.
+
 ## 2026-10-24
 
 ### Relative-date filters and smart albums follow the clock
