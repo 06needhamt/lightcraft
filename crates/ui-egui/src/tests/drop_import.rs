@@ -1107,3 +1107,22 @@ fn public_drop_take_preserves_reentered_barrier_order_and_clears_protection() {
         assert_eq!(photos(&h), 0, "neither taken handles nor refused arrivals replay");
     }
 }
+
+/// An import that starts while Auto Import lists its watched folder: the new photo isn't marked as
+/// tried and skipped, the next listing imports it once the other import is done.
+#[test]
+fn auto_import_waits_for_an_import_that_starts_during_its_listing() {
+    let dir = Scratch::new("auto-race");
+    let mut h = app(&dir);
+    write_png(&dir.path("watch/w.png"), 3);
+    h.app.session.import_defaults.auto_folder = Some(dir.path("watch"));
+    // the first listing notes the file's size, the second (size unchanged) imports it
+    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "the watched folder is listed");
+    assert!(h.step_until(T, |h| !h.app.tasks.is_running("Auto Import")));
+    assert_eq!(photos(&h), 0);
+    assert!(h.step_until(T, |h| h.app.tasks.is_running("Auto Import")), "and listed again");
+    // the listing's result is applied on a later frame, after this import has started
+    h.app.import = Some(crate::import::ImportTask::new(vec![dir.path("trip")], json!({"mode": "add"}), 0, false));
+    assert!(h.step_until(T, |h| photos(h) == 3), "the trip's two photos and the watched one arrive: {}", photos(&h));
+    h.app.session.import_defaults.auto_folder = None;
+}

@@ -97,6 +97,11 @@ impl LightcraftApp {
                         Ok(l) => l,
                         Err(e) => return log::debug!("auto import: {e}"),
                     };
+                    // an import, sync or Lightroom migration that started while the folder was listed: scanning
+                    // now would mark the new files as tried without importing them; the next listing picks them up
+                    if app.import.is_some() || app.sync_run.is_some() || app.lightroom.is_some() {
+                        return;
+                    }
                     let p = serde_json::json!({"listing": listing, "start": false});
                     let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };
                     let Some(mut params) = r.get("import").cloned().filter(|_| app.import.is_none()) else { return };
