@@ -542,6 +542,12 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context) {
         app.quit_prompt = None;
         if buttons.get(i).is_some_and(|(_, _, choice)| *choice == Choice::QuitAnyway) {
             app.session.activity.cancel_all();
+            // files waiting for an import, and one handed its files but not started, are given up
+            // too, or `may_close` would ask about them again
+            app.waiting_import = Default::default();
+            if app.import.as_ref().is_some_and(|t| !t.listed()) {
+                app.import = None;
+            }
             // unsaved changes still get their own question
             if may_close(app) {
                 app.ui.quit = true;
