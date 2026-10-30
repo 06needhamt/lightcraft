@@ -324,12 +324,19 @@ impl ImportJob {
                     break;
                 }
             }
+            // same bytes as a library photo: skipped below, once its capture time is known
+            let duplicate_of =
+                info.content_hash.as_ref().filter(|_| !opts.local).and_then(|h| self.by_hash.get(h).map(|existing| (h.clone(), *existing)));
             // the XMP sidecar (or a raw's embedded XMP), read before copying: its capture time files
-            // and names the copy when the file itself has none
+            // and names the copy when the file itself has none (a duplicate needs only that time)
             let raw = info.kind == MediaKind::Raw;
-            let packet = crate::sidecar::find_sidecar_for_import(&stems, self.naming, &path)
-                .and_then(|f| std::fs::read_to_string(f).ok())
-                .or_else(|| info.xmp.clone().filter(|_| raw));
+            let packet = if duplicate_of.is_some() && info.captured.is_some() {
+                None
+            } else {
+                crate::sidecar::find_sidecar_for_import(&stems, self.naming, &path)
+                    .and_then(|f| std::fs::read_to_string(f).ok())
+                    .or_else(|| info.xmp.clone().filter(|_| raw))
+            };
             let target = crate::crs::Target::for_file(info.kind, &info.format, info.preview_only.is_some(), &info.meta.camera);
             let sidecar = packet.and_then(|x| match crate::sidecar::parse_sidecar(&x, target) {
                 Ok(sc) => Some(sc),
@@ -345,17 +352,13 @@ impl ImportJob {
             if info.captured.is_none() {
                 info.captured = info.file_modified.clone();
             }
-            // same bytes as a library photo: skipped, with what its file says (its capture time too)
-            if let Some(h) = &info.content_hash
-                && !opts.local
-                && let Some(existing) = self.by_hash.get(h)
-            {
+            if let Some((hash, existing)) = duplicate_of {
                 self.done.fetch_add(1, Relaxed);
                 plan.slots.push(Slot::Item(PreparedItem::Duplicate {
                     path,
-                    existing: *existing,
+                    existing,
                     reason: "content",
-                    hash: Some(h.clone()),
+                    hash: Some(hash),
                     file: Some(Box::new(FileFacts { meta: info.meta, captured: info.captured })),
                 }));
                 continue;
