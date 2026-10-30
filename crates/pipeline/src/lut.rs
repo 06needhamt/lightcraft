@@ -45,6 +45,10 @@ impl Lut3d {
             } else if let Some(r) = l.strip_prefix("DOMAIN_MAX") {
                 max = three(r).ok_or("bad DOMAIN_MAX")?;
             } else if l.starts_with(|c: char| c.is_ascii_alphabetic()) {
+                // a data line of `nan` / `inf` starts with a letter too: it is bad data, not a keyword
+                if l.split_whitespace().next().is_some_and(|w| w.parse::<f32>().is_ok()) {
+                    return Err(format!("bad line `{l}`"));
+                }
                 // other keywords (LUT_IN_VIDEO_RANGE…) are ignored
             } else {
                 data.push(three(l).ok_or_else(|| format!("bad line `{l}`"))?);
@@ -150,6 +154,8 @@ mod tests {
         bad_line(&format!("LUT_3D_SIZE 2\n{}", "-inf inf nan\n".repeat(8)));
         bad_line(&format!("LUT_3D_SIZE 2\n{}", "1e39 0 0\n".repeat(8)));
         bad_line(&format!("LUT_3D_SIZE 2\n-inf 0 0\n{}", "0 0 0\n".repeat(7)));
+        bad_line(&format!("LUT_3D_SIZE 2\nnan 0 0\n{}", "0 0 0\n".repeat(8)));
+        bad_line(&format!("LUT_3D_SIZE 2\ninf 0 0\n{}", "0 0 0\n".repeat(8)));
         let ok = cube(|c| c, 2);
         assert!(Lut3d::parse_cube(&ok).is_ok());
         assert!(Lut3d::parse_cube(&format!("DOMAIN_MIN nan 0 0\n{ok}")).is_err());
