@@ -164,11 +164,16 @@ impl DevelopSettings {
     /// Next free mask id: one past the highest, or, when that is `u32::MAX` (ids come from files,
     /// pastes and agents), the lowest one no mask uses.
     pub fn next_mask_id(&self) -> u32 {
-        let used = |id: u32| self.masks.iter().any(|m| m.id == id);
         match self.masks.iter().map(|m| m.id).max() {
             None => 1,
             // fewer masks than ids: one of the first `masks.len() + 1` is free
-            Some(max) => max.checked_add(1).or_else(|| (1..=u32::MAX).find(|&id| !used(id))).unwrap_or(0),
+            Some(max) => max
+                .checked_add(1)
+                .or_else(|| {
+                    let used: std::collections::HashSet<u32> = self.masks.iter().map(|m| m.id).collect();
+                    (1..=u32::MAX).find(|id| !used.contains(id))
+                })
+                .unwrap_or(0),
         }
     }
 }
