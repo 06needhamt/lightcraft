@@ -93,6 +93,44 @@ fn a_remembered_library_missing_at_launch_is_reported_not_made_anew() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
+/// Issue #3239: a remembered library whose folder can't be looked into (no permission) is
+/// reported as unreadable at launch, not as gone, and nothing is opened or written there.
+#[cfg(unix)]
+#[test]
+fn a_remembered_library_it_may_not_read_at_launch_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = dir("denied-library");
+    let lib = d.join("Lib");
+    let mut s = lightcraft_engine::Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    s.close_library().unwrap();
+    drop(s);
+    let names = |dir: &std::path::Path| {
+        let mut names: Vec<_> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        names.sort();
+        names
+    };
+    let before = names(&lib);
+    std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&lib).is_ok() {
+        std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _ = std::fs::remove_dir_all(&d);
+        lightcraft_testkit::skip!(System, "running as root: a folder with mode 000 is still readable");
+        return;
+    }
+    let launch = Launch::Open { dir: Some(lib.clone()), alt_asks: true, remembered: true };
+    let (s, problem) = open_session(false, &launch, true);
+    std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let problem = problem.expect("the unreadable library is reported");
+    assert!(problem.error.starts_with("This folder can't be read:"), "{}", problem.error);
+    assert!(problem.error.to_lowercase().contains("permission denied"), "{}", problem.error);
+    assert!(problem.existing_only, "Try Again makes no library there either");
+    assert!(s.library.is_none() && s.catalog.is_empty(), "no library, no demo photos");
+    assert_eq!(names(&lib), before, "nothing written there");
+    drop(s);
+    let _ = std::fs::remove_dir_all(&d);
+}
+
 /// Issue #103: a damaged ui.json (which holds the library location) is kept aside and
 /// reported, not silently replaced by the defaults.
 #[test]

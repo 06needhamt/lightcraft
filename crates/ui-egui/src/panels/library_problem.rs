@@ -720,12 +720,17 @@ fn unavailable(path: &str) -> Option<Unavailable> {
 }
 
 /// Why the library at `dir` that has to exist already (a remembered one, issue #3239) can't be
-/// opened: the folder is there without a catalog, or the folder itself is missing.
-pub fn missing_library_reason(dir: &Path) -> &'static str {
-    if dir.exists() {
-        "There is no LightCraft library in this folder any more."
-    } else {
-        "The library isn't there: it was moved or renamed, or its drive or network share isn't connected."
+/// opened (`None`: it's there): the folder is there without a catalog, or the folder itself is
+/// missing. A folder that can't be looked into (no permission, a share that timed out) says so
+/// instead: the library may well be there.
+pub fn missing_library_reason(dir: &Path) -> Option<String> {
+    match lightcraft_engine::library::library_state(dir) {
+        Ok(true) => None,
+        Ok(false) if dir.exists() => Some(crate::i18n::tr("There is no LightCraft library in this folder any more.").to_string()),
+        Ok(false) => {
+            Some(crate::i18n::tr("The library isn't there: it was moved or renamed, or its drive or network share isn't connected.").to_string())
+        }
+        Err(e) => Some(format!("{} {e}", crate::i18n::tr("This folder can't be read:"))),
     }
 }
 
@@ -733,10 +738,11 @@ pub fn missing_library_reason(dir: &Path) -> &'static str {
 /// opened only once its folder holds a library again (a share remounted): until then the window
 /// stays with the reason, and nothing is created there (issue #3239).
 fn retry(app: &mut LightcraftApp, problem: LibraryProblem) {
-    let dir = Path::new(&problem.path);
-    if problem.existing_only && !lightcraft_engine::library::is_library(dir) {
+    if problem.existing_only
+        && let Some(why) = missing_library_reason(Path::new(&problem.path))
+    {
         if let Some(p) = app.library_problem.as_mut() {
-            p.error = missing_library_reason(dir).to_string();
+            p.error = why;
             p.dismissed = false;
         }
         return;

@@ -58,6 +58,22 @@ pub fn is_library(dir: &Path) -> bool {
     dir.join(lightcraft_catalog::journal::SNAPSHOT).is_file() || dir.join(lightcraft_catalog::journal::LOG).is_file()
 }
 
+/// [`is_library`] that tells "no library there" from "can't tell": `Ok(false)` only when the
+/// folder or its catalog files are definitely missing; a lookup that fails otherwise (a folder it
+/// may not read, a share that timed out) is the error, so a library that is there but can't be
+/// read isn't reported as gone (issue #3239).
+pub fn library_state(dir: &Path) -> std::io::Result<bool> {
+    for name in [lightcraft_catalog::journal::SNAPSHOT, lightcraft_catalog::journal::LOG] {
+        match std::fs::metadata(dir.join(name)) {
+            Ok(m) if m.is_file() => return Ok(true),
+            Ok(_) => {}
+            Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(false)
+}
+
 /// The default library location: `$LIGHTCRAFT_LIBRARY` if set, else `~/Pictures/LightCraft Library`
 /// (`%USERPROFILE%\Pictures\LightCraft Library` on Windows).
 pub fn default_dir() -> Option<PathBuf> {

@@ -278,9 +278,8 @@ fn open_library_session(in_memory: bool, dir: Option<std::path::PathBuf>, rememb
         log::warn!("no library location (set --library or LIGHTCRAFT_LIBRARY)");
         return (unopened(), Some(LibraryProblem::new("", "There is no home folder to keep the library in. Choose a folder for it.")));
     };
-    if remembered && !lightcraft_engine::library::is_library(&dir) {
-        log::error!("library {} is missing", dir.display());
-        let why = lightcraft_ui_egui::panels::library_problem::missing_library_reason(&dir);
+    if remembered && let Some(why) = lightcraft_ui_egui::panels::library_problem::missing_library_reason(&dir) {
+        log::error!("library {} can't be opened: {why}", dir.display());
         // Try Again must not make one there either (an empty mount point, issue #3239)
         return (unopened(), Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(dir.to_string_lossy(), why) }));
     }

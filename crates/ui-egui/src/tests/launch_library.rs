@@ -1063,3 +1063,72 @@ fn try_again_on_a_missing_remembered_library_makes_nothing_in_an_empty_folder() 
     drop(h);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Issue #3239: why Try Again didn't open a remembered library is in the interface language,
+/// both when its folder is empty and when the folder itself is gone.
+#[test]
+fn try_again_says_why_the_remembered_library_is_missing_in_the_interface_language() {
+    let dir = temp("retry-lang");
+    let mount = dir.join("Share");
+    std::fs::create_dir_all(&mount).unwrap();
+    let path = mount.to_string_lossy().into_owned();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.ui.language = crate::i18n::Locale::De;
+    app.library_problem = Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(path, "missing") });
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    settle(&mut h);
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryRetry"}), T)["ok"], true);
+    settle(&mut h);
+    let error = h.app.library_problem.as_ref().map(|p| p.error.clone()).unwrap_or_default();
+    assert_eq!(error, "In diesem Ordner ist keine LightCraft-Bibliothek mehr.");
+    std::fs::remove_dir(&mount).unwrap();
+    assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryRetry"}), T)["ok"], true);
+    settle(&mut h);
+    let error = h.app.library_problem.as_ref().map(|p| p.error.clone()).unwrap_or_default();
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    assert!(error.starts_with("Die Bibliothek ist nicht da:"), "{error}");
+    assert!(!mount.exists(), "nothing is made where it was");
+    drop(h);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Issue #3239: a remembered library whose folder can't be looked into (no permission) isn't
+/// reported as gone: Try Again says the folder can't be read, and nothing is written there.
+#[cfg(unix)]
+#[test]
+fn try_again_on_a_remembered_library_it_may_not_read_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = temp("retry-denied");
+    let locked = dir.join("Locked");
+    let path = make_library(&locked);
+    let names = |dir: &Path| {
+        let mut names: Vec<_> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        names.sort();
+        names
+    };
+    let before = names(&locked);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = std::fs::read_dir(&locked).is_ok();
+    let mut app = LightcraftApp::new(lightcraft_engine::Session::new().with_fs(), Services::default());
+    app.library_problem = Some(LibraryProblem { existing_only: true, ..LibraryProblem::new(path, "missing") });
+    let mut h = Headless::new(app, [1300.0, 900.0], 1.0);
+    settle(&mut h);
+    if !readable {
+        assert_eq!(h.request("ui.clickWidget", json!({"id": "button:libraryRetry"}), T)["ok"], true);
+        settle(&mut h);
+    }
+    let error = h.app.library_problem.as_ref().map(|p| p.error.clone()).unwrap_or_default();
+    let library = h.app.session.library.is_some();
+    drop(h);
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if readable {
+        let _ = std::fs::remove_dir_all(&dir);
+        lightcraft_testkit::skip!(System, "running as root: a folder with mode 000 is still readable");
+        return;
+    }
+    assert!(error.starts_with("This folder can't be read:"), "{error}");
+    assert!(error.to_lowercase().contains("permission denied"), "{error}");
+    assert!(!library, "nothing opened");
+    assert_eq!(names(&locked), before, "nothing written there");
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -9,8 +9,9 @@
   filled it with the demo photos and opened it, so it looked as if the photos and edits were gone. Nothing is
   written there now, and Try Again opens the library once its drive or share is back: on an empty folder left in
   its place, such as a share's mount point, it says so again instead of making a new library there. A library
-  given with `--library` or `LIGHTCRAFT_LIBRARY`, and the default location on first launch, are still created as
-  before.
+  folder LightCraft isn't allowed to read is reported as unreadable, with the system's reason, not as gone. A
+  library given with `--library` or `LIGHTCRAFT_LIBRARY`, and the default location on first launch, are still
+  created as before.
 
 ## 2026-10-24
 
