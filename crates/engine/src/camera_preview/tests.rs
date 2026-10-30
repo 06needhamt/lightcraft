@@ -928,7 +928,7 @@ fn corpus_cr3_gets_a_framing_aligned_camera_look() {
     assert_eq!(raw.format, RawFormat::Cr3);
     assert_eq!(raw.info().developed_size(), (6000, 4000));
     let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
-    let look = fit_preview(&raw, &bytes, &transform, None).0;
+    let look = fit_preview(&raw, &bytes, &transform, None, None).0;
     eprintln!("R100 guarded colour fit accepted: {}", look.is_some());
     assert!(look.is_some(), "this R100 corpus photo has enough matching colour after camera-framing alignment");
     let (_, info) = crate::files::load_bytes(&bytes, 400).unwrap();
@@ -965,7 +965,7 @@ fn corpus_uses_the_bundled_profile(file: &str, model: &str) {
     let lens = lens_geometry(&raw.opcodes.list3);
     raw.opcodes.list3.retain(|op| !op.is_lens_correction());
     let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
-    let look = fit_preview(&raw, &bytes, &transform, lens.as_ref()).0.expect("fit accepted");
+    let look = fit_preview(&raw, &bytes, &transform, lens.as_ref(), None).0.expect("fit accepted");
     let expected = bundled.matrix().mul(&transform.matrix.inverse().unwrap());
     for (row, want) in look.matrix.0.iter().zip(expected.0) {
         for (got, want) in row.iter().zip(want) {
@@ -1346,7 +1346,7 @@ fn corpus_arw_with_dro_is_lowered_to_the_dro_off_tone() {
         let mut raw = lightcraft_raw::decode(&bytes).unwrap();
         raw.opcodes.list3.retain(|op| !op.is_lens_correction());
         let transform = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
-        let look = fit_preview(&raw, &bytes, &transform, None).0.expect("a camera look");
+        let look = fit_preview(&raw, &bytes, &transform, None, None).0.expect("a camera look");
         // the look fitted to the JPEG, as before this change
         let (sensor, reference, clipped) = proxies(&raw, &bytes, &transform, PROXY, 0.0, None).unwrap();
         let profile = raw.metadata.model.as_deref().and_then(crate::camera_profiles::get);
@@ -1978,20 +1978,22 @@ fn a_rejected_profile_leaves_the_tone_curve_on_the_photos_own_colour() {
     assert!(look.is_some() && !t.matrix_is_fallback);
 }
 
-/// [`monochrome_look`] on a synthetic raw file: an ILCE-7M4 (it has a bundled camera profile) whose camera JPEG,
-/// in a minimal TIFF, is black and white gets the tone curve, on the colour of the transform it is given; the
-/// same file with a tinted JPEG gets nothing from this step.
-#[test]
-fn monochrome_look_reads_the_files_black_and_white_jpeg() {
+/// A synthetic ILCE-7M4 raw (it has a bundled camera profile; demosaiced grey `sensor` levels) and its file bytes:
+/// a minimal TIFF holding the camera JPEG, a bright camera curve on the `scene` luminance as an 8-bit sRGB JPEG in
+/// `tint` (grey for `[1.0; 3]`).
+fn grey_raw_with_jpeg(
+    (w, h): (usize, usize),
+    sensor: impl Fn(usize, usize) -> f32,
+    scene: impl Fn(usize, usize) -> f32,
+    tint: [f32; 3],
+) -> (RawImage, Vec<u8>) {
     use lightcraft_raw::{BlackLevel, ColorData, OpcodeLists, Orientation, RawData, Rect};
-    let (w, h) = (192usize, 128usize);
-    let level = |x: usize, y: usize| 0.01 + 0.5 * (x as f32 / w as f32) * (0.3 + 0.7 * y as f32 / h as f32);
     let raw = RawImage {
         format: RawFormat::Arw,
         width: w,
         height: h,
         cpp: 3,
-        data: RawData::F32((0..w * h).flat_map(|i| [level(i % w, i / w); 3]).collect()),
+        data: RawData::F32((0..w * h).flat_map(|i| [sensor(i % w, i / w); 3]).collect()),
         cfa: None,
         bits: 16,
         black: BlackLevel::uniform(0.0),
@@ -2007,38 +2009,71 @@ fn monochrome_look_reads_the_files_black_and_white_jpeg() {
         metadata: lightcraft_meta::Metadata { make: Some("SONY".into()), model: Some("ILCE-7M4".into()), ..Default::default() },
         lens_metadata: Default::default(),
     };
+    let srgb = |v: f32| if v <= 0.003_130_8 { 12.92 * v } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 };
+    let pixels: Vec<u8> = (0..w * h)
+        .flat_map(|i| {
+            let v = 1.0 - (-3.0 * scene(i % w, i / w)).exp();
+            tint.map(|t| (srgb(v * t).clamp(0.0, 1.0) * 255.0).round() as u8)
+        })
+        .collect();
+    let image = lightcraft_codecs::EncodeImage::new(w as u32, h as u32, 3, lightcraft_codecs::Samples::U8(&pixels));
+    let jpeg = lightcraft_codecs::encode_jpeg(&image, 95, lightcraft_codecs::ChromaSubsampling::S444, &Default::default()).unwrap();
+    // II*, IFD0 at 8 with JPEGInterchangeFormat (0x201) and its length (0x202), the JPEG after it
+    let mut tiff = b"II*\0\x08\0\0\0\x02\0".to_vec();
+    for (tag, value) in [(0x0201u16, 38u32), (0x0202, jpeg.len() as u32)] {
+        tiff.extend(tag.to_le_bytes());
+        tiff.extend(4u16.to_le_bytes());
+        tiff.extend(1u32.to_le_bytes());
+        tiff.extend(value.to_le_bytes());
+    }
+    tiff.extend(0u32.to_le_bytes());
+    assert_eq!(tiff.len(), 38);
+    tiff.extend(jpeg);
+    (raw, tiff)
+}
+
+/// [`monochrome_look`] on a synthetic raw file: an ILCE-7M4 whose camera JPEG is black and white gets the tone curve,
+/// on the colour of the transform it is given; the same file with a tinted JPEG gets nothing from this step.
+#[test]
+fn monochrome_look_reads_the_files_black_and_white_jpeg() {
+    let (w, h) = (192usize, 128usize);
+    let level = |x: usize, y: usize| 0.01 + 0.5 * (x as f32 / w as f32) * (0.3 + 0.7 * y as f32 / h as f32);
+    let (raw, grey) = grey_raw_with_jpeg((w, h), level, level, [1.0; 3]);
     assert!(crate::camera_profiles::get("ILCE-7M4").is_some());
-    // the camera's rendering: a bright curve on the scene's luminance, as a grey (or tinted) 8-bit sRGB JPEG
-    let file = |tint: [f32; 3]| {
-        let srgb = |v: f32| if v <= 0.003_130_8 { 12.92 * v } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 };
-        let pixels: Vec<u8> = (0..w * h)
-            .flat_map(|i| {
-                let v = 1.0 - (-3.0 * level(i % w, i / w)).exp();
-                tint.map(|t| (srgb(v * t).clamp(0.0, 1.0) * 255.0).round() as u8)
-            })
-            .collect();
-        let image = lightcraft_codecs::EncodeImage::new(w as u32, h as u32, 3, lightcraft_codecs::Samples::U8(&pixels));
-        let jpeg = lightcraft_codecs::encode_jpeg(&image, 95, lightcraft_codecs::ChromaSubsampling::S444, &Default::default()).unwrap();
-        // II*, IFD0 at 8 with JPEGInterchangeFormat (0x201) and its length (0x202), the JPEG after it
-        let mut tiff = b"II*\0\x08\0\0\0\x02\0".to_vec();
-        for (tag, value) in [(0x0201u16, 38u32), (0x0202, jpeg.len() as u32)] {
-            tiff.extend(tag.to_le_bytes());
-            tiff.extend(4u16.to_le_bytes());
-            tiff.extend(1u32.to_le_bytes());
-            tiff.extend(value.to_le_bytes());
-        }
-        tiff.extend(0u32.to_le_bytes());
-        assert_eq!(tiff.len(), 38);
-        tiff.extend(jpeg);
-        tiff
-    };
     let t = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
-    let look = monochrome_look(&raw, &file([1.0; 3]), &t, None).expect("a tone curve from the black-and-white JPEG");
+    let look = monochrome_look(&raw, &grey, &t, None, None).expect("a tone curve from the black-and-white JPEG");
     assert!(look.matrix == Mat3::IDENTITY && look.hue_sat.is_none(), "on the transform's colour");
     let curve = ToneMap::camera(&look.tone, 0.0, 0.0, 0.0);
     let mid = curve.apply(0.25);
     assert!((mid - (1.0 - (-0.75f32).exp())).abs() < 0.05, "the camera's curve at 0.25: {mid}");
-    assert!(monochrome_look(&raw, &file([1.0, 0.9, 0.8]), &t, None).is_none(), "a tinted JPEG is not black and white");
+    let (_, tinted) = grey_raw_with_jpeg((w, h), level, level, [1.0, 0.9, 0.8]);
+    assert!(monochrome_look(&raw, &tinted, &t, None, None).is_none(), "a tinted JPEG is not black and white");
+}
+
+/// The look is fitted on the sensor as the render shows it, with the file's embedded vignetting correction: the
+/// camera corrected its JPEG, so a curve fitted to the uncorrected sensor learns that brightening, and the render
+/// then applies it twice (X-S10 RAFs up to 0.3 EV brighter than their camera JPEGs).
+#[test]
+fn the_look_is_fitted_on_the_vignetting_corrected_sensor() {
+    use lightcraft_develop::{EmbeddedLens, EmbeddedVignette};
+    let (w, h) = (192usize, 128usize);
+    let vignette = EmbeddedVignette { k: [1.0, 0.0, 0.0, 0.0, 0.0], center: lightcraft_geom::Point::new(0.5, 0.5), radius: 0.6 };
+    let gain = |x: usize, y: usize| {
+        let point = lightcraft_geom::Point::new(x as f64 + 0.5, y as f64 + 0.5);
+        lightcraft_pipeline::optics::embedded_vignette_gain(&vignette, point, w as f64, h as f64) as f32
+    };
+    let scene = |x: usize, y: usize| 0.01 + 0.5 * (x as f32 / w as f32) * (0.3 + 0.7 * y as f32 / h as f32);
+    let (raw, bytes) = grey_raw_with_jpeg((w, h), |x, y| scene(x, y) / gain(x, y), scene, [1.0; 3]);
+    let t = lightcraft_raw::color::camera_transform(&raw, lightcraft_raw::color::as_shot_white_xy(&raw));
+    let lens = EmbeddedLens { vignette: Some(vignette), ..Default::default() };
+    let camera = 1.0 - (-0.75f32).exp();
+    let at_quarter = |embedded: Option<&EmbeddedLens>| {
+        let look = monochrome_look(&raw, &bytes, &t, None, embedded).expect("a tone curve");
+        ToneMap::camera(&look.tone, 0.0, 0.0, 0.0).apply(0.25)
+    };
+    let (corrected, uncorrected) = (at_quarter(Some(&lens)), at_quarter(None));
+    assert!((corrected - camera).abs() < 0.03, "the camera's curve at 0.25: {corrected} vs {camera}");
+    assert!(uncorrected > camera + 0.03, "without the correction the curve brightens: {uncorrected} vs {camera}");
 }
 
 /// The black-and-white fit has the partial look's checks: a JPEG of another picture, or one the default curve
