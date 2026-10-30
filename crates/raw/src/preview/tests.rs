@@ -204,9 +204,9 @@ fn picks_largest_dct_jpeg() {
 fn cr3_preview_box_huge_lengths_are_rejected() {
     let j = fake_jpeg(300);
     for (size, len) in [(u32::MAX, u32::MAX), (u32::MAX, u32::MAX - 23), (24 + j.len() as u32, u32::MAX - 3)] {
-        let mut cr3 = b"   ftypcrx    crx isom".to_vec();
+        let mut cr3 = b"\x00\x00\x00\x18ftypcrx \x00\x00\x00\x01crx isom".to_vec();
         cr3.extend_from_slice(&size.to_be_bytes());
-        cr3.extend_from_slice(b"PRVW     T8 ");
+        cr3.extend_from_slice(b"PRVW\x00\x00\x00\x00\x00\x01\x06T\x048\x00\x01");
         cr3.extend_from_slice(&len.to_be_bytes());
         cr3.extend_from_slice(&j);
         assert_eq!(cr3_preview_boxes(&cr3), None, "size {size:#x}, len {len:#x}");
