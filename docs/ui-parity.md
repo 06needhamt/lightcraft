@@ -76,6 +76,15 @@ under the UI command that wraps it (a no-op error); the UI command now wins.
 
 **Keyword sets (KEYC-METADATA):** `⌥0` / `⌥⇧0` (`Alt+0` / `Alt+Shift+0` on Windows and Linux) make the next / previous keyword set current (`keyword.nextSet`, `keyword.previousSet`), in the Keyword Set menu's order: Recent Keywords, then the saved sets. After the last set comes Recent Keywords, and before Recent Keywords comes the last set (not documented by Adobe, our choice). `⌥1`–`⌥9` then apply the new set's keywords. Both keys can be reassigned in Help → Keyboard Shortcuts.
 
+**Alt/Option-drag previews (issue #937):** hold Alt (Option on macOS) while dragging an Edit slider, before or during
+the drag. Exposure, Highlights and Whites show highlight clipping (black, clipped channels in their colour, white where
+all three clip); Shadows and Blacks show shadow clipping (white, black where all three clip). Sharpening Amount shows
+greyscale, Radius and Detail the detail band sharpening amplifies, Masking the mask (white = sharpened); luminance Noise
+Reduction (Luminance, Detail, Contrast) shows greyscale. Releasing the key or the slider brings the photo back; the
+edit, its history and the histogram are unchanged (on a profiled display too). Not yet: mask range sliders and the
+Masking panel's local sliders. On Linux desktops that move windows with Alt+drag (KDE Plasma's
+default, also some GNOME / Xfce setups) the window manager takes the drag first: set its window-move modifier to Meta.
+
 **Still missing / broken:**
 - Tab / ⇧Tab (hide the side panels / all panels): Tab moves the keyboard focus here (accessibility), so it is
   not bound; F5 (hide the top panel) is not bound either.
@@ -168,5 +177,6 @@ establish OS keyboard delivery or cross-platform acceptance.
 | 2026-10-14 | minor | Zoom row: soft proofing gets zoom windows; LR-VIEW-ZOOM gap closed |
 | 2026-10-12 | minor | Accessibility: an AccessKit tree audit test over every view, Develop tool and 13 dialogs; unnamed fields, slider ranges and the Auto Stack slider fixed; 30% → 55%; UI remaining 40–70 h → 34–58 h |
 | 2026-10-21 | minor | Reference Escape exits to Detail; catalog-local pins and missing/deleted reference handling verified with regressions and native Windows smoke |
+| 2026-10-11 | minor | Alt/Option-drag slider previews (clipping, sharpening) and the Linux window-manager note |
 | 2026-10-11 | minor | Zoom row: Compare and Reference get zoom windows; what remains of LR-VIEW-ZOOM is overlays and soft proofing |
 | 2026-10-10 | major | Created: measured command and shortcut counts, assessment by area, estimates; moved the shortcut conflicts section here from the checklist |

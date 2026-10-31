@@ -903,6 +903,18 @@
 - The choice is saved in export presets and Export with Previous. Agents pass
   `destinationMode: "sameAsOriginal"` (or `"specificFolder"`) to `app.export`; `dir` is then not needed.
 
+### Alt/Option-drag previews
+- Hold Alt (Option on macOS) while dragging Exposure, Highlights or Whites to see which areas clip to white: the
+  photo turns black, fully clipped areas show white and areas clipped in one or two channels show those channels'
+  colour. Shadows and Blacks do the same for clipping to black, on white (issue #937).
+- In Detail ▸ Sharpening the same key shows Amount in greyscale, Radius and Detail as the fine detail being
+  sharpened, and Masking as the mask: white is sharpened, black is protected. Radius and Detail don't change the
+  render yet, so their preview stays the same while you drag them. Noise Reduction's Luminance, Detail and Contrast
+  show the photo in greyscale.
+- The preview lasts while the key and the slider are held, and never changes the edit, its history or exports.
+- Linux: KDE Plasma (and some other desktops) move windows with Alt+drag. If Alt+drag moves the window instead,
+  set the window manager's move modifier to Meta.
+
 ### Open Library knows a Lightroom catalog
 - Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
   `.lrcat-data` folders, or the `.lrcat`) no longer makes an empty LightCraft library inside it (issue #891). The
