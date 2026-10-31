@@ -80,6 +80,7 @@ use tone::{HighlightCheck, ToneFit, fit_tone, fit_tone_conditional, highlights};
 /// lens-corrected proxy when the file carries lens opcodes; validated A7CR distortion, including the lens data
 /// stored with each smart preview.
 /// 13: tone curves no steeper than a log-log slope of 4 between knots (#1904).
+/// 13: the Canon CR3/CR2 camera JPEG read in the colour space of the Canon maker note (#2654).
 pub const LOOK_VERSION: u32 = 13;
 
 #[derive(Clone, Debug)]
