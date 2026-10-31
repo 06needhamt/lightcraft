@@ -360,7 +360,7 @@ pub(super) fn mask_overlay(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &eg
         return;
     }
     if app.ui.tool == "brush" {
-        brush_tool(app, ui, resp, map, p, clip);
+        brush_tool(app, ui, resp, map, p, clip, d);
         return;
     }
     grip_gestures(app, ui, resp, map, d, &grips);
@@ -517,7 +517,8 @@ fn object_tool(
 }
 
 /// Brush tool: the cursor, the stroke being painted and its commit.
-fn brush_tool(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, p: &egui::Painter, clip: Rect) {
+fn brush_tool(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, p: &egui::Painter, clip: Rect, d: &DevelopSettings) {
+    let active = app.session.active_mask;
     let long = (map.rect.width().max(map.rect.height())) as f64;
     let r = (app.ui.brush_size as f64 * long) as f32;
     if let Some(h) = resp.hover_pos() {
