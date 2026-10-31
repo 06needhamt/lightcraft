@@ -52,6 +52,7 @@ mod masking_layout;
 mod menubar;
 mod merge_preview;
 mod model_setup;
+mod move_folder;
 mod offline;
 mod open_lightroom;
 pub(super) mod panels;
