@@ -127,7 +127,8 @@ impl OriginalGuard {
         put(format!("{name}.xmp"), PathBuf::from(format!("{}.xmp", path.to_string_lossy())), format!("the XMP sidecar of {label}"));
     }
 
-    /// `Err` (a message for the user) when writing `target` would replace a protected file.
+    /// `Err` (a message for the user) when writing `target` would replace a protected file, or
+    /// create a protected sidecar that isn't there yet.
     pub fn check(&self, target: &Path) -> Result<(), String> {
         self.check_target(target, false)
     }
@@ -141,7 +142,7 @@ impl OriginalGuard {
 
     fn check_target(&self, target: &Path, hard_links: bool) -> Result<(), String> {
         if std::fs::symlink_metadata(target).is_err() {
-            return Ok(()); // nothing there to replace
+            return self.check_new(target); // nothing there to replace
         }
         let mut names: Vec<String> = target.file_name().map(|n| n.to_string_lossy().to_lowercase()).into_iter().collect();
         if let Some(n) = std::fs::canonicalize(target).ok().and_then(|c| c.file_name().map(|n| n.to_string_lossy().to_lowercase())) {
@@ -186,6 +187,30 @@ impl OriginalGuard {
         }
         Ok(())
     }
+
+    /// A new file with a sidecar's name in that sidecar's folder would be read back as the
+    /// photo's edits. The folders are compared by identity, so `sub/../` or a link counts.
+    fn check_new(&self, target: &Path) -> Result<(), String> {
+        if !is_xmp(target) {
+            return Ok(());
+        }
+        let Some(name) = target.file_name().map(|n| n.to_string_lossy().to_lowercase()) else { return Ok(()) };
+        for (p, what) in self.by_name.get(&name).into_iter().flatten() {
+            if same_file(folder_of(p), folder_of(target)) {
+                return Err(format!("{} would become {what} in the library (choose another folder or file name)", target.display()));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_xmp(path: &Path) -> bool {
+    path.extension().is_some_and(|e| e.eq_ignore_ascii_case("xmp"))
+}
+
+/// The folder `path` is in (`.` for a bare file name).
+fn folder_of(path: &Path) -> &Path {
+    path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."))
 }
 
 impl crate::Session {
@@ -194,12 +219,13 @@ impl crate::Session {
         OriginalGuard::new(&self.catalog)
     }
 
-    /// `Err` when writing `path` would replace a catalogued photo's original or sidecar. A free
-    /// path (the usual case) is answered without building the guard over the whole library.
+    /// `Err` when writing `path` would replace a catalogued photo's original or sidecar, or
+    /// create one of its sidecars. A free path that isn't an `.xmp` (the usual case) is answered
+    /// without building the guard over the whole library.
     pub fn check_write_target(&self, path: &str) -> Result<(), String> {
         let path = Path::new(path);
-        if std::fs::symlink_metadata(path).is_err() {
-            return Ok(()); // nothing there to replace
+        if std::fs::symlink_metadata(path).is_err() && !is_xmp(path) {
+            return Ok(()); // nothing there to replace, and no sidecar to create
         }
         self.original_guard().check(path)
     }
@@ -214,6 +240,10 @@ impl crate::Session {
         let parent = p.parent().filter(|d| !d.as_os_str().is_empty()).and_then(|d| std::fs::canonicalize(d).ok());
         match std::fs::symlink_metadata(p) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // nothing there yet, but a new file with a photo's sidecar name would be read as its edits
+                if is_xmp(p) {
+                    self.original_guard().check(p)?;
+                }
                 Ok(WriteTarget { path: path.to_string(), state: WriteTargetState::Absent, parent })
             }
             Err(error) => Err(format!("{path}: {error}")),
@@ -291,6 +321,32 @@ mod tests {
         assert!(g.check(&d.join("IMG_1.xmp")).unwrap_err().contains("sidecar"));
         assert!(g.check(&d.join("other.jpg")).is_ok(), "an ordinary existing file");
         assert!(g.check(&d.join("new.jpg")).is_ok(), "a free name");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[test]
+    fn a_sidecar_that_isnt_there_yet_is_protected_too() {
+        let d = std::env::temp_dir().join(format!("lc-originals-new-sidecar-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("sub")).unwrap();
+        let orig = d.join("IMG_1.jpg");
+        std::fs::write(&orig, b"original").unwrap();
+        let mut c = Catalog::default();
+        let p = Photo::new(PhotoId(1), Source::File { path: orig.to_string_lossy().to_string() }, "IMG_1.jpg", "JPEG", 10, 10, "2026-01-01");
+        c.apply(Op::AddPhoto { photo: Box::new(p) }).unwrap();
+        let g = OriginalGuard::new(&c);
+        assert!(g.check(&d.join("IMG_1.xmp")).unwrap_err().contains("XMP sidecar of IMG_1.jpg"));
+        assert!(g.check(&d.join("IMG_1.jpg.xmp")).is_err(), "the appended spelling");
+        assert!(g.check(&d.join("sub/../IMG_1.xmp")).is_err(), "another spelling of the folder");
+        assert!(g.check(&d.join("sub/IMG_1.xmp")).is_ok(), "the same name in another folder");
+        assert!(g.check(&d.join("other.xmp")).is_ok(), "no photo of that name");
+        assert!(g.check(&d.join("missing/IMG_1.xmp")).is_ok(), "a folder that isn't there");
+        // a write pinned ahead of time (a queued screenshot) is refused the same way
+        let mut s = crate::Session::new();
+        s.catalog = c;
+        let pinned = s.pin_write_target(&d.join("IMG_1.xmp").to_string_lossy());
+        assert!(pinned.unwrap_err().contains("XMP sidecar of IMG_1.jpg"));
+        assert!(s.pin_write_target(&d.join("sub/IMG_1.xmp").to_string_lossy()).is_ok(), "the same name in another folder");
         let _ = std::fs::remove_dir_all(&d);
     }
 
