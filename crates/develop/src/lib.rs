@@ -271,6 +271,54 @@ mod tests {
         assert_eq!(s.grading.blending, 50.0);
     }
 
+    /// Settings with one colour-range mask of `n` distinct samples (built in code, so not capped).
+    fn color_range_settings(n: usize) -> DevelopSettings {
+        let samples = (0..n).map(|i| [i as f64 / 1000.0, 0.1, -0.1]).collect();
+        let mut s = DevelopSettings::default();
+        s.masks.push(Mask {
+            id: 1,
+            components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape: MaskShape::ColorRange { samples, refine: 50.0 } }],
+            ..Default::default()
+        });
+        s
+    }
+
+    fn color_range_samples(s: &DevelopSettings) -> &[[f64; 3]] {
+        match s.masks.first().and_then(|m| m.components.first()).map(|c| &c.shape) {
+            Some(MaskShape::ColorRange { samples, .. }) => samples,
+            other => panic!("expected a colour range, got {other:?}"),
+        }
+    }
+
+    /// Issue #2556: `mask.add`/`mask.update` capped a colour range's samples, but a sidecar `lc:settings`, a
+    /// preset, `develop.merge`, `render --settings` or a catalog / history load took any number (render cost is
+    /// pixels x samples). Every load now keeps the first [`MAX_COLOR_RANGE_SAMPLES`], in order.
+    #[test]
+    fn color_range_samples_are_capped_however_settings_load() {
+        let big = color_range_settings(1000);
+        let want = &color_range_samples(&big)[..MAX_COLOR_RANGE_SAMPLES];
+        let v = big.to_json();
+        let loaded = DevelopSettings::from_json(&v).unwrap();
+        assert_eq!(color_range_samples(&loaded).len(), MAX_COLOR_RANGE_SAMPLES);
+        assert_eq!(color_range_samples(&loaded), want);
+        let from_str: DevelopSettings = serde_json::from_str(&v.to_string()).unwrap();
+        assert_eq!(color_range_samples(&from_str), want);
+        // `develop.merge`, `render --settings` and presets merge a partial
+        let merged = DevelopSettings::default().merged(&json!({"masks": v["masks"]})).unwrap();
+        assert_eq!(color_range_samples(&merged), want);
+        let preset =
+            Preset { id: "p".into(), name: "P".into(), group: "G".into(), settings: json!({"masks": v["masks"]}), favorite: false, builtin: false };
+        assert_eq!(color_range_samples(&preset.apply(&DevelopSettings::default(), 1.0)), want);
+        // a capped list round-trips, and a short one is unchanged
+        assert_eq!(DevelopSettings::from_json(&loaded.to_json()).unwrap(), loaded);
+        let few = color_range_settings(2);
+        assert_eq!(DevelopSettings::from_json(&few.to_json()).unwrap(), few);
+        // a list that isn't samples is still refused
+        let mut bad = v.clone();
+        bad["masks"][0]["components"][0]["shape"]["samples"] = json!([[0.1, 0.2]]);
+        assert!(DevelopSettings::from_json(&bad).is_err());
+    }
+
     #[test]
     fn merge_partial() {
         let s = DevelopSettings::default();

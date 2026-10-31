@@ -1,5 +1,14 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### A colour-range mask keeps at most 64 samples, however it arrives
+- A colour-range mask compares every pixel with every colour it has sampled, so a mask with thousands of samples
+  could stall a render or export, or lose the GPU for the rest of the session. `mask.add` and `mask.update` already
+  kept the first 64; a sidecar's `lc:settings`, a preset, `develop.merge`, `render --settings` and the catalog and
+  edit history now keep the first 64 too, in order, and the extra ones are skipped as they are read. Masks made in
+  the app (up to 5 samples) are unchanged.
+
 ## 2026-10-29
 
 ### Object and Describe masks show their pins
@@ -20,6 +29,7 @@
 ### `>=` and `<=` work in the search box
 - Fielded search tokens now take inclusive comparisons: `rating:>=3`, `iso:<=400`, `f:>=2.8`, `focal:<=50`. Before,
   the `=` was read as part of the number, so such a search quietly showed no photos at all.
+
 
 ## 2026-10-24
 
