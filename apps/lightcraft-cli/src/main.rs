@@ -567,7 +567,11 @@ fn run(args: &[String]) -> Result<(), String> {
                 .or(v.get("method"))
                 .and_then(Value::as_str)
                 .ok_or_else(|| format!("{path}:{}: needs `command` or `method`", n + 1))?;
-            let params = v.get("params").cloned().filter(|p| p.is_object()).unwrap_or_else(|| json!({}));
+            let params = match v.get("params") {
+                None | Some(Value::Null) => json!({}),
+                Some(Value::Object(params)) => Value::Object(params.clone()),
+                Some(_) => return Err(format!("{path}:{}: `params` must be a JSON object", n + 1)),
+            };
             steps.push(Step { id: id.to_string(), params });
         }
     }

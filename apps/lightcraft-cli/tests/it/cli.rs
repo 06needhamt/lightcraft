@@ -557,6 +557,32 @@ fn run_script_accepts_a_utf8_bom() {
 }
 
 #[test]
+fn run_script_params_validate_before_any_commands() {
+    let path = tmp("run-invalid-params.jsonl");
+    let path_str = path.to_str().unwrap();
+    for params in [json!([]), json!("invalid"), json!(42), json!(true)] {
+        let script = format!("{}\n{}\n", json!({"command": "library.info"}), json!({"command": "develop.reset", "params": params}));
+        std::fs::write(&path, &script).unwrap();
+        for (source, stdin) in [("-", Some(script.as_str())), (path_str, None)] {
+            let (ok, lines, err) = run_cli(&["--script", source], stdin);
+            assert!(!ok, "{source}: {params}: {lines:?}");
+            assert!(lines.is_empty(), "{source}: {params}: {lines:?}");
+            assert!(err.contains(&format!("{source}:2")), "{err}");
+            assert!(err.contains("`params` must be a JSON object"), "{err}");
+        }
+    }
+    for script in
+        ["{\"command\":\"library.info\"}\n", "{\"command\":\"library.info\",\"params\":null}\n", "{\"command\":\"library.info\",\"params\":{}}\n"]
+    {
+        let (ok, lines, err) = run_cli(&["--script", "-"], Some(script));
+        assert!(ok, "{script}: {err}");
+        assert_eq!(lines.len(), 1, "{script}: {lines:?}");
+        assert_eq!(lines[0]["ok"], true, "{script}: {lines:?}");
+    }
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn run_subcommand_chains_commands_and_persists_a_library() {
     let input = tmp("run-in.png");
     gradient_png(&input);
