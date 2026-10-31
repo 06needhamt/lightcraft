@@ -137,7 +137,8 @@ impl Url {
             }
         };
         let port = match port {
-            Some(p) => p.parse::<u16>().ok().filter(|p| *p != 0).ok_or_else(|| bad("bad port"))?,
+            Some(p) if p.bytes().all(|b| b.is_ascii_digit()) => p.parse::<u16>().ok().filter(|p| *p != 0).ok_or_else(|| bad("bad port"))?,
+            Some(_) => return Err(bad("bad port")),
             None if tls => 443,
             None => 80,
         };
@@ -712,6 +713,15 @@ mod tests {
         {
             assert!(Url::parse(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn rejects_signed_ports() {
+        for bad in ["http://example.com:+80/x", "http://example.com:-80/x", "http://[::1]:+80/x"] {
+            assert!(Url::parse(bad).is_err(), "{bad}");
+        }
+        assert!(Url::parse("http://a.test/").unwrap().join("http://example.com:+80/x").is_err());
+        assert_eq!(Url::parse("http://example.com:80/x").unwrap().port, 80);
     }
 
     #[test]
