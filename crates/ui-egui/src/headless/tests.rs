@@ -2385,6 +2385,48 @@ fn crop_default_browsing_is_read_only_and_drag_is_one_edit() {
     assert_eq!(h.app.session.develop_of(photo).unwrap(), before);
 }
 
+/// Issue #3029: a ratio picked on one photo is the one the crop tool offers on the next. The box
+/// drawn on an untouched photo has that ratio too (not the photo's full frame), browsing still
+/// doesn't edit the photo, and Return crops it to the box shown.
+#[test]
+fn crop_box_on_the_next_photo_shows_the_remembered_ratio() {
+    let mut h = demo([1200.0, 800.0]);
+    let t = Duration::from_secs(10);
+    let photos: Vec<_> = h.app.session.visible_cloned().into_iter().filter(|id| !h.app.session.catalog.photo(*id).unwrap().is_edited()).collect();
+    h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [photos[0].0]}}), t);
+    h.request("ui.set", json!({"view": "detail"}), t);
+    h.request("engine.execute", json!({"command": "panel.crop"}), t);
+    h.app.run("crop.aspect", json!({"aspect": "4x5"})).unwrap();
+    h.app.run("tool.done", json!({})).unwrap();
+    h.settle(SETTLE);
+    let photo = photos[1];
+    h.request("engine.execute", json!({"command": "library.select", "params": {"ids": [photo.0]}}), t);
+    let before = h.app.session.catalog.photo(photo).unwrap().clone();
+    let undo = h.app.session.undo.len();
+    h.request("engine.execute", json!({"command": "panel.crop"}), t);
+    h.settle(SETTLE);
+    let after = h.app.session.catalog.photo(photo).unwrap();
+    assert_eq!(after.develop, before.develop, "browsing doesn't edit the photo");
+    assert_eq!(after.history.len(), before.history.len());
+    assert_eq!(h.app.session.undo.len(), undo);
+    let (aw, ah) = h.app.crop_tool_aspect().expect("the remembered ratio");
+    let shown = f64::from(aw) / f64::from(ah);
+    let same = |a: f64, b: f64| (a - b).abs() < 0.02 || (1.0 / a - b).abs() < 0.02;
+    let corner = |h: &Headless, i: usize| {
+        h.app.widgets.iter().find(|(w, _)| *w == format!("cropHandle:{i}")).map(|(_, r)| r.center()).expect("a corner handle")
+    };
+    let (tl, br) = (corner(&h, 0), corner(&h, 2));
+    let drawn = f64::from((br.x - tl.x) / (br.y - tl.y));
+    assert!(same(shown, drawn), "the dropdown says {shown:.3} but the crop box is {drawn:.3}");
+    // Return crops to the box shown
+    h.request("engine.execute", json!({"command": "tool.done"}), t);
+    h.settle(SETTLE);
+    let p = h.app.session.catalog.photo(photo).unwrap();
+    let r = p.develop.crop.geometry.rect;
+    let cropped = r.width() * f64::from(p.width) / (r.height() * f64::from(p.height));
+    assert!(same(shown, cropped), "the dropdown says {shown:.3} but the crop is {cropped:.3}");
+}
+
 /// While cropping: O cycles the guides, ⇧O mirrors them, A locks / unlocks the aspect.
 #[test]
 fn crop_keys() {

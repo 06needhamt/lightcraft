@@ -502,6 +502,58 @@ fn tracklog_auto_tag_decodes_character_references_and_undoes_once() {
     assert_eq!(s.catalog.photo(id).unwrap().meta.gps, original_gps);
 }
 
+#[test]
+fn tracklog_auto_tag_rejects_malformed_capture_time_without_history_changes() {
+    let mut s = Session::with_demo();
+    let id = s.visible_cloned().first().map(|id| id.0).unwrap();
+    s.execute("library.select", &json!({"ids": [id]})).unwrap();
+    s.execute("photo.setCaptureTime", &json!({"time": "2026-01-01T00:00:00", "each": true})).unwrap();
+    s.execute("photo.setMeta", &json!({"ids": [id], "gps": null, "title": "before"})).unwrap();
+    s.execute("photo.setMeta", &json!({"ids": [id], "title": "after"})).unwrap();
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert!(!s.undo.is_empty() && !s.redo.is_empty(), "test starts with undo and redo history");
+
+    let gpx = r#"<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>
+        <trkpt lat="45" lon="7"><time>2026-01-01T</time></trkpt>
+        <trkpt lat="46" lon="8"><time>2026-01-01T01:00:00Z</time></trkpt>
+    </trkseg></trk></gpx>"#;
+    let photo = s.catalog.photo(lightcraft_catalog::PhotoId(id)).unwrap();
+    assert_eq!(photo.meta.gps, None);
+    assert_eq!(photo.meta.title.as_str(), "before");
+
+    let before_catalog = s.catalog.to_snapshot();
+    let before_revision = s.catalog.revision;
+    let before_selection = s.selection.clone();
+    let before_commits = s.commits();
+    let before_history = |entries: &[crate::UndoEntry]| entries.iter().map(|entry| (entry.label.clone(), entry.op.clone())).collect::<Vec<_>>();
+    let before_undo = before_history(&s.undo);
+    let before_redo = before_history(&s.redo);
+
+    for dry_run in [true, false] {
+        let result = s.execute("photo.autoTagTracklog", &json!({"gpx": gpx, "ids": [id], "maxGap": 0, "dryRun": dry_run})).unwrap();
+        assert_eq!(result["tagged"], 0, "{result}");
+        assert_eq!(s.catalog.to_snapshot(), before_catalog);
+        assert_eq!(s.catalog.revision, before_revision);
+        assert_eq!(s.selection, before_selection);
+        assert_eq!(s.commits(), before_commits);
+        assert_eq!(before_history(&s.undo), before_undo);
+        assert_eq!(before_history(&s.redo), before_redo);
+    }
+
+    let valid_midnight = r#"<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>
+        <trkpt lat="45" lon="7"><time>2026-01-01T00:00:00Z</time></trkpt>
+    </trkseg></trk></gpx>"#;
+    let undo_depth = s.undo.len();
+    let commits = s.commits();
+    let result = s.execute("photo.autoTagTracklog", &json!({"gpx": valid_midnight, "ids": [id], "maxGap": 0})).unwrap();
+    assert_eq!(result["tagged"], 1, "{result}");
+    assert_eq!(s.catalog.photo(lightcraft_catalog::PhotoId(id)).unwrap().meta.gps, Some((45.0, 7.0)));
+    assert_eq!(s.undo.len(), undo_depth + 1);
+    assert_eq!(s.commits(), commits + 1);
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.catalog.photo(lightcraft_catalog::PhotoId(id)).unwrap().meta.gps, None);
+}
+
 // ---- random sort: Given the library, When the user picks Random, Then the grid is a stable shuffle
 
 #[test]

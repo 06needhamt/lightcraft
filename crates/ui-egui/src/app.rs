@@ -319,6 +319,33 @@ impl LightcraftApp {
         }
     }
 
+    /// The box the crop tool shows on an untouched photo with a remembered ratio (issue #3029): fitted
+    /// as `begin_crop` (and Return) will apply it, so the box matches the dropdown before any edit.
+    pub(crate) fn crop_tool_preview(&self) -> Option<lightcraft_geom::CropGeometry> {
+        let photo = self.session.active()?;
+        let d = self.session.develop_of(photo)?;
+        if d.crop != lightcraft_develop::Crop::default() || !matches!(self.ui.crop_default_aspect, Some(Value::Array(_))) {
+            return None;
+        }
+        let (aw, ah) = self.crop_tool_aspect()?;
+        let p = self.session.catalog.photo(photo)?;
+        let (w, h) = (f64::from(p.width.max(1)), f64::from(p.height.max(1)));
+        let (w, h) = if d.orientation.swaps_axes() { (h, w) } else { (w, h) };
+        // turned like the photo's full-frame crop, as `crop.aspect` with `orientation: "crop"` does
+        let (aw, ah) = if (aw >= ah) != (w >= h) { (ah, aw) } else { (aw, ah) };
+        Some(lightcraft_geom::crop_fit_angle(w, h, d.crop.geometry.angle, Some(f64::from(aw) / f64::from(ah.max(1)))))
+    }
+
+    /// Return on an untouched photo crops it to the remembered ratio's box the tool showed.
+    pub(crate) fn apply_crop_preview(&mut self) {
+        if self.crop_tool_preview().is_some()
+            && let Some(aspect) = self.ui.crop_default_aspect.clone()
+            && let Err(e) = self.session.execute("crop.aspect", &serde_json::json!({"aspect": aspect, "orientation": "crop"}))
+        {
+            self.ui.status = e.to_string();
+        }
+    }
+
     /// Called only after a crop gesture begins, inside its undo transaction.
     pub(crate) fn begin_crop(&mut self) -> Result<(), String> {
         // nothing chosen yet: the photo's own shape, as `crop_tool_aspect` shows it

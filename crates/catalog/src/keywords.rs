@@ -43,6 +43,33 @@ pub fn reparent(k: &str, from: &str, to: &str) -> String {
     std::iter::once(to).filter(|t| !t.is_empty()).chain(rest).collect::<Vec<_>>().join("|")
 }
 
+/// A photo's keywords as a sidecar writes them: the two lists [`to_file`] fills.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FileKeywords {
+    /// For `dc:subject`: every level of every keyword, each once.
+    pub flat: Vec<String>,
+    /// For `lr:hierarchicalSubject`: every keyword as its path, when any keyword has levels;
+    /// empty otherwise, so a library without hierarchy doesn't gain the property.
+    pub hierarchical: Vec<String>,
+}
+
+/// A photo's keywords as a sidecar writes them, the inverse of [`from_file`]. `dc:subject` is the
+/// flat list other applications search, so it gets names (`travel`, `Italy`, `Rome`), never paths,
+/// as Lightroom Classic and darktable write it; the paths go to `lr:hierarchicalSubject`. Unlike
+/// [`Catalog::export_keywords`] it applies no export options (a sidecar is the photo's own record,
+/// not an export): no keyword is left out and no synonym added, so [`from_file`] reads the pair
+/// back as the same keywords. When any keyword has levels, every keyword is listed in
+/// `hierarchical`, the flat ones too: a flat `Rome` beside `travel|Italy|Rome` would otherwise be
+/// taken for a level of the path on the way back.
+pub fn to_file(keywords: &[String]) -> FileKeywords {
+    let mut paths: Vec<String> = keywords.iter().map(|k| clean(k)).collect();
+    dedupe(&mut paths);
+    let mut flat: Vec<String> = paths.iter().flat_map(|p| p.split(SEP).map(str::to_string)).collect();
+    dedupe(&mut flat);
+    let hierarchical = if paths.iter().any(|p| p.contains(SEP)) { paths } else { Vec::new() };
+    FileKeywords { flat, hierarchical }
+}
+
 /// A file's keywords as a photo carries them: the paths of `lr:hierarchicalSubject`, then the
 /// names of `dc:subject` that aren't levels of those paths (Lightroom Classic writes each keyword's
 /// name, its parents' and synonyms flat besides its path). Each once, cleaned.

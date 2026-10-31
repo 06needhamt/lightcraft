@@ -116,6 +116,16 @@
   reported as failed with guidance to lower `renameStart` or leave `rename` blank; completed transfers stay
   accounted for and catalogued. A `renameStart` value outside this platform's range is rejected before setup.
 
+### Incomplete timestamps no longer become plausible photo times
+- An ISO date ending in `T`, a clock with extra components, or a malformed fractional second is no longer read as a
+  different valid time. XMP keeps the original property available and can use the next valid capture-time field;
+  GPX treats an invalid point time as untimed, so it cannot tag a photo at a fabricated time.
+
+### Invalid EXIF capture clocks no longer become plausible dates
+- An EXIF capture time with extra clock components is ignored as a whole. LightCraft can use a valid DateTimeDigitized,
+  IFD0 DateTime or embedded XMP value instead, while All Metadata continues to show the original tag. This also keeps
+  malformed timestamps from creating false matches when geotagging from a track log.
+
 ## 2026-10-24
 
 ### A right-click on a text field while you carry photos opens no menu
@@ -146,6 +156,21 @@
 
 ### Original export checks embedded place names when removing location
 - Original copies are refused when “Remove Location Info” is enabled and the source contains GPS or a nonblank sublocation, city, state or country. Use JPEG or TIFF for rendered output; DNG is available for raw photos.
+
+### Auto straighten finds the horizon and plumb lines
+- Auto straighten (Auto in the crop panel, or a double-click with the Straighten tool) now finds a sea or
+  landscape horizon among waves and clouds, and levels buildings by where their verticals converge, so a photo shot
+  upward is no longer turned by the lean of its walls. Measured on 113 photos straightened by hand in Lightroom
+  Classic, it straightens 50 of them instead of 29, without making more of them worse.
+- It turns a photo by at most 5° (before: 10°); only two of those photos needed more.
+
+### Sidecar keywords stay searchable in other applications
+- Saving an XMP sidecar wrote each keyword's path into `dc:subject`, so after any change, even a star rating, a
+  photo keyworded `Places|Italy|Rome` listed `Places|Italy|Rome` there instead of `Places`, `Italy` and `Rome`,
+  and a search for "Rome" in Lightroom, darktable, digiKam or another DAM no longer found it. Sidecars now get the
+  names in `dc:subject` and the paths in `lr:hierarchicalSubject`, as Lightroom Classic writes them, and LightCraft
+  reads them back as the same keywords. A sidecar written by an earlier version is put right the next time it is
+  saved.
 
 
 ### Relative-date filters and smart albums follow the clock
@@ -210,6 +235,13 @@
 - The HDR, Panorama and HDR Panorama dialogs make a new preview each time they open (issue #2708). After a preview
   had failed once, for example because a photo's file was missing, opening the dialog again with the same options
   showed neither a preview nor an error until an option was changed.
+
+### Edits read from a sidecar are kept in range
+- LightCraft edits read back from an XMP sidecar (Read Metadata from File, or at import) are now checked like presets
+  and pasted settings: sliders and curves are kept in their ranges and the straighten angle within ±45° (issue
+  #2555). A turned crop that reaches far past the photo is trimmed to the photo when it is shown or exported. Before,
+  a damaged or hand-edited sidecar could set a crop that made a full-size export ask for trillions of pixels and
+  close the app. Crops made with the crop tool are unchanged.
 
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
@@ -326,6 +358,11 @@
 
 
 ## 2026-10-22
+
+### Exports don't create a photo's sidecar
+- Saving an export, a preset or any other file as `IMG_1.xmp` or `IMG_1.jpg.xmp` in the folder of the library photo
+  `IMG_1.jpg` is now refused when no sidecar is there yet, as writing over an existing one already was. The library
+  would have read the new file back as that photo's edits.
 
 ### Reliability
 - Opening a library no longer writes through a link left at the lock's owner note (`catalog.lock.owner`): the link

@@ -416,6 +416,62 @@ fn a_tight_crop_reads_the_source_level_its_pixels_need() {
     assert_eq!(s.render_job(id, 600, 600, false, true).unwrap().level, SourceLevel::Preview);
 }
 
+// Issue #2555: a turned crop reaching far past the photo (from a sidecar or an agent) is rendered
+// bounded to the turned photo, so its source is sized from that bounded crop: shown 1600 px long it
+// needs the preview, not the 512 px thumbnail its rect of 1000 photos across asked for
+#[test]
+fn a_crop_far_past_the_photo_reads_the_source_its_bounded_frame_needs() {
+    let mut s = crate::Session::with_demo();
+    let id = s.catalog.photos().next().unwrap().id;
+    let wild = lightcraft_geom::CropGeometry { rect: lightcraft_geom::Rect::new(0.0, 0.0, 1000.0, 1000.0), angle: 5.0 };
+    let mut d = (*s.develop_of(id).unwrap()).clone();
+    d.crop.geometry = wild;
+    s.set_develop(id, d, "Crop").unwrap();
+    assert_eq!(s.render_job(id, 1600, 1600, false, true).unwrap().level, SourceLevel::Preview);
+    // bounded in the frame the render bounds it in: the photo's own, or turned a quarter
+    let p = s.catalog.photo(id).unwrap().clone();
+    let (w, h) = (f64::from(p.width), f64::from(p.height));
+    assert_ne!(w, h, "a square photo can't tell the two frames apart");
+    for orientation in [lightcraft_geom::Orientation::Normal, lightcraft_geom::Orientation::Rotate90] {
+        let (ow, oh) = if orientation.swaps_axes() { (h, w) } else { (w, h) };
+        let mut d = lightcraft_develop::DevelopSettings { orientation, ..Default::default() };
+        d.crop.geometry = wild;
+        let r = wild.bounded(ow, oh).rect;
+        let expected = (1600.0 * w.max(h) / (r.width() * ow).max(r.height() * oh)) as usize;
+        assert_eq!(super::source::source_edge_needed(&p, &d, true, 1600), expected, "{orientation:?}");
+    }
+}
+
+// …while every crop the crop tools make, turned or not, on a photo shown upright or turned a
+// quarter, still asks for exactly the source its own rect needs
+#[test]
+fn crops_on_the_photo_keep_the_source_size_they_need() {
+    use lightcraft_geom::{Orientation, crop_fit_angle};
+    let s = crate::Session::with_demo();
+    let p = s.catalog.photos().next().unwrap().clone();
+    let (w, h) = (f64::from(p.width), f64::from(p.height));
+    for orientation in [Orientation::Normal, Orientation::Rotate90] {
+        let (ow, oh) = if orientation.swaps_axes() { (h, w) } else { (w, h) };
+        for angle in [-45.0, -12.5, 0.0, 7.0, 45.0] {
+            for aspect in [None, Some(1.0), Some(3.0), Some(0.25)] {
+                let mut d = lightcraft_develop::DevelopSettings { orientation, ..Default::default() };
+                d.crop.geometry = crop_fit_angle(ow, oh, angle, aspect);
+                // the rect is in the photo as shown, so its pixels are counted in the turned size
+                let r = d.crop.geometry.rect;
+                let expected = (1600.0 * w.max(h) / (r.width() * ow).max(r.height() * oh)) as usize;
+                assert_eq!(super::source::source_edge_needed(&p, &d, true, 1600), expected, "{orientation:?} {angle} {aspect:?}");
+            }
+        }
+    }
+    // a square crop of the photo turned a quarter is the photo's short side across: shown 2000 px
+    // long it needs more than the 2560 px preview (counted in the unturned size, it asked for 2000)
+    let mut d = lightcraft_develop::DevelopSettings { orientation: Orientation::Rotate90, ..Default::default() };
+    d.crop.geometry = crop_fit_angle(h, w, 0.0, Some(1.0));
+    let needed = super::source::source_edge_needed(&p, &d, true, 2000);
+    assert_eq!(needed, (2000.0 * w.max(h) / w.min(h)) as usize);
+    assert_eq!(SourceLevel::for_size(needed), SourceLevel::Full, "{needed}");
+}
+
 // a window whose spot reads from further away than a render can hold is refused
 #[test]
 fn a_region_job_is_refused_when_a_spot_reads_beyond_what_fits() {

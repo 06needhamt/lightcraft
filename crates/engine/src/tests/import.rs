@@ -33,6 +33,34 @@ fn write_png(path: &Path, seed: u8) {
     std::fs::File::options().write(true).open(path).unwrap().set_modified(t).unwrap();
 }
 
+fn exif_clock_block(original: Option<&str>, digitized: Option<&str>) -> Vec<u8> {
+    use lightcraft_tiff::{ByteOrder, IfdBuilder, TiffWriter, Value};
+
+    let mut exif = IfdBuilder::new();
+    if let Some(value) = original {
+        exif.set(0x9003, Value::Ascii(value.into()));
+    }
+    if let Some(value) = digitized {
+        exif.set(0x9004, Value::Ascii(value.into()));
+    }
+    let mut ifd0 = IfdBuilder::new();
+    ifd0.set_child(0x8769, exif);
+    TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap()
+}
+
+fn write_png_with_metadata(path: &Path, seed: u8, exif: Option<&[u8]>, xmp: Option<&str>) {
+    let (w, h) = (48usize, 32usize);
+    let data: Vec<[u8; 4]> = (0..w * h).map(|i| [(i % w * 5) as u8, (i / w * 7) as u8, seed, 255]).collect();
+    let img = lightcraft_raster::Rgba8 { width: w, height: h, data };
+    let metadata = lightcraft_codecs::EncodeMeta { exif, xmp, ..Default::default() };
+    let bytes = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &metadata).unwrap();
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, bytes).unwrap();
+    // Keep the same known file-date fallback as write_png, distinct from the regression timestamp.
+    let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_768_370_328);
+    std::fs::File::options().write(true).open(path).unwrap().set_modified(t).unwrap();
+}
+
 fn ids(v: &Value, key: &str) -> usize {
     v[key].as_array().map(Vec::len).unwrap_or(0)
 }
@@ -131,6 +159,106 @@ fn civil_dates() {
     assert_eq!(crate::import::civil(0), "1970-01-01T00:00:00");
     assert_eq!(crate::import::civil(951_782_400), "2000-02-29T00:00:00");
     assert_eq!(crate::import::civil(1_790_000_000), "2026-09-21T14:13:20");
+}
+
+#[test]
+fn exif_clock_import_uses_valid_fallback_dates_and_keeps_raw_tags() {
+    const INVALID: &str = "2026:01:01 12:34:56:99";
+    const XMP: &str = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:CreateDate="2026-01-05T10:00:00Z"/></rdf:RDF></x:xmpmeta>"#;
+    let dir = temp_dir("exif-clock-fallbacks");
+    let digitized_path = dir.join("digitized.png");
+    let digitized_exif = exif_clock_block(Some(INVALID), Some("2026:01:02 10:00:00"));
+    write_png_with_metadata(&digitized_path, 1, Some(&digitized_exif), None);
+    let xmp_path = dir.join("xmp.png");
+    let malformed_only_exif = exif_clock_block(Some(INVALID), None);
+    write_png_with_metadata(&xmp_path, 2, Some(&malformed_only_exif), Some(XMP));
+
+    let mut s = Session::new().with_fs();
+    let imported = s.execute("library.import", &json!({"paths": [digitized_path.to_string_lossy(), xmp_path.to_string_lossy()]})).unwrap();
+    assert_eq!(ids(&imported, "imported"), 2, "{imported}");
+    let digitized = s.catalog.photos().find(|photo| photo.file_name == "digitized.png").unwrap();
+    let digitized_id = digitized.id.0;
+    assert_eq!(digitized.captured.as_deref(), Some("2026-01-02T10:00:00"));
+    let xmp = s.catalog.photos().find(|photo| photo.file_name == "xmp.png").unwrap();
+    let xmp_id = xmp.id.0;
+    assert_eq!(xmp.captured.as_deref(), Some("2026-01-05T10:00:00+00:00"));
+
+    let all = s.execute("photo.allMetadata", &json!({"id": digitized_id})).unwrap();
+    assert!(all["exif"].as_array().unwrap().iter().any(|row| row["tag"] == json!(0x9003) && row["value"] == INVALID), "{all}");
+    let all = s.execute("photo.allMetadata", &json!({"id": xmp_id})).unwrap();
+    assert!(all["exif"].as_array().unwrap().iter().any(|row| row["tag"] == json!(0x9003) && row["value"] == INVALID), "{all}");
+    assert!(all["xmp"].as_array().unwrap().iter().any(|row| row["name"] == "xmp:CreateDate" && row["value"] == "2026-01-05T10:00:00Z"), "{all}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn exif_clock_malformed_capture_cannot_fabricate_tracklog_match() {
+    use lightcraft_catalog::PhotoId;
+
+    const INVALID: &str = "2026:01:01 12:34:56:99";
+    const GPX: &str = r#"<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg><trkpt lat="45" lon="7"><time>2026-01-01T12:34:56Z</time></trkpt></trkseg></trk></gpx>"#;
+    let dir = temp_dir("exif-clock-tracklog");
+    let malformed_path = dir.join("malformed.png");
+    let malformed_exif = exif_clock_block(Some(INVALID), None);
+    write_png_with_metadata(&malformed_path, 3, Some(&malformed_exif), None);
+    let valid_path = dir.join("valid.png");
+    let valid_exif = exif_clock_block(Some("2026:01:01 12:34:56"), None);
+    write_png_with_metadata(&valid_path, 4, Some(&valid_exif), None);
+
+    let mut s = Session::new().with_fs();
+    let imported = s.execute("library.import", &json!({"paths": [malformed_path.to_string_lossy()]})).unwrap();
+    assert_eq!(ids(&imported, "imported"), 1, "{imported}");
+    let bad_id = imported["imported"][0].as_u64().unwrap();
+    assert_eq!(
+        s.catalog.photo(PhotoId(bad_id)).unwrap().captured.as_deref(),
+        Some("2026-01-14T05:58:48"),
+        "malformed EXIF must leave the normal file-date fallback in effect"
+    );
+    let all = s.execute("photo.allMetadata", &json!({"id": bad_id})).unwrap();
+    assert!(
+        all["exif"].as_array().unwrap().iter().any(|row| row["tag"] == json!(0x9003) && row["value"] == INVALID),
+        "raw EXIF remains available: {all}"
+    );
+
+    // Leave both undo and redo populated so a no-match call must preserve the existing history branch.
+    s.execute("photo.setMeta", &json!({"ids": [bad_id], "title": "history control"})).unwrap();
+    s.execute("edit.undo", &json!({})).unwrap();
+    s.execute("library.select", &json!({"ids": [bad_id]})).unwrap();
+    assert!(!s.undo.is_empty() && !s.redo.is_empty());
+    let state = |session: &Session| {
+        (
+            session.catalog.to_snapshot(),
+            session.catalog.revision,
+            session.selection.clone(),
+            session.commits(),
+            session.undo.iter().map(|entry| (entry.label.clone(), entry.op.clone())).collect::<Vec<_>>(),
+            session.redo.iter().map(|entry| (entry.label.clone(), entry.op.clone())).collect::<Vec<_>>(),
+        )
+    };
+    let before = state(&s);
+    let dry = s.execute("photo.autoTagTracklog", &json!({"gpx": GPX, "ids": [bad_id], "maxGap": 0, "dryRun": true})).unwrap();
+    assert_eq!(dry["tagged"], 0, "{dry}");
+    assert_eq!(dry["skipped"]["outside"], 1, "the file-date fallback is outside the one-point track: {dry}");
+    assert_eq!(state(&s), before, "dry-run changed catalog, selection or history");
+    let actual = s.execute("photo.autoTagTracklog", &json!({"gpx": GPX, "ids": [bad_id], "maxGap": 0})).unwrap();
+    assert_eq!(actual["tagged"], 0, "{actual}");
+    assert_eq!(actual["skipped"]["outside"], 1, "{actual}");
+    assert_eq!(state(&s), before, "unmatched tracklog call changed catalog, selection or history");
+    assert_eq!(s.catalog.photo(PhotoId(bad_id)).unwrap().meta.gps, None);
+
+    let imported = s.execute("library.import", &json!({"paths": [valid_path.to_string_lossy()]})).unwrap();
+    assert_eq!(ids(&imported, "imported"), 1, "{imported}");
+    let valid_id = imported["imported"][0].as_u64().unwrap();
+    assert_eq!(s.catalog.photo(PhotoId(valid_id)).unwrap().captured.as_deref(), Some("2026-01-01T12:34:56"));
+    s.execute("library.select", &json!({"ids": [valid_id]})).unwrap();
+    let undo_before = s.undo.len();
+    let tagged = s.execute("photo.autoTagTracklog", &json!({"gpx": GPX, "ids": [valid_id], "maxGap": 0})).unwrap();
+    assert_eq!(tagged["tagged"], 1, "{tagged}");
+    assert_eq!(s.catalog.photo(PhotoId(valid_id)).unwrap().meta.gps, Some((45.0, 7.0)));
+    assert_eq!(s.undo.len(), undo_before + 1, "valid tagging is one undo step");
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.catalog.photo(PhotoId(valid_id)).unwrap().meta.gps, None);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -2334,6 +2462,49 @@ fn heic_imports_as_a_normal_photo_or_says_why_not() {
         d.image.data.iter().map(|p| p[1]).sum::<f32>() / d.image.data.len() as f32
     };
     assert!(mean(&brighter.bytes) > mean(&plain.bytes) * 1.3, "exposure +1 brightens the HEIC");
+    let _ = std::fs::remove_dir_all(&src);
+}
+
+/// Issue #2284: a photo taken at 13:00 in UTC-5 must be catalogued as 13:00. HEICs carried no Exif
+/// (issue #1233), so every one of them fell back to the file's modification time, which the import
+/// writes as UTC: an iPhone photo landed five hours late and after 19:00 on the wrong day.
+#[test]
+fn a_heic_is_dated_by_its_exif_and_not_by_the_file() {
+    use lightcraft_heif::testdata::{Spec, build};
+    use lightcraft_tiff::{ByteOrder, IfdBuilder, TiffWriter, Value, tags as t};
+    let src = temp_dir("heic-capture-time");
+    let photo = |x: u32, y: u32| [((x * 7 + y * 13) % 200 + 30) as u16, 110, 150];
+    let mut exif = IfdBuilder::new();
+    exif.set(t::DATE_TIME_ORIGINAL, Value::Ascii("2026:10:18 13:00:00".into()));
+    exif.set(t::OFFSET_TIME_ORIGINAL, Value::Ascii("-05:00".into()));
+    let mut ifd0 = IfdBuilder::new();
+    ifd0.set(t::MAKE, Value::Ascii("Apple".into()));
+    ifd0.set(t::MODEL, Value::Ascii("iPhone 15 Pro".into()));
+    // HEIF turns the picture in the container; its Exif Orientation only mirrors that, so reading
+    // the Exif must not turn it a second time.
+    ifd0.set(t::ORIENTATION, Value::Short(vec![6]));
+    ifd0.set_child(t::EXIF_IFD, exif);
+    let exif = TiffWriter::new(ByteOrder::Little, false).write(&[ifd0]).unwrap();
+    let bytes = build(&Spec { exif: Some(exif), ..Spec::new(96, 64, &photo) });
+    let path = src.join("IMG_0002.HEIC");
+    std::fs::write(&path, &bytes).unwrap();
+    // The probe reads the metadata in every build; only decoding the picture needs the feature.
+    let info = crate::files::probe_bytes("IMG_0002.HEIC", &bytes);
+    if lightcraft_codecs::Format::Heif.can_decode() {
+        let info = info.unwrap();
+        assert_eq!(info.captured.as_deref(), Some("2026-10-18T13:00:00-05:00"));
+        assert_eq!(info.meta.camera, "Apple iPhone 15 Pro");
+        let mut s = Session::new().with_fs();
+        let r = s.execute("library.import", &json!({"paths": [src.to_string_lossy()]})).unwrap();
+        assert_eq!((ids(&r, "imported"), ids(&r, "failed")), (1, 0), "{r}");
+        let p = s.catalog.photos().next().unwrap();
+        assert_eq!(p.captured.as_deref(), Some("2026-10-18T13:00:00-05:00"), "the time the camera wrote, not the file's");
+        assert_eq!((p.width, p.height), (96, 64), "upright: the container's own transforms, not the Exif tag as well");
+        assert_eq!(lightcraft_catalog::dates::display_time(p.date()), "October 18, 2026 at 1:00:00 PM");
+    } else {
+        assert!(info.is_err(), "without the feature a HEIC cannot be opened at all");
+        assert_eq!(lightcraft_meta::extract(&bytes).capture_time.map(|d| d.to_iso()).as_deref(), Some("2026-10-18T13:00:00-05:00"));
+    }
     let _ = std::fs::remove_dir_all(&src);
 }
 

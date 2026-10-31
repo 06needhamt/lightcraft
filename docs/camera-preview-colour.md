@@ -36,7 +36,7 @@ If the original curve cannot be fitted, the wider curve can still be accepted af
 
 A near-black frame can have fewer than 256 colour pairs, so none of those attempts reaches tone fitting (#1587). After all existing looks fail, a tone-only fallback uses the wider signal floors above. At least 90% of the JPEG proxy must be below luminance 0.015. It excludes clipped sensor pixels from training and refuses invalid samples and JPEG highlights at or above 0.85. Every clipped pixel must stay at least as close to its JPEG luminance as the default curve leaves it. At least 256 usable pairs must show luminance rank correlation of 0.5 or more. Two thirds train a quantile curve; the held-out third must reduce squared luminance error by 30% in both linear and gamma-encoded values. This fallback keeps the source's spectral or neutral colour and learns no matrix, hue/saturation table or chroma curve. Earlier accepted looks keep their result.
 
-The extra dark knots move the straight-line extension down toward black without a new serialized curve format or a different CPU/GPU interpolation rule. `LOOK_VERSION` 12 refreshes older fitted smart previews when their originals are online; `RENDER_CACHE_VERSION` 69 redraws cached renders.
+The extra dark knots move the straight-line extension down toward black without a new serialized curve format or a different CPU/GPU interpolation rule. `LOOK_VERSION` 12 refreshes older fitted smart previews when their originals are online; `RENDER_CACHE_VERSION` 70 redraws cached renders.
 
 No process-version bump is needed under the [rule for changes to source data](process-versions.md#the-rule). The decoded source carries the fitted camera tone in `SourceInfo`; both V1 and V2 use it in `finish::base_tone`. Existing raws edited under V1 or V2 can therefore change when decoded again. Offline smart previews keep their stored pixels and tone until rebuilt from the original. The scan on library opening runs once per look version for each smart previews folder. If an original was offline at that scan, run Build Smart Previews after reconnecting it.
 
@@ -192,8 +192,8 @@ For 52 camera models LightCraft has colour matrices fitted to the camera's measu
 [rawtoaces-data](https://github.com/AcademySoftwareFoundation/rawtoaces-data) v1.1.0, Apache-2.0): 22 Canon, 11 Nikon,
 11 Sony, 3 Fujifilm and 5 others, plus the other names rawtoaces-data lists for them (EOS Rebel T3i and Kiss X5 for
 the EOS 600D; bodies it lists as sharing a sensor, such as the GFX100S with the GFX 100), and the bodies `SAME_SENSOR`
-in `spectral.rs` adds by hand because the table is generated: Fujifilm's 26.1 MP X-Trans CMOS 4 bodies (X-T30, X-T30 II,
-X-Pro3, X100V, X-S10, X-E4) take the X-T3's matrices. Without them an X-T30 raw whose camera JPEG was shot in Acros
+in `spectral.rs` adds by hand because the table is generated: Fujifilm's 26.1 MP X-Trans CMOS 4 bodies take the X-T3's
+(X-T30, X-T30 II, X-Pro3, X100V, X-E4, X-M5) or X-T4's (X-S10, X-S20) matrices. Without them an X-T30 raw whose camera JPEG was shot in Acros
 (black and white) got its tone curve on the muted neutral fallback, with a grey sky where the scene had a deep blue
 one. Per model the generator fits,
 under CIE Standard Illuminant A and under D65, a white-preserving 3×3 from white-balanced camera RGB to XYZ by the
