@@ -263,6 +263,8 @@ impl LightcraftApp {
             self.import_dropped_files(ctx);
         }
         self.check_external_editor(ctx);
+        // Alt (Option on macOS) while a slider is dragged shows its temporary preview
+        self.ui.alt_held = ctx.input(|i| i.modifiers.alt);
         // Recent-library checks and launch-list keys read focus/time/keys: they belong to the UI
         // phase, not the hidden-capable `logic` tick (plan §4.5 / migration input contract).
         panels::library_problem::logic(self, ctx);

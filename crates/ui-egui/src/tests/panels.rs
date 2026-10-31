@@ -2614,6 +2614,43 @@ fn right_click_add_to_album_offers_a_new_album_when_there_is_none() {
     assert!(h.app.ui.dialog.is_none(), "{:?}", h.app.ui.dialog);
 }
 
+#[test]
+fn alt_while_dragging_an_edit_slider_shows_its_preview() {
+    use crate::state::RightPanel;
+    use lightcraft_pipeline::Overlay;
+    let mut h = demo([1400.0, 900.0], json!({"view": "detail", "right": "edit"}));
+    let id = h.app.session.active().expect("active photo");
+    let d = (*h.app.session.develop_of(id).unwrap_or_default()).clone();
+    let view = |h: &Headless| crate::panels::detail::view_overlay(&h.app, &d);
+    assert_eq!(h.app.ui.right, RightPanel::Edit);
+    h.app.ui.dragging_control = Some("light.blacks".into());
+    assert_eq!(view(&h), Overlay::None, "dragging without Alt shows the photo");
+    h.app.ui.alt_held = true;
+    assert_eq!(view(&h), Overlay::ClipShadows);
+    for (c, o) in [
+        ("light.whites", Overlay::ClipHighlights),
+        ("light.exposure", Overlay::ClipHighlights),
+        ("detail.sharpenAmount", Overlay::Grayscale),
+        ("detail.sharpenRadius", Overlay::SharpenDetail),
+        ("detail.sharpenMasking", Overlay::SharpenMask),
+        ("light.contrast", Overlay::None),
+    ] {
+        h.app.ui.dragging_control = Some(c.into());
+        assert_eq!(view(&h), o, "{c}");
+    }
+    // Alt alone (no drag) or released mid-drag: back to the photo
+    h.app.ui.dragging_control = None;
+    assert_eq!(view(&h), Overlay::None);
+    h.app.ui.dragging_control = Some("light.whites".into());
+    h.app.ui.alt_held = false;
+    assert_eq!(view(&h), Overlay::None);
+    // the Masking panel's local Blacks slider is not a global clipping preview
+    h.app.ui.alt_held = true;
+    h.app.ui.right = RightPanel::Masking;
+    h.app.ui.dragging_control = Some("light.blacks".into());
+    assert_eq!(view(&h), Overlay::None);
+}
+
 /// An album's context menu ▸ Import ▸ Import from Folder… (and Import Photos…, Import from Device)
 /// opens the import review with that album chosen; a folder row doesn't offer it, and an `album`
 /// the review can't offer (a folder, or an album deleted while the scan ran) leaves its album empty.
@@ -2802,6 +2839,30 @@ fn histogram_corners_toggle_clipping_warnings() {
     assert_eq!(r["ok"], true, "{r}");
     h.step();
     assert!(!h.app.ui.show_clipping);
+}
+
+/// Issue #2679: the histogram stays at the top of the Edit panel while its sliders scroll under it.
+#[test]
+fn the_histogram_stays_in_view_while_the_sliders_scroll() {
+    let mut h = demo(
+        [1400.0, 700.0],
+        json!({"view": "detail", "right": "edit", "histogram": true, "openSections": ["light", "color", "effects", "detail", "optics"]}),
+    );
+    let (hist, exposure) = (widget(&h, "histogram"), widget(&h, "slider:light.exposure"));
+    let panel = widget(&h, "panel:right_panel");
+    let r = h.request("ui.move", json!({"x": panel.center().x, "y": panel.bottom() - 40.0}), T);
+    assert_eq!(r["ok"], true, "{r}");
+    for _ in 0..4 {
+        let r = h.request("ui.scroll", json!({"dy": -300.0}), T);
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    h.step();
+    let moved = h.app.widgets.iter().find(|(w, _)| w == "slider:light.exposure").map(|(_, r)| *r);
+    assert!(moved.is_none_or(|r| r.top() < exposure.top() - 100.0), "the sliders scrolled: {exposure:?} → {moved:?}");
+    assert_eq!(widget(&h, "histogram"), hist, "the histogram stayed where it was");
+    for id in ["histogram:shadows", "histogram:highlights"] {
+        assert!(hist.contains_rect(widget(&h, id)), "{id} is still on the histogram");
+    }
 }
 
 #[test]

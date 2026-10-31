@@ -185,6 +185,10 @@ pub struct UiState {
     /// The develop control whose slider is being dragged (geometry sliders show a grid).
     #[serde(skip)]
     pub dragging_control: Option<String>,
+    /// Alt (Option on macOS) is held this frame: a dragged Edit slider shows its temporary
+    /// preview ([`lightcraft_pipeline::Overlay::for_control`]).
+    #[serde(skip)]
+    pub alt_held: bool,
     pub search: String,
     /// Focus the search field on the next frame (Edit → Find…).
     #[serde(skip)]
@@ -429,6 +433,7 @@ impl Default for UiState {
             unnamed_focus: false,
             hidden_locations: Vec::new(),
             dragging_control: None,
+            alt_held: false,
             external_edits: Vec::new(),
             was_focused: true,
             auto_import_at: 0.0,

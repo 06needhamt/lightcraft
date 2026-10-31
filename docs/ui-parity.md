@@ -87,6 +87,15 @@ auto-repeat used to flip the zoom back and forth (`crates/ui-egui/src/space_hand
 
 **Keyword shortcut keys (KEYC-METADATA):** `⌘⌥⇧K` (`Ctrl+Alt+Shift+K` on Windows and Linux) is Set Keyword Shortcut… (`dialog.keywordShortcut`): it asks for one or more keywords with commas between them and shows the ones set before; a new name goes inside the default parent, as in the Keywording box. A keyword's Use This as Keyword Shortcut in the Keyword List sets that keyword alone, and the list shows a + after each keyword of the keyword shortcut. `Shift+K` (`keyword.toggleShortcut`) adds the keyword shortcut's keywords to the selected photos, or removes them when every selected photo has them all (the help pages do not say how a mixed selection behaves; this rule is our choice); with no keyword shortcut it does nothing. A photo's context menu offers Add Keyword with the keyword shortcut's keywords. The keyword shortcut is a mark on its keywords in the library's keyword list (`keywordShortcut`, like Put New Keywords Inside This Keyword): a new name is listed, the mark moves with a renamed, moved or merged keyword and goes with a deleted one, and setting it is one undo step. The tests are in `crates/ui-egui/src/tests/keyword_list.rs`, `crates/engine/src/tests/keyword_list.rs` and `crates/catalog/src/keywords/tests.rs`.
 
+**Alt/Option-drag previews (issue #937):** hold Alt (Option on macOS) while dragging an Edit slider, before or during
+the drag. Exposure, Highlights and Whites show highlight clipping (black, clipped channels in their colour, white where
+all three clip); Shadows and Blacks show shadow clipping (white, black where all three clip). Sharpening Amount shows
+greyscale, Radius and Detail the detail band sharpening amplifies, Masking the mask (white = sharpened); luminance Noise
+Reduction (Luminance, Detail, Contrast) shows greyscale. Releasing the key or the slider brings the photo back; the
+edit, its history and the histogram are unchanged (on a profiled display too). Not yet: mask range sliders and the
+Masking panel's local sliders. On Linux desktops that move windows with Alt+drag (KDE Plasma's
+default, also some GNOME / Xfce setups) the window manager takes the drag first: set its window-move modifier to Meta.
+
 **Still missing / broken:**
 - Tab / ⇧Tab (hide the side panels / all panels): Tab moves the keyboard focus here (accessibility), so it is
   not bound; F5 (hide the top panel) is not bound either.
@@ -183,5 +192,6 @@ establish OS keyboard delivery or cross-platform acceptance.
 | 2026-10-14 | minor | Zoom row: soft proofing gets zoom windows; LR-VIEW-ZOOM gap closed |
 | 2026-10-12 | minor | Accessibility: an AccessKit tree audit test over every view, Develop tool and 13 dialogs; unnamed fields, slider ranges and the Auto Stack slider fixed; 30% → 55%; UI remaining 40–70 h → 34–58 h |
 | 2026-10-21 | minor | Reference Escape exits to Detail; catalog-local pins and missing/deleted reference handling verified with regressions and native Windows smoke |
+| 2026-10-11 | minor | Alt/Option-drag slider previews (clipping, sharpening) and the Linux window-manager note |
 | 2026-10-11 | minor | Zoom row: Compare and Reference get zoom windows; what remains of LR-VIEW-ZOOM is overlays and soft proofing |
 | 2026-10-10 | major | Created: measured command and shortcut counts, assessment by area, estimates; moved the shortcut conflicts section here from the checklist |

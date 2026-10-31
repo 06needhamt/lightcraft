@@ -30,6 +30,20 @@
   any screen (such as `1e308`) used to queue an infinite or NaN position. A debug build panicked on it and a release
   build handed it to every widget. Numbers outside ±1,000,000 are now an error, and nothing is queued.
 
+### The histogram stays SDR when HDR is switched off
+- After an HDR edit was dragged and HDR was then switched off, dragging a slider showed the old HDR histogram (with its
+  SDR / HDR colour bar) again until the drag ended. The histogram now follows the edit: an SDR edit shows the SDR
+  histogram while you drag, too.
+
+### At most 64 red eye corrections per photo
+- Every pixel of a render goes through every red eye correction, so a sidecar, preset or agent with thousands of
+  them could stall a preview or export for hours. A photo now renders its first 64, and Red Eye refuses a 65th.
+
+### Reliability
+- A damaged or crafted Olympus ORF, Samsung SRW, Sony ARW or Pentax PEF whose strip sizes add up past the largest
+  64-bit number no longer crashes LightCraft (debug builds) when it is read: the file is refused, or read as far as
+  its data go.
+
 ## 2026-10-29
 
 ### A person's page opens in seconds in a large library
@@ -58,6 +72,11 @@
   folder LightCraft isn't allowed to read is reported as unreadable, with the system's reason, not as gone. A
   library given with `--library` or `LIGHTCRAFT_LIBRARY`, and the default location on first launch, are still
   created as before.
+
+### The histogram's clipping buttons read in light themes
+- The two buttons at the histogram's top corners (shadow and highlight clipping) are no longer near-black tiles with a
+  grey chevron. They take the theme's own raised fill, and the chevron stands out from it in Charcoal, Midnight, Silver
+  and Paper alike.
 
 ## 2026-10-28
 
@@ -323,6 +342,18 @@
   the text back and stays in Settings; in the first three it used to save what was typed, and in all of them it
   closed the window. Those three now have the Cut / Copy / Paste menu too, and what is typed in Copyright or
   Creator is saved when another tab is clicked, where it used to be dropped.
+
+### The histogram stays in view
+- The histogram stays at the top of the Edit panel while its sliders scroll under it (issue #2679). It used to scroll
+  away with them, so it was out of sight while using the sliders further down the panel.
+
+### No maze pattern in noisy raws
+- Flat areas of high-ISO raws, such as a dim wall or a blurred background, could show short horizontal and vertical
+  strokes instead of grain, often orange and blue under warm light. Noise reduction made them stand out more, because
+  it smooths the grain around them. The demosaic chose between a horizontal and a vertical guess at each pixel, and
+  in a flat area the noise alone decided which. Where neither guess is clearly better it now blends the two, so the
+  noise looks like grain. Edges are as sharp as before. Thumbnails and previews that LightCraft rendered from a raw
+  are redrawn; the camera's own embedded preview, shown for an unedited raw until its render is ready, is unchanged.
 
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
@@ -1284,6 +1315,18 @@
   is missing (moved, drive unplugged) is not exported; it gets its own error naming it.
 - The choice is saved in export presets and Export with Previous. Agents pass
   `destinationMode: "sameAsOriginal"` (or `"specificFolder"`) to `app.export`; `dir` is then not needed.
+
+### Alt/Option-drag previews
+- Hold Alt (Option on macOS) while dragging Exposure, Highlights or Whites to see which areas clip to white: the
+  photo turns black, fully clipped areas show white and areas clipped in one or two channels show those channels'
+  colour. Shadows and Blacks do the same for clipping to black, on white (issue #937).
+- In Detail ▸ Sharpening the same key shows Amount in greyscale, Radius and Detail as the fine detail being
+  sharpened, and Masking as the mask: white is sharpened, black is protected. Radius and Detail don't change the
+  render yet, so their preview stays the same while you drag them. Noise Reduction's Luminance, Detail and Contrast
+  show the photo in greyscale.
+- The preview lasts while the key and the slider are held, and never changes the edit, its history or exports.
+- Linux: KDE Plasma (and some other desktops) move windows with Alt+drag. If Alt+drag moves the window instead,
+  set the window manager's move modifier to Meta.
 
 ### Open Library knows a Lightroom catalog
 - Choosing a Lightroom Classic catalog folder in File → Open Library… (or one of its `Previews.lrdata` /
