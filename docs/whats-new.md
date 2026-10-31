@@ -23,6 +23,13 @@
 
 ## 2026-10-24
 
+### Auto straighten finds the horizon and plumb lines
+- Auto straighten (Auto in the crop panel, or a double-click with the Straighten tool) now finds a sea or
+  landscape horizon among waves and clouds, and levels buildings by where their verticals converge, so a photo shot
+  upward is no longer turned by the lean of its walls. Measured on 113 photos straightened by hand in Lightroom
+  Classic, it straightens 50 of them instead of 29, without making more of them worse.
+- It turns a photo by at most 5° (before: 10°); only two of those photos needed more.
+
 ### Sidecar keywords stay searchable in other applications
 - Saving an XMP sidecar wrote each keyword's path into `dc:subject`, so after any change, even a star rating, a
   photo keyworded `Places|Italy|Rome` listed `Places|Italy|Rome` there instead of `Places`, `Italy` and `Rome`,
