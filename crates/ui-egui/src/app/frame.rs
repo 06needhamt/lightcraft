@@ -81,6 +81,10 @@ impl LightcraftApp {
         focus_scan::pump(self, ctx, now);
         // auto import: list the watched folder every few seconds (on a worker thread: it may be on
         // a network share), then import what's new like any import (also on a worker thread)
+        // a folder that couldn't be read stops being one once another is watched (or none)
+        if self.ui.auto_import_error.as_ref().is_some_and(|(f, _)| self.session.import_defaults.auto_folder.as_ref() != Some(f)) {
+            self.ui.auto_import_error = None;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if let Some(folder) = self.session.import_defaults.auto_folder.clone() {
             const LABEL: &str = "Auto Import";
@@ -91,11 +95,32 @@ impl LightcraftApp {
                 && !self.tasks.is_running(LABEL)
             {
                 self.ui.auto_import_at = now;
-                let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&folder);
-                let done = |app: &mut LightcraftApp, _ctx: &egui::Context, listing: Result<Vec<(String, u64)>, String>| {
+                let listed = folder.clone();
+                let work = move || lightcraft_engine::cmd::library::list_auto_import_folder(&listed);
+                let done = move |app: &mut LightcraftApp, _ctx: &egui::Context, listing: Result<Vec<(String, u64)>, String>| {
+                    // the watched folder changed while this one was listed: its result is for nothing on screen
+                    if app.session.import_defaults.auto_folder.as_ref() != Some(&folder) {
+                        return;
+                    }
                     let listing = match listing {
-                        Ok(l) => l,
-                        Err(e) => return log::debug!("auto import: {e}"),
+                        Ok(l) => {
+                            if app.ui.auto_import_error.as_ref().is_some_and(|(f, _)| *f == folder) {
+                                app.ui.auto_import_error = None;
+                                log::info!("auto import: the watched folder can be read again: {folder}");
+                            }
+                            l
+                        }
+                        // removed, renamed, unmounted or not allowed: said once, not every few seconds
+                        Err(e) => {
+                            let error = Some((folder, e));
+                            if app.ui.auto_import_error != error {
+                                if let Some((_, e)) = &error {
+                                    log::warn!("auto import: can't read the watched folder {e}");
+                                }
+                                app.ui.auto_import_error = error;
+                            }
+                            return;
+                        }
                     };
                     let p = serde_json::json!({"listing": listing, "start": false});
                     let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };
