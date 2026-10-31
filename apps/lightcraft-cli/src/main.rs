@@ -685,7 +685,9 @@ fn render(args: &[String]) -> Result<(), String> {
             "--set" => {
                 let kv = take_value(args, &mut i, "--set")?;
                 let (k, v) = kv.split_once('=').ok_or_else(|| format!("--set expects control=value, got `{kv}`"))?;
-                let v: f64 = v.trim().parse().map_err(|_| format!("--set {k}: `{v}` is not a number"))?;
+                // `inf` / `NaN` parse as f64 but become JSON null, which the control would silently ignore.
+                let v: f64 =
+                    v.trim().parse().ok().filter(|n: &f64| n.is_finite()).ok_or_else(|| format!("--set {k}: `{v}` is not a finite number"))?;
                 values.insert(k.trim().to_string(), json!(v));
             }
             "--settings" => settings = Some(read_settings(take_value(args, &mut i, "--settings")?)?),
