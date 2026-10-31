@@ -40,6 +40,7 @@
   "Filter bar — {active} active filter{}": "篩選列 — 已套用 {active} 個篩選條件{:.0}",
   "Healed {n} dust spot{}": "已修復 {n} 個灰塵斑點{:.0}",
   "Import cancelled · {} photo{} added": "已取消匯入 · 已加入 {} 張照片{:.0}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "使用「檔案 → 匯入照片…」（{}），或將照片拖放至此",
   "Imported {n} point curve preset{}": "已匯入 {n} 個點曲線預設集{:.0}",
   "Imported {n} preset{}": "已匯入 {n} 個預設集{:.0}",
   "Imported {n} preset{}, {f} file{} not readable": "已匯入 {n} 個預設集{:.0}，{f} 個檔案無法讀取{:.0}",

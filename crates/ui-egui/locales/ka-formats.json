@@ -76,6 +76,7 @@
   "Healed {n} dust spot{}": "აღდგენილია მტვრის ლაქა: {n}{:.0}",
   "Import cancelled · {} photo{} added": "იმპორტი გაუქმდა · დაემატა ფოტო: {}{:.0}",
   "Import failed: {e}": "იმპორტი ვერ მოხერხდა: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "ფოტოების იმპორტისთვის გამოიყენეთ ფაილი → ფოტოების იმპორტი… ({}), ან ჩააგდეთ ისინი აქ",
   "Import warnings ({n}):\n{warnings}": "იმპორტის გაფრთხილებები ({n}):\n{warnings}",
   "Imported {n} point curve preset{}": "იმპორტირებულია წერტილოვანი მრუდის პრესეტი: {n}{:.0}",
   "Imported {n} preset{}": "იმპორტირებულია პრესეტი: {n}{:.0}",

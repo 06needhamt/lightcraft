@@ -76,6 +76,7 @@
   "Healed {n} dust spot{}": "Retušované prachové skvrny: {n}{:.0}",
   "Import cancelled · {} photo{} added": "Import byl zrušen · přidáno fotografií: {}{:.0}",
   "Import failed: {e}": "Import selhal: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importujte fotografie přes Soubor → Importovat fotografie… ({}) nebo je přetáhněte sem",
   "Import warnings ({n}):\n{warnings}": "Varování importu ({n}):\n{warnings}",
   "Imported {n} point curve preset{}": "Importovaná přednastavení bodové křivky: {n}{:.0}",
   "Imported {n} preset{}": "Importovaná přednastavení: {n}{:.0}",

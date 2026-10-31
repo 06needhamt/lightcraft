@@ -992,20 +992,22 @@ pub fn run_native_command(app: &mut LightcraftApp, id: &str, params: Value) -> N
     policy
 }
 
-/// Human-readable shortcut text for menus: `Cmd+Shift+Z` → `⌘⇧Z` on macOS, `Ctrl+Shift+Z` elsewhere.
+/// Human-readable shortcut text for menus: `Cmd+Shift+Z` → `⇧⌘Z` on macOS, `Ctrl+Shift+Z` elsewhere.
+/// On macOS the modifiers come in AppKit's and Apple's HIG order, ⌃⌥⇧⌘, however the binding spells them.
 pub fn shortcut_text(sc: &str, mac: bool) -> String {
     if mac {
-        let mut mods = String::new();
+        let (mut ctrl, mut alt, mut shift, mut cmd) = (false, false, false, false);
         let mut key = "";
         for part in sc.split('+') {
             match part {
-                "Ctrl" => mods.push('⌃'),
-                "Alt" => mods.push('⌥'),
-                "Shift" => mods.push('⇧'),
-                "Cmd" => mods.push('⌘'),
+                "Ctrl" => ctrl = true,
+                "Alt" => alt = true,
+                "Shift" => shift = true,
+                "Cmd" => cmd = true,
                 k => key = k,
             }
         }
+        let mods: String = [(ctrl, '⌃'), (alt, '⌥'), (shift, '⇧'), (cmd, '⌘')].into_iter().filter_map(|(on, glyph)| on.then_some(glyph)).collect();
         let key = match key {
             "Delete" => "⌫",
             "Escape" => "⎋",

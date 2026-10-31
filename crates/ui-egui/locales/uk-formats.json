@@ -61,6 +61,7 @@
   "Healed {n} dust spot{}": "Усунено пилових плям: {n}{:.0}",
   "Import cancelled · {} photo{} added": "Імпорт скасовано · додано фото: {}{:.0}",
   "Import failed: {e}": "Помилка імпорту: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Імпортуйте фото через Файл → Імпортувати фото… ({}) або перетягніть їх сюди",
   "Import warnings ({n}):\n{warnings}": "Попередження імпорту ({n}):\n{warnings}",
   "Imported {n} point curve preset{}": "Імпортовано наборів налаштувань точкової кривої: {n}{:.0}",
   "Imported {n} preset{}": "Імпортовано наборів налаштувань: {n}{:.0}",

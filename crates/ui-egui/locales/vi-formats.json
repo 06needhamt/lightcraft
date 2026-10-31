@@ -92,6 +92,7 @@
   "Healed {n} dust spot{}": "Đã xử lý {n} vết bụi{:.0}",
   "Import cancelled · {} photo{} added": "Đã hủy nhập · đã thêm {} ảnh{:.0}",
   "Import failed: {e}": "Nhập thất bại: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Nhập ảnh bằng Tệp → Nhập ảnh… ({}), hoặc thả vào đây",
   "Import warnings ({n}):\n{warnings}": "Cảnh báo khi nhập ({n}):\n{warnings}",
   "Imported {e} mask effect{} (Masking ▸ Effect)": "Imported {e} mask effect{} (Masking → Effect)",
   "Imported {name}": "Imported {name}",

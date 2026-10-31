@@ -33,6 +33,7 @@
   "Exporting {} of {total}": "書き出し中：{total}枚中{}枚",
   "Filter bar — {active} active filter{}": "フィルターバー：{active}件適用中{:.0}",
   "Healed {n} dust spot{}": "{n}か所のほこりを修復しました{:.0}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "「ファイル → 写真を読み込む…」（{}）から読み込むか、ここに写真をドロップしてください",
   "Imported {n} point curve preset{}": "{n}件のポイントカーブを読み込みました{:.0}",
   "Imported {n} preset{}": "{n}件のプリセットを読み込みました{:.0}",
   "Imported {n} preset{}, {f} file{} not readable": "{n}件のプリセットを読み込みました{:.0}。{f}件は読み込めません{:.0}",

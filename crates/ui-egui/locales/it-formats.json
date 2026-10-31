@@ -60,6 +60,7 @@
   "Healed {n} dust spot{}": "Macchie di polvere corrette: {n}{:.0}",
   "Import cancelled · {} photo{} added": "Importazione annullata · foto aggiunte: {}{:.0}",
   "Import failed: {e}": "Importazione non riuscita: {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importa le foto con File → Importa foto… ({}), oppure trascinale qui",
   "Import warnings ({n}):\n{warnings}": "Avvisi di importazione ({n}):\n{warnings}",
   "XMP profile \"{profile}\" was not applied for {path}; colors may differ from Lightroom.": "Il profilo XMP \"{profile}\" non è stato applicato a {path}; i colori possono differire da Lightroom.",
   "Lightroom geometry was not preserved for {path}; {mode} will be recalculated.": "La geometria di Lightroom non è stata conservata per {path}; {mode} verrà ricalcolato.",

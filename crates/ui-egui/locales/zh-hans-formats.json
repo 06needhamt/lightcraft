@@ -33,6 +33,7 @@
   "Exporting {} of {total}": "正在导出 {total} 张中的第 {0} 张",
   "Filter bar — {active} active filter{}": "筛选栏 — 已启用 {active} 个筛选{0:.0}",
   "Healed {n} dust spot{}": "已修复 {n} 处尘点{0:.0}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "使用“文件 → 导入照片…”（{}）导入照片，或将照片拖放到此处",
   "Imported {n} point curve preset{}": "已导入 {n} 个点曲线预设{0:.0}",
   "Imported {n} preset{}": "已导入 {n} 个预设{0:.0}",
   "Imported {n} preset{}, {f} file{} not readable": "已导入 {n} 个预设，{f} 个文件无法读取{0:.0}{1:.0}",

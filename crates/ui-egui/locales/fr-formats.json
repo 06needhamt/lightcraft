@@ -61,6 +61,7 @@
   "Healed {n} dust spot{}": "{n} tache{} de poussière corrigée(s)",
   "Import cancelled · {} photo{} added": "Importation annulée · {} photo{} ajoutée(s)",
   "Import failed: {e}": "Échec de l’importation : {e}",
+  "Import photos with File → Import Photos… ({}), or drop them here": "Importez des photos avec Fichier → Importer des photos… ({}) ou déposez-les ici",
   "Import warnings ({n}):\n{warnings}": "Avertissements d’importation ({n}) :\n{warnings}",
   "Imported {n} point curve preset{}": "{n} préréglage{} de courbe à points importé(s)",
   "Imported {n} preset{}": "{n} préréglage{} importé(s)",
