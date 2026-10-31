@@ -2736,6 +2736,7 @@
   "Dropped Files": "ჩაგდებული ფაილები",
   "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე",
   "An import is running": "იმპორტი მიმდინარეობს",
+  "The photos are imported once it ends": "ფოტოები ამის შემდეგ შემოიტანება",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
   "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
   "Thumbnail size": "მინიატურების ზომა",

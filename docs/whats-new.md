@@ -9,6 +9,11 @@
   ends where that block begins, so these photos import, show and build previews. A JPEG that is really cut short is
   still refused.
 
+### Photos waiting for a library wait for a running import too
+- Photos given on the command line or dropped on the launch list are imported once a library opens. If another import
+  or a Synchronize Folder is still running then, they now wait for it to end instead of being dropped, and a message
+  says so (issue #2779).
+
 ## 2026-10-29
 
 ### Move Folder To… no longer freezes the window

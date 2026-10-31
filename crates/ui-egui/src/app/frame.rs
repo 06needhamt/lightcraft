@@ -66,6 +66,7 @@ impl LightcraftApp {
         if import_tick_allowed(ctx) {
             import::tick(self, ctx);
         }
+        panels::library_problem::import_waiting(self, ctx);
         lightroom_import::tick(self, ctx);
         recheck::tick(self);
         tasks::poll(self, ctx);

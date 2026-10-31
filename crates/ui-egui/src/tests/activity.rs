@@ -172,6 +172,35 @@ fn quit_with_a_running_task_asks_and_quit_anyway_cancels() {
     assert!(g.is_cancelled() && h.quit_requested());
 }
 
+/// Files waiting for a running import or Synchronize Folder (issue #2779) make quitting ask, and
+/// Quit Anyway gives them up instead of asking about them again and again.
+#[test]
+fn quit_anyway_gives_up_files_waiting_to_be_imported() {
+    let dir = std::env::temp_dir().join(format!("lightcraft-quit-waiting-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for i in 0..1000u32 {
+        let img = lightcraft_raster::Rgba8 { width: 8, height: 8, data: vec![[(i % 251) as u8, (i / 251) as u8, 9, 255]; 64] };
+        let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&img), &lightcraft_codecs::EncodeMeta::default()).unwrap();
+        std::fs::write(dir.join(format!("{i}.png")), png).unwrap();
+    }
+    let mut h = demo();
+    // the file waits behind an import that is still running
+    crate::import::start_paths(&mut h.app, vec![dir.to_string_lossy().to_string()]).unwrap();
+    h.app.waiting_import.files = vec![dir.join("0.png").to_string_lossy().to_string()];
+    wait_visible(&mut h);
+    assert!(h.app.import.is_some() && !h.app.waiting_import.files.is_empty(), "still waiting");
+    assert!(!crate::panels::notices::may_close(&mut h.app));
+    assert!(matches!(h.app.quit_prompt, Some(crate::QuitPrompt::Tasks(_))), "{:?}", h.app.quit_prompt);
+    h.step();
+    assert!(h.app.import.is_some() && !h.app.waiting_import.files.is_empty(), "still waiting at the click");
+    click(&mut h, "button:quitAnyway");
+    assert!(h.app.quit_prompt.is_none(), "not asked again: {:?}", h.app.quit_prompt);
+    assert!(h.quit_requested());
+    assert!(h.app.waiting_import.files.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn quit_cancel_keeps_the_task_running() {
     let mut h = demo();

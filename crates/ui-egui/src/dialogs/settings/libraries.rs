@@ -17,6 +17,10 @@ pub(crate) fn can_switch_library(app: &LightcraftApp) -> Result<(), String> {
     if app.pending_picks.iter().any(|p| p.command == "folder.move") {
         return Err("wait for Move Folder To… to finish before switching libraries".into());
     }
+    // they were meant for the library open now (issue #2779)
+    if !app.waiting_import.files.is_empty() {
+        return Err("wait for the photos waiting to be imported before switching libraries".into());
+    }
     Ok(())
 }
 
