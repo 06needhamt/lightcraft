@@ -35,6 +35,11 @@
 - Creating a numbered virtual copy now reports when the `Copy N` sequence is exhausted, before any copies in a
   batch are created. An explicit name remains available even when the numeric sequence is full.
 
+### A right-click while you carry photos opens no menu
+- While you drag photos from the grid, a right-click opens no context menu, on an album, folder or keyword row in
+  the sidebar or on any other row or thumbnail that has one. Before, the menu opened on the row the photos were over.
+  The menu of a text field (Cut, Copy, Paste) is not held back.
+
 ## 2026-10-23
 
 ### Videos in the grid are no longer sent to the image decoders
