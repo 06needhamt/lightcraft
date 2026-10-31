@@ -9,6 +9,11 @@
   the selected photos as one undo step, only the active photo in Compare and Survey, and moves on with Auto Advance,
   as the other label keys do.
 
+## 2026-10-28
+
+### The empty photo grid names Import Photos' shortcut as it is bound
+- When a view is empty and the way in is File ▸ Import Photos…, the message under "No photos" used a fixed "Cmd+Shift+I" (or a translation's fixed copy of it) whatever the platform or the binding. It now shows the key as the menu bar writes it (on a Mac its glyphs, elsewhere Ctrl+Shift+I) on its own line under the sentence, follows a remapped key, and names no key when Import Photos has none. The sentence now wraps in a narrow window instead of running off its edge.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
