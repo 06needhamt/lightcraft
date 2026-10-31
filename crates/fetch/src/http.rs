@@ -597,7 +597,10 @@ pub fn get(url: &Url, headers: &[(&str, String)], limits: &Limits) -> Result<Res
     } else if find("transfer-encoding").is_some_and(|v| v.to_ascii_lowercase().contains("chunked")) {
         BodyMode::Chunked { left: 0, done: false }
     } else if let Some(n) = find("content-length") {
-        BodyMode::Length(n.trim().parse::<u64>().map_err(|_| HttpError::Protocol(format!("bad Content-Length `{n}`")))?)
+        // RFC 9110: `1*DIGIT`; `u64::from_str` alone would also take a leading '+'
+        let v = n.trim();
+        let len = if !v.is_empty() && v.bytes().all(|b| b.is_ascii_digit()) { v.parse::<u64>().ok() } else { None };
+        BodyMode::Length(len.ok_or_else(|| HttpError::Protocol(format!("bad Content-Length `{n}`")))?)
     } else {
         BodyMode::Close
     };
@@ -653,6 +656,29 @@ mod tests_connect {
         let r = connect_any("blackhole", &addrs, Instant::now() + Duration::from_millis(400), &limits(&cancel));
         assert!(r.is_err());
         assert!(t.elapsed() < Duration::from_millis(1500), "{:?}", t.elapsed());
+    }
+
+    /// Content-Length is `1*DIGIT`: a sign, hex prefix, trailing junk or empty value is refused, not read as a length.
+    #[test]
+    fn signed_or_malformed_content_length_is_refused() {
+        for value in ["+3", "-3", "3x", "", "0x10", "+0"] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let server = std::thread::spawn(move || {
+                let (mut s, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 1024];
+                let _ = s.read(&mut buf);
+                let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {value}\r\n\r\nabc").as_bytes());
+            });
+            let cancel = AtomicBool::new(false);
+            let url = Url::parse(&format!("http://127.0.0.1:{port}/f")).unwrap();
+            match get(&url, &[], &limits(&cancel)) {
+                Err(HttpError::Protocol(m)) => assert!(m.contains("bad Content-Length"), "{value:?}: {m}"),
+                Err(e) => panic!("{value:?}: unexpected error {e:?}"),
+                Ok(r) => panic!("{value:?}: malformed Content-Length accepted (status {})", r.status),
+            }
+            server.join().unwrap();
+        }
     }
 }
 
