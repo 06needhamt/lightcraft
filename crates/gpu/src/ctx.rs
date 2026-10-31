@@ -865,6 +865,17 @@ pub fn groups1(n: usize) -> [u32; 3] {
 
 #[cfg(test)]
 mod tests {
+    /// Every kernel module, as it is handed to the device (the generated constants, the bindings, `common.wgsl`, the
+    /// module), parses and validates without a GPU.
+    #[test]
+    fn every_kernel_module_validates_without_a_gpu() {
+        let consts = super::constants();
+        for m in super::MODULES {
+            let name = m.entries.first().copied().unwrap_or("?");
+            assert_eq!(crate::validate_wgsl(name, &super::module_source(m, &consts)), Ok(()));
+        }
+    }
+
     #[test]
     fn limits_override_parses() {
         assert_eq!(super::parse_limits("webgpu"), Some((128 << 20, 256 << 20)));
