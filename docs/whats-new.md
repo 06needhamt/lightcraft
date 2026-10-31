@@ -101,6 +101,16 @@
   takes just that photo and selects it. In the Compare view, a photo that isn't selected is dragged alone and the
   selection, the active photo and the two photos on screen stay as they were. Clicking a filmstrip photo works as
   before: outside Compare it selects the photo, and in Compare a plain click puts the photo into the active side.
+### Dropping photos on a folder or album that shares its name
+- When photos are dragged onto a Folders row and another folder has the same name (two folders called `Home` on
+  different disks), the label at the pointer, the Move Photos question and the message afterwards name the folder
+  it is in, for example `Home (/Volumes/Archive/Photos)`, so you can tell which one you are about to move them
+  into. Long parent paths keep their last names behind `…/`, unless that would read like another folder's path of the
+  same name (a mirror on another disk): then the whole path is shown. A name that nothing else uses stays as it was, except that a network share's row is now
+  named as the Folders list shows it (`photos on tokyo`) instead of by the last part of its mount path.
+- Photos dropped on an album that shares its name with an album in another folder say so too (`Garden (Travel
+  2026)`). Two albums with the same name in the same place have nothing to tell them apart by and keep the plain
+  name.
 
 ## 2026-10-22
 

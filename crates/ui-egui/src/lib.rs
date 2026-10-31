@@ -19,6 +19,7 @@ pub mod brush_live;
 pub mod canvas_keys;
 mod command_error;
 pub mod control;
+pub mod destination;
 pub mod dialogs;
 pub mod docking;
 mod drop_overlay;
