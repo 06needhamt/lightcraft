@@ -193,7 +193,9 @@ pub fn reset_failures() {
 /// Allow or forbid GPU rendering at runtime (a preference). `LIGHTCRAFT_GPU=0` forbids it for the
 /// whole process regardless.
 pub fn set_enabled(on: bool) {
-    ENABLED.store(on, Ordering::Relaxed);
+    // (SeqCst, as `warm_up`'s thread reads it after releasing its start: a switch back on is
+    // never missed there)
+    ENABLED.store(on, Ordering::SeqCst);
 }
 
 /// Whether GPU rendering is allowed (environment, preference, no earlier failure — real, or
@@ -308,13 +310,33 @@ pub(crate) fn existing_device() -> Option<&'static ctx::Gpu> {
 
 /// Create the device and compile the kernels on a background thread now (once the window is up),
 /// so the first render doesn't wait ~0.3–0.4 s for it and the UI thread never does. Does nothing
-/// while GPU rendering is turned off.
+/// while GPU rendering is turned off. Repeated calls start one thread at most.
 pub fn warm_up() {
     #[cfg(not(target_arch = "wasm32"))]
-    if !env_disabled() && ENABLED.load(Ordering::Relaxed) && GPU.get().is_none() {
-        let _ = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
-            let _ = device();
+    if !env_disabled() && ENABLED.load(Ordering::SeqCst) && GPU.get().is_none() {
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        if STARTED.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let spawned = std::thread::Builder::new().name("lc-gpu-init".into()).spawn(|| {
+            loop {
+                let _ = device();
+                if GPU.get().is_some() || shutting_down() || env_disabled() {
+                    break;
+                }
+                // turned off before the thread ran (nothing created): a later call may start
+                // again. Released first, then the preference read again: a call made while this
+                // thread still held the flag (turned back on meanwhile) returned without starting
+                // one, so this thread tries again itself rather than leave "starting" for good.
+                STARTED.store(false, Ordering::SeqCst);
+                if !ENABLED.load(Ordering::SeqCst) || STARTED.swap(true, Ordering::SeqCst) {
+                    break;
+                }
+            }
         });
+        if spawned.is_err() {
+            STARTED.store(false, Ordering::SeqCst);
+        }
     }
 }
 
