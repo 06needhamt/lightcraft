@@ -3,3 +3,7 @@
 
 mod accessibility;
 mod docking_workflows;
+mod grid_names;
+mod photo_name;
+mod sidebar_names;
+mod thumb_size_slider;

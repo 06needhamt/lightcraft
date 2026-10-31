@@ -36,6 +36,7 @@
   "Build Standard-Sized Previews ({scope})": "Створити перегляди стандартного розміру ({scope})",
   "Building previews for {} photos…": "Створення переглядів для фото: {}…",
   "Click {}:1": "Клацання {}:1",
+  "Collapse {name}": "Згорнути: {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Колірний простір: Rec. 2020 {curve} (HDR AVIF)",
   "Couldn't open the editor: {e}": "Не вдалося відкрити редактор: {e}",
   "Create {n} Virtual Copies": "Створити віртуальні копії: {n}",
@@ -49,6 +50,7 @@
   "Done ({what}): {done} photo{plural}": "Готово ({what}): фото: {done}{plural:.0}",
   "Duplicate \"{label}\"": "Дублювати «{label}»",
   "Example: {example}": "Приклад: {example}",
+  "Expand {name}": "Розгорнути: {name}",
   "Exported {n} photo{}": "Експортовано фото: {n}{:.0}",
   "Exported {ok} of {total} photo{}": "Експортовано фото: {ok} із {total}{:.0}",
   "Exported {} point curve preset{}": "Експортовано наборів налаштувань точкової кривої: {}{:.0}",
@@ -227,6 +229,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "«{parent}» уже містить «{name}». Об’єднати їх?",
   "There is a “{name}” at the top level already. Merge the two?": "На верхньому рівні вже є «{name}». Об’єднати їх?",
   "Added “{keyword}” to {n} photo{}": "«{keyword}» додано до фото: {n}{:.0}",
+  "Add Keyword “{keywords}”": "Додати ключове слово «{keywords}»",
   "On {have} of {of} selected photos": "На {have} з {of} вибраних фото",
   "Remove “{name}”": "Вилучити «{name}»",
   "There is a keyword set “{name}” already": "Набір ключових слів «{name}» уже існує",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "Не вдалося прочитати {name}: {e}",
   "Added {n} photo{}": "Додано фото: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Куди імпортувати каталог Lightroom «{catalog}»?",
-  "Merge into the open library “{library}” ({count} photo{})": "Об’єднати з відкритою бібліотекою «{library}» (фото: {count}){:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "Об’єднати з відкритою бібліотекою «{library}» (фото: {count}){:.0}",
+  "Photo: {name}": "Фото: {name}"
 }

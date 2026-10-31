@@ -347,7 +347,10 @@ pub fn specs() -> Vec<CommandSpec> {
                 s.end_interaction()?;
                 match mode {
                     "replace" => {
-                        s.selection = Selection { ids: ids.clone(), active: active.or(ids.first().copied()) };
+                        // a repeated id is one photo: keep the first of each, in the order given
+                        let mut seen = std::collections::HashSet::with_capacity(ids.len());
+                        let ids: Vec<PhotoId> = ids.into_iter().filter(|id| seen.insert(*id)).collect();
+                        s.selection = Selection { active: active.or(ids.first().copied()), ids };
                     }
                     "add" => {
                         for id in ids {
@@ -574,6 +577,16 @@ pub fn specs() -> Vec<CommandSpec> {
                 };
                 cull(s, p, |s| for_targets(s, p, "Set Color Label", |id| Some(Op::SetLabel { id, label: l })))
             }
+        ),
+        // `photo.label` takes the colour as a parameter, so a key can't be given to "none" alone
+        cmd!(
+            "photo.clearLabel",
+            "Clear Color Label",
+            ["Photo", "Set Color Label"],
+            None,
+            "{ids?, advance?: bool} — `photo.label` with `none`; without `ids`, the selection moves on when this takes the active photo out of the view",
+            has_selection,
+            |s, p| { cull(s, p, |s| for_targets(s, p, "Set Color Label", |id| Some(Op::SetLabel { id, label: None }))) }
         ),
         // ---- orientation
         cmd!("photo.rotateLeft", "Rotate Left", ["Photo"], Some("Cmd+["), "{ids?}", has_selection, |s, p| rotate(s, p, false)),

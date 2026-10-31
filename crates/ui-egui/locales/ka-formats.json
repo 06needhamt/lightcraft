@@ -33,6 +33,7 @@
   "Added {n} photo{} to “{}”": "„{1}“-ს დაემატა ფოტო: {n}{0:.0}",
   "Added {what} to {name}": "{what}: დაემატა {name}-ს",
   "Added “{keyword}” to {n} photo{}": "„{keyword}“ დაემატა ფოტოს: {n}{:.0}",
+  "Add Keyword “{keywords}”": "საკვანძო სიტყვის „{keywords}“ დამატება",
   "Adding photos… {} of {}": "ფოტოების დამატება… {} / {}",
   "All {n} selected photos move by the same amount.": "მონიშნული ფოტოები ({n}) ერთი და იმავე სიდიდით გადაინაცვლებს.",
   "Already in the library, in Recently Deleted: {} photo{} selected · right-click ▸ Restore, or Delete Permanently to import afresh": "უკვე ბიბლიოთეკაშია, ახლახან წაშლილებში: მონიშნულია ფოტო: {}{:.0} · მარჯვენა დაწკაპუნება → აღდგენა, ან სამუდამოდ წაშლა თავიდან იმპორტისთვის",
@@ -46,6 +47,7 @@
   "Build Standard-Sized Previews ({scope})": "სტანდარტული ზომის წინასწარი ხედების შექმნა ({scope})",
   "Building previews for {} photos…": "იქმნება წინასწარი ხედები ფოტოებისთვის: {}…",
   "Click {}:1": "დაწკაპუნება {}:1",
+  "Collapse {name}": "ჩაკეცვა: {name}",
   "Couldn't open the editor: {e}": "რედაქტორი ვერ გაიხსნა: {e}",
   "Create Keyword Tag Inside “{name}”…": "საკვანძო სიტყვის შექმნა „{name}“-ში…",
   "Create {n} Virtual Copies": "ვირტუალური ასლების შექმნა: {n}",
@@ -62,6 +64,7 @@
   "Downloads from {host}. Once it has arrived and checked out, LightCraft installs it, {after}.": "ჩამოიტვირთება {host}-დან. მიღებისა და შემოწმების შემდეგ LightCraft მას დააყენებს, {after}.",
   "Duplicate \"{label}\"": "„{label}“-ის დუბლირება",
   "Example: {example}": "მაგალითი: {example}",
+  "Expand {name}": "გაშლა: {name}",
   "Exported {n} keyword{}": "ექსპორტირებულია საკვანძო სიტყვა: {n}{:.0}",
   "Exported {n} photo{}": "ექსპორტირებულია ფოტო: {n}{:.0}",
   "Exported {ok} of {total} photo{}": "ექსპორტირებულია ფოტო: {ok} / {total}{:.0}",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "ვერ წაიკითხა {name}: {e}",
   "Added {n} photo{}": "დაემატა ფოტო: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "სად გადავიტანოთ Lightroom-ის კატალოგი „{catalog}“?",
-  "Merge into the open library “{library}” ({count} photo{})": "გაერთიანება ღია ბიბლიოთეკასთან „{library}“ (ფოტოები: {count}){:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "გაერთიანება ღია ბიბლიოთეკასთან „{library}“ (ფოტოები: {count}){:.0}",
+  "Photo: {name}": "ფოტო: {name}"
 }

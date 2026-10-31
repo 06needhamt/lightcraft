@@ -283,6 +283,11 @@ fn disclosure_chevron(ui: &mut egui::Ui, row: &egui::Response, indent: f32, open
     tr
 }
 
+/// What a disclosure triangle is called: "Expand Travel" / "Collapse Travel".
+pub(crate) fn disclosure_name(open: bool, name: &str) -> String {
+    if open { crate::i18n::tr_format!("Collapse {name}", name = name) } else { crate::i18n::tr_format!("Expand {name}", name = name) }
+}
+
 /// Whether the tree row `key` is open: what the user last chose this session, else `default`.
 pub(super) fn tree_open(ui: &egui::Ui, key: egui::Id, default: bool) -> bool {
     ui.data(|d| d.get_temp(key)).unwrap_or(default)
@@ -296,13 +301,22 @@ pub(super) fn set_tree_open(ui: &egui::Ui, key: egui::Id, open: bool) {
 /// The chevron of a tree row that has rows inside it (Albums' folders, Local, By Date, Folders,
 /// Keywords): a click flips `open` and remembers it under `key`. Returns the chevron's response
 /// (it sits on the row and takes its clicks, so a row's context menu is attached to it too).
-pub(super) fn tree_toggle(ui: &mut egui::Ui, row: &egui::Response, indent: f32, key: egui::Id, open: &mut bool, widget: String) -> egui::Response {
+pub(super) fn tree_toggle(
+    ui: &mut egui::Ui,
+    row: &egui::Response,
+    indent: f32,
+    key: egui::Id,
+    open: &mut bool,
+    widget: String,
+    name: &str,
+) -> egui::Response {
     let tri = disclosure_chevron(ui, row, indent, *open, key.with("triangle"), widget);
     if tri.clicked() {
         *open = !*open;
         set_tree_open(ui, key, *open);
     }
-    let label = if *open { crate::i18n::tr("Collapse") } else { crate::i18n::tr("Expand") };
-    tri.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    // (the name of the row it opens: a screen reader lists the triangles one after another)
+    let label = disclosure_name(*open, name);
+    tri.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label.clone()));
     tri
 }

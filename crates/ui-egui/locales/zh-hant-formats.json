@@ -22,6 +22,7 @@
   "Build Smart Previews ({scope})": "建立智慧型預覽（{scope}）",
   "Build Standard-Sized Previews ({scope})": "建立標準尺寸預覽（{scope}）",
   "Click {}:1": "點擊時 {}:1",
+  "Collapse {name}": "收合 {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "色彩空間：Rec. 2020 {curve}（HDR AVIF）",
   "Create {n} Virtual Copies": "建立 {n} 張虛擬副本",
   "Decoder: {reason}": "解碼器：{reason}",
@@ -32,6 +33,7 @@
   "Discard Smart Previews ({scope})": "捨棄智慧型預覽（{scope}）",
   "Duplicate \"{label}\"": "複製「{label}」",
   "Example: {example}": "範例：{example}",
+  "Expand {name}": "展開 {name}",
   "Exported {n} photo{}": "已匯出 {n} 張照片{:.0}",
   "Exported {ok} of {total} photo{}": "已匯出 {ok}／{total} 張照片{:.0}",
   "Exported {} point curve preset{}": "已匯出 {} 個點曲線預設集{:.0}",
@@ -231,6 +233,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "「{parent}」中已有「{name}」。要合併兩者嗎？",
   "There is a “{name}” at the top level already. Merge the two?": "最上層已有「{name}」。要合併兩者嗎？",
   "Added “{keyword}” to {n} photo{}": "已將「{keyword}」加入 {n} 張照片{:.0}",
+  "Add Keyword “{keywords}”": "加入關鍵字「{keywords}」",
   "On {have} of {of} selected photos": "選取的 {of} 張照片中的 {have} 張",
   "Remove “{name}”": "移除「{name}」",
   "There is a keyword set “{name}” already": "已有關鍵字集「{name}」",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "無法讀取 {name}：{e}",
   "Added {n} photo{}": "已加入 {n} 張照片{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom 目錄「{catalog}」要匯入到哪裡？",
-  "Merge into the open library “{library}” ({count} photo{})": "合併到目前開啟的照片庫「{library}」（{count} 張照片）{:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "合併到目前開啟的照片庫「{library}」（{count} 張照片）{:.0}",
+  "Photo: {name}": "照片：{name}"
 }

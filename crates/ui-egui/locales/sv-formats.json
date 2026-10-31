@@ -37,6 +37,7 @@
   "Added {n} photo{} to “{}”": "Lade till {n} foto{} i ”{}”",
   "Added {what} to {name}": "Lade till {what} i {name}",
   "Added “{keyword}” to {n} photo{}": "Lade till ”{keyword}” på {n} foto{}",
+  "Add Keyword “{keywords}”": "Lägg till nyckelordet ”{keywords}”",
   "Adding photos… {} of {}": "Lägger till foton… {} av {}",
   "All {n} selected photos move by the same amount.": "Alla {n} markerade foton flyttas lika mycket.",
   "Already in the library, in Recently Deleted: {} photo{} selected · right-click ▸ Restore, or Delete Permanently to import afresh": "Finns redan i biblioteket, i Nyligen raderade: {} foto{} markerade · högerklicka → Återställ, eller Radera permanent för att importera på nytt",
@@ -52,6 +53,7 @@
   "Build Standard-Sized Previews ({scope})": "Bygg förhandsgranskningar i standardstorlek ({scope})",
   "Building previews for {} photos…": "Bygger förhandsgranskningar för {} foton…",
   "Click {}:1": "Klick {}:1",
+  "Collapse {name}": "Komprimera {name}",
   "Couldn't open the editor: {e}": "Kunde inte öppna redigeraren: {e}",
   "Create Keyword Tag Inside “{name}”…": "Skapa nyckelordstagg i ”{name}”…",
   "Create the keyword “{name}”": "Skapa nyckelordet ”{name}”",
@@ -74,6 +76,7 @@
   "Duplicate \"{label}\"": "Duplicera ”{label}”",
   "Effect: {name}": "Effekt: {name}",
   "Example: {example}": "Exempel: {example}",
+  "Expand {name}": "Expandera {name}",
   "Exported to {path}": "Exporterade till {path}",
   "Exported {n} keyword{}": "Exporterade {n} nyckelord{}",
   "Exported {n} photo{}": "Exporterade {n} foto{}",
@@ -305,5 +308,6 @@
   "Drop to review {n} item{} for import": "Släpp för att granska {n} objekt före import{:.0}",
   "Inside: {names}": "Inuti: {names}",
   "Where should the Lightroom catalog “{catalog}” go?": "Vart ska Lightroom-katalogen ”{catalog}” importeras?",
-  "Merge into the open library “{library}” ({count} photo{})": "Slå samman med det öppna biblioteket ”{library}” ({count} foto{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Slå samman med det öppna biblioteket ”{library}” ({count} foto{:.0})",
+  "Photo: {name}": "Foto: {name}"
 }

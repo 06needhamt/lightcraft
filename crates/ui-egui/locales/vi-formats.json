@@ -37,6 +37,7 @@
   "Added {n} photo{} to “{}”": "Đã thêm {n} ảnh{0:.0} vào «{1}»",
   "Added {what} to {name}": "Đã thêm {what} vào {name}",
   "Added “{keyword}” to {n} photo{}": "Đã thêm «{keyword}» vào {n} ảnh{:.0}",
+  "Add Keyword “{keywords}”": "Thêm từ khóa «{keywords}»",
   "Adding photos… {} of {}": "Đang thêm ảnh… {} / {}",
   "All {n} selected photos move by the same amount.": "Tất cả {n} ảnh đã chọn dịch chuyển cùng một lượng.",
   "Already in the library, in Recently Deleted: {} photo{} selected · right-click ▸ Restore, or Delete Permanently to import afresh": "Đã có trong thư viện, trong Đã xóa gần đây: đã chọn {} ảnh{:.0} · nhấp chuột phải → Khôi phục, hoặc Xóa vĩnh viễn để nhập lại",
@@ -53,6 +54,7 @@
   "Build Standard-Sized Previews ({scope})": "Tạo xem trước cỡ chuẩn ({scope})",
   "Building previews for {} photos…": "Đang tạo xem trước cho {} ảnh…",
   "Click {}:1": "Nhấp {}:1",
+  "Collapse {name}": "Thu gọn {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Color space: Rec. 2020 {curve} (HDR AVIF)",
   "Couldn't open the editor: {e}": "Không thể mở trình chỉnh sửa: {e}",
   "Create Keyword Tag Inside “{name}”…": "Tạo từ khóa trong «{name}»…",
@@ -76,6 +78,7 @@
   "Duplicate \"{label}\"": "Nhân bản «{label}»",
   "Effect: {name}": "Effect: {name}",
   "Example: {example}": "Ví dụ: {example}",
+  "Expand {name}": "Mở rộng {name}",
   "Exported to {path}": "Exported to {path}",
   "Exported {n} keyword{}": "Đã xuất {n} từ khóa{:.0}",
   "Exported {n} photo{}": "Đã xuất {n} ảnh{:.0}",
@@ -305,5 +308,6 @@
   "Drop to import {n} preset{}": "Thả để nhập {n} thiết lập sẵn{:.0}",
   "Drop to review {n} item{} for import": "Thả để xem lại {n} mục trước khi nhập{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Nhập danh mục Lightroom «{catalog}» vào đâu?",
-  "Merge into the open library “{library}” ({count} photo{})": "Gộp vào thư viện đang mở «{library}» ({count} ảnh{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Gộp vào thư viện đang mở «{library}» ({count} ảnh{:.0})",
+  "Photo: {name}": "Ảnh: {name}"
 }

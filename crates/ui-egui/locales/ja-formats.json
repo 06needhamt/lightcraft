@@ -17,6 +17,7 @@
   "Auto Sync: edits apply to {n} photos": "自動同期：{n}枚に編集を適用",
   "Automatic ({} MB)": "自動（{}MB）",
   "Click {}:1": "クリック時 {}:1",
+  "Collapse {name}": "{name}を折りたたむ",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "カラースペース：Rec. 2020 {curve}（HDR AVIF）",
   "Create {n} Virtual Copies": "{n}枚の仮想コピーを作成",
   "Decoder: {reason}": "デコーダー：{reason}",
@@ -26,6 +27,7 @@
   "Delete “{current}”": "「{current}」を削除",
   "Duplicate \"{label}\"": "「{label}」を複製",
   "Example: {example}": "例：{example}",
+  "Expand {name}": "{name}を展開",
   "Exported {n} photo{}": "{n}枚を書き出しました{:.0}",
   "Exported {ok} of {total} photo{}": "{total}枚中{ok}枚を書き出しました{:.0}",
   "Exported {} point curve preset{}": "{}件のポイントカーブを書き出しました{:.0}",
@@ -231,6 +233,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "「{parent}」にはすでに「{name}」があります。統合しますか？",
   "There is a “{name}” at the top level already. Merge the two?": "最上位にはすでに「{name}」があります。統合しますか？",
   "Added “{keyword}” to {n} photo{}": "写真{n}枚に「{keyword}」を追加しました{:.0}",
+  "Add Keyword “{keywords}”": "キーワード「{keywords}」を追加",
   "On {have} of {of} selected photos": "選択した写真{of}枚のうち{have}枚",
   "Remove “{name}”": "「{name}」を削除",
   "There is a keyword set “{name}” already": "キーワードセット「{name}」はすでにあります",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "{name} を読み取れませんでした: {e}",
   "Added {n} photo{}": "{n}枚を追加しました{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom カタログ「{catalog}」をどこに読み込みますか？",
-  "Merge into the open library “{library}” ({count} photo{})": "開いているライブラリ「{library}」に統合（写真{count}枚）{:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "開いているライブラリ「{library}」に統合（写真{count}枚）{:.0}",
+  "Photo: {name}": "写真: {name}"
 }

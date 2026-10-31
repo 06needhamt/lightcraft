@@ -25,6 +25,7 @@
   "Build Smart Previews ({scope})": "Gerar pré-visualizações inteligentes ({scope})",
   "Build Standard-Sized Previews ({scope})": "Gerar pré-visualizações em tamanho padrão ({scope})",
   "Click {}:1": "Clique em {}:1",
+  "Collapse {name}": "Recolher {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Espaço de cor: Rec. 2020 {curve} (AVIF HDR)",
   "Create {n} Virtual Copies": "Criar {n} cópias virtuais",
   "Decoder: {reason}": "Decodificador: {reason}",
@@ -35,6 +36,7 @@
   "Discard Smart Previews ({scope})": "Descartar pré-visualizações inteligentes ({scope})",
   "Duplicate \"{label}\"": "Duplicar \"{label}\"",
   "Example: {example}": "Exemplo: {example}",
+  "Expand {name}": "Expandir {name}",
   "Exported {n} photo{}": "{n} foto{0} exportada{0}",
   "Exported {ok} of {total} photo{}": "Fotos exportadas: {ok} de {total}{:.0}",
   "Exported {} point curve preset{}": "{} predefinição(ões) de curva de pontos exportada(s){:.0}",
@@ -231,6 +233,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "“{parent}” já tem “{name}”. Mesclar as duas?",
   "There is a “{name}” at the top level already. Merge the two?": "Já existe “{name}” no nível superior. Mesclar as duas?",
   "Added “{keyword}” to {n} photo{}": "“{keyword}” adicionada a {n} foto{}",
+  "Add Keyword “{keywords}”": "Adicionar palavra-chave “{keywords}”",
   "On {have} of {of} selected photos": "Em {have} de {of} fotos selecionadas",
   "Remove “{name}”": "Remover “{name}”",
   "There is a keyword set “{name}” already": "Já existe um conjunto de palavras-chave “{name}”",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "Não foi possível ler {name}: {e}",
   "Added {n} photo{}": "{n} foto{0} adicionada{0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Para onde vai o catálogo do Lightroom “{catalog}”?",
-  "Merge into the open library “{library}” ({count} photo{})": "Mesclar na biblioteca aberta “{library}” ({count} foto{})"
+  "Merge into the open library “{library}” ({count} photo{})": "Mesclar na biblioteca aberta “{library}” ({count} foto{})",
+  "Photo: {name}": "Foto: {name}"
 }

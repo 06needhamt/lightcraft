@@ -17,6 +17,7 @@
   "Auto Sync: edits apply to {n} photos": "Sinkronisasi otomatis: edit diterapkan ke {n} foto",
   "Automatic ({} MB)": "Otomatis ({} MB)",
   "Click {}:1": "Klik {}:1",
+  "Collapse {name}": "Ciutkan {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Ruang warna: Rec. 2020 {curve} (AVIF HDR)",
   "Create {n} Virtual Copies": "Buat {n} salinan virtual",
   "Decoder: {reason}": "Dekoder: {reason}",
@@ -26,6 +27,7 @@
   "Delete “{current}”": "Hapus “{current}”",
   "Duplicate \"{label}\"": "Duplikat \"{label}\"",
   "Example: {example}": "Contoh: {example}",
+  "Expand {name}": "Luaskan {name}",
   "Exported {n} photo{}": "{n} foto{:.0} diekspor",
   "Exported {ok} of {total} photo{}": "{ok} dari {total} foto diekspor{:.0}",
   "Exported {} point curve preset{}": "{} preset kurva titik{:.0} diekspor",
@@ -230,6 +232,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "“{parent}” sudah berisi “{name}”. Gabungkan keduanya?",
   "There is a “{name}” at the top level already. Merge the two?": "Sudah ada “{name}” di tingkat teratas. Gabungkan keduanya?",
   "Added “{keyword}” to {n} photo{}": "“{keyword}” ditambahkan ke {n} foto{:.0}",
+  "Add Keyword “{keywords}”": "Tambahkan kata kunci “{keywords}”",
   "On {have} of {of} selected photos": "Pada {have} dari {of} foto yang dipilih",
   "Remove “{name}”": "Hapus “{name}”",
   "There is a keyword set “{name}” already": "Set kata kunci “{name}” sudah ada",
@@ -305,5 +308,6 @@
   "Drop to review {n} item{} for import": "Jatuhkan untuk meninjau {n} item sebelum impor{:.0}",
   "Inside: {names}": "Di dalam: {names}",
   "Where should the Lightroom catalog “{catalog}” go?": "Ke mana katalog Lightroom “{catalog}” diimpor?",
-  "Merge into the open library “{library}” ({count} photo{})": "Gabungkan ke pustaka yang terbuka “{library}” ({count} foto{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Gabungkan ke pustaka yang terbuka “{library}” ({count} foto{:.0})",
+  "Photo: {name}": "Foto: {name}"
 }

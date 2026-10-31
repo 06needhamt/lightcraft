@@ -17,6 +17,7 @@
   "Auto Sync: edits apply to {n} photos": "自动同步：编辑将应用到 {n} 张照片",
   "Automatic ({} MB)": "自动（{0} MB）",
   "Click {}:1": "单击 {0}:1",
+  "Collapse {name}": "折叠 {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "色彩空间：Rec. 2020 {curve}（HDR AVIF）",
   "Create {n} Virtual Copies": "创建 {n} 个虚拟副本",
   "Decoder: {reason}": "解码器：{reason}",
@@ -26,6 +27,7 @@
   "Delete “{current}”": "删除“{current}”",
   "Duplicate \"{label}\"": "复制 \"{label}\"",
   "Example: {example}": "示例：{example}",
+  "Expand {name}": "展开 {name}",
   "Exported {n} photo{}": "已导出 {n} 张照片{0:.0}",
   "Exported {ok} of {total} photo{}": "已导出 {total} 张中的 {ok} 张照片{0:.0}",
   "Exported {} point curve preset{}": "已导出 {0} 个点曲线预设{1:.0}",
@@ -231,6 +233,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "“{parent}”中已有“{name}”。要合并两者吗？",
   "There is a “{name}” at the top level already. Merge the two?": "顶层已有“{name}”。要合并两者吗？",
   "Added “{keyword}” to {n} photo{}": "已将“{keyword}”添加到 {n} 张照片{:.0}",
+  "Add Keyword “{keywords}”": "添加关键字“{keywords}”",
   "On {have} of {of} selected photos": "所选 {of} 张照片中的 {have} 张",
   "Remove “{name}”": "移除“{name}”",
   "There is a keyword set “{name}” already": "已有关键字集“{name}”",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "无法读取 {name}：{e}",
   "Added {n} photo{}": "已添加 {n} 张照片{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Lightroom 目录“{catalog}”要导入到哪里？",
-  "Merge into the open library “{library}” ({count} photo{})": "合并到当前打开的图库“{library}”（{count} 张照片）{:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "合并到当前打开的图库“{library}”（{count} 张照片）{:.0}",
+  "Photo: {name}": "照片：{name}"
 }

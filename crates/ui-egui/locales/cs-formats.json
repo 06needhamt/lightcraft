@@ -33,6 +33,7 @@
   "Added {n} photo{} to “{}”": "Do „{1}“ přidáno fotografií: {n}{0:.0}",
   "Added {what} to {name}": "Přidáno {what} do {name}",
   "Added “{keyword}” to {n} photo{}": "K fotografiím přidáno „{keyword}“: {n}{:.0}",
+  "Add Keyword “{keywords}”": "Přidat klíčové slovo „{keywords}“",
   "Adding photos… {} of {}": "Přidávání fotografií… {} z {}",
   "All {n} selected photos move by the same amount.": "Všech {n} vybraných fotografií se posune o stejnou hodnotu.",
   "Already in the library, in Recently Deleted: {} photo{} selected · right-click ▸ Restore, or Delete Permanently to import afresh": "Již v knihovně, v nedávno odstraněných: vybrané fotografie: {}{:.0} · pravé tlačítko → Obnovit, nebo Trvale odstranit pro nový import",
@@ -46,6 +47,7 @@
   "Build Standard-Sized Previews ({scope})": "Vytvořit standardní náhledy ({scope})",
   "Building previews for {} photos…": "Vytváření náhledů pro fotografie: {}…",
   "Click {}:1": "Kliknutí {}:1",
+  "Collapse {name}": "Sbalit {name}",
   "Couldn't open the editor: {e}": "Editor se nepodařilo otevřít: {e}",
   "Create Keyword Tag Inside “{name}”…": "Vytvořit značku klíčového slova uvnitř „{name}“…",
   "Create {n} Virtual Copies": "Vytvořit virtuální kopie: {n}",
@@ -62,6 +64,7 @@
   "Downloads from {host}. Once it has arrived and checked out, LightCraft installs it, {after}.": "Stahuje se z {host}. Po stažení a ověření jej LightCraft nainstaluje a {after}.",
   "Duplicate \"{label}\"": "Duplikovat „{label}“",
   "Example: {example}": "Příklad: {example}",
+  "Expand {name}": "Rozbalit {name}",
   "Exported {n} keyword{}": "Exportovaná klíčová slova: {n}{:.0}",
   "Exported {n} photo{}": "Exportováno fotografií: {n}{:.0}",
   "Exported {ok} of {total} photo{}": "Exportováno fotografií: {ok} z {total}{:.0}",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "Soubor {name} se nepodařilo přečíst: {e}",
   "Added {n} photo{}": "Přidáno fotografií: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Kam má jít katalog Lightroomu „{catalog}“?",
-  "Merge into the open library “{library}” ({count} photo{})": "Sloučit s otevřenou knihovnou „{library}“ (fotografie: {count}{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Sloučit s otevřenou knihovnou „{library}“ (fotografie: {count}{:.0})",
+  "Photo: {name}": "Fotografie: {name}"
 }

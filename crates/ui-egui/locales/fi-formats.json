@@ -37,6 +37,7 @@
   "Added {n} photo{} to “{}”": "Lisättyjä kuvia kohteeseen ”{1}”: {n}{0:.0}",
   "Added {what} to {name}": "{what} lisätty kohteeseen {name}",
   "Added “{keyword}” to {n} photo{}": "Avainsana ”{keyword}” lisätty kuviin: {n}{:.0}",
+  "Add Keyword “{keywords}”": "Lisää avainsana ”{keywords}”",
   "Adding photos… {} of {}": "Lisätään kuvia… {} / {}",
   "All {n} selected photos move by the same amount.": "Kaikkia valittuja kuvia ({n}) siirretään saman verran.",
   "Already in the library, in Recently Deleted: {} photo{} selected · right-click ▸ Restore, or Delete Permanently to import afresh": "Jo kirjastossa, Äskettäin poistetuissa: valittuja kuvia {}{:.0} · napsauta hiiren kakkospainikkeella → Palauta tai Poista pysyvästi tuodaksesi uudelleen",
@@ -53,6 +54,7 @@
   "Build Standard-Sized Previews ({scope})": "Luo vakiokokoiset esikatselut ({scope})",
   "Building previews for {} photos…": "Luodaan esikatseluja {} kuvalle…",
   "Click {}:1": "Napsautus {}:1",
+  "Collapse {name}": "Tiivistä {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Väriavaruus: Rec. 2020 {curve} (HDR AVIF)",
   "Couldn't open the editor: {e}": "Muokkausohjelmaa ei voitu avata: {e}",
   "Create Keyword Tag Inside “{name}”…": "Luo avainsanatunniste kohteen ”{name}” sisään…",
@@ -76,6 +78,7 @@
   "Duplicate \"{label}\"": "Monista ”{label}”",
   "Effect: {name}": "Tehoste: {name}",
   "Example: {example}": "Esimerkki: {example}",
+  "Expand {name}": "Laajenna {name}",
   "Exported to {path}": "Viety kohteeseen {path}",
   "Exported {n} keyword{}": "Viety avainsanoja: {n}{:.0}",
   "Exported {n} photo{}": "Viety kuvia: {n}{:.0}",
@@ -305,5 +308,6 @@
   "Drop to import {n} preset{}": "Pudota tuodaksesi esiasetuksia: {n}{:.0}",
   "Drop to review {n} item{} for import": "Pudota tarkistaaksesi ennen tuontia (kohteita: {n}){:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Minne Lightroom-luettelo ”{catalog}” tuodaan?",
-  "Merge into the open library “{library}” ({count} photo{})": "Yhdistä avoimeen kirjastoon ”{library}” (kuvia: {count}{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Yhdistä avoimeen kirjastoon ”{library}” (kuvia: {count}{:.0})",
+  "Photo: {name}": "Kuva: {name}"
 }

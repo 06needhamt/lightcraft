@@ -36,6 +36,7 @@
   "Build Standard-Sized Previews ({scope})": "Utwórz podglądy o standardowym rozmiarze ({scope})",
   "Building previews for {} photos…": "Tworzenie podglądów (zdjęcia: {})…",
   "Click {}:1": "Kliknij {}:1",
+  "Collapse {name}": "Zwiń {name}",
   "Couldn't open the editor: {e}": "Nie można otworzyć edytora: {e}",
   "Create {n} Virtual Copies": "Utwórz {n} kopii wirtualnych",
   "Creates {} stacks from {} of {scope}": "Tworzy {} stosów z {} w zakresie: {scope}",
@@ -48,6 +49,7 @@
   "Done ({what}): {done} photo{plural}": "Gotowe ({what}) — zdjęcia: {done}{plural:.0}",
   "Duplicate \"{label}\"": "Duplikuj „{label}”",
   "Example: {example}": "Przykład: {example}",
+  "Expand {name}": "Rozwiń {name}",
   "Exported {n} photo{}": "Wyeksportowane zdjęcia: {n}{:.0}",
   "Exported {ok} of {total} photo{}": "Wyeksportowane zdjęcia: {ok} z {total}{:.0}",
   "Exported {} point curve preset{}": "Wyeksportowane ustawienia krzywej punktowej: {}{:.0}",
@@ -214,6 +216,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "„{parent}” zawiera już „{name}”. Scalić oba?",
   "There is a “{name}” at the top level already. Merge the two?": "Słowo kluczowe „{name}” istnieje już na najwyższym poziomie. Scalić oba?",
   "Added “{keyword}” to {n} photo{}": "Dodano „{keyword}” do zdjęć: {n}{:.0}",
+  "Add Keyword “{keywords}”": "Dodaj słowo kluczowe „{keywords}”",
   "On {have} of {of} selected photos": "Na {have} z {of} zaznaczonych zdjęć",
   "Remove “{name}”": "Usuń „{name}”",
   "There is a keyword set “{name}” already": "Istnieje już zestaw słów kluczowych „{name}”",
@@ -305,5 +308,6 @@
   "Added {n} photo{}": "Dodano zdjęcia: {n}{:.0}",
   "Inside: {names}": "Wewnątrz: {names}",
   "Where should the Lightroom catalog “{catalog}” go?": "Dokąd zaimportować katalog Lightroom „{catalog}”?",
-  "Merge into the open library “{library}” ({count} photo{})": "Scal z otwartą biblioteką „{library}” (zdjęcia: {count}){:.0}"
+  "Merge into the open library “{library}” ({count} photo{})": "Scal z otwartą biblioteką „{library}” (zdjęcia: {count}){:.0}",
+  "Photo: {name}": "Zdjęcie: {name}"
 }

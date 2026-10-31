@@ -1,9 +1,52 @@
 # What's new in LightCraft
 
+## 2026-10-30
+
+### A keyboard shortcut for Clear Color Label
+- Clear Color Label is now a command of its own in Help ▸ Keyboard Shortcuts, so it can have a key like Set Rating or
+  Set Flag; before, only the red, yellow, green and blue labels (6–9) had keys and clearing a label was menu-only. It has
+  no key until you give it one. Photo ▸ Set Color Label ▸ None runs it and shows its key. The key clears the label of
+  the selected photos as one undo step, only the active photo in Compare and Survey, and moves on with Auto Advance,
+  as the other label keys do.
+
+## 2026-10-29
+
+### A person's page opens in seconds in a large library
+- Finding the unnamed faces that look like a person (a person's page, and again after each face confirmed there) now
+  runs on every processor core, and each comparison of two faces uses the processor's vector instructions. In a
+  library of 92 000 unnamed faces, a person with 4 100 named ones is estimated to have taken about 2 minutes 40 seconds
+  on one core of an Apple M1 Pro, with the window frozen, and now about 3 seconds (both measured on 3 000 of those
+  faces, 5.3 s and 0.1 s, and scaled up). Name suggestions and the order of the unnamed
+  faces get the faster comparison too.
+
+## 2026-10-28
+
+### The empty photo grid names Import Photos' shortcut as it is bound
+- When a view is empty and the way in is File ▸ Import Photos…, the message under "No photos" used a fixed "Cmd+Shift+I" (or a translation's fixed copy of it) whatever the platform or the binding. It now shows the key as the menu bar writes it (on a Mac its glyphs, elsewhere Ctrl+Shift+I) on its own line under the sentence, follows a remapped key, and names no key when Import Photos has none. The sentence now wraps in a narrow window instead of running off its edge.
+
+### The photo in Detail is named with its file for screen readers
+- With VoiceOver, the photo in Detail view is now announced with its file name, rating, flag and colour label ("Photo:
+  IMG_0042.JPG, 4 stars, picked") instead of only "Photo", as the grid names the same photo.
+
+### The grid's thumbnail size slider is a slider to screen readers
+- With VoiceOver, the Thumbnail size control at the right of the grid's bottom bar is now announced as a slider with its
+  value and range, instead of a button with no value. Increment and Decrement (VoiceOver's Control-Option-Up and Down) and,
+  while it has the keyboard focus, the Up and Down arrow keys change it by one step, as the `=` and `-` keys do.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
 - Select Only Active Photo now sits under Deselect All, and Paste Settings from Previous under Paste Selected Settings…, instead of both after Settings…, near the end of the Edit menu. On macOS, where Settings… lives in the application menu, the Edit menu no longer shows two separator lines in a row.
+
+### Screen readers name the sidebar's disclosure triangles
+- Each triangle in the left sidebar (album folders, local folders, By Date, imported folders, keywords) and in the
+  keyword list now says which row it opens or closes: "Expand Travel", "Collapse 2026". They were all named just
+  "Expand" or "Collapse", so VoiceOver read a list of identical buttons.
+
+### Screen readers and Voice Control name the grid's date headers as they read
+- A date header in the photo grid is now named with the text it shows ("Sunday, 20 September 2026 · 1 photo"), where
+  it was named with the bare date key ("2026-09-20"). VoiceOver reads what a sighted person reads, and Voice Control's
+  "click Sunday" finds the header.
 
 ## 2026-10-25
 
@@ -17,6 +60,17 @@
 - While you drag photos from the grid, a right-click on a text field, such as the search box, opens no Cut, Copy and
   Paste menu. Before, the menu opened over the field the photos were on. Right-clicking a field without a drag works
   as before.
+
+### Typed GPS coordinates are validated before editing metadata
+
+- Entered coordinates must contain a complete decimal or degrees/minutes/seconds value. Unknown text, exponent notation, wrong-axis or conflicting hemispheres, and minutes or seconds outside [0,60) are rejected instead of being silently ignored and reinterpreted. A rejected GPS value also leaves the other fields in the same metadata edit unchanged.
+
+### The Slideshow settings page stays put while the preview renders
+
+- In Settings ▸ Slideshow, the line under the slide preview ("The selected photo as a slide…") now shows from the first
+  frame instead of only once the preview has finished rendering. Before, it appeared with the render, pushing the page
+  below it down by a line, so a click made in that moment could land beside the control you aimed at.
+
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
@@ -105,7 +159,6 @@
   Always merge into the open library, or tick Don't ask again in the window. Ask where to import it brings the
   question back.
 
-
 ### Choose which library opens at launch
 - Settings ▸ General ▸ **At launch**: *Open the last library* (as before) or *Ask me*. With *Ask me*, LightCraft
   starts with a window listing your recent libraries: each one's name, the folder it is in and when you last opened
@@ -166,6 +219,11 @@
 - Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
   shortcut changes; clicking a menu row still selects that grid (issue #2500).
 
+### GPX track logs read escaped values correctly
+- Coordinates, elevations and times in a GPX track can contain XML character references such as
+  `&#53;`. LightCraft now decodes those characters before parsing values, reports malformed or
+  undeclared references as an error, and keeps CDATA literal. Auto-Tag places photos at the track
+  position represented by their capture time.
 
 ## 2026-10-21
 
@@ -317,7 +375,6 @@
   and a Synchronize button that started a job with nothing to do. Files it skipped (already in the library elsewhere,
   or unreadable) are still listed.
 
-
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
@@ -343,7 +400,6 @@
   setup, the crop's "constrain to image" option, and the lens profile's strength when it is at its default of 100 %.
   A raw sidecar used to name all of them for every photo. Settings LightCraft really doesn't apply, such as `Look`,
   are still reported.
-
 
 ### Fill Location from GPS: no more neighbouring town in City
 - The offline place names list towns of 15,000 people or more, so a photo taken in a smaller one got the nearest larger

@@ -219,6 +219,10 @@ pub struct LightcraftApp {
     /// effects (which the global shortcut guard also hides).
     #[cfg(test)]
     pub(crate) library_passes: Vec<panels::library_problem::LibraryPass>,
+    /// Test-only: a delay for the sidebar's Missing Photos count worker (a slow disk). Kept here,
+    /// not in `ui`, because `ui.set` rebuilds `ui` and would drop it.
+    #[cfg(test)]
+    pub(crate) missing_count_test_delay: Option<std::time::Duration>,
     /// Offscreen context for headless screenshots of the windowed app.
     shadow: Option<headless::HeadlessView>,
     /// Synthetic input events (from the control channel) injected one step per frame.

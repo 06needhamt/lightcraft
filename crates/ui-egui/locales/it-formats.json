@@ -36,6 +36,7 @@
   "Build Standard-Sized Previews ({scope})": "Genera anteprime di dimensione standard ({scope})",
   "Building previews for {} photos…": "Generazione delle anteprime per {} foto…",
   "Click {}:1": "Clic {}:1",
+  "Collapse {name}": "Comprimi {name}",
   "Couldn't open the editor: {e}": "Impossibile aprire l'editor: {e}",
   "Create {n} Virtual Copies": "Crea {n} copie virtuali",
   "Creates {} stacks from {} of {scope}": "Crea pile: {} (da {} di {scope})",
@@ -48,6 +49,7 @@
   "Done ({what}): {done} photo{plural}": "Fatto ({what}): {done} foto{plural:.0}",
   "Duplicate \"{label}\"": "Duplica \"{label}\"",
   "Example: {example}": "Esempio: {example}",
+  "Expand {name}": "Espandi {name}",
   "Exported {n} photo{}": "Foto esportate: {n}{:.0}",
   "Exported {ok} of {total} photo{}": "Foto esportate: {ok} di {total}{:.0}",
   "Exported {} point curve preset{}": "Preset di curva a punti esportati: {}{:.0}",
@@ -223,6 +225,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "“{parent}” ha già “{name}”. Unire le due?",
   "There is a “{name}” at the top level already. Merge the two?": "Al livello principale c'è già “{name}”. Unire le due?",
   "Added “{keyword}” to {n} photo{}": "Aggiunta “{keyword}” a {n} foto{:.0}",
+  "Add Keyword “{keywords}”": "Aggiungi parola chiave “{keywords}”",
   "On {have} of {of} selected photos": "Su {have} di {of} foto selezionate",
   "Remove “{name}”": "Rimuovi “{name}”",
   "There is a keyword set “{name}” already": "Esiste già un set di parole chiave “{name}”",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "Impossibile leggere {name}: {e}",
   "Added {n} photo{}": "Foto aggiunte: {n}{:.0}",
   "Where should the Lightroom catalog “{catalog}” go?": "Dove importare il catalogo Lightroom “{catalog}”?",
-  "Merge into the open library “{library}” ({count} photo{})": "Unisci alla libreria aperta “{library}” (foto: {count}{:.0})"
+  "Merge into the open library “{library}” ({count} photo{})": "Unisci alla libreria aperta “{library}” (foto: {count}{:.0})",
+  "Photo: {name}": "Foto: {name}"
 }

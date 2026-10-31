@@ -164,7 +164,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
     // tool's overlays need the frame's own geometry.
     let display_aspect = visible_texture_aspect.filter(|a| !crop_tool && (a / aspect - 1.0).abs() > 0.02).unwrap_or(aspect);
     let resp = ui.interact(canvas, egui::Id::unique("loupe"), Sense::click_and_drag());
-    crate::widgets::announce(&resp, crate::i18n::tr("Photo"));
+    announce_photo(app, &resp, &photo);
     let mut target_rect = fit_rect(main_area, display_aspect, app.ui.zoom, native, ppp, app.ui.pan);
     let mut img_rect = animated_rect(ui.ctx(), &mut app.ui.zoom_anim, target_rect);
     let in_pane = |pane: Rect, image: Rect| image.translate(pane.center() - main_area.center());
@@ -356,6 +356,12 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         photo.preview_only.as_deref().inspect(|why| preview_only_pill(ui, canvas, why));
     }
     loupe_context_menu(app, &resp, id);
+}
+
+/// Names the loupe for screen readers as the grid names the same photo (file, rating, flag, label), not
+/// just "Photo".
+fn announce_photo(app: &LightcraftApp, resp: &egui::Response, photo: &lightcraft_catalog::Photo) {
+    crate::widgets::announce(resp, crate::i18n::tr_format!("Photo: {name}", name = super::grid::cell_description(app, photo)));
 }
 
 /// The loupe's right-click menu: zoom commands and the grid's photo menu.

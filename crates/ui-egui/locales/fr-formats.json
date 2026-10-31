@@ -36,6 +36,7 @@
   "Build Standard-Sized Previews ({scope})": "Créer les aperçus de taille standard ({scope})",
   "Building previews for {} photos…": "Création des aperçus pour {} photos…",
   "Click {}:1": "Cliquer sur {}:1",
+  "Collapse {name}": "Réduire {name}",
   "Color space: Rec. 2020 {curve} (HDR AVIF)": "Espace colorimétrique : Rec. 2020 {curve} (AVIF HDR)",
   "Couldn't open the editor: {e}": "Impossible d’ouvrir l’éditeur : {e}",
   "Create {n} Virtual Copies": "Créer {n} copies virtuelles",
@@ -49,6 +50,7 @@
   "Done ({what}): {done} photo{plural}": "Terminé ({what}) : {done} photo{plural}",
   "Duplicate \"{label}\"": "Dupliquer « {label} »",
   "Example: {example}": "Exemple : {example}",
+  "Expand {name}": "Développer {name}",
   "Exported {n} photo{}": "{n} photo{} exportée(s)",
   "Exported {ok} of {total} photo{}": "{ok} photo{} exportée(s) sur {total}",
   "Exported {} point curve preset{}": "{} préréglage{} de courbe à points exporté(s)",
@@ -227,6 +229,7 @@
   "“{parent}” has a “{name}” already. Merge the two?": "« {parent} » contient déjà « {name} ». Fusionner les deux ?",
   "There is a “{name}” at the top level already. Merge the two?": "Il existe déjà « {name} » au premier niveau. Fusionner les deux ?",
   "Added “{keyword}” to {n} photo{}": "« {keyword} » ajouté à {n} photo{}",
+  "Add Keyword “{keywords}”": "Ajouter le mot-clé « {keywords} »",
   "On {have} of {of} selected photos": "Sur {have} des {of} photos sélectionnées",
   "Remove “{name}”": "Retirer « {name} »",
   "There is a keyword set “{name}” already": "Un jeu de mots-clés « {name} » existe déjà",
@@ -305,5 +308,6 @@
   "Could not read {name}: {e}": "Impossible de lire {name} : {e}",
   "Added {n} photo{}": "{n} photo{} ajoutée(s)",
   "Where should the Lightroom catalog “{catalog}” go?": "Où importer le catalogue Lightroom « {catalog} » ?",
-  "Merge into the open library “{library}” ({count} photo{})": "Fusionner avec la bibliothèque ouverte « {library} » ({count} photo{})"
+  "Merge into the open library “{library}” ({count} photo{})": "Fusionner avec la bibliothèque ouverte « {library} » ({count} photo{})",
+  "Photo: {name}": "Photo : {name}"
 }

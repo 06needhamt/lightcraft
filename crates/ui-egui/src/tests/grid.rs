@@ -407,3 +407,55 @@ fn a_grid_followed_through_edits_shows_what_a_grid_made_afresh_shows() {
         }
     }
 }
+
+/// The empty view names Import Photos' key as the menu bar writes it, as it is bound, not a
+/// fixed English "Cmd+Shift+I" on every platform.
+#[test]
+fn the_empty_view_names_the_import_shortcut_of_this_platform() {
+    use crate::menubar::shortcut_text;
+    use crate::panels::grid::import_way_in;
+    let mut keymap = crate::state::AppSettings::default().keymap;
+    for mac in [true, false] {
+        let (way, key) = import_way_in(&keymap, mac);
+        assert_eq!(key, Some(shortcut_text("Cmd+Shift+I", mac)));
+        assert!(!way.contains("Cmd+Shift+I"), "{way}");
+    }
+    assert_eq!(import_way_in(&keymap, false).1.as_deref(), Some("Ctrl+Shift+I"));
+    // a remapped key is the one shown
+    crate::shortcuts::assign(&mut keymap, "file.addPhotos", Some("Cmd+Alt+I")).unwrap();
+    for mac in [true, false] {
+        assert_eq!(import_way_in(&keymap, mac).1, Some(shortcut_text("Cmd+Alt+I", mac)));
+    }
+    // and none at all names no key
+    crate::shortcuts::assign(&mut keymap, "file.addPhotos", None).unwrap();
+    assert_eq!(import_way_in(&keymap, true).1, None);
+}
+
+/// A narrow grid wraps the empty view's way in (a long translation with its shortcut would run
+/// out of the window on one line) and keeps the shortcut visible.
+#[test]
+fn the_empty_views_way_in_wraps_in_a_narrow_grid_and_keeps_its_shortcut() {
+    let mut h = Headless::new(LightcraftApp::new(Session::with_demo(), Services::default()), [420.0, 700.0], 1.0);
+    let album = h.app.session.execute("album.create", &json!({"name": "Empty"})).unwrap()["id"].as_u64().unwrap();
+    h.app.session.execute("library.source", &json!({"kind": "album", "id": album})).unwrap();
+    h.app.ui.view = ViewMode::PhotoGrid;
+    assert_eq!(h.request("ui.set", json!({"language": "de"}), T)["ok"], true);
+    h.step();
+    h.step();
+    let texts: Vec<_> = h
+        .view
+        .painted_shapes()
+        .iter()
+        .filter_map(|s| match s {
+            egui::Shape::Text(t) => Some(t.galley.clone()),
+            _ => None,
+        })
+        .collect();
+    crate::i18n::set_language(crate::i18n::Locale::En);
+    let way = crate::i18n::Locale::De.tr("Import photos with File → Import Photos…, or drop them here");
+    let g = texts.iter().find(|g| g.job.text == way).unwrap_or_else(|| panic!("the way in is painted: {:?}", h.painted_text()));
+    assert!(g.rows.len() > 1, "wrapped on a narrow grid: {} row(s) of {:?}", g.rows.len(), g.size());
+    assert!(g.size().x < 420.0, "inside the window: {:?}", g.size());
+    let key = crate::menubar::shortcut_text("Cmd+Shift+I", cfg!(target_os = "macos"));
+    assert!(h.painted_text().iter().any(|t| t.contains(&key)), "the shortcut stays visible: {:?}", h.painted_text());
+}

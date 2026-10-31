@@ -178,6 +178,18 @@ pub fn register_geometry(ctx: &egui::Context, id: impl Into<String>, rect: Rect)
     ctx.data_mut(|d| d.get_temp_mut_or_default::<Registry>(egui::Id::unique("lc-registry")).rects.push((id, rect)));
 }
 
+/// The keyboard-focus ring, drawn on top of whatever the control paints so a focused control reads
+/// as focused whether it is idle, hovered or selected. It is drawn inside `rect`, so it survives a
+/// painter clipped to the control. [`crate::check`] draws the same stroke around its box.
+pub fn focus_ring(p: &egui::Painter, rect: Rect, t: &Tokens) {
+    p.rect_stroke(rect, CornerRadius::same(4), focus_stroke(t), StrokeKind::Inside);
+}
+
+/// The stroke of every focus ring: 2 px in the accent colour.
+pub fn focus_stroke(t: &Tokens) -> Stroke {
+    Stroke::new(2.0, t.accent)
+}
+
 /// Esc was handled this frame by something nested (an open popup closed on it): containers such
 /// as dialogs shouldn't close too. Keyed to the frame, so it lapses by itself on the next one.
 pub fn take_escape(ctx: &egui::Context) {
@@ -728,7 +740,7 @@ fn fine_drag_value(ui: &mut Ui, g: &SliderLayout) -> f64 {
 }
 
 /// A screen reader's increment / decrement (VoiceOver: Ctrl-Option-Up / Down) as `(increment, decrement)`.
-fn accessibility_nudge(ui: &Ui, resp: &Response) -> (bool, bool) {
+pub(crate) fn accessibility_nudge(ui: &Ui, resp: &Response) -> (bool, bool) {
     ui.input(|i| {
         i.events.iter().fold((false, false), |(inc, dec), e| match e {
             egui::Event::AccessKitActionRequest(r) if r.target_node == resp.id.accesskit_id() => {
