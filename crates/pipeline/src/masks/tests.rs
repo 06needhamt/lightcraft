@@ -148,7 +148,8 @@ fn a_long_segment_gets_dabs_at_most_the_spacing_apart() {
     }
     assert_eq!(committed.dabs, again);
     assert!(committed.dabs.windows(2).all(|w| w[0].dist(w[1]) <= dab_spacing(committed.r) + 1e-9));
-    // many huge segments stop at the stroke budget instead of adding up without bound
+    // a huge segment lays only its end point, so many of them add one dab each instead of
+    // filling the stroke budget with intermediate dabs
     let mut big = Vec::new();
     let mut at = Point::new(0.0, 0.0);
     for i in 0..5 {
@@ -157,14 +158,32 @@ fn a_long_segment_gets_dabs_at_most_the_spacing_apart() {
             at = q;
         }
     }
-    assert!(big.len() <= MAX_STROKE_DABS, "{} dabs", big.len());
-    assert!(!push_dabs(&mut big, Some(at), Point::new(5.0, 5.0), 1.0), "a full stroke takes no more");
+    assert_eq!(big.len(), 5, "an extreme segment lays no intermediate dabs");
+    let mut spent = MAX_STROKE_DABS;
+    assert!(!push_dabs_counted(&mut big, &mut spent, Some(at), Point::new(5.0, 5.0), 1.0), "a full stroke takes no more");
     // a hostile segment places no in-between dabs
     let mut v = Vec::new();
     assert!(!push_dabs(&mut v, Some(Point::new(f64::NAN, 0.0)), Point::new(1.0, 1.0), r));
     assert!(!push_dabs(&mut v, None, Point::new(f64::INFINITY, 1.0), r));
     push_dabs(&mut v, Some(Point::new(0.0, 0.0)), Point::new(1e300, 1.0), 0.0);
     assert!(v.len() <= 1_000_002, "{}", v.len());
+}
+
+#[test]
+fn oversized_brush_segments_skip_intermediate_dabs() {
+    let mut dabs = vec![Point::new(10.0, 10.0)];
+    let far = Point::new(10_000_000.0, 10.0);
+    assert!(push_dabs(&mut dabs, Some(Point::new(10.0, 10.0)), far, 2.0));
+    assert_eq!(dabs.len(), 2, "an extreme segment must not allocate a million intermediate dabs");
+    assert_eq!(dabs.last(), Some(&far));
+
+    // Ordinary feathered-brush paths still get overlapping dabs and their endpoint.
+    let mut regular = vec![Point::new(10.0, 10.0)];
+    let end = Point::new(30.0, 10.0);
+    assert!(push_dabs(&mut regular, Some(Point::new(10.0, 10.0)), end, 4.0));
+    assert_eq!(regular.len(), 21);
+    assert_eq!(regular.last(), Some(&end));
+    assert!(regular.windows(2).all(|pair| pair[0].dist(pair[1]) <= dab_spacing(4.0)));
 }
 
 /// A temporary output buffer must spend the same stroke budget as a retained one.

@@ -598,7 +598,7 @@ pub fn push_dabs_counted(dabs: &mut Vec<Point>, emitted: &mut usize, prev: Optio
         let n = (dist / dab_spacing(r)).ceil();
         // a hostile or degenerate segment (huge) gets no in-between dabs rather than a huge
         // allocation: 1 M dabs is far more than any on-screen stroke needs
-        let n = if n.is_finite() { n.clamp(0.0, 1_000_000.0) as usize } else { 0 };
+        let n = if n.is_finite() && n <= 1_000_000.0 { n.max(0.0) as usize } else { 0 };
         // the in-between dabs and `q` together fit what is left of the stroke's budget
         let n = n.min(room);
         for k in 1..n {
