@@ -86,7 +86,7 @@ impl DateTime {
             None if rest.len() == 4 => (num(rest.get(..2)?)?, num(rest.get(2..)?)?),
             None => (num(rest)?, 0),
         };
-        if h > 18 || m > 59 {
+        if h > 18 || m > 59 || (h == 18 && m > 0) {
             return None;
         }
         Some(sign * (h * 60 + m) as i16)
@@ -238,6 +238,10 @@ mod tests {
         assert_eq!(DateTime::parse_offset("-05:30"), Some(-330));
         assert_eq!(DateTime::parse_offset("Z"), Some(0));
         assert_eq!(DateTime::parse_offset("+0930"), Some(570));
+        assert_eq!(DateTime::parse_offset("+18:00"), Some(1080));
+        assert_eq!(DateTime::parse_offset("-18:00"), Some(-1080));
+        assert_eq!(DateTime::parse_offset("+18:01"), None);
+        assert_eq!(DateTime::parse_offset("-18:01"), None);
         assert_eq!(DateTime::parse_offset("   :  "), None);
         assert_eq!(DateTime::parse_offset("+99:00"), None);
     }
