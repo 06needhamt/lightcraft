@@ -316,8 +316,7 @@ fn given_straightened_photo_when_a_free_corner_is_dragged_out_diagonally_then_bo
         assert!((further.rect.x1 - g.rect.x1).abs() < 1e-4 && (further.rect.y1 - g.rect.y1).abs() < 1e-4, "{angle}: {:?}", further.rect);
     }
     let start = CropGeometry { rect: Rect::new(0.3, 0.3, 0.6, 0.6), angle: 8.0 };
-    for (hd, from, to) in [(TopLeft, p(0.3, 0.3), p(-0.5, -0.5)), (TopRight, p(0.6, 0.3), p(1.5, -0.5)), (BottomLeft, p(0.3, 0.6), p(-0.5, 1.5))]
-    {
+    for (hd, from, to) in [(TopLeft, p(0.3, 0.3), p(-0.5, -0.5)), (TopRight, p(0.6, 0.3), p(1.5, -0.5)), (BottomLeft, p(0.3, 0.6), p(-0.5, 1.5))] {
         let g = drag(start, hd, from, to, None);
         assert!(g.is_within_image(W, H), "{hd:?}: {:?}", g.rect);
         assert!(g.rect.width() > 0.5 && g.rect.height() > 0.45, "{hd:?}: one side only: {:?}", g.rect);
