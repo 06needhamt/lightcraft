@@ -88,6 +88,7 @@ impl LightcraftApp {
             next_widgets: vec![],
             next_widget_hits: vec![],
             gesture: None,
+            space_hand: None,
             brush_live: None,
             loupe_shown: None,
             region_view: None,

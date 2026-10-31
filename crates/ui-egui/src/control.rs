@@ -693,8 +693,17 @@ pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, metho
         "ui.key" => {
             let Some(k) = s("key").and_then(key_from) else { return Err("unknown or missing `key`".into()) };
             let m = modifiers(p);
-            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m });
-            app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed: false, repeat: false, modifiers: m });
+            // {action?: "press" | "down" | "up"}: down … up holds the key across other input (Space
+            // held over a drag); a press is both in one frame
+            let (down, up) = match s("action").unwrap_or("press") {
+                "press" => (true, true),
+                "down" => (true, false),
+                "up" => (false, true),
+                other => return Err(format!("ui.key: action {other:?} (press, down or up)")),
+            };
+            for pressed in [down.then_some(true), up.then_some(false)].into_iter().flatten() {
+                app.synthetic.push(egui::Event::Key { key: k, physical_key: None, pressed, repeat: false, modifiers: m });
+            }
             ctx.request_repaint();
             Ok(GestureOutcome::done(Value::Null))
         }

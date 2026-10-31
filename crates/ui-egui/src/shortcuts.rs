@@ -367,6 +367,8 @@ fn keyboard_owned(app: &LightcraftApp, ctx: &egui::Context) -> bool {
 /// text field, name edit or shortcut recording owns input, then fires saved command bindings,
 /// aliases and fixed photo keys, respecting native menu ownership and open popups.
 pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context) {
+    // Space held over a tool ends when the key is up, whoever has the keyboard by then
+    crate::space_hand::tick(app, ctx);
     if !matches!(app.ui.dialog, Some(crate::state::Dialog::Shortcuts)) {
         app.recording_shortcut = None;
     }
@@ -425,6 +427,8 @@ fn pressed_commands(app: &LightcraftApp, ctx: &egui::Context) -> (Vec<String>, V
         {
             fire.push("view.detail".to_string());
         }
+        // a held Space repeats: it toggles the zoom (or takes the hand) once per press
+        let space_repeat = !i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Space, pressed: true, repeat: false, .. }));
         for b in bindable() {
             if let Some(sc) = binding(keymap, b.id, b.default)
                 && let Some((m, k)) = parse(sc)
@@ -433,12 +437,21 @@ fn pressed_commands(app: &LightcraftApp, ctx: &egui::Context) -> (Vec<String>, V
                 && matches(i, m, k)
                 && let Some(id) = grid_key_command(keymap, grid, app.ui.fullscreen, b.id, (m, k))
             {
-                fire.push(id.to_string());
+                if id == "view.zoomToggle" && k == Key::Space {
+                    // Toggle Zoom given Space in the keymap is the Space alias: the same hand and
+                    // the same once-per-press
+                    if !space_repeat {
+                        aliased.push(("view.zoomToggle", json!({})));
+                    }
+                } else {
+                    fire.push(id.to_string());
+                }
             }
         }
         for (sc, id, params) in ALIASES {
             if let Some((m, k)) = parse(sc).filter(|_| !native(sc))
                 && !(k == Key::Escape && popup_open)
+                && !(k == Key::Space && space_repeat)
                 && !taken.contains(&(m, k))
                 && matches(i, m, k)
             {
@@ -503,6 +516,10 @@ fn fire_alias(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, params: se
         if let Ok(v) = app.run("slideshow.togglePause", json!({})) {
             app.toast(ctx, crate::i18n::tr(if v["paused"] == true { "Slideshow paused" } else { "Slideshow resumed" }));
         }
+        return;
+    }
+    // over a tool on the photo, held Space is the view's hand; a tap toggles on its release
+    if id == "view.zoomToggle" && crate::space_hand::begin(app, ctx) {
         return;
     }
     // flag/rate aliases (Shift+X…) go through the culling path: active photo in Compare/Survey,
