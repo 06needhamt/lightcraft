@@ -53,6 +53,13 @@
 ### The histogram stays in view
 - The histogram stays at the top of the Edit panel while its sliders scroll under it (issue #2679). It used to scroll
   away with them, so it was out of sight while using the sliders further down the panel.
+### No maze pattern in noisy raws
+- Flat areas of high-ISO raws, such as a dim wall or a blurred background, could show short horizontal and vertical
+  strokes instead of grain, often orange and blue under warm light. Noise reduction made them stand out more, because
+  it smooths the grain around them. The demosaic chose between a horizontal and a vertical guess at each pixel, and
+  in a flat area the noise alone decided which. Where neither guess is clearly better it now blends the two, so the
+  noise looks like grain. Edges are as sharp as before. Thumbnails and previews that LightCraft rendered from a raw
+  are redrawn; the camera's own embedded preview, shown for an unedited raw until its render is ready, is unchanged.
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
 - In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
