@@ -45,7 +45,9 @@ mod types;
 pub(crate) use commit::workers;
 pub use commit::{batch_size, civil, commit_prepared, system_clock};
 pub use defaults::{CameraDefault, ImportDefaults, apply_import_defaults, has_import_look, import_defaults};
-pub use files::{EXTENSIONS, LaunchPath, accept_list, expand, expand_within, is_supported, launch_path};
+pub use files::{
+    EXTENSIONS, LAUNCH_PROBE_LIMIT, LaunchPath, accept_list, expand, expand_within, is_supported, launch_deadline, launch_path, launch_path_until,
+};
 pub(crate) use files::{expand_noting, probe_all, probe_paths, probe_with};
 #[cfg(test)]
 use job::PreparedItem;

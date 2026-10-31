@@ -121,6 +121,53 @@ pub enum LaunchPath {
     /// Not imported: `path` (absolute) is a whole drive or the whole home folder, which is never
     /// walked without being chosen in the app (issue #374).
     Refused { path: String, why: String },
+    /// Open this (absolute) library folder: the argument was a library's `catalog.snap` or its folder, as a
+    /// double-click on a catalog in the file manager gives. Never imported.
+    Library(String),
+}
+
+/// The library folder `path` names: a library's `catalog.snap` (its folder), or a folder holding one. `None` for
+/// anything else (photos, folders of photos). The folder must pass the library opener's own test
+/// ([`crate::library::is_library`]), so a `CATALOG.SNAP` the opener would not read (a case-sensitive file system)
+/// never opens its folder as a new, empty library.
+pub fn library_dir_of(path: &Path) -> Option<PathBuf> {
+    let snapshot = lightcraft_catalog::journal::SNAPSHOT;
+    let named = path.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case(snapshot));
+    if named && path.is_file() {
+        return path.parent().filter(|dir| crate::library::is_library(dir)).map(Path::to_path_buf);
+    }
+    (path.is_dir() && crate::library::is_library(path)).then(|| path.to_path_buf())
+}
+
+/// How long the launch arguments' library checks may take, all of them together, before LightCraft gives up and
+/// treats the arguments not yet checked as photos to import (in the background). A path on a dead network mount
+/// can block a file-system query for minutes, and these checks run before the window opens.
+pub const LAUNCH_PROBE_LIMIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// When the launch arguments' library checks, starting now, must be done: [`LAUNCH_PROBE_LIMIT`] from now.
+pub fn launch_deadline() -> std::time::Instant {
+    let now = std::time::Instant::now();
+    now.checked_add(LAUNCH_PROBE_LIMIT).unwrap_or(now)
+}
+
+/// `probe`'s answer, or `None` when it takes longer than `limit`: it runs on its own thread, which is left to
+/// finish (or stay blocked) on its own. Also `None` when no thread can be started.
+pub(crate) fn within<T: Send + 'static>(limit: std::time::Duration, probe: impl FnOnce() -> Option<T> + Send + 'static) -> Option<T> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let started = std::thread::Builder::new().name("launch-probe".into()).spawn(move || {
+        let _ = tx.send(probe());
+    });
+    if let Err(e) = started {
+        log::warn!("could not start the launch-path check: {e}");
+        return None;
+    }
+    match rx.recv_timeout(limit) {
+        Ok(found) => found,
+        Err(_) => {
+            log::warn!("the launch-path check took longer than {limit:?}; treating the argument as photos to import");
+            None
+        }
+    }
 }
 
 /// Resolve a launch argument for importing (issue #374). An empty argument is ignored (`None`);
@@ -130,6 +177,19 @@ pub enum LaunchPath {
 /// or file-system root is replaced by its camera folder (`DCIM`, from `dcim`: a memory card) or
 /// refused, and so is the home folder `home`: either would walk most of the disk.
 pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: impl Fn(&Path) -> Option<PathBuf>) -> Option<LaunchPath> {
+    launch_path_until(arg, cwd, home, dcim, launch_deadline())
+}
+
+/// [`launch_path`], with its library check bounded by `deadline` (from [`launch_deadline`]), which every argument
+/// of one launch shares: several paths on a dead mount wait [`LAUNCH_PROBE_LIMIT`] in all, not each. Once it has
+/// passed, an argument is imported without the check.
+pub fn launch_path_until(
+    arg: &str,
+    cwd: Option<&Path>,
+    home: Option<&Path>,
+    dcim: impl Fn(&Path) -> Option<PathBuf>,
+    deadline: std::time::Instant,
+) -> Option<LaunchPath> {
     if arg.trim().is_empty() {
         return None;
     }
@@ -163,6 +223,13 @@ pub fn launch_path(arg: &str, cwd: Option<&Path>, home: Option<&Path>, dcim: imp
     let key = lightcraft_catalog::query::folder_key;
     if home.is_some_and(|h| key(&h.to_string_lossy()) == key(&shown)) {
         return Some(LaunchPath::Refused { path: shown, why: "the whole home folder".into() });
+    }
+    let left = deadline.saturating_duration_since(std::time::Instant::now());
+    let probed = abs.clone();
+    if !left.is_zero()
+        && let Some(dir) = within(left, move || library_dir_of(&probed))
+    {
+        return Some(LaunchPath::Library(dir.to_string_lossy().to_string()));
     }
     Some(LaunchPath::Import(shown))
 }
@@ -362,6 +429,67 @@ pub(super) fn copy_into(dir: &Path, src: &str, name: Option<&str>, probe_hash: O
 mod prepared_tests {
     use super::*;
     use lightcraft_catalog::{Op, Photo, PhotoId, Source};
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("lc-launch-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A launch argument names a library only when the library opener would read that folder: a `CATALOG.SNAP`
+    /// on a case-sensitive file system (no `catalog.snap` or `catalog.log` beside it) is not one.
+    #[test]
+    fn a_launch_argument_names_a_library_only_when_the_opener_can_read_it() {
+        let dir = temp_dir("upper");
+        let upper = dir.join("CATALOG.SNAP");
+        std::fs::write(&upper, b"x").unwrap();
+        let found = library_dir_of(&upper);
+        assert_eq!(found.is_some(), crate::library::is_library(&dir), "{found:?}");
+        if let Some(d) = &found {
+            assert!(crate::library::is_library(d), "{} opened as a library the opener can't read", d.display());
+        }
+        // a folder holding only the journal is a library to the opener, so it is one here too
+        let journal = temp_dir("journal");
+        std::fs::write(journal.join(lightcraft_catalog::journal::LOG), b"x").unwrap();
+        assert_eq!(library_dir_of(&journal), Some(journal.clone()));
+        // a folder of photos is not
+        let photos = temp_dir("photos");
+        std::fs::write(photos.join("a.jpg"), b"x").unwrap();
+        assert_eq!(library_dir_of(&photos), None);
+        for d in [dir, journal, photos] {
+            let _ = std::fs::remove_dir_all(d);
+        }
+    }
+
+    /// The library check runs before the window opens; one that blocks (a dead network mount) gives up after the
+    /// limit and the argument is imported instead, so LightCraft still starts.
+    #[test]
+    fn a_blocked_launch_probe_gives_up_after_its_limit() {
+        let start = std::time::Instant::now();
+        let found = within(std::time::Duration::from_millis(50), || {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            Some(PathBuf::from("late"))
+        });
+        assert_eq!(found, None);
+        assert!(start.elapsed() < std::time::Duration::from_secs(2), "waited {:?}", start.elapsed());
+        assert_eq!(within(LAUNCH_PROBE_LIMIT, || Some(1)), Some(1), "a quick answer is kept");
+    }
+
+    /// The launch arguments share one deadline (CodeRabbit on #2979): once it has passed, an argument is imported
+    /// without its library check, so several paths on a dead mount can't each wait the limit.
+    #[test]
+    fn launch_arguments_share_one_deadline() {
+        let dir = temp_dir("deadline");
+        std::fs::write(dir.join(lightcraft_catalog::journal::LOG), b"x").unwrap();
+        let arg = dir.to_string_lossy().to_string();
+        let none = |_: &Path| None;
+        assert_eq!(launch_path_until(&arg, None, None, none, launch_deadline()), Some(LaunchPath::Library(arg.clone())));
+        let start = std::time::Instant::now();
+        assert_eq!(launch_path_until(&arg, None, None, none, start), Some(LaunchPath::Import(arg.clone())), "deadline passed");
+        assert!(start.elapsed() < std::time::Duration::from_millis(500), "waited {:?}", start.elapsed());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     /// Extensions the picker may offer: every one in [`EXTENSIONS`], minus the
     /// files this build cannot import (see [`accept_list`]).

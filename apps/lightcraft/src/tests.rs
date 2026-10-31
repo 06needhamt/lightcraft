@@ -14,14 +14,54 @@ fn launch_arguments_never_walk_a_drive_or_the_home_folder() {
     let home = dir("launch");
     std::fs::create_dir_all(home.join("Trip")).unwrap();
     let args: Vec<String> = ["", "  ", ".", "Trip", &home.to_string_lossy()].iter().map(|s| s.to_string()).collect();
-    let (files, notices) = launch_imports_in(&args, Some(&home), Some(&home));
+    let LaunchArgs { files, notices, library } = launch_imports_in(&args, Some(&home), Some(&home));
+    assert_eq!(library, None);
     assert_eq!(files, [home.join("Trip").to_string_lossy().to_string()]);
     assert_eq!(notices.len(), 2, "{notices:?}");
     assert!(notices.iter().all(|n| n.contains("was not imported")), "{notices:?}");
     // the working folder is a drive root (a launcher's choice): `.` is never the whole drive
     let root = home.ancestors().last().unwrap().to_path_buf();
-    let (files, notices) = launch_imports_in(&[".".to_string()], Some(&root), None);
+    let LaunchArgs { files, notices, .. } = launch_imports_in(&[".".to_string()], Some(&root), None);
     assert!(files.iter().all(|f| f.ends_with("DCIM")) && files.len() + notices.len() == 1, "{files:?} {notices:?}");
+    let _ = std::fs::remove_dir_all(&home);
+}
+
+/// `--library` and `LIGHTCRAFT_LIBRARY` win over a library given as an argument, which is
+/// then not remembered either.
+#[test]
+fn the_library_flag_and_variable_win_over_a_library_argument() {
+    use std::path::PathBuf;
+    let (flag, env, arg) = (PathBuf::from("flag"), PathBuf::from("env"), PathBuf::from("arg"));
+    assert_eq!(launch_library_choice(Some(flag.clone()), Some(&env), Some(arg.clone())), (Some(flag.clone()), false));
+    assert_eq!(launch_library_choice(None, Some(&env), Some(arg.clone())), (None, false), "the variable is passed on as itself");
+    assert_eq!(launch_library_choice(None, None, Some(arg.clone())), (Some(arg), true));
+    assert_eq!(launch_library_choice(None, None, None), (None, false));
+    assert_eq!(launch_library_choice(Some(flag.clone()), None, None), (Some(flag), false));
+}
+
+/// A library's catalog.snap (double-clicked in Explorer) or its folder given at
+/// launch opens that library and is never imported as photos; a second library is left with a notice.
+#[test]
+fn a_librarys_catalog_given_at_launch_opens_that_library() {
+    let home = dir("launch-library");
+    let lib = home.join("Wedding LC");
+    let mut s = lightcraft_engine::Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    s.close_library().unwrap();
+    let snap = lib.join("catalog.snap");
+    assert!(snap.is_file(), "a library keeps its catalog.snap");
+    let other = home.join("Other LC");
+    let mut s = lightcraft_engine::Session::new().with_fs();
+    s.open_library(&other, false).unwrap();
+    s.close_library().unwrap();
+    for arg in [snap.to_string_lossy().to_string(), lib.to_string_lossy().to_string(), "Wedding LC/catalog.snap".to_string()] {
+        let got = launch_imports_in(std::slice::from_ref(&arg), Some(&home), Some(&home.join("elsewhere")));
+        assert_eq!(got.library.as_deref(), Some(lib.as_path()), "{arg}");
+        assert!(got.files.is_empty() && got.notices.is_empty(), "{arg}: never imported: {got:?}");
+    }
+    let got = launch_imports_in(&[snap.to_string_lossy().to_string(), other.to_string_lossy().to_string()], Some(&home), None);
+    assert_eq!(got.library.as_deref(), Some(lib.as_path()), "the first one");
+    assert_eq!(got.notices.len(), 1, "{got:?}");
     let _ = std::fs::remove_dir_all(&home);
 }
 
