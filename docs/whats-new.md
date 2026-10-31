@@ -29,6 +29,11 @@
 - In the Tone Curve's parametric mode the graph is now drawn from the renderer's own curve, so it always matches the
   photo, and the line can be dragged: pressing it picks the region under the pointer (Highlights, Lights, Darks or
   Shadows) and moving up or down changes that slider, as one undo step. Hovering the line names the region first.
+## 2026-10-24
+
+### Virtual-copy numbering stops cleanly at its limit
+- Creating a numbered virtual copy now reports when the `Copy N` sequence is exhausted, before any copies in a
+  batch are created. An explicit name remains available even when the numeric sequence is full.
 
 ## 2026-10-23
 
