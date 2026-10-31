@@ -7,6 +7,13 @@
   SDR / HDR colour bar) again until the drag ended. The histogram now follows the edit: an SDR edit shows the SDR
   histogram while you drag, too.
 
+## 2026-10-29
+
+### The histogram's clipping buttons read in light themes
+- The two buttons at the histogram's top corners (shadow and highlight clipping) are no longer near-black tiles with a
+  grey chevron. They take the theme's own raised fill, and the chevron stands out from it in Charcoal, Midnight, Silver
+  and Paper alike.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
