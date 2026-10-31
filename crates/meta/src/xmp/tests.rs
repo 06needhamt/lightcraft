@@ -483,3 +483,11 @@ fn flattened_keys_stay_within_the_cumulative_budget() {
     assert!(d.properties.len() < 3000, "keys stop being added once the budget is spent");
     assert!(!d.properties.is_empty(), "properties parsed before the budget are kept");
 }
+
+#[test]
+fn entity_rejects_signed_numeric_references() {
+    assert_eq!(entity("#+65"), None);
+    assert_eq!(entity("#x+41"), None);
+    assert_eq!(entity("#65"), Some('A'));
+    assert_eq!(entity("#x41"), Some('A'));
+}
