@@ -129,6 +129,28 @@ still has lens corrections removed, so the pipeline applies them once through En
 Corrections. Developing this proxy requires a full-resolution demosaic; files without such
 opcodes keep their binned proxy.
 
+## Embedded vignetting correction (Fujifilm RAF)
+
+The RAF decoder turns the maker note's vignetting data into a `FixVignetteRadial` correction, and the render applies
+it (Enable Profile Corrections). The camera applied the same correction to its JPEG. Every per-file fit
+(`fit_preview`, `monochrome_look`, the near-black tone fallback) therefore takes its sensor proxy through
+`look_proxies`, which multiplies it by that gain as `fit_dng_tone` already did (`correct_vignetting`). Before
+`LOOK_VERSION` 13 the RAF fit saw the uncorrected sensor: the tone curve learned the JPEG's corrected brightness, and
+the render added the correction again. Lens-database corrections (`LIGHTCRAFT_LENSFUN_DIR`) reach the fit the same way.
+`proxies` applies the gain before it moves the sensor into the JPEG's lens geometry, so each pixel gets the gain of the
+position it samples, as in the render. The choice between the warped and the plain sensor (`alignment`) leaves out
+the pixels the warp finds no sensor for. It used to read them as black, a false edge along the border that made the
+warped candidate lose on some wide-angle shots with barrel distortion; neither change moved ΔE00 by more than 0.04 on
+the photos below.
+
+On 21 X-S10 photos the render was up to 0.3 EV brighter than the camera JPEG in the midtones (a wide-open blue-hour
+shot) and up to 0.6 EV in the darkest 3 % of the pixels (ISO 12800 indoors). On 60 other X-S10 photos, picked at
+random from one photographer's library and rendered without their sidecars, mean ΔE00 against the camera JPEG went
+from 2.71 to 2.55: 32 improved by more than 0.1, none got worse by more than 0.05. The median luminance error per
+quantile is now within ±0.04 EV, except +0.09 EV in the darkest 3 %. That rest comes from fitting on a 96 px proxy:
+each proxy pixel averages a shadow's texture before the curve, while the render applies the curve per pixel. A fit
+on a 4× finer proxy roughly halves it in a simulation, but the acceptance gates were set at 96 px.
+
 ## Camera profiles (pooled per model)
 
 One photo can show too little of a colour for its own fit to learn it: in a second shot of the lime shirt only a few dozen proxy pixels show it, next to a hillside of foliage at the same hue that the camera renders differently, and the shirt stayed yellow (hue 68° against the JPEG's 82°; a 192-pixel proxy only reached 74°). `lightcraft-cli calibrate [--max N] [--out DIR] FOLDERS…` therefore pools the colour pairs of many ARWs, NEFs or RAFs per camera model — each against its own embedded JPEG, at a 192-pixel proxy, at most 4000 pairs per photo, files spread evenly over the folders — and fits one matrix (from white-balanced camera RGB, so no single photo's white point is baked in) and one hue/saturation/value table. Models need at least 5 usable photos.
