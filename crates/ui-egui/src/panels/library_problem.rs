@@ -28,6 +28,10 @@ use crate::widgets::register;
 /// windows and their dim.
 const DIM_ID: &str = "library-problem-dim";
 const ERROR_WINDOW_ID: &str = "library-problem";
+/// What the error window says about the library's safety and the way on (drawn as it is, not translated).
+const EXPLANATION: &str = "Your photos and edits in it are untouched. You can try again (e.g. after closing another program that has it open \
+                            or reconnecting its drive), open a different library or create a new one, or continue without a library — \
+                            then nothing you do is saved.";
 const CHOOSER_WINDOW_ID: &str = "library-chooser";
 
 /// The named `Foreground` layer used by the dim and the two blocking library windows.
@@ -1016,6 +1020,12 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
     dim(ctx);
     let mut choice = None;
     let frame = egui::Frame::window(&ctx.global_style()).inner_margin(egui::Margin::symmetric(18, 14));
+    // what the window says, in one piece, for a screen reader: the labels below are separate nodes
+    let description = if problem.path.is_empty() {
+        format!("{} {} {EXPLANATION}", crate::i18n::tr("LightCraft couldn't find where to keep your library."), problem.error)
+    } else {
+        format!("{} {}. {} {EXPLANATION}", crate::i18n::tr("LightCraft couldn't open the library at"), problem.path, problem.error)
+    };
     let shown = egui::Window::new(crate::i18n::tr("Your library couldn't be opened"))
         .id(egui::Id::unique(ERROR_WINDOW_ID))
         .order(egui::Order::Foreground)
@@ -1035,14 +1045,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
                 ui.label(RichText::new(&problem.path).font(t.semibold(12.5)).color(t.text));
             }
             ui.add(egui::Label::new(RichText::new(&problem.error).color(t.caution)).wrap());
-            ui.label(
-                RichText::new(
-                    "Your photos and edits in it are untouched. You can try again (e.g. after closing another program that has it open \
-                     or reconnecting its drive), open a different library or create a new one, or continue without a library — \
-                     then nothing you do is saved.",
-                )
-                .color(t.text_dim),
-            );
+            ui.label(RichText::new(EXPLANATION).color(t.text_dim));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 let mut button = |ui: &mut egui::Ui, id: &str, label: &str, enabled: bool, c: Choice| {
@@ -1059,6 +1062,8 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
             });
         });
     if let Some(w) = &shown {
+        crate::widgets::announce_dialog(ctx, &w.response, crate::widgets::Modal::Alert);
+        crate::widgets::describe_dialog(ctx, &w.response, &description);
         // A press on the dim raises its area; keep this window (and its own buttons) above it.
         ctx.move_to_top(w.response.layer_id);
     }
@@ -1186,6 +1191,7 @@ fn show_chooser(app: &mut LightcraftApp, ctx: &egui::Context, problem: &LibraryP
             });
         });
     if let Some(w) = &shown {
+        crate::widgets::announce_dialog(ctx, &w.response, crate::widgets::Modal::Dialog);
         // A press on the dim raises its area; keep the launch list above it.
         ctx.move_to_top(w.response.layer_id);
     }

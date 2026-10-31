@@ -198,6 +198,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         }
     }
     if let Some(w) = shown {
+        crate::widgets::announce_dialog(ctx, &w.response, crate::widgets::Modal::Dialog);
         ctx.memory_mut(|m| m.set_modal_layer(w.response.layer_id));
         if let Some(body_h) = body_h {
             let measured = (w.response.rect.height() - body_h).max(0.0);

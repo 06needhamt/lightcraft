@@ -2,4 +2,5 @@
 //! `tests/shutdown.rs` stays a binary of its own: it closes the GPU for the whole process.
 
 mod accessibility;
+mod dialog_role;
 mod docking_workflows;

@@ -512,6 +512,8 @@ fn window(ctx: &egui::Context, id: &str, title: &str, text: &str, buttons: &[(&s
         });
     // A backdrop press can raise its area; keep the prompt buttons above it.
     if let Some(window) = shown {
+        crate::widgets::announce_dialog(ctx, &window.response, crate::widgets::Modal::Alert);
+        crate::widgets::describe_dialog(ctx, &window.response, text);
         ctx.move_to_top(window.response.layer_id);
     }
     input.button_ids = seen;
