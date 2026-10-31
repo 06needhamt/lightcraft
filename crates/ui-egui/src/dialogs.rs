@@ -20,7 +20,7 @@ pub use confirm::confirm_dialog;
 pub use cull::{MAX_BURST_GAP, clamp_cull_burst, cull_params, fmt_gap, parse_gap};
 use export::{
     LIMIT_KB, QUALITY, START_NUMBER, WM_IMAGE_WIDTH, WM_INSET_X, WM_INSET_Y, WM_OPACITY, WM_POSITIONS, WM_SIZE, export_dialog_params, export_size,
-    group_checklist, watermark_preview,
+    group_checklist, preset_lzw_note, tiff_lzw_note, watermark_preview,
 };
 pub use frame::{ConfirmStyle, confirm_style, list_height, prompt};
 use frame::{
@@ -1116,7 +1116,12 @@ fn export_preset_row(
                     ui.separator();
                 }
                 builtin = b;
-                if ui.selectable_label(false, crate::i18n::builtin_label(&p.name, b)).clicked() {
+                let r = ui.selectable_label(false, crate::i18n::builtin_label(&p.name, b));
+                let r = match preset_lzw_note(&p.params) {
+                    Some(note) => r.on_hover_text(crate::i18n::tr(note)),
+                    None => r,
+                };
+                if r.clicked() {
                     chosen = Some(p.name);
                 }
             }
@@ -1383,6 +1388,12 @@ fn export_naming_rows(ui: &mut egui::Ui, opts: &mut ExportOptions) {
     if opts.format == F::Tiff {
         use lightcraft_engine::export::TiffCompression as Z;
         choices(ui, "Compression", "exportTiffCompression", &[(Z::None, "None"), (Z::Lzw, "LZW"), (Z::Deflate, "ZIP")], &mut opts.tiff_compression);
+        // issue #2882: LZW stays as picked, with a note on what it costs
+        if let Some(note) = tiff_lzw_note(opts) {
+            let t = Tokens::get(ui.ctx());
+            let r = ui.label(egui::RichText::new(crate::i18n::tr(note)).color(t.text_dim));
+            crate::widgets::register(ui, "note:exportTiffLzw", r.rect);
+        }
     }
     if opts.format == F::Dng {
         use lightcraft_engine::export::DngCompression as Z;

@@ -1491,7 +1491,12 @@ fn context_menu_locate_and_export(app: &mut LightcraftApp, ui: &mut egui::Ui, id
     }
     crate::widgets::menu_button(ui, crate::i18n::tr("Export with Preset"), |ui| {
         for (p, _) in app.session.all_export_presets() {
-            if ui.button(&p.name).clicked() {
+            let r = ui.button(&p.name);
+            let r = match crate::dialogs::preset_lzw_note(&p.params) {
+                Some(note) => r.on_hover_text(crate::i18n::tr(note)),
+                None => r,
+            };
+            if r.clicked() {
                 match app.run("app.export", json!({"preset": p.name, "background": true})) {
                     Ok(r) if r.get("background").is_some() => {}
                     Ok(r) => {
