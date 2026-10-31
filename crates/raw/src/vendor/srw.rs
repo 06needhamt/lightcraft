@@ -537,7 +537,6 @@ mod tests {
         assert!(matches!(decode(&bytes), Err(RawError::Unsupported(w)) if w.contains("CFAPattern")));
     }
 
-    /// A framing rectangle outside the array, or reversed, is ignored; truncated files fail without panicking.
     /// An encryption key value past i64::MAX (LONG8) overflowed `-1 * key` in debug builds.
     #[test]
     fn a_huge_encryption_key_does_not_panic() {
@@ -559,6 +558,7 @@ mod tests {
         assert!(probe_info(&bytes).is_ok());
     }
 
+    /// A framing rectangle outside the array, or reversed, is ignored; truncated files fail without panicking.
     #[test]
     fn hostile_framing_and_truncation_do_not_panic() {
         let v = ramp(64, 32, 4096);
