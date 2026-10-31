@@ -3567,6 +3567,7 @@ version = "0.15.0"
 dependencies = [
  "chrono",
  "crc32fast",
+ "dhat",
  "lightcraft-develop",
  "lightcraft-geom",
  "lightcraft-meta",
