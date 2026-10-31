@@ -97,6 +97,10 @@ impl ControlSpec {
     }
     pub fn format(&self, v: f64) -> String {
         let s = format!("{:.*}", self.decimals as usize, v);
+        if v.is_finite() && !s.bytes().any(|b| matches!(b, b'1'..=b'9')) {
+            // Rounds to zero: no sign.
+            return s.trim_start_matches('-').to_string();
+        }
         if v > 0.0 && self.min < 0.0 { format!("+{s}") } else { s }
     }
     /// Where `v` sits on the slider track, from 0 (left end) to 1 (right end). Linear, except for the Kelvin
@@ -495,6 +499,17 @@ pub fn in_section(section: Section) -> impl Iterator<Item = &'static ControlSpec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_shows_no_sign_on_a_value_that_rounds_to_zero() {
+        let e = find("light.exposure").unwrap();
+        assert_eq!(e.format(0.004), "0.00");
+        assert_eq!(e.format(-0.004), "0.00");
+        assert_eq!(e.format(0.5), "+0.50");
+        assert_eq!(e.format(-0.5), "-0.50");
+        assert_eq!(e.format(f64::INFINITY), "+inf");
+        assert_eq!(e.format(f64::NEG_INFINITY), "-inf");
+    }
 
     #[test]
     fn every_control_reads_its_default() {
