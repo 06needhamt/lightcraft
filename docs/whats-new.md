@@ -19,6 +19,11 @@
   keyword list now says which row it opens or closes: "Expand Travel", "Collapse 2026". They were all named just
   "Expand" or "Collapse", so VoiceOver read a list of identical buttons.
 
+### Screen readers and Voice Control name the grid's date headers as they read
+- A date header in the photo grid is now named with the text it shows ("Sunday, 20 September 2026 · 1 photo"), where
+  it was named with the bare date key ("2026-09-20"). VoiceOver reads what a sighted person reads, and Voice Control's
+  "click Sunday" finds the header.
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
@@ -84,7 +89,6 @@
   Always merge into the open library, or tick Don't ask again in the window. Ask where to import it brings the
   question back.
 
-
 ### Choose which library opens at launch
 - Settings ▸ General ▸ **At launch**: *Open the last library* (as before) or *Ask me*. With *Ask me*, LightCraft
   starts with a window listing your recent libraries: each one's name, the folder it is in and when you last opened
@@ -125,7 +129,6 @@
 ### Find the grid shortcut in View
 - Photo Grid and Square Grid now show the grid-cycle shortcut (G by default) in the View menu. The hints follow
   shortcut changes; clicking a menu row still selects that grid (issue #2500).
-
 
 ## 2026-10-21
 
@@ -258,7 +261,6 @@
   and a Synchronize button that started a job with nothing to do. Files it skipped (already in the library elsewhere,
   or unreadable) are still listed.
 
-
 ### Hidden Local locations come back one at a time
 - With several locations removed from Local, "Show N hidden locations" now lists them, so each comes back on its own
   (Restore All is there too). The row used to bring every hidden location back at once (issue #2114).
@@ -284,7 +286,6 @@
   setup, the crop's "constrain to image" option, and the lens profile's strength when it is at its default of 100 %.
   A raw sidecar used to name all of them for every photo. Settings LightCraft really doesn't apply, such as `Look`,
   are still reported.
-
 
 ### Fill Location from GPS: no more neighbouring town in City
 - The offline place names list towns of 15,000 people or more, so a photo taken in a smaller one got the nearest larger
