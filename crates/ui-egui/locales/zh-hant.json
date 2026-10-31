@@ -1718,6 +1718,7 @@
   "Denoise Settings": "Denoise Settings",
   "Denoise all photos with an Amount": "Denoise all photos with an Amount",
   "Downloaded and checked. Installing…": "Downloaded and checked. Installing…",
+  "The download failed": "下載失敗。",
   "Failed its last test": "Failed its last test",
   "Graphics card": "Graphics card",
   "I have read these terms and accept them for my own use": "I have read these terms and accept them for my own use",
@@ -2358,5 +2359,12 @@
   "Without Saving and Quit (issue #100). It no longer quietly starts a demo session that looked like a reset library and": "不儲存並結束（問題 #100）。它不再靜默啟動一個看似已重設圖庫的示範工作階段，",
   "written by a newer LightCraft is refused with \"this library was written by a newer version of LightCraft\" and left": "由更新版本 LightCraft 寫入的目錄會被拒絕，提示「此圖庫由更新版本的 LightCraft 寫入」，並保持",
   "written by a newer LightCraft), LightCraft says so and why, and offers Try Again, Choose Another Library…, Continue": "由更新版本 LightCraft 寫入），LightCraft 會說明情況和原因，並提供 重試、選擇其他圖庫…、繼續",
-  "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-拖曳進行拉直，⇧G 引導式垂直校正，變換時顯示網格。"
+  "⌘-drag to straighten, ⇧G Guided Upright, a grid while transforming.": "⌘-拖曳進行拉直，⇧G 引導式垂直校正，變換時顯示網格。",
+  "Face recognition is on": "臉部辨識已開啟",
+  "Face recognition is off. Turn it on to get name suggestions and see look-alike faces together.": "臉部辨識已關閉。開啟後可取得姓名建議，並將相似的臉孔放在一起檢視。",
+  "Turn on": "開啟",
+  "Set up face recognition": "設定臉部辨識",
+  "Face recognition needs a model to suggest names: a one-time download, in Settings.": "臉部辨識需要一個模型來建議姓名：只需在「設定」中下載一次。",
+  "Turn on name suggestions": "開啟姓名建議",
+  "Set up name suggestions…": "設定姓名建議…"
 }

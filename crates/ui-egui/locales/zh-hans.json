@@ -1712,6 +1712,7 @@
   "Denoise Settings": "降噪设置",
   "Denoise all photos with an Amount": "对所有设置了数量的照片进行降噪",
   "Downloaded and checked. Installing…": "已下载并校验完成。正在安装…",
+  "The download failed": "下载失败。",
   "Failed its last test": "上次检测未通过",
   "Graphics card": "显卡",
   "I have read these terms and accept them for my own use": "我已阅读这些条款，并为个人使用表示接受",
@@ -2358,5 +2359,12 @@
   "one by one — they can always be exported again, and on a USB drive or a NAS that per-file sync dominated a large": "逐个进行——它们随时可以重新导出，而在 USB 硬盘或 NAS 上，逐文件同步曾占用了大量",
   "over a same-name same-size look-alike, and skips (and reports) photos it can't tell apart instead of guessing.": "而不是同名同大小的相似文件，并且会跳过（并报告）无法区分的照片，而不是猜测。",
   "Panasonic and Leica raws (RW2, RWL and the older RAW files, DMC-LX1 to DC-S1R II) develop from the raw data in": "Panasonic 和 Leica 的 RAW 文件（RW2、RWL 及更早的 RAW 文件，DMC-LX1 至 DC-S1R II）在",
-  "part out), or type what to select (\"sky\", \"the red car\", \"car, road\"); both combine with other masks, have an": "部分选中），或输入要选择的内容（“天空”、“红色汽车”、“汽车、道路”）；两者都可与其他蒙版组合，并具有"
+  "part out), or type what to select (\"sky\", \"the red car\", \"car, road\"); both combine with other masks, have an": "部分选中），或输入要选择的内容（“天空”、“红色汽车”、“汽车、道路”）；两者都可与其他蒙版组合，并具有",
+  "Face recognition is on": "人脸识别已开启",
+  "Face recognition is off. Turn it on to get name suggestions and see look-alike faces together.": "人脸识别已关闭。开启后可获得姓名建议，并将相似的人脸放在一起查看。",
+  "Turn on": "开启",
+  "Set up face recognition": "设置人脸识别",
+  "Face recognition needs a model to suggest names: a one-time download, in Settings.": "人脸识别需要一个模型来建议姓名：只需在“设置”中下载一次。",
+  "Turn on name suggestions": "开启姓名建议",
+  "Set up name suggestions…": "设置姓名建议…"
 }

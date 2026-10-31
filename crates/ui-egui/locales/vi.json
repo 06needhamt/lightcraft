@@ -518,6 +518,7 @@
   "Download Place Names (GeoNames)": "Tải tên địa điểm (GeoNames)",
   "Download the SAM 3 Model?": "Tải mô hình SAM 3?",
   "Downloaded and checked. Installing…": "Đã tải và kiểm tra. Đang cài…",
+  "The download failed": "Tải xuống không thành công",
   "Downloading model": "Đang tải mô hình",
   "Downloading place names": "Đang tải tên địa điểm",
   "Downloads": "Tải xuống",
@@ -2656,5 +2657,12 @@
   "Checking for updates…": "Đang kiểm tra cập nhật…",
   "LightCraft {version} is currently the newest version available.": "LightCraft {version} hiện là phiên bản mới nhất.",
   "Could not check for updates:\n{error}": "Không thể kiểm tra cập nhật:\n{error}",
-  "LightCraft Updates": "Cập nhật LightCraft"
+  "LightCraft Updates": "Cập nhật LightCraft",
+  "Face recognition is on": "Nhận diện khuôn mặt đã bật",
+  "Face recognition is off. Turn it on to get name suggestions and see look-alike faces together.": "Nhận diện khuôn mặt đang tắt. Hãy bật để nhận gợi ý tên và xem các khuôn mặt giống nhau cùng nhau.",
+  "Turn on": "Bật",
+  "Set up face recognition": "Thiết lập nhận diện khuôn mặt",
+  "Face recognition needs a model to suggest names: a one-time download, in Settings.": "Nhận diện khuôn mặt cần một mô hình để gợi ý tên: tải xuống một lần, trong Cài đặt.",
+  "Turn on name suggestions": "Bật gợi ý tên",
+  "Set up name suggestions…": "Thiết lập gợi ý tên…"
 }
