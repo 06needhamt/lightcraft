@@ -304,6 +304,19 @@ mod tests {
     }
 
     #[test]
+    fn malformed_iso_time_is_untimed_and_cannot_match_midnight() {
+        let source = r#"<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>
+            <trkpt lat="45" lon="7"><time>2026-01-01T</time></trkpt>
+            <trkpt lat="46" lon="8"><time>2026-01-01T01:00:00Z</time></trkpt>
+        </trkseg></trk></gpx>"#;
+        let log = parse_gpx(source).unwrap();
+        assert_eq!(log.untimed, 1);
+        assert_eq!(log.points.len(), 1);
+        assert_eq!((log.points[0].latitude, log.points[0].longitude), (46.0, 8.0));
+        assert!(log.locate(t("2026-01-01T00:00:00Z"), 0.0).is_none());
+    }
+
+    #[test]
     fn interpolates_within_a_segment() {
         let log = parse_gpx(LOG).unwrap();
         let (g, m) = log.locate(t("2026-05-01T10:00:30Z"), 300.0).unwrap();
