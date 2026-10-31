@@ -4319,13 +4319,26 @@ fn settings_dialog_by_keyboard_and_clicks() {
     assert_eq!(h.app.session.cache_mb, 512);
     h.request("ui.clickWidget", json!({"id": "button:settingsPreview-3"}), t);
     assert_eq!(h.app.ui.settings.preview_limit, 3840);
-    h.request("ui.clickWidget", json!({"id": "button:settingsMemory-2"}), t);
-    assert_eq!(h.app.ui.settings.memory_mb, 1024);
-    h.step();
-    assert_eq!(lightcraft_engine::memory::budget(), 1024 << 20, "applied through app.memoryBudget");
-    h.request("ui.clickWidget", json!({"id": "button:settingsMemory-0"}), t);
-    h.step();
-    assert_eq!(lightcraft_engine::memory::budget(), lightcraft_engine::memory::default_budget(), "back to automatic");
+    {
+        // the memory budget is process-wide: this test's turn to change it, and it goes back
+        // to what it was (not the default) when the guard drops, also on a failed assertion
+        // (issue #3065). The change lasts these few frames.
+        use lightcraft_engine::memory::{budget, cache_share, default_budget};
+        let _budget = crate::test_budget::BudgetGuard::hold();
+        // the session's own share, set apart from the 1024 MB choice's: only the command
+        // changes it, whatever another test does to the process-wide budget
+        h.app.session.media.set_budget(cache_share(1024 << 20) + (1 << 20));
+        h.request("ui.clickWidget", json!({"id": "button:settingsMemory-2"}), t);
+        assert_eq!(h.app.ui.settings.memory_mb, 1024);
+        h.step();
+        assert_eq!(h.app.session.media.budget(), cache_share(1024 << 20), "the session's caches follow");
+        assert_eq!(budget(), 1024 << 20, "applied through app.memoryBudget");
+        h.request("ui.clickWidget", json!({"id": "button:settingsMemory-0"}), t);
+        h.step();
+        let automatic = (default_budget() >> 20) << 20;
+        assert_eq!(h.app.session.media.budget(), cache_share(automatic), "back to automatic");
+        assert_eq!(budget(), automatic, "back to automatic");
+    }
     // Import: per-camera defaults
     h.request("ui.clickWidget", json!({"id": "button:settingsTab-import"}), t);
     h.request("ui.clickWidget", json!({"id": "check:settings.perCamera"}), t);
