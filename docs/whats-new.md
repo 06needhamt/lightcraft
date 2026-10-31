@@ -13,6 +13,9 @@
 
 ## 2026-10-24
 
+### Original export checks embedded place names when removing location
+- Original copies are refused when “Remove Location Info” is enabled and the source contains GPS or a nonblank sublocation, city, state or country. Use JPEG or TIFF for rendered output; DNG is available for raw photos.
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for

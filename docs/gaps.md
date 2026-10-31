@@ -87,6 +87,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 | 2026-10-24 | minor | Gap 8: lens profile work is tracked in #329; hours unchanged |
 | 2026-10-24 | minor | Gap 28: ⌘⌥⇧C / ⌘⌥⇧V (Ctrl+Alt+Shift+C / V on Windows and Linux) copy and paste metadata; no key leaves the entry; hours unchanged |
 | 2026-10-24 | minor | Gap 30 shrinks: the Info panel's Show Metadata For (Target Photo / Selected Photos, `view.infoSelectedPhotos`) shows the selected photos' shared values and marks fields that differ as Mixed; the All Metadata dialog remains; 1–3 h (was 4–8) |
+| 2026-10-24 | patch | LR-EXP-METADATA: Original export refuses embedded GPS or nonblank place names when Remove Location Info is on; ranked gaps, estimates and readiness unchanged |
 | 2026-10-23 | minor | Gap 13: before a Lightroom catalog import the app asks whether it merges into the open library or goes into a new one (opt-out in Settings, #2672); hours unchanged |
 | 2026-10-22 | patch | Gap 28: View shows the current grid-cycle key beside Photo Grid and Square Grid (#2500); no new binding and no change to the remaining shortcut gap or hours |
 | 2026-10-22 | minor | Gap 15: the Print page setup and PDF gain the Japanese photo and postcard paper sizes (L判 89×127, 2L判 127×178, KG判 102×152, はがき 100×148, 往復はがき 148×200, 六切 203×254, 四切 254×305, 名刺 55×91 mm), by their customary names; gap not closed |
