@@ -639,9 +639,10 @@ pub fn write_exif(meta: &Metadata) -> Vec<u8> {
         }
     }
     if let Some(d) = meta.capture_time {
-        let offset = d.offset_minutes.map(|o| {
+        // an offset past 18 h is not a real one (a deserialized value can be anything): write none
+        let offset = d.offset_minutes.filter(|o| o.unsigned_abs() <= 18 * 60).map(|o| {
             let sign = if o < 0 { '-' } else { '+' };
-            format!("{sign}{:02}:{:02}", o.abs() / 60, o.abs() % 60)
+            format!("{sign}{:02}:{:02}", o.unsigned_abs() / 60, o.unsigned_abs() % 60)
         });
         let subsec = (d.millis != 0).then(|| format!("{:03}", d.millis));
         for (tag, v) in [(t::OFFSET_TIME, &offset), (t::OFFSET_TIME_ORIGINAL, &offset), (t::SUBSEC_TIME, &subsec), (t::SUBSEC_TIME_ORIGINAL, &subsec)]
@@ -684,6 +685,17 @@ mod write_tests {
         for iso in ["2026-09-20T05:40:00.250+02:00", "2026-09-20T05:40:00.005-03:30", "2026-09-20T05:40:00"] {
             let m = Metadata { capture_time: DateTime::parse_iso(iso), ..Default::default() };
             assert_eq!(read_exif(&write_exif(&m)).capture_time, m.capture_time, "{iso}");
+        }
+    }
+
+    /// A deserialized offset can be any i16, `i16::MIN` included: writing must not overflow.
+    #[test]
+    fn extreme_capture_time_offsets_do_not_panic() {
+        for o in [i16::MIN, i16::MAX, -1081, 1081] {
+            let mut dt = DateTime::parse_iso("2026-09-20T05:40:00").unwrap();
+            dt.offset_minutes = Some(o);
+            let m = Metadata { capture_time: Some(dt), ..Default::default() };
+            assert_eq!(read_exif(&write_exif(&m)).capture_time.map(|d| d.offset_minutes), Some(None), "{o}");
         }
     }
 
