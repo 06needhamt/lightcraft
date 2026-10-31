@@ -4,3 +4,4 @@
 mod accessibility;
 mod dialog_role;
 mod docking_workflows;
+mod landmarks;

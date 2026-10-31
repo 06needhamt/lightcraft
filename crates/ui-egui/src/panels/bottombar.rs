@@ -25,6 +25,7 @@ pub fn show(app: &mut LightcraftApp, ui: &mut egui::Ui) {
         .exact_size(t.bottom_bar_h)
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin { left: 12, right: 12, top: 0, bottom: 0 }))
         .show(ui, |ui| {
+            crate::widgets::announce_region(ui, egui::accesskit::Role::Toolbar, crate::i18n::tr("Bottom bar"));
             let full = ui.max_rect();
             let compact_zoom = full.width() < 360.0;
             let right_start = right_side(app, ui, full, compact_zoom);
