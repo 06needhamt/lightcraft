@@ -83,7 +83,7 @@ pub fn set_carrying(ctx: &egui::Context, carrying: bool) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("lc-carrying"), carrying));
 }
 
-fn carrying(ctx: &egui::Context) -> bool {
+pub(crate) fn carrying(ctx: &egui::Context) -> bool {
     ctx.data(|d| d.get_temp::<bool>(egui::Id::unique("lc-carrying"))).unwrap_or(false)
 }
 
