@@ -223,7 +223,7 @@ fn render_subcommand() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("unknown control"));
     // Values that parse as f64 but are not finite fail cleanly too.
     for bad in ["light.exposure=inf", "light.exposure=-inf", "light.exposure=NaN", "light.exposure=1e999"] {
-        let o = Command::new(BIN).args(["render", input.to_str().unwrap(), "-o", out.to_str().unwrap(), "--set", bad]).output().unwrap();
+        let o = Command::new(binary()).args(["render", input.to_str().unwrap(), "-o", out.to_str().unwrap(), "--set", bad]).output().unwrap();
         assert!(!o.status.success(), "{bad} must be refused");
         assert!(String::from_utf8_lossy(&o.stderr).contains("not a finite number"), "{bad}");
     }
