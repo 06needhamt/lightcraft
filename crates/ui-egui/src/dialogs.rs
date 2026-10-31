@@ -16,9 +16,9 @@ mod rename;
 mod sam_model;
 
 pub(crate) use confirm::album_entries;
-pub(crate) use export::preset_lzw_note;
 pub use confirm::confirm_dialog;
 pub use cull::{MAX_BURST_GAP, clamp_cull_burst, cull_params, fmt_gap, parse_gap};
+pub(crate) use export::preset_lzw_note;
 use export::{
     LIMIT_KB, QUALITY, START_NUMBER, WM_IMAGE_WIDTH, WM_INSET_X, WM_INSET_Y, WM_OPACITY, WM_POSITIONS, WM_SIZE, export_dialog_params, export_size,
     group_checklist, tiff_lzw_note, watermark_preview,
