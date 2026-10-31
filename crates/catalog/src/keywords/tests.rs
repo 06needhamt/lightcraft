@@ -433,7 +433,38 @@ fn a_files_keywords_keep_their_hierarchy() {
     assert_eq!(from_file(&v(&["Rome", "Italy", "travel", "beach"]), &v(&["travel|Italy|Rome"])), ["travel|Italy|Rome", "beach"]);
     assert_eq!(from_file(&v(&["ROME"]), &v(&["travel|Rome", " travel | rome "])), ["travel|Rome"], "each once, cleaned");
     assert_eq!(from_file(&v(&["beach", " sea "]), &[]), ["beach", "sea"]);
-    assert_eq!(from_file(&v(&["a|b"]), &[]), ["a|b"], "LightCraft's own sidecars write paths flat");
+    assert_eq!(from_file(&v(&["a|b"]), &[]), ["a|b"], "sidecars from LightCraft 0.13 and older wrote paths flat");
+}
+
+/// A sidecar's keywords: names in `dc:subject`, never paths, and the paths in
+/// `lr:hierarchicalSubject`; read back, the same keywords, however they were spelt or nested.
+#[test]
+fn a_sidecar_writes_names_flat_and_paths_hierarchical() {
+    let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let f = to_file(&v(&["Places|Italy|Rome", "sunset"]));
+    assert_eq!(f.flat, ["Places", "Italy", "Rome", "sunset"]);
+    assert_eq!(f.hierarchical, ["Places|Italy|Rome", "sunset"]);
+    assert!(f.flat.iter().all(|k| !k.contains(SEP)), "no path in dc:subject");
+
+    let f = to_file(&v(&["beach", " sea ", "Beach"]));
+    assert_eq!((f.flat, f.hierarchical), (v(&["beach", "sea"]), v(&[])), "no hierarchy: no lr:hierarchicalSubject");
+    assert_eq!(to_file(&[]), FileKeywords::default());
+
+    for keywords in [
+        v(&["Places|Italy|Rome", "sunset"]),
+        v(&["travel|Italy|Rome", "Rome"]),
+        v(&["travel|Italy", "travel|France", "Italy"]),
+        v(&["beach", "sea"]),
+        v(&[" a | b ", "A|B|c"]),
+    ] {
+        let f = to_file(&keywords);
+        let mut back = from_file(&f.flat, &f.hierarchical);
+        let mut want: Vec<String> = keywords.iter().map(|k| clean(k)).collect();
+        dedupe(&mut want);
+        back.sort_by_key(|k| k.to_lowercase());
+        want.sort_by_key(|k| k.to_lowercase());
+        assert_eq!(back, want, "round trip of {keywords:?}");
+    }
 }
 
 /// A new keyword inside one the library has takes the library's spelling of it: creating
