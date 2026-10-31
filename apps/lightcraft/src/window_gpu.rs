@@ -324,7 +324,7 @@ mod tests {
         assert_ne!(surface, WgpuConfiguration::default().surface, "egui-wgpu's own default is the high-throughput one");
         // what `main` hands eframe (on Windows `choose` probes the adapters first; not here)
         if !cfg!(windows) {
-            assert_eq!(choose(&Files::new(None)).wgpu_options.surface, surface);
+            assert_eq!(choose(&Files::new(None), false).wgpu_options.surface, surface);
         }
     }
 
