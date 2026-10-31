@@ -498,6 +498,7 @@
   "Faded Matte": "Fosco desbotado",
   "Faded Slide": "Slide desbotado",
   "Faded Urban": "Urbano desbotado",
+  "Favorite": "Favorito",
   "Favorite Preset": "Predefinição favorita",
   "Favorite Profile": "Perfil favorito",
   "Favorites": "Favoritos",
@@ -1721,6 +1722,7 @@
   "Denoise Settings": "Configurações de redução de ruído",
   "Denoise all photos with an Amount": "Reduzir o ruído de todas as fotos com uma Quantidade",
   "Downloaded and checked. Installing…": "Baixado e verificado. Instalando…",
+  "The download failed": "Falha ao baixar",
   "Failed its last test": "Falhou no último teste",
   "Graphics card": "Placa de vídeo",
   "I have read these terms and accept them for my own use": "Li estes termos e os aceito para meu uso pessoal",
@@ -2216,5 +2218,12 @@
   "An import is running. Drop photos when it has finished": "Uma importação está em andamento. Solte as fotos quando ela terminar",
   "Finish Lightroom catalog import before adding photos": "Conclua a importação do catálogo do Lightroom antes de adicionar fotos",
   "Thumbnail size": "Tamanho das miniaturas",
-  "Import Thumbnail Size": "Tamanho das miniaturas de importação"
+  "Import Thumbnail Size": "Tamanho das miniaturas de importação",
+  "Face recognition is on": "O reconhecimento facial está ativado",
+  "Face recognition is off. Turn it on to get name suggestions and see look-alike faces together.": "O reconhecimento facial está desativado. Ative-o para receber sugestões de nomes e ver rostos parecidos juntos.",
+  "Turn on": "Ativar",
+  "Set up face recognition": "Configurar o reconhecimento facial",
+  "Face recognition needs a model to suggest names: a one-time download, in Settings.": "O reconhecimento facial precisa de um modelo para sugerir nomes: um download único, em Configurações.",
+  "Turn on name suggestions": "Ativar sugestões de nomes",
+  "Set up name suggestions…": "Configurar sugestões de nomes…"
 }

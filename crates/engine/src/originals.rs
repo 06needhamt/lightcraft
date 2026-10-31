@@ -370,7 +370,21 @@ mod tests {
         // identity of either name cannot be read while it is held.
         let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&original).unwrap();
         let refused = s.pin_write_target(&linked.to_string_lossy()).unwrap_err();
-        assert!(refused.contains("cannot tell whether"), "{refused}");
+        // Except with SeBackupPrivilege enabled (an admin's Git Bash, so every Windows CI gate leg):
+        // a backup-semantics open of both names, as the guard's identity read uses, gets past the
+        // held handle. The guard then sees the link and refuses it as the original instead (#3228).
+        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
+        let backup_open = |p: &std::path::Path| std::fs::OpenOptions::new().read(true).custom_flags(FILE_FLAG_BACKUP_SEMANTICS).open(p).is_ok();
+        if backup_open(&original) && backup_open(&linked) {
+            assert!(refused.contains("is the original"), "{refused}");
+            assert!(!refused.contains("cannot tell whether"), "{refused}");
+            lightcraft_testkit::skip!(
+                System,
+                "a backup-semantics open gets past share_mode(0) here (SeBackupPrivilege is enabled), so the \"cannot tell whether\" refusal can't be tested"
+            );
+        } else {
+            assert!(refused.contains("cannot tell whether"), "{refused}");
+        }
         drop(held);
 
         let refused = s.pin_write_target(&linked.to_string_lossy()).unwrap_err();
