@@ -481,6 +481,13 @@ pub(crate) fn moved_text(n: u64, name: &str) -> String {
     }
 }
 
+/// What `folder.create` of the folder at `path` inside `parent` says when it succeeds: the folder
+/// is on disk now, but it has no photos, so the Folders list may not show it yet.
+pub(crate) fn created_text(path: &str, parent: &str) -> String {
+    let name = std::path::Path::new(path).file_name().map_or_else(|| path.to_string(), |f| f.to_string_lossy().to_string());
+    crate::i18n::tr_format!("Created folder “{name}” in “{parent}”", name = name, parent = lightcraft_catalog::folders::folder_label(parent))
+}
+
 /// [`move_photos`], saying how it went in a toast.
 fn move_photos_here(app: &mut LightcraftApp, ctx: &egui::Context, ids: Option<&[u64]>, path: &str, name: &str) {
     match move_photos(app, ids, path) {

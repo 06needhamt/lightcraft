@@ -56,6 +56,18 @@ pub fn confirm_dialog(app: &mut LightcraftApp, dlg: &Dialog) -> Result<serde_jso
         }
         Dialog::RenameAlbum { id, name } => app.run("album.rename", json!({"id": id, "name": name})),
         Dialog::TextPrompt { value, command, params, key, .. } => {
+            // Rename Folder opens with the folder's own name typed: confirming it unchanged renames nothing, as it always has
+            // (the engine would refuse it as a name that "already exists"). A name with spaces at its ends is the same
+            // folder when typed back as it is, so it is compared as typed as well as trimmed.
+            let kept = command == "folder.rename"
+                && params["path"].as_str().is_some_and(|path| {
+                    std::path::Path::new(path.trim_end_matches(['/', '\\']))
+                        .file_name()
+                        .is_some_and(|f| f.to_string_lossy() == value.as_str() || f.to_string_lossy() == value.trim())
+                });
+            if kept {
+                return Ok(serde_json::Value::Null);
+            }
             let mut p = params.clone();
             p[key.as_str()] = json!(value.trim());
             app.run(command, p)

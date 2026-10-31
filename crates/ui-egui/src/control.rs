@@ -430,7 +430,13 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
         "ui.dialog.confirm" => match app.ui.dialog.take() {
             Some(d) => {
                 let r = crate::panels::dialogs::confirm_dialog(app, &d);
-                // the import review and the rule editor stay open on an error, as with their buttons
+                // a refused one-line prompt says why on screen, as with its button; a folder made says where
+                match (&r, &d) {
+                    (Err(e), crate::state::Dialog::TextPrompt { .. }) => app.toast_error(ctx, e.clone()),
+                    (Ok(made), crate::state::Dialog::TextPrompt { .. }) => crate::dialogs::toast_created_folder(app, ctx, &d, made),
+                    _ => {}
+                }
+                // the import review, the rule editor and the one-line prompts stay open on an error, as with their buttons
                 if (r.is_err()
                     && matches!(
                         d,
@@ -439,6 +445,7 @@ pub fn handle(app: &mut LightcraftApp, ctx: &egui::Context, req: &ControlRequest
                             | crate::state::Dialog::SmartRules { .. }
                             | crate::state::Dialog::SaveEffect { .. }
                             | crate::state::Dialog::CaptureTime { .. }
+                            | crate::state::Dialog::TextPrompt { .. }
                     ))
                     || (r.is_ok() && crate::panels::dialogs::keeps_open(app, &d))
                     || (r.is_err() && crate::lightroom_destination::keeps_open_on_error(app, &d))

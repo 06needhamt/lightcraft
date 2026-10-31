@@ -25,6 +25,7 @@
   "4 MiB and connections at 16.": "4 MiB och anslutningar till 16.",
   "630 drivers): on Windows the window and GPU rendering use DirectX 12 only and never load the Vulkan driver unless": "630-drivrutiner): i Windows använder fönstret och GPU-renderingen endast DirectX 12 och läser aldrig in Vulkan-drivrutinen om inte",
   "=  exactly": "=  exakt",
+  "Import photos with File → Import Photos…, or drop them here": "Importera foton med Arkiv → Importera foton… eller släpp dem här",
   "`img_1-1.JPG`; on case-insensitive volumes the case change still goes through.": "`img_1-1.JPG`; på skiftlägesokänsliga volymer går ändringen av skiftläge ändå igenom.",
   "`Photos/2026/20260114/20260114_001.jpg`) together with their XMP sidecars; each original leaves the card only after its": "`Photos/2026/20260114/20260114_001.jpg`) tillsammans med sina XMP-sidofiler; varje original lämnar kortet först efter att dess",
   "A 16:9 frame with black bars above and below, the title in the corner, fades through black and a closing card.": "En 16:9-bild med svarta fält ovanför och nedanför, titeln i hörnet, toningar via svart och ett avslutande kort.",
@@ -963,7 +964,6 @@
   "Import Lightroom Catalog…": "Importera Lightroom-katalog…",
   "Import new photos": "Importera nya foton",
   "Import Photos": "Importera foton",
-  "Import photos with File → Import Photos…, or drop them here": "Importera foton med Arkiv → Importera foton… eller släpp dem här",
   "Import Photos…": "Importera foton…",
   "Import Point Curve Presets": "Importera förinställningar för punktkurva",
   "Import Point Curve Presets…": "Importera förinställningar för punktkurva…",
@@ -2451,5 +2451,13 @@
   "Set up face recognition": "Ställ in ansiktsigenkänning",
   "Face recognition needs a model to suggest names: a one-time download, in Settings.": "Ansiktsigenkänning behöver en modell för att föreslå namn: en engångsnedladdning, i Inställningar.",
   "Turn on name suggestions": "Slå på namnförslag",
-  "Set up name suggestions…": "Ställ in namnförslag…"
+  "Set up name suggestions…": "Ställ in namnförslag…",
+  "Change Time": "Ändra tid",
+  "Cull": "Gallra",
+  "Add Locations": "Lägg till platser",
+  "Create Stacks": "Skapa staplar",
+  "The Tags button lists placeholders for the template, such as {date} or {seq}. Each file is renamed on disk along with its XMP sidecar; a name that is taken gets -1, -2…": "Knappen Taggar visar platshållare för mallen, till exempel {date} eller {seq}. Varje fil byter namn på disken tillsammans med sin XMP-sidofil; ett namn som redan finns får -1, -2…",
+  "Top bar": "Övre fältet",
+  "Tool strip": "Verktygsfält",
+  "Bottom bar": "Nedre fältet"
 }

@@ -446,7 +446,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // the value: click it to type an exact one, drag it sideways to scrub (over the label, so it
     // takes the click)
     let value_resp = ui.interact(value_rect, id.with("value"), if enabled { Sense::click_and_drag() } else { Sense::hover() });
-    crate::widgets::announce(&value_resp, format!("{label_text}: {}", crate::i18n::tr("Click to type a value, drag to change it")));
+    // the name is short ("Exposure value"); how to use it is the description the hover text below gives
+    crate::widgets::announce(&value_resp, crate::i18n::tr_format!("{name} value", name = label_text.clone()));
     register(ui, format!("sliderValue:{}", spec.id), value_rect);
     // say that an exact value can be typed here (issue #534: an exact crop angle was hard to find)
     let value_resp = if enabled { value_resp.on_hover_text(crate::i18n::tr("Click to type a value, drag to change it")) } else { value_resp };
@@ -977,12 +978,37 @@ pub fn segmented(ui: &mut Ui, id: &str, items: &[(&str, &str)], active: Option<u
     clicked
 }
 
+/// Splits a tooltip that ends in its key hint ("Edit (E)", "Import Photos… (⌘⇧I)") into the label
+/// and the hint: `("Edit", Some("E"))`. A tooltip without one is all label. The Japanese and
+/// Traditional Chinese catalogs write the hint in full-width brackets without a space ("編集（E）").
+fn split_key_hint(tip: &str) -> (&str, Option<&str>) {
+    let split =
+        tip.strip_suffix(')').and_then(|body| body.rsplit_once(" (")).or_else(|| tip.strip_suffix('）').and_then(|body| body.rsplit_once('（')));
+    let Some((label, hint)) = split else { return (tip, None) };
+    let label = label.trim_end();
+    if label.is_empty() || hint.is_empty() { (tip, None) } else { (label, Some(hint)) }
+}
+
+/// The accessible name for an icon-only control whose tooltip is `tip`, and the one place the key
+/// hint leaves it. The name is the bare label, because a screen reader reads it every time it
+/// lands on the control; the hint goes into the description (macOS `AXHelp`, read after a pause).
+/// Sighted users keep the whole tooltip. Call it before `on_hover_text`, which would otherwise make
+/// the description the whole tooltip.
+pub(crate) fn accessible_label<'a>(resp: &egui::Response, tip: &'a str) -> &'a str {
+    let (label, hint) = split_key_hint(tip);
+    if let Some(hint) = hint {
+        resp.ctx.accesskit_node_builder(resp.id, |node| node.set_description(hint.to_string()));
+    }
+    label
+}
+
 /// An icon-only button. `active` draws the selected background (tool strip).
 pub fn icon_button(ui: &mut Ui, id: &str, icon: Icon, size: egui::Vec2, active: bool, enabled: bool, tooltip: &str) -> Response {
     let tooltip = crate::i18n::tr(tooltip);
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, active, tooltip));
+    let name = accessible_label(&resp, tooltip);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, active, name));
     register(ui, format!("icon:{id}"), r);
     let p = ui.painter();
     let sq = Rect::from_center_size(r.center(), vec2(32.0f32.min(size.x), 32.0f32.min(size.y)));
@@ -1041,6 +1067,34 @@ mod tests {
         assert!(explanation.contains("DNG"), "{explanation}");
         assert!(!explanation.contains("yet"), "{explanation}");
         assert!(preview_only_explanation("unsupported CR3").contains("unsupported CR3"));
+    }
+
+    #[test]
+    fn a_trailing_key_hint_leaves_the_name() {
+        assert_eq!(split_key_hint("Edit (E)"), ("Edit", Some("E")));
+        assert_eq!(split_key_hint("Presets (Shift+P)"), ("Presets", Some("Shift+P")));
+        assert_eq!(split_key_hint("Import Photos… (⌘⇧I)"), ("Import Photos…", Some("⌘⇧I")));
+        assert_eq!(split_key_hint("Filmstrip (/)"), ("Filmstrip", Some("/")));
+        assert_eq!(split_key_hint("Square Grid (G toggles)"), ("Square Grid", Some("G toggles")));
+        // nothing to split: no hint, an empty hint, no label before it, the hint not at the end
+        for tip in ["Export", "Edit ()", "(E)", " (E)", "Edit (E) now", "Edit(E)", ""] {
+            assert_eq!(split_key_hint(tip), (tip, None), "{tip:?}");
+        }
+    }
+
+    /// Every language's tooltip for an icon-only button splits into the bare label and its hint,
+    /// whatever brackets the catalog writes it in (Japanese and Traditional Chinese use full-width ones).
+    #[test]
+    fn every_language_names_an_icon_button_by_its_label() {
+        assert_eq!(split_key_hint("編集（E）"), ("編集", Some("E")));
+        for locale in crate::i18n::Locale::ALL {
+            for tip in ["Edit (E)", "Presets (Shift+P)", "Photo Grid (G)", "Filmstrip (/)"] {
+                let translated = locale.tr(tip);
+                let (label, hint) = split_key_hint(translated);
+                assert!(hint.is_some_and(|h| !h.is_empty()), "{locale:?}: {translated:?} keeps its hint in the name");
+                assert!(!label.contains(['(', ')', '（', '）']), "{locale:?}: {label:?} is the bare label");
+            }
+        }
     }
 
     #[test]
@@ -1185,10 +1239,57 @@ pub(crate) fn screen_reader_name(ctx: &egui::Context, id: egui::Id, name: &str) 
     ctx.accesskit_node_builder(id, |node| node.set_label(name.to_string()));
 }
 
+/// Names the part of the window `ui` draws for screen readers: a toolbar, or a landmark (VoiceOver's
+/// rotor lists the landmarks and jumps to one). Set on the node the `Ui` already has, so nothing is
+/// laid out differently. The node gets the `Ui`'s area as its bounds, so a screen reader's cursor
+/// lands on the part and not on an empty spot.
+pub(crate) fn announce_region(ui: &Ui, role: egui::accesskit::Role, name: impl Into<String>) {
+    let name = name.into();
+    let r = ui.max_rect();
+    ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
+        node.set_role(role);
+        node.set_label(name);
+        node.set_bounds(egui::accesskit::Rect { x0: f64::from(r.min.x), y0: f64::from(r.min.y), x1: f64::from(r.max.x), y1: f64::from(r.max.y) });
+    });
+}
+
 /// A hand-drawn clickable area (an icon, a tile, a row) announced as a button named `name`.
 pub(crate) fn announce(resp: &egui::Response, name: impl Into<String>) {
     let name = name.into();
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, resp.enabled(), name.clone()));
+}
+
+/// What a window with its own title and buttons is, to a screen reader.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Modal {
+    /// A dialog with a task (Export, Settings, a name prompt) that stops the rest of the application.
+    Dialog,
+    /// One that interrupts to say something that needs an answer (the quit prompt, a library that
+    /// couldn't be opened) and stops the rest of the application: an alert dialog (AT-SPI and
+    /// Windows tell it from a dialog; macOS reads both alike).
+    Alert,
+    /// A dialog that leaves the rest of the application reachable (the update check's answer).
+    Window,
+}
+
+/// Announces the window `response` drew as a dialog (an alert dialog for [`Modal::Alert`]), and for
+/// [`Modal::Dialog`] and [`Modal::Alert`] as modal, instead of as a group that carries the title:
+/// the platform's accessibility layer then sees a dialog and that the rest of the application is
+/// blocked while it is open.
+pub(crate) fn announce_dialog(ctx: &egui::Context, response: &Response, kind: Modal) {
+    ctx.accesskit_node_builder(response.id, |node| {
+        node.set_role(if kind == Modal::Alert { egui::accesskit::Role::AlertDialog } else { egui::accesskit::Role::Dialog });
+        if kind != Modal::Window {
+            node.set_modal();
+        }
+    });
+}
+
+/// Gives the dialog `response` drew the words it says as its accessible description, for an alert
+/// whose content (the task names, the error) is drawn as separate labels: a screen reader then
+/// has what the alert is about when it announces the alert, not only its title.
+pub(crate) fn describe_dialog(ctx: &egui::Context, response: &Response, text: &str) {
+    ctx.accesskit_node_builder(response.id, |node| node.set_description(text));
 }
 
 /// The same for one that is on or off (a toggle, a selected row or swatch).

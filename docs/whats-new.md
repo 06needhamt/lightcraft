@@ -104,6 +104,81 @@
   set of photos from an SMB share, in one measurement on one share). What is imported and the messages for a file
   that can't be read are the same.
 
+### A refused name prompt stays open and says why
+- A one-line prompt (Rename Folder, New Folder on Disk, the preset and version names, New Library for a name it can't
+  use, Auto-Tag from Tracklog) that the app refuses, for example a folder name that is taken, now stays open with what
+  you typed and shows the reason, so you can change the name. Before, it closed without a word. A New Folder on Disk
+  that works now says so: “Created folder “Selects” in “2026/Shoot””. Cancel and Esc still close the prompt.
+
+### The macOS menu bar shows every row
+- File ▸ Export… no longer reads “Custom…”, File ▸ Export with Preset keeps its Custom… row, and Photo ▸ Add to Album keeps New Album…. When two menu rows ran the same command, the menu bar left the second one out and gave the first one its label; now each row is its own item and a click on either one runs the command. The View menu now also lists its second Layout Image row (without a key), as the in-window menu does.
+
+### Shortcuts read the same way everywhere on macOS
+- Wherever LightCraft shows a shortcut (the menu bar's labels, a button's tooltip, the empty-library hint, the
+  line under "No photos" in an empty album, the Keyboard Shortcuts dialog and its search) it lists the modifiers in
+  the order macOS menus use, Control, Option, Shift, Command: `⇧⌘I` where it used to say `⌘⇧I`. The line under
+  "No photos" also shows the shortcut as it is bound now, and as Ctrl+Shift+I on Windows and Linux, where it
+  always said Cmd+Shift+I. Windows and Linux otherwise keep the order a shortcut is written in.
+
+### Screen readers name a slider's value field "value"
+- The number beside a slider is now named "Exposure value" (the slider's name and "value"), and "Click to type a value,
+  drag to change it" is its description. It was named "Exposure: Click to type a value, drag to change it", so
+  VoiceOver read the whole sentence each time it reached the field, once for every slider in the Edit panel.
+
+## 2026-10-29
+
+### A dialog no longer dims the macOS title bar
+- On macOS the top bar is the window's title bar, and the window buttons drawn over it stayed bright while a dialog dimmed
+  the bar under them. As under a macOS sheet, the dialog's backdrop now leaves the bar alone: its buttons are inactive, a
+  click on it does not close the dialog, and dragging its empty space still moves the window. Windows, Linux and full
+  screen are unchanged.
+
+## 2026-10-28
+
+### The window's parts are named for screen readers
+- The top bar, the tool strip and the bottom bar are now announced as toolbars (Top bar, Tool strip, Bottom bar), and the
+  sidebar (Library), the photos, the Tools panel (or Presets) and the filmstrip as landmarks, so a screen reader can list
+  them and jump to one instead of walking every control. Nothing on screen changes. Not yet tried with a real VoiceOver session.
+
+### Dialogs are exposed to screen readers as dialogs
+- Export, Settings and the other dialogs, the library chooser and the prompts that stop the window (the quit question, a
+  library that could not be opened, a settings file problem) are now exposed to screen readers as dialogs: modal ones, so the
+  rest of the window is marked as blocked while one is open, and an alert dialog for the prompts. The answer to Check for
+  Updates is a dialog too, but not a modal one. Before, each was a plain group that only carried the dialog's title.
+- An alert dialog also carries what it says as its description: a screen reader can read the library problem's path, error and
+  explanation, or a prompt's text, together with the dialog.
+
+### Screen readers no longer read the shortcut with every button name
+- Icon-only buttons (the tool strip, the view buttons and Before/After and Filmstrip in the bottom bar, the top bar's
+  Import Photos…, the mask overlay and White Balance Selector buttons, the slideshow controls) are now announced by
+  their label alone ("Edit", "Presets", "Photo Grid"), and the shortcut is the button's description ("E", "Shift+P",
+  "G"), which VoiceOver reads after a pause or on request. Before, it read "Edit (E)" every time it landed on the
+  button. This holds in every language, including Japanese and Traditional Chinese, which write the shortcut in
+  full-width brackets. The tooltip you see on hover is unchanged.
+
+## 2026-10-25
+
+### A one-field white balance edit no longer shifts the other one
+- Settings that name only a white balance temperature, or only a tint — `develop.merge`,
+  `lightcraft-cli render --settings <partial JSON>`, an MCP `set_develop {settings: …}` call, or a hand-written
+  preset naming one of the two — used to change the colour balance of photos they never mentioned. On a raw edited in
+  Kelvin the field the partial left out was re-read on the other scale: `wb {temp: 5800}` on a photo at 5000 K /
+  +12 tint came back at 5800 K with the +12 read as a relative shift, moving the green–magenta balance by a visible
+  amount. The kept field now carries the look the photo had, and the result is stored on the scale that photo is
+  edited on.
+- The same partial on a photo still on As Shot — or on a named white balance preset, on a raw with a Kelvin scale —
+  stored the number without any render ever reading it: those modes answer their own white, so the panel showed
+  5800 K over a picture still at the file's white. That white is now written out as Custom values before the partial
+  lands; a partial that names a mode itself still gets that mode.
+- Presets made from a photo and the crs / XMP and Luminar importers name mode, temperature, tint and scale together,
+  and partials naming both fields (or neither) behave exactly as before; a partial that says `"scale": "kelvin"` is
+  still read in Kelvin.
+
+### JPEG ICC chunks are validated before colour conversion
+- JPEG ICC profiles are assembled only when every chunk is present exactly once, the sequence numbers and
+  declared totals agree, and every APP2 segment is complete. Reordered valid chunks still work. An invalid
+  sequence uses the existing unsupported-profile sRGB fallback, including when the JPEG is a raw preview.
+
 
 ## 2026-10-25
 
@@ -242,6 +317,12 @@
   #2555). A turned crop that reaches far past the photo is trimmed to the photo when it is shown or exported. Before,
   a damaged or hand-edited sidecar could set a crop that made a full-size export ask for trillions of pixels and
   close the app. Crops made with the crop tool are unchanged.
+
+### Text boxes in Settings
+- Esc in a text box of Settings (Copyright, Creator, the Auto Import album, the two External Editing boxes) gives
+  the text back and stays in Settings; in the first three it used to save what was typed, and in all of them it
+  closed the window. Those three now have the Cut / Copy / Paste menu too, and what is typed in Copyright or
+  Creator is saved when another tab is clicked, where it used to be dropped.
 
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
@@ -460,6 +541,16 @@
 - In the left panel, the count of a deeply indented row (a folder, keyword or album) no longer prints over its icon
   and name when the panel is narrow. It follows the name, wholly past the panel's edge, and scrolling sideways
   reaches it; so does the colour dot of a labelled folder. A row with room for its name keeps its count at the edge, as before.
+
+### Dialog buttons say what they do
+- The confirm button in dialogs now names its action instead of "OK": Create for a new album, smart album, folder or
+  preset, Rename for photos, albums, keywords, people and presets, Create Stacks for Auto-Stack, Change Time for Capture Time,
+  Copy and Paste for settings, and Export 12 Photos in the Export dialog. Rename Photos now explains what its Tags
+  button lists and what happens on disk, instead of pointing at the button. Contact Sheet, Auto-Stack and
+  Slideshow Export no longer say "1 photos" or "1 stacks". The Import review's Move button counts photos that are
+  in Recently Deleted apart, since they are restored and their files stay where they are: "Move 2 Photos · Restore 1
+  Photo".
+
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

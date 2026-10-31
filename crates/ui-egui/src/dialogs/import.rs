@@ -198,6 +198,13 @@ impl ImportDialog {
         }
         self.last_clicked = Some(i);
     }
+    /// How many of the checked files come back as the photo Recently Deleted holds: the import restores
+    /// those without copying or moving their files (only "Import as new" imports them like any other file).
+    pub fn restored_count(&self) -> usize {
+        let restoring = self.on_deleted != "fresh";
+        let checked = self.checked.iter().enumerate().filter(|(i, on)| **on && self.importable(*i));
+        checked.filter(|(i, _)| restoring && self.is_trashed(*i)).count()
+    }
     pub fn selected_paths(&self) -> Vec<String> {
         self.candidates
             .iter()
