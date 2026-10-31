@@ -1139,6 +1139,9 @@
   "LightCraft could not start": "LightCraft kunde inte starta",
   "LightCraft couldn't find where to keep your library.": "LightCraft hittade ingen plats att spara ditt bibliotek på.",
   "LightCraft couldn't open the library at": "LightCraft kunde inte öppna biblioteket på",
+  "There is no LightCraft library in this folder any more.": "Det finns inte längre något LightCraft-bibliotek i den här mappen.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "Biblioteket finns inte där: det har flyttats eller bytt namn, eller så är dess enhet eller nätverksresurs inte ansluten.",
+  "This folder can't be read:": "Den här mappen kan inte läsas:",
   "LightCraft Default": "LightCraft-standard",
   "LightCraft does not know this model, so it assumed:": "LightCraft känner inte till den här modellen och antog därför:",
   "LightCraft Help": "LightCraft-hjälp",
@@ -2430,6 +2433,7 @@
   "Mask Pins": "Masknålar",
   "Photo Counts": "Antal foton",
   "An import is running": "En import pågår",
+  "The photos are imported once it ends": "Bilderna importeras efteråt",
   "An import is running. Drop photos when it has finished": "En import pågår. Släpp fotona när den är klar",
   "Close the open dialog to drop files here": "Stäng den öppna dialogrutan för att släppa filer här",
   "Close the open dialog, then drop the files again": "Stäng den öppna dialogrutan och släpp sedan filerna igen",
@@ -2437,5 +2441,7 @@
   "Drop to open the face model": "Släpp för att öppna ansiktsmodellen",
   "Dropped Files": "Släppta filer",
   "Finish Lightroom catalog import before adding photos": "Slutför importen av Lightroom-katalogen innan du lägger till foton",
-  "Import dropped files without review": "Importera släppta filer utan granskning"
+  "Import dropped files without review": "Importera släppta filer utan granskning",
+  "Import Thumbnail Size": "Miniatyrstorlek vid import",
+  "Click to type a value, drag to change it": "Klicka för att ange ett värde, dra för att ändra det"
 }

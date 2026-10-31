@@ -690,6 +690,9 @@ fn edit_value(ui: &mut Ui, t: &Tokens, g: &SliderLayout, draft: Draft, out: &mut
     if field.ending.is_some() || !field.editing || !g.enabled {
         // Esc (or the slider turning off) keeps the old value; Return or clicking away applies
         let cancelled = !g.enabled || field.cancelled();
+        if field.cancelled() {
+            take_escape(ui.ctx());
+        }
         if let Some(nv) = typed_value(g.spec, &text).filter(|nv| !cancelled && g.differs(*nv)) {
             g.set_whole(out, nv);
         }

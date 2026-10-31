@@ -1042,6 +1042,9 @@
   "LightCraft could not start": "LightCraft ei voinut käynnistyä",
   "LightCraft couldn't find where to keep your library.": "LightCraft ei löytänyt paikkaa kirjastosi säilytykselle.",
   "LightCraft couldn't open the library at": "LightCraft ei voinut avata kirjastoa kohteessa",
+  "There is no LightCraft library in this folder any more.": "Tässä kansiossa ei ole enää LightCraft-kirjastoa.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "Kirjastoa ei löydy: se on siirretty tai nimetty uudelleen, tai sen asemaa tai verkkojakoa ei ole yhdistetty.",
+  "This folder can't be read:": "Tätä kansiota ei voi lukea:",
   "LightCraft does not know this model, so it assumed:": "LightCraft ei tunne tätä mallia, joten se oletti:",
   "LightCraft on GitHub": "LightCraft GitHubissa",
   "LightCraft stopped": "LightCraft pysähtyi",
@@ -2328,6 +2331,7 @@
   "Mask Pins": "Maskin nastat",
   "Photo Counts": "Kuvamäärät",
   "An import is running": "Tuonti on käynnissä",
+  "The photos are imported once it ends": "Kuvat tuodaan sen jälkeen",
   "An import is running. Drop photos when it has finished": "Tuonti on käynnissä. Pudota kuvat, kun se on valmis",
   "Close the open dialog to drop files here": "Sulje avoin valintaikkuna pudottaaksesi tiedostot tähän",
   "Close the open dialog, then drop the files again": "Sulje avoin valintaikkuna ja pudota tiedostot sitten uudelleen",
@@ -2335,5 +2339,6 @@
   "Drop to open the face model": "Pudota avataksesi kasvomallin",
   "Dropped Files": "Pudotetut tiedostot",
   "Finish Lightroom catalog import before adding photos": "Viimeistele Lightroom-luettelon tuonti ennen kuvien lisäämistä",
-  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta"
+  "Import dropped files without review": "Tuo pudotetut tiedostot ilman tarkistusta",
+  "Import Thumbnail Size": "Tuonnin pienoiskuvien koko"
 }

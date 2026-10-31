@@ -1122,6 +1122,9 @@
   "LightCraft could not start": "LightCraft ვერ გაეშვა",
   "LightCraft couldn't find where to keep your library.": "LightCraft-მა ვერ იპოვა, სად შეინახოს თქვენი ბიბლიოთეკა.",
   "LightCraft couldn't open the library at": "LightCraft-მა ვერ გახსნა ბიბლიოთეკა მისამართზე",
+  "There is no LightCraft library in this folder any more.": "ამ საქაღალდეში LightCraft-ის ბიბლიოთეკა აღარ არის.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "ბიბლიოთეკა აქ არ არის: ის გადაიტანეს ან გადაარქვეს სახელი, ან მისი დისკი ან ქსელური საქაღალდე არ არის მიერთებული.",
+  "This folder can't be read:": "ამ საქაღალდის წაკითხვა ვერ ხერხდება:",
   "LightCraft does not know this model, so it assumed:": "LightCraft-მა ეს მოდელი არ იცის, ამიტომ ივარაუდა:",
   "LightCraft no longer crashes at launch on Windows PCs whose Vulkan driver is broken (issue #136, e.g. some Intel UHD": "LightCraft აღარ ითიშება გაშვებისას Windows კომპიუტერებზე, რომელთა Vulkan დრაივერი გაუმართავია (ხარვეზი #136, მაგ. ზოგიერთი Intel UHD",
   "LightCraft on GitHub": "LightCraft GitHub-ზე",
@@ -2741,6 +2744,10 @@
   "Dropped Files": "ჩაგდებული ფაილები",
   "Import dropped files without review": "ჩაგდებული ფაილების იმპორტი გადახედვის გარეშე",
   "An import is running": "იმპორტი მიმდინარეობს",
+  "The photos are imported once it ends": "ფოტოები ამის შემდეგ შემოიტანება",
   "An import is running. Drop photos when it has finished": "იმპორტი მიმდინარეობს. ფოტოები ჩააგდეთ, როცა დასრულდება",
-  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი"
+  "Finish Lightroom catalog import before adding photos": "ფოტოების დამატებამდე დაასრულეთ Lightroom-ის კატალოგის იმპორტი",
+  "Thumbnail size": "მინიატურების ზომა",
+  "Import Thumbnail Size": "იმპორტის მინიატურების ზომა",
+  "Click to type a value, drag to change it": "დააწკაპუნეთ მნიშვნელობის შესაყვანად, გადაათრიეთ მის შესაცვლელად"
 }

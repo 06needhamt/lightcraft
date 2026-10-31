@@ -427,6 +427,21 @@ fn undated_files_take_the_file_date() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The probe opens the file once and says the same thing as before about one that can't be read:
+/// its path, then the system's words (a missing file, a folder).
+#[test]
+fn a_probe_of_a_file_that_cannot_be_read_names_the_path_and_the_cause() {
+    let dir = std::env::temp_dir().join(format!("lightcraft-probe-errors-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (_, probe) = fs_hooks();
+    for path in [dir.join("no-such-file.jpg"), dir.clone()] {
+        let path = path.to_string_lossy().to_string();
+        let e = probe(&path).unwrap_err();
+        assert_eq!(e, format!("{path}: {}", std::fs::read(&path).unwrap_err()));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// Issue #367: probes read headers, not pixels, and report what the decode-based probe did:
 /// oriented dimensions (EXIF orientation 6 swaps them), metadata, the error for a truncated
 /// file or one that isn't an image.

@@ -66,6 +66,7 @@ impl LightcraftApp {
         if import_tick_allowed(ctx) {
             import::tick(self, ctx);
         }
+        panels::library_problem::import_waiting(self, ctx);
         lightroom_import::tick(self, ctx);
         recheck::tick(self);
         tasks::poll(self, ctx);
@@ -89,7 +90,8 @@ impl LightcraftApp {
         if let Some(folder) = self.session.import_defaults.auto_folder.clone() {
             const LABEL: &str = "Auto Import";
             if now - self.ui.auto_import_at >= 3.0
-                && self.import.is_none()
+                && !import::running(self)
+                && self.sync.is_none()
                 && self.sync_run.is_none()
                 && self.lightroom.is_none()
                 && !self.tasks.is_running(LABEL)
@@ -122,6 +124,12 @@ impl LightcraftApp {
                             return;
                         }
                     };
+                    // an import, a scan (a finished Local browse replaces `app.import`), a Synchronize Folder (its scan
+                    // or its run) or a Lightroom migration that started while the folder was listed: scanning now would
+                    // mark the new files as tried without importing them; the next listing picks them up
+                    if import::running(app) || app.sync.is_some() || app.sync_run.is_some() || app.lightroom.is_some() {
+                        return;
+                    }
                     let p = serde_json::json!({"listing": listing, "start": false});
                     let Ok(r) = app.session.execute("library.autoImportScan", &p) else { return };
                     let Some(mut params) = r.get("import").cloned().filter(|_| app.import.is_none()) else { return };

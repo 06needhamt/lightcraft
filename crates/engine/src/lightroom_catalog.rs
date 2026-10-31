@@ -943,7 +943,8 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     refuse_non_media(&mut data);
     validate(&data).map_err(error)?;
     let mut warnings = data.warnings.clone();
-    let duplicates: HashMap<_, _> = files.duplicates.iter().filter_map(|d| d.existing.map(|id| (key(&d.path), PhotoId(id)))).collect();
+    let duplicates: HashMap<_, _> =
+        files.duplicates.iter().filter_map(|d| d.existing.map(|id| (key(&d.path), (PhotoId(id), d.file.as_deref())))).collect();
     let mut by_path: HashMap<_, _> =
         s.catalog.photos().filter(|p| p.copy_of.is_none()).filter_map(|p| source_path(p).map(|path| (key(path), p.id))).collect();
     let mut ids = HashMap::new();
@@ -956,6 +957,9 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     let mut promoted = HashSet::new();
     let mut unmapped = BTreeMap::new();
     let mut preserved = 0;
+    // Library photos in Recently Deleted that a catalog photo matched: they stay there (only an
+    // import of the files themselves brings a photo back, see `OnDeleted`), and the report says so.
+    let mut in_trash = HashSet::new();
     // Masters precede their virtual copies.
     let mut photos: Vec<_> = data.photos.iter().collect();
     photos.sort_by_key(|p| number(&p.image, "masterImage") != 0);
@@ -980,6 +984,9 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             .filter(|id| s.catalog.photo(*id).is_some_and(|p| source_path(p).is_some_and(|path| key(path) == key(&src.path))));
         let existing_id = indexed.or_else(|| if master == 0 { by_path.get(&key(&src.path)).copied() } else { None });
         let mut p = if let Some(id) = existing_id.and_then(|id| s.catalog.photo(id)) {
+            if id.deleted {
+                in_trash.insert(id.id);
+            }
             (**id).clone()
         } else if master != 0 {
             let master_id = ids.get(&master).copied().ok_or_else(|| error(format!("virtual copy {}: missing master", src.source_id)))?;
@@ -991,13 +998,55 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             p.id = s.catalog.alloc_photo_id();
             p.copy_of = Some(master_id);
             p.copy_name = Some(text(&src.image, "copyName").to_string());
+            // a new copy of a master in Recently Deleted is imported, not trashed with it
+            p.deleted = false;
             p
-        } else if let Some(duplicate) = duplicates.get(&key(&src.path)).and_then(|id| s.catalog.photo(*id)) {
+        } else if let Some((duplicate, file)) =
+            duplicates.get(&key(&src.path)).and_then(|(id, meta)| s.catalog.photo(*id).cloned().map(|p| (p, *meta)))
+        {
             // Catalogs can contain distinct originals with identical bytes and independent edits.
-            let mut p = (**duplicate).clone();
-            p.id = s.catalog.alloc_photo_id();
-            p.source = Source::File { path: src.path.clone() };
-            p.file_name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().into()).unwrap_or_else(|| src.path.clone());
+            // The new record takes only what the bytes determine from the photo with the same
+            // bytes, never that photo's own state: not its Recently Deleted (#2589), virtual copy,
+            // edits, history, versions, ratings, capture time or the metadata a person writes. Its
+            // metadata and capture time are what its own file gives it, as a file import reads them
+            // (copyright, creator…); the catalog's capture time, when it has one, applies on top.
+            let name = Path::new(&src.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| src.path.clone());
+            let mut p = Photo::new(
+                s.catalog.alloc_photo_id(),
+                Source::File { path: src.path.clone() },
+                &name,
+                &duplicate.format,
+                duplicate.width,
+                duplicate.height,
+                &now,
+            );
+            p.kind = duplicate.kind;
+            p.file_size = duplicate.file_size;
+            p.duration = duplicate.duration;
+            p.as_shot_wb = duplicate.as_shot_wb;
+            p.content_hash = duplicate.content_hash.clone();
+            p.embedded_lens = duplicate.embedded_lens;
+            p.preview_only = duplicate.preview_only.clone();
+            p.preview_checked = duplicate.preview_checked.clone();
+            if let Some(file) = file {
+                p.meta = file.meta.clone();
+                p.captured = file.captured.clone();
+            } else {
+                // (the file wasn't read: only the exposure description, which no command edits;
+                // not GPS, which placing a photo on the map does, nor the capture time, which
+                // Edit Capture Time does)
+                let m = &duplicate.meta;
+                p.meta.camera = m.camera.clone();
+                p.meta.lens = m.lens.clone();
+                p.meta.focal_mm = m.focal_mm;
+                p.meta.aperture = m.aperture;
+                p.meta.shutter = m.shutter.clone();
+                p.meta.iso = m.iso;
+                p.meta.focus = m.focus.clone();
+            }
+            // the settings a file import gives it (as-shot white balance, embedded lens
+            // corrections, the default preset); the catalog's settings apply on top
+            crate::import::apply_import_defaults(s, &mut p);
             p
         } else {
             let id = s.catalog.alloc_photo_id();
@@ -1016,6 +1065,10 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             }
             p
         };
+        // Offline videos bypass file probing; Lightroom's format still identifies their kind.
+        if text(&src.image, "fileFormat").eq_ignore_ascii_case("VIDEO") {
+            p.kind = lightcraft_catalog::MediaKind::Video;
+        }
         ids.insert(src.source_id, p.id);
         index.photos.insert(identity(&data, src), p.id.0);
         let keep_develop = existing_id.is_some() && p.edited.is_some() && !update_existing;
@@ -1080,7 +1133,14 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
         if copy_masters.contains(&src.source_id) {
             planned.insert(photo_id, p.clone());
         }
-        if s.catalog.photo(p.id).is_some() {
+        if let Some(old) = s.catalog.photo(p.id) {
+            if old.kind != p.kind {
+                // Repair older imports with existing reversible operations. Removing just the
+                // record leaves album/stack membership intact; the enclosing batch is atomic.
+                let mut repaired = (**old).clone();
+                repaired.kind = p.kind;
+                ops.extend([Op::RemovePhoto { id: p.id }, Op::AddPhoto { photo: Box::new(repaired) }]);
+            }
             if was_local && promoted.insert(p.id) {
                 imported += 1;
                 ops.push(Op::SetLocal { id: p.id, local: false });
@@ -1105,7 +1165,7 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
     }
     s.merge_undo(s.undo.len().saturating_sub(undo0), "Import Lightroom Catalog");
     Ok(AppliedImport {
-        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":album_count,"preservedExistingEdits":preserved,"missing":missing,"failed":files.failed,"warnings":warnings,"skipped":data.skipped,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
+        report: json!({"source":data.source,"photos":ids.len(),"imported":imported,"library":s.library.as_ref().filter(|l| l.on_disk).map(|l| l.dir.to_string_lossy()),"collections":album_count,"preservedExistingEdits":preserved,"inRecentlyDeleted":in_trash.len(),"missing":missing,"failed":files.failed,"warnings":warnings,"skipped":data.skipped,"unmapped":unmapped,"archive":archive_path,"mapping":ids}),
         index: index.clone(),
     })
 }

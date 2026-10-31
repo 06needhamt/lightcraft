@@ -1022,6 +1022,9 @@
   "LightCraft could not start": "LightCraft se nepodařilo spustit",
   "LightCraft couldn't find where to keep your library.": "LightCraft nedokázal najít místo pro uložení knihovny.",
   "LightCraft couldn't open the library at": "LightCraft nedokázal otevřít knihovnu v umístění",
+  "There is no LightCraft library in this folder any more.": "V této složce už žádná knihovna LightCraft není.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "Knihovna tu není: byla přesunuta nebo přejmenována, nebo není připojen její disk či síťové úložiště.",
+  "This folder can't be read:": "Tuto složku nelze přečíst:",
   "LightCraft does not know this model, so it assumed:": "LightCraft tento model nezná, a proto předpokládá:",
   "LightCraft on GitHub": "LightCraft na GitHubu",
   "LightCraft website": "Web LightCraft",
@@ -2415,6 +2418,8 @@
   "Dropped Files": "Přetažené soubory",
   "Import dropped files without review": "Importovat přetažené soubory bez kontroly",
   "An import is running": "Import už běží",
+  "The photos are imported once it ends": "Fotky se naimportují potom",
   "An import is running. Drop photos when it has finished": "Import už běží. Fotky přetáhněte, až skončí",
-  "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky"
+  "Finish Lightroom catalog import before adding photos": "Dokončete import katalogu Lightroom, než přidáte fotky",
+  "Import Thumbnail Size": "Velikost miniatur při importu"
 }

@@ -705,6 +705,18 @@ fn ui_commands_5(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Val
             app.ui.thumb_size = (app.ui.thumb_size + step).clamp(crate::state::THUMB_SIZE_MIN, crate::state::THUMB_SIZE_MAX);
             Ok(json!({"size": app.ui.thumb_size}))
         }
+        "view.importThumbSize" => {
+            // {size?: points}; without a size, read the current preference.
+            let size = match p.get("size") {
+                None => app.ui.import_thumb_size,
+                Some(value) => match value.as_f64().map(|n| n as f32).filter(|n| n.is_finite()) {
+                    Some(size) => size,
+                    None => return Some(Err("view.importThumbSize: size must be a finite number".into())),
+                },
+            };
+            app.ui.import_thumb_size = crate::import::thumb_size(size);
+            Ok(json!({"size": app.ui.import_thumb_size}))
+        }
         "view.navigate" => {
             // {zoom?: "fit"|"fill"|{percent: number}, pan?: [x, y]} (normalized image centre).
             // Validate the complete request before changing either part of the viewport.

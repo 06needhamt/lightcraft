@@ -1636,6 +1636,9 @@
   "Your library couldn't be opened": "ライブラリを開けませんでした",
   "LightCraft couldn't find where to keep your library.": "ライブラリの保存場所が見つかりませんでした。",
   "LightCraft couldn't open the library at": "次の場所にあるライブラリを開けませんでした：",
+  "There is no LightCraft library in this folder any more.": "このフォルダーには LightCraft ライブラリがもうありません。",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "ライブラリが見つかりません。移動されたか名前が変更されたか、ドライブまたはネットワーク共有が接続されていません。",
+  "This folder can't be read:": "このフォルダーを読み取れません：",
   "Try Again": "再試行",
   "Choose Another Library…": "別のライブラリを選択…",
   "Continue Without Saving": "保存せずに続行",
@@ -2363,6 +2366,9 @@
   "Dropped Files": "ドロップしたファイル",
   "Import dropped files without review": "ドロップしたファイルを確認せずに読み込む",
   "An import is running": "読み込み中です",
+  "The photos are imported once it ends": "終わりしだい写真を読み込みます",
   "An import is running. Drop photos when it has finished": "読み込み中です。完了してから写真をドロップしてください",
-  "Finish Lightroom catalog import before adding photos": "写真を追加する前に Lightroom カタログの読み込みを完了してください"
+  "Finish Lightroom catalog import before adding photos": "写真を追加する前に Lightroom カタログの読み込みを完了してください",
+  "Thumbnail size": "サムネイルのサイズ",
+  "Import Thumbnail Size": "読み込みサムネイルのサイズ"
 }

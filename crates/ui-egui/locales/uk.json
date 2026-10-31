@@ -1630,6 +1630,9 @@
   "Your library couldn't be opened": "Не вдалося відкрити вашу бібліотеку",
   "LightCraft couldn't find where to keep your library.": "LightCraft не вдалося знайти місце для бібліотеки.",
   "LightCraft couldn't open the library at": "LightCraft не вдалося відкрити бібліотеку в",
+  "There is no LightCraft library in this folder any more.": "У цій папці більше немає бібліотеки LightCraft.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "Бібліотеки тут немає: її перемістили чи перейменували, або її диск чи мережеву папку не підключено.",
+  "This folder can't be read:": "Не вдається прочитати цю папку:",
   "Try Again": "Спробувати знову",
   "Choose Another Library…": "Вибрати іншу бібліотеку…",
   "Continue Without Saving": "Продовжити без збереження",
@@ -2361,6 +2364,9 @@
   "Dropped Files": "Перетягнуті файли",
   "Import dropped files without review": "Імпортувати перетягнуті файли без перегляду",
   "An import is running": "Імпорт уже виконується",
+  "The photos are imported once it ends": "Фото буде імпортовано після цього",
   "An import is running. Drop photos when it has finished": "Імпорт уже виконується. Перетягніть фото, коли він завершиться",
-  "Finish Lightroom catalog import before adding photos": "Завершіть імпорт каталогу Lightroom, перш ніж додавати фото"
+  "Finish Lightroom catalog import before adding photos": "Завершіть імпорт каталогу Lightroom, перш ніж додавати фото",
+  "Thumbnail size": "Розмір мініатюр",
+  "Import Thumbnail Size": "Розмір мініатюр імпорту"
 }

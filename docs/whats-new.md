@@ -9,6 +9,18 @@
   the selected photos as one undo step, only the active photo in Compare and Survey, and moves on with Auto Advance,
   as the other label keys do.
 
+### Samsung panoramas import
+- Some panoramas from Samsung phones were refused as truncated ("the image data doesn't end with an end-of-image
+  marker"), although other apps open them whole: their image data runs straight into the Samsung (SEF) block at the
+  end of the file, with no end-of-image marker in between. When the file ends with a valid SEF block, the image now
+  ends where that block begins, so these photos import, show and build previews. A JPEG that is really cut short is
+  still refused.
+
+### Photos waiting for a library wait for a running import too
+- Photos given on the command line or dropped on the launch list are imported once a library opens. If another import
+  or a Synchronize Folder is still running then, they now wait for it to end instead of being dropped, and a message
+  says so (issue #2779).
+
 ## 2026-10-29
 
 ### A person's page opens in seconds in a large library
@@ -18,6 +30,25 @@
   on one core of an Apple M1 Pro, with the window frozen, and now about 3 seconds (both measured on 3 000 of those
   faces, 5.3 s and 0.1 s, and scaled up). Name suggestions and the order of the unnamed
   faces get the faster comparison too.
+
+### Move Folder To… no longer freezes the window
+- Move Folder To…, in the menu of a folder in Folders or Local, now opens its folder dialog the way Import and Move to
+  Folder… do: the window keeps drawing and answering while you choose, and the folder moves when the dialog closes,
+  with the same "Moved; N photo(s) relinked" message. Before, the dialog held up the whole window until it closed;
+  on Linux with X11 the app could stop responding altogether. While the dialog is open, another library can't be
+  opened (the move belongs to the library it was started in), and while Open Library… or New Library… waits for
+  its folder, Move Folder To… is unavailable.
+
+### A library on a disconnected drive is reported at launch, not replaced
+- When the library LightCraft last opened is missing at launch, because its drive or network share isn't connected
+  yet or it was moved, the window now says it couldn't open the library and offers Try Again, Choose Another
+  Library…, Continue Without Saving and Quit. Before, LightCraft quietly made a new, empty library at that path,
+  filled it with the demo photos and opened it, so it looked as if the photos and edits were gone. Nothing is
+  written there now, and Try Again opens the library once its drive or share is back: on an empty folder left in
+  its place, such as a share's mount point, it says so again instead of making a new library there. A library
+  folder LightCraft isn't allowed to read is reported as unreadable, with the system's reason, not as gone. A
+  library given with `--library` or `LIGHTCRAFT_LIBRARY`, and the default location on first launch, are still
+  created as before.
 
 ## 2026-10-28
 
@@ -32,6 +63,15 @@
 - With VoiceOver, the Thumbnail size control at the right of the grid's bottom bar is now announced as a slider with its
   value and range, instead of a button with no value. Increment and Decrement (VoiceOver's Control-Option-Up and Down) and,
   while it has the keyboard focus, the Up and Down arrow keys change it by one step, as the `=` and `-` keys do.
+
+### Local's standard places can't be renamed by mistake
+- The Pictures, Desktop, Downloads and Home rows of Local no longer offer Rename Folder… or Move Folder To…. Before,
+  the Rename prompt began with the row's translated label rather than the folder's name, so in German pressing OK
+  on “Bilder” renamed your real Pictures folder to “Bilder”, and Home could be renamed the same way. Folders inside
+  them, and folders you keep in Local with Browse Folder…, rename as before, starting from their real name. The
+  `folder.rename` and `folder.move` commands now refuse the home folder and its Pictures, Desktop and Downloads too,
+  so a script or an agent can't do it either.
+
 
 ## 2026-10-27
 
@@ -48,11 +88,24 @@
   it was named with the bare date key ("2026-09-20"). VoiceOver reads what a sighted person reads, and Voice Control's
   "click Sunday" finds the header.
 
+### Reading a photo from a network share asks the server less
+- Checking a photo (before an import, and for Reload, Recheck, Relink and Convert) asked for the file's size, then
+  opened it, then asked for its modification time as a question of its own. It now opens the file once and reads
+  both from the open file, so each photo costs the server fewer round trips (about a quarter less time to read a
+  set of photos from an SMB share, in one measurement on one share). What is imported and the messages for a file
+  that can't be read are the same.
+
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
 - Fielded search tokens now take inclusive comparisons: `rating:>=3`, `iso:<=400`, `f:>=2.8`, `focal:<=50`. Before,
   the `=` was read as part of the number, so such a search quietly showed no photos at all.
+
+### Import rename numbering stops safely at its limit
+- Copy and Move imports can use the last representable rename number once. If more renamed files remain, each is
+  reported as failed with guidance to lower `renameStart` or leave `rename` blank; completed transfers stay
+  accounted for and catalogued. A `renameStart` value outside this platform's range is rejected before setup.
 
 ## 2026-10-24
 
@@ -70,6 +123,17 @@
 - In Settings ▸ Slideshow, the line under the slide preview ("The selected photo as a slide…") now shows from the first
   frame instead of only once the preview has finished rendering. Before, it appeared with the render, pushing the page
   below it down by a line, so a click made in that moment could land beside the control you aimed at.
+
+### A refused move no longer switches the Move Photos question off
+- Ticking Don't ask again in the question that appears when you drop photos on a Folders row used to be remembered even when the move was then refused (for example because a file of the same name is already in that folder). The choice is now kept only once the move has started, so a refused move leaves the question on.
+
+### Importing a folder from a network share waits less
+- After the import review, the import used to check that each photo was still as the review had seen it by asking the
+  disk about one photo after another, so on a network share every photo waited for a round trip to the server. It now
+  asks about up to 16 photos at a time, the same wait for every 16 instead of for each one. Reading the photos in the review
+  is unchanged.
+- Looking for each photo's `.xmp` sidecar, which asks the disk several names for every photo, also goes up to 16
+  photos at a time.
 
 
 ### Relative-date filters and smart albums follow the clock
@@ -121,6 +185,16 @@
   selected, replace the selection with it. Now only the left button drags photos, and a right-button release while you
   are dragging photos no longer drops them on an album, folder or keyword. Right-click still opens the photo menu.
 
+### A damaged GIF or BMP can no longer crash an import
+- A GIF or BMP whose header claims an enormous picture (a file of a few dozen bytes can claim a billion pixels) is
+  now refused with an error when importing or opening it (issue #2553). Before, LightCraft set aside memory for the
+  whole picture, several gigabytes, and could close without warning, losing unsaved work. At import, a GIF or BMP
+  picture larger than 4 megapixels now has its size read from the header instead of being decoded; smaller ones are
+  still decoded, so a damaged file is caught then. A picture that is mostly blank (a run-length-encoded BMP that ends
+  early, or a GIF whose first frame is smaller than the picture) still opens up to 4 megapixels; a larger one is
+  refused, because opening it would still set aside memory for the whole picture.
+
+
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
 - In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
   keyboard focus when the dialog opens, and Tab now moves on to the check box, Cancel and OK (Shift+Tab goes back).
@@ -149,6 +223,12 @@
 - LightCraft now imports PSD and PSB files with EXIF and XMP image resources. Capture dates, GPS and descriptive fields
   stay available in All Metadata; PSD edit copies keep their capture date. Original exports with Remove Location Info enabled
   are refused when a PSD or PSB embeds GPS, since LightCraft cannot strip metadata from a byte-for-byte original copy.
+
+### Quitting on macOS leaves no lock note
+- Quitting LightCraft on macOS no longer leaves `catalog.lock.owner` in the library folder. The note, which names the
+  program that has the library open, stayed behind after Quit and the window's close button, pointing at a process
+  that no longer existed. The library's lock is now released as soon as everything is saved, as it already was on
+  the other systems.
 
 ### Choose where a Lightroom catalog goes
 - File ▸ Import Lightroom Catalog… now asks first: merge the catalog's photos, collections and edits into the

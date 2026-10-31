@@ -760,6 +760,8 @@
   "LightCraft could not start": "LightCraft n'a pas pu démarrer",
   "LightCraft couldn't find where to keep your library.": "LightCraft n'a pas trouvé où conserver votre bibliothèque.",
   "LightCraft couldn't open the library at": "LightCraft n'a pas pu ouvrir la bibliothèque à l'emplacement",
+  "There is no LightCraft library in this folder any more.": "Ce dossier ne contient plus de bibliothèque LightCraft.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "La bibliothèque est introuvable : elle a été déplacée ou renommée, ou son disque ou son partage réseau n'est pas connecté.",
   "LightCraft on GitHub": "LightCraft sur GitHub",
   "LightCraft website": "Site web de LightCraft",
   "LightCraft — Second Window": "LightCraft : deuxième fenêtre",
@@ -2361,6 +2363,7 @@
   "Dropped Files": "Fichiers déposés",
   "Import dropped files without review": "Importer les fichiers déposés sans vérification",
   "An import is running": "Une importation est en cours",
+  "The photos are imported once it ends": "Les photos seront importées ensuite",
   "An import is running. Drop photos when it has finished": "Une importation est en cours. Déposez les photos quand elle sera terminée",
   "Finish Lightroom catalog import before adding photos": "Terminez l'importation du catalogue Lightroom avant d'ajouter des photos",
   "The library is empty: the catalog's photos, collections and edits become its first.": "La bibliothèque est vide : les photos, collections et retouches du catalogue seront les premières.",
@@ -2398,5 +2401,7 @@
   "Checking recent libraries": "Vérification des bibliothèques récentes",
   "The photos are imported once a library is open": "Les photos seront importées dès qu'une bibliothèque sera ouverte",
   "Open a library first, then drop the presets again": "Ouvrez d'abord une bibliothèque, puis déposez à nouveau les préréglages",
-  "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :"
+  "This library couldn't be checked:": "Impossible de vérifier cette bibliothèque :",
+  "Thumbnail size": "Taille des vignettes",
+  "Import Thumbnail Size": "Taille des vignettes d’importation"
 }

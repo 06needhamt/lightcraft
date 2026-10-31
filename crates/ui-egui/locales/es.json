@@ -807,6 +807,9 @@
   "LightCraft could not start": "No se pudo iniciar LightCraft",
   "LightCraft couldn't find where to keep your library.": "LightCraft no encontró dónde guardar la biblioteca.",
   "LightCraft couldn't open the library at": "LightCraft no pudo abrir la biblioteca en",
+  "There is no LightCraft library in this folder any more.": "Ya no hay ninguna biblioteca de LightCraft en esta carpeta.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "La biblioteca no está: se movió o se le cambió el nombre, o su disco o carpeta de red no está conectado.",
+  "This folder can't be read:": "No se puede leer esta carpeta:",
   "LightCraft on GitHub": "LightCraft en GitHub",
   "LightCraft website": "Sitio web de LightCraft",
   "LightCraft — Second Window": "LightCraft: segunda ventana",
@@ -2365,6 +2368,9 @@
   "Dropped Files": "Archivos soltados",
   "Import dropped files without review": "Importar los archivos soltados sin revisión",
   "An import is running": "Hay una importación en curso",
+  "The photos are imported once it ends": "Las fotos se importarán después",
   "An import is running. Drop photos when it has finished": "Hay una importación en curso. Suelta las fotos cuando termine",
-  "Finish Lightroom catalog import before adding photos": "Termina la importación del catálogo de Lightroom antes de añadir fotos"
+  "Finish Lightroom catalog import before adding photos": "Termina la importación del catálogo de Lightroom antes de añadir fotos",
+  "Thumbnail size": "Tamaño de las miniaturas",
+  "Import Thumbnail Size": "Tamaño de las miniaturas de importación"
 }

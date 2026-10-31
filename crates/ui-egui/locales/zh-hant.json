@@ -870,6 +870,9 @@
   "LightCraft Website": "LightCraft 網站",
   "LightCraft couldn't find where to keep your library.": "LightCraft 找不到儲存照片庫的位置。",
   "LightCraft couldn't open the library at": "LightCraft 無法開啟此位置的照片庫：",
+  "There is no LightCraft library in this folder any more.": "這個資料夾中已經沒有 LightCraft 照片庫。",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "照片庫不在這裡：它已被移動或重新命名，或是它所在的磁碟機或網路共用資料夾未連線。",
+  "This folder can't be read:": "無法讀取這個資料夾：",
   "LightCraft on GitHub": "GitHub 上的 LightCraft",
   "LightCraft website": "LightCraft 網站",
   "LightCraft — Second Window": "LightCraft — 第二視窗",
@@ -2164,6 +2167,9 @@
   "Dropped Files": "拖放的檔案",
   "Import dropped files without review": "不經檢查直接匯入拖放的檔案",
   "An import is running": "正在匯入",
+  "The photos are imported once it ends": "結束後即匯入這些照片",
   "An import is running. Drop photos when it has finished": "正在匯入。匯入完成後再拖放照片",
-  "Finish Lightroom catalog import before adding photos": "新增照片前，請先完成 Lightroom 目錄的匯入"
+  "Finish Lightroom catalog import before adding photos": "新增照片前，請先完成 Lightroom 目錄的匯入",
+  "Thumbnail size": "縮圖大小",
+  "Import Thumbnail Size": "匯入縮圖大小"
 }
