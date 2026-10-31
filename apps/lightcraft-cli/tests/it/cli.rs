@@ -583,6 +583,190 @@ fn run_script_params_validate_before_any_commands() {
 }
 
 #[test]
+fn run_failed_import_never_edits_existing_selection() {
+    let dir = tmp("failed-import");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let lib = dir.join("library");
+    let missing = dir.join("missing.png");
+    let empty = dir.join("empty");
+    std::fs::create_dir(&empty).unwrap();
+    assert!(!missing.exists());
+    let lib = lib.to_str().unwrap();
+    let (ok, lines, err) = run_cli(&["--demo", "--library", lib, "library.state"], None);
+    assert!(ok, "{err}");
+    let id = lines[0]["result"]["selection"]["active"].as_u64().unwrap();
+    let (ok, _, err) = run_cli(&["--library", lib, "photo.rate", &format!("ids=[{id}]"), "rating=0"], None);
+    assert!(ok, "{err}");
+    for path in [&missing, &empty] {
+        let (ok, lines, err) = run_cli(&["--library", lib, "--import", path.to_str().unwrap(), "photo.rate", "rating=5"], None);
+        assert!(!ok, "import unexpectedly succeeded for {}: {lines:?}", path.display());
+        assert!(lines.is_empty(), "commands ran: {lines:?}");
+        assert!(err.contains("import") && err.contains("no commands were run"), "{err}");
+        if path == &missing {
+            assert!(err.contains("failed") && err.contains("missing.png"), "{err}");
+        }
+        let (ok, lines, err) = run_cli(&["--library", lib, "photo.inspect", &format!("id={id}")], None);
+        assert!(ok, "{err}");
+        assert_eq!(lines[0]["result"]["rating"], 0);
+    }
+}
+
+#[test]
+fn run_partial_import_stops_commands_and_import_targets_remain_usable() {
+    let dir = tmp("partial-import");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("valid.png");
+    let broken = dir.join("broken.png");
+    gradient_png(&input);
+    std::fs::write(&broken, b"not a PNG").unwrap();
+    let mixed_lib = dir.join("mixed");
+    let mixed_lib = mixed_lib.to_str().unwrap();
+    let input = input.to_str().unwrap();
+    let (ok, lines, err) = run_cli(&["--demo", "--library", mixed_lib, "catalog.query"], None);
+    assert!(ok, "{err}");
+    let photos = lines[0]["result"]["photos"].as_array().unwrap();
+    let a = photos[0]["id"].as_u64().unwrap();
+    let b = photos[1]["id"].as_u64().unwrap();
+    let (ok, lines, err) = run_cli(
+        &[
+            "--library",
+            mixed_lib,
+            "library.select",
+            &format!("ids=[{a},{b}]"),
+            &format!("active={a}"),
+            "photo.rate",
+            &format!("ids=[{a}]"),
+            "rating=0",
+            "library.state",
+        ],
+        None,
+    );
+    assert!(ok, "{err}");
+    let selection = lines[2]["result"]["selection"].clone();
+    assert_eq!(selection["ids"], json!([a, b]));
+    assert_eq!(selection["active"], a);
+    let (ok, lines, err) =
+        run_cli(&["--library", mixed_lib, "--import", input, "--import", broken.to_str().unwrap(), "photo.rate", "rating=5"], None);
+    let (query_ok, after, query_err) =
+        run_cli(&["--library", mixed_lib, "library.state", "photo.inspect", &format!("id={a}"), "catalog.query"], None);
+    assert!(query_ok, "{query_err}");
+    assert_eq!(after[0]["result"]["selection"], selection, "selection changed after partial import");
+    assert!(!ok, "partial import unexpectedly succeeded: {lines:?}");
+    assert!(lines.is_empty() && err.contains("failed") && err.contains("no commands were run"), "{err}: {lines:?}");
+    assert_eq!(after[1]["result"]["rating"], 0);
+    assert!(after[2]["result"]["photos"].as_array().unwrap().iter().any(|p| p["fileName"] == "valid.png"));
+
+    let lib = dir.join("duplicates");
+    let lib = lib.to_str().unwrap();
+    let (ok, lines, err) = run_cli(&["--demo", "--library", lib, "library.state"], None);
+    assert!(ok, "{err}");
+    let previous = lines[0]["result"]["selection"]["active"].as_u64().unwrap();
+    let (ok, lines, err) = run_cli(&["--library", lib, "--import", input, "photo.rate", "rating=4", "library.state"], None);
+    assert!(ok, "{err}");
+    let id = lines[1]["result"]["selection"]["active"].as_u64().unwrap();
+    assert_ne!(id, previous);
+    let (ok, _, err) = run_cli(&["--library", lib, "library.select", &format!("ids=[{previous}]"), "photo.rate", "rating=0"], None);
+    assert!(ok, "{err}");
+    let (ok, _, err) = run_cli(&["--library", lib, "--import", input, "photo.rate", "rating=3"], None);
+    assert!(ok, "{err}");
+    let (ok, lines, err) = run_cli(&["--library", lib, "photo.inspect", &format!("id={id}"), "photo.inspect", &format!("id={previous}")], None);
+    assert!(ok, "{err}");
+    assert_eq!(lines[0]["result"]["rating"], 3);
+    assert_eq!(lines[1]["result"]["rating"], 0);
+}
+
+#[test]
+fn run_restored_import_is_selected() {
+    let dir = tmp("restored-import");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let input = dir.join("valid.png");
+    gradient_png(&input);
+    let lib = dir.join("library");
+    let (lib, input) = (lib.to_str().unwrap(), input.to_str().unwrap());
+    let (ok, lines, err) = run_cli(&["--library", lib, "--import", input, "library.state"], None);
+    assert!(ok, "{err}");
+    let id = lines[0]["result"]["selection"]["active"].as_u64().unwrap();
+    let (ok, _, err) = run_cli(&["--library", lib, "photo.delete"], None);
+    assert!(ok, "{err}");
+    let (ok, _, err) = run_cli(&["--library", lib, "--import", input, "photo.rate", "rating=4"], None);
+    assert!(ok, "{err}");
+    let (ok, lines, err) = run_cli(&["--library", lib, "catalog.query"], None);
+    assert!(ok, "{err}");
+    assert_eq!(lines[0]["result"]["photos"].as_array().unwrap().len(), 1);
+    assert_eq!(lines[0]["result"]["photos"][0]["id"], id);
+    assert_eq!(lines[0]["result"]["photos"][0]["rating"], 4);
+}
+
+#[test]
+fn run_same_batch_duplicates_selects_photo_once() {
+    let dir = tmp("same-batch-duplicates");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let first = dir.join("first.png");
+    let second = dir.join("second.png");
+    gradient_png(&first);
+    std::fs::copy(&first, &second).unwrap();
+    let library = dir.join("library");
+    let (ok, lines, err) = run_cli(
+        &[
+            "--library",
+            library.to_str().unwrap(),
+            "--import",
+            first.to_str().unwrap(),
+            "--import",
+            second.to_str().unwrap(),
+            "photo.rate",
+            "rating=4",
+            "library.state",
+            "catalog.query",
+        ],
+        None,
+    );
+    assert!(ok, "{err}");
+    let selection = &lines[1]["result"]["selection"];
+    let ids = selection["ids"].as_array().unwrap();
+    assert_eq!(ids.len(), 1, "same photo selected more than once: {selection}");
+    assert_eq!(selection["active"], ids[0]);
+    let photos = lines[2]["result"]["photos"].as_array().unwrap();
+    assert_eq!(photos.len(), 1);
+    assert_eq!(photos[0]["id"], ids[0]);
+    assert_eq!(photos[0]["rating"], 4);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn run_mixed_new_and_restored_import_selects_both() {
+    let dir = tmp("mixed-restored-import");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let restored = dir.join("restored.png");
+    let new = dir.join("new.png");
+    gradient_png(&restored);
+    let image = lightcraft_raster::Rgba8::from_fn(120, 80, |x, y| [(x * 2) as u8, (y * 3) as u8, 200, 255]);
+    let png = lightcraft_codecs::encode_png(&lightcraft_codecs::EncodeImage::rgba8(&image), &Default::default()).unwrap();
+    std::fs::write(&new, png).unwrap();
+    let lib = dir.join("library");
+    let (lib, restored, new) = (lib.to_str().unwrap(), restored.to_str().unwrap(), new.to_str().unwrap());
+    let (ok, lines, err) = run_cli(&["--library", lib, "--import", restored, "library.state"], None);
+    assert!(ok, "{err}");
+    let restored_id = lines[0]["result"]["selection"]["active"].as_u64().unwrap();
+    let (ok, _, err) = run_cli(&["--library", lib, "photo.delete"], None);
+    assert!(ok, "{err}");
+    let (ok, lines, err) = run_cli(&["--library", lib, "--import", new, "--import", restored, "photo.rate", "rating=4", "library.state"], None);
+    assert!(ok, "{err}");
+    assert_eq!(lines[1]["result"]["selection"]["ids"].as_array().unwrap().len(), 2);
+    let (ok, lines, err) = run_cli(&["--library", lib, "catalog.query"], None);
+    assert!(ok, "{err}");
+    let photos = lines[0]["result"]["photos"].as_array().unwrap();
+    assert_eq!(photos.len(), 2);
+    assert!(photos.iter().any(|p| p["id"] == restored_id && p["rating"] == 4));
+    assert!(photos.iter().any(|p| p["fileName"] == "new.png" && p["id"] != restored_id && p["rating"] == 4));
+}
+
+#[test]
 fn run_subcommand_chains_commands_and_persists_a_library() {
     let input = tmp("run-in.png");
     gradient_png(&input);
