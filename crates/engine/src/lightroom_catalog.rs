@@ -640,6 +640,14 @@ fn drop_copies_of(data: &mut CatalogImport, masters: &HashSet<i64>) {
     data.skipped.extend(skipped);
 }
 
+/// A video the catalog lists with the format `VIDEO` and a video extension. Videos aren't image
+/// types, but they become video records (never opened by the system opener), so they pass.
+fn is_catalog_video(p: &CatalogPhoto) -> bool {
+    const EXTENSIONS: [&str; 12] = ["mp4", "mov", "m4v", "avi", "mts", "m2ts", "3gp", "mkv", "webm", "wmv", "mpg", "mpeg"];
+    text(&p.image, "fileFormat").eq_ignore_ascii_case("VIDEO")
+        && Path::new(&p.path).extension().and_then(|e| e.to_str()).is_some_and(|e| EXTENSIONS.iter().any(|x| e.eq_ignore_ascii_case(x)))
+}
+
 /// Drop the catalog's images whose original is not a file type LightCraft reads, saying so in the
 /// import's warnings.
 ///
@@ -656,7 +664,7 @@ pub(crate) fn refuse_non_media(data: &mut CatalogImport) {
     let refused: HashSet<i64> = data
         .photos
         .iter()
-        .filter(|p| number(&p.image, "masterImage") == 0 && !crate::open_path::is_media(Path::new(&p.path)))
+        .filter(|p| number(&p.image, "masterImage") == 0 && !crate::open_path::is_media(Path::new(&p.path)) && !is_catalog_video(p))
         .map(|p| p.source_id)
         .collect();
     if refused.is_empty() {
