@@ -489,6 +489,17 @@ fn button_row(app: &LightcraftApp, ui: &mut egui::Ui, dlg: &Dialog, close: &mut 
     }
 }
 
+/// Say where a folder made on disk is: the new folder holds no photos yet, so the Folders list may not show it.
+/// Shared by the dialog's button and `ui.dialog.confirm`.
+pub(crate) fn toast_created_folder(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &Dialog, made: &serde_json::Value) {
+    if let Dialog::TextPrompt { command, params, .. } = dlg
+        && command == "folder.create"
+    {
+        let (path, parent) = (made["path"].as_str().unwrap_or_default(), params["parent"].as_str().unwrap_or_default());
+        app.toast(ctx, crate::panels::left::created_text(path, parent));
+    }
+}
+
 /// The dialog's confirm was pressed: do it. Whether the dialog closes.
 fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> bool {
     let mut closed = false;
@@ -521,6 +532,13 @@ fn confirmed(app: &mut LightcraftApp, ctx: &egui::Context, dlg: &mut Dialog) -> 
             if let Dialog::SamModel { error, .. } = dlg {
                 *error = Some(e);
             }
+        }
+        // a one-line prompt that is refused stays open with its text, so the name can be fixed
+        Err(e) if matches!(dlg, Dialog::TextPrompt { .. }) => app.toast_error(ctx, e),
+        // a folder made on disk says so (the new folder holds no photos yet)
+        Ok(r) if matches!(&dlg, Dialog::TextPrompt { command, .. } if command == "folder.create") => {
+            toast_created_folder(app, ctx, dlg, &r);
+            closed = true;
         }
         Ok(r) if matches!(dlg, Dialog::NewAlbum { .. }) && r.get("skipped").and_then(serde_json::Value::as_u64).is_some_and(|n| n > 0) => {
             // albums hold library photos (issue #684): say which part of the selection stayed out

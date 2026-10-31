@@ -236,6 +236,7 @@
   "Lightroom geometry was not preserved for {path}; {mode} will be recalculated.": "Geometria z Lightrooma dla {path} nie została zachowana; tryb {mode} zostanie obliczony ponownie.",
   "Moved {} photo(s)": "Przeniesione zdjęcia: {}",
   "New Folder in “{name}”": "Nowy folder w „{name}”",
+  "Created folder “{name}” in “{parent}”": "Utworzono folder „{name}” w „{parent}”",
   "Restored {} photo{} from Recently Deleted": "Przywrócone z Ostatnio usuniętych zdjęcia: {}{:.0}",
   "XMP adjustments were not imported for {path}: {fields}.": "Korekty XMP dla {path} nie zostały zaimportowane: {fields}.",
   "XMP profile \"{profile}\" was not applied for {path}; colors may differ from Lightroom.": "Profil XMP „{profile}” nie został zastosowany do {path}; kolory mogą się różnić od Lightrooma.",

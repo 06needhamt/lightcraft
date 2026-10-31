@@ -134,6 +134,7 @@
   "Moved; {} photo(s) relinked": "Đã di chuyển; liên kết lại {} ảnh",
   "Named ({named_n})": "Có tên ({named_n})",
   "New Folder in “{name}”": "Thư mục mới trong «{name}»",
+  "Created folder “{name}” in “{parent}”": "Đã tạo thư mục «{name}» trong «{parent}»",
   "On {have} of {of} selected photos": "Trên {have} / {of} ảnh đã chọn",
   "Painting “{k}”: click photos to add or remove it · Esc stops": "Gán «{k}»: nhấp ảnh để thêm hoặc gỡ · Esc dừng",
   "Paste into {n} photo{} — only settings that were copied are pasted": "Dán vào {n} ảnh{:.0} — chỉ dán các thiết lập đã sao chép",

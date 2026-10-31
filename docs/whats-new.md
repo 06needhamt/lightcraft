@@ -5,6 +5,12 @@
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
 - Select Only Active Photo now sits under Deselect All, and Paste Settings from Previous under Paste Selected Settings…, instead of both after Settings…, near the end of the Edit menu. On macOS, where Settings… lives in the application menu, the Edit menu no longer shows two separator lines in a row.
 
+### A refused name prompt stays open and says why
+- A one-line prompt (Rename Folder, New Folder on Disk, the preset and version names, New Library for a name it can't
+  use, Auto-Tag from Tracklog) that the app refuses, for example a folder name that is taken, now stays open with what
+  you typed and shows the reason, so you can change the name. Before, it closed without a word. A New Folder on Disk
+  that works now says so: “Created folder “Selects” in “2026/Shoot””. Cancel and Esc still close the prompt.
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
