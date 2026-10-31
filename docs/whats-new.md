@@ -16,6 +16,11 @@
   different valid time. XMP keeps the original property available and can use the next valid capture-time field;
   GPX treats an invalid point time as untimed, so it cannot tag a photo at a fabricated time.
 
+### Invalid EXIF capture clocks no longer become plausible dates
+- An EXIF capture time with extra clock components is ignored as a whole. LightCraft can use a valid DateTimeDigitized,
+  IFD0 DateTime or embedded XMP value instead, while All Metadata continues to show the original tag. This also keeps
+  malformed timestamps from creating false matches when geotagging from a track log.
+
 ## 2026-10-24
 
 ### Sidecar keywords stay searchable in other applications

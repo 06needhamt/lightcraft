@@ -43,15 +43,27 @@ impl DateTime {
         if dp.len() != 3 {
             return None;
         }
-        let tp: Vec<&str> = if t.is_empty() { vec![] } else { t.split(':').collect() };
-        let g = |v: &Vec<&str>, i: usize| v.get(i).map(|x| num(x.trim())).unwrap_or(Some(0));
+        let (hour, minute, second) = if t.is_empty() {
+            (0, 0, 0)
+        } else {
+            let mut parts = t.split(':');
+            let hour = num(parts.next()?.trim())?;
+            let minute = parts.next().map(|part| num(part.trim())).unwrap_or(Some(0))?;
+            let second = parts.next().map(|part| num(part.trim())).unwrap_or(Some(0))?;
+            // A fourth value cannot be represented; accepting only the prefix could turn a
+            // malformed DateTimeOriginal into a plausible capture time and block fallbacks.
+            if parts.next().is_some() {
+                return None;
+            }
+            (hour, minute, second)
+        };
         DateTime {
             year: num(dp[0])?.try_into().ok()?,
             month: num(dp[1])?.try_into().ok()?,
             day: num(dp[2])?.try_into().ok()?,
-            hour: g(&tp, 0)?.try_into().ok()?,
-            minute: g(&tp, 1)?.try_into().ok()?,
-            second: g(&tp, 2)?.try_into().ok()?,
+            hour: hour.try_into().ok()?,
+            minute: minute.try_into().ok()?,
+            second: second.try_into().ok()?,
             millis: 0,
             offset_minutes: None,
         }
@@ -194,6 +206,30 @@ mod tests {
         assert_eq!(DateTime::parse_exif("2024-06-01").unwrap().hour, 0);
         assert_eq!(DateTime::parse_exif("2024:06:01 13:45:59").unwrap().with_subsec("5").millis, 500);
         assert_eq!(DateTime::parse_exif("2024:06:01 13:45:59").unwrap().with_subsec("0123").millis, 12);
+    }
+
+    #[test]
+    fn exif_clock_rejects_extra_components() {
+        for value in
+            ["2026:01:01 12:34:56:99", "2026:01:01 12:34:56:junk", "2026:01:01 12:34:56:", "2026:01:01 12:34:56::", "2026:01:01 12:34:56:99:junk"]
+        {
+            assert!(DateTime::parse_exif(value).is_none(), "accepted malformed EXIF clock {value:?}");
+        }
+    }
+
+    #[test]
+    fn exif_clock_supported_forms_keep_their_meaning() {
+        for (value, expected) in [
+            ("2026:01:01", "2026-01-01T00:00:00"),
+            ("2026:01:01 12", "2026-01-01T12:00:00"),
+            ("2026:01:01 12:34", "2026-01-01T12:34:00"),
+            ("2026:01:01 12:34:56", "2026-01-01T12:34:56"),
+            ("2026-01-01T12:34:56", "2026-01-01T12:34:56"),
+            (" 2026:01:01 12:34:56\0", "2026-01-01T12:34:56"),
+            ("2026:01:01T12:34:60", "2026-01-01T12:34:60"),
+        ] {
+            assert_eq!(DateTime::parse_exif(value).map(|date| date.to_iso()), Some(expected.to_string()), "{value:?}");
+        }
     }
 
     #[test]
