@@ -370,6 +370,8 @@ impl LightcraftApp {
         // Freeze this frame's notice barrier before `notices::show` can dismiss a prompt: the same
         // click or key must never be acted on again by the dialog drawn after it.
         let notice_blocks = panels::notices::blocks_input(self);
+        // what the panels below read to refuse a right-click's menu while photos are carried
+        widgets::set_carrying(&ctx, self.ui.dragging_photos.is_some() && ctx.input(|i| i.pointer.primary_down()));
         if std::mem::take(&mut self.ui.quit) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }

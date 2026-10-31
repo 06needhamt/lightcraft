@@ -380,7 +380,8 @@ fn folder_drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::R
         return;
     }
     spring_open(ui, n, open_id, open);
-    let name = std::path::Path::new(&n.path).file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| n.name.clone());
+    // (the label, the confirmation and the toast say which folder when another row has the name)
+    let name = crate::destination::folder(&app.caches.folder_tree(&app.session.catalog), &n.path);
     let photos: Vec<_> = ids.iter().filter_map(|id| app.session.catalog.photo(lightcraft_catalog::PhotoId(*id))).collect();
     let refused = if !n.selectable {
         Some(crate::i18n::tr("This row covers more than one disk: drop on a folder inside it"))
@@ -395,7 +396,7 @@ fn folder_drop_target(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::R
     };
     let all_here = !photos.is_empty() && photos.iter().all(|p| here(p));
     let count = photos.len();
-    let released = ui.input(|i| i.pointer.any_released());
+    let released = ui.input(|i| i.pointer.primary_released());
     let hint = match (&refused, all_here) {
         (Some(_), _) => crate::i18n::tr("Can't be moved here").to_string(),
         (None, true) => crate::i18n::tr_format!("Already in “{}”", name),
@@ -637,6 +638,7 @@ fn folder_menu_for_library(app: &mut LightcraftApp, resp: &egui::Response, n: &F
                 .on_hover_text(crate::i18n::tr("Moves the files and their XMP sidecars into this folder; never overwrites"))
                 .clicked()
         {
+            let name = crate::destination::folder(&app.caches.folder_tree(&app.session.catalog), path);
             move_photos_here(app, ui.ctx(), None, path, &name);
             ui.close();
         }

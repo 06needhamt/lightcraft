@@ -51,7 +51,7 @@ pub(super) fn section(
 
 /// Where what the panel shows of the sidebar's content ends (screen x): the content is wider
 /// than the panel while the sidebar scrolls sideways.
-fn visible_right(ui: &egui::Ui) -> f32 {
+pub(super) fn visible_right(ui: &egui::Ui) -> f32 {
     ui.data(|d| d.get_temp(egui::Id::unique("left-visible-right"))).unwrap_or(f32::MAX)
 }
 

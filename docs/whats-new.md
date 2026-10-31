@@ -13,6 +13,11 @@
 
 ## 2026-10-24
 
+### A right-click on a text field while you carry photos opens no menu
+- While you drag photos from the grid, a right-click on a text field, such as the search box, opens no Cut, Copy and
+  Paste menu. Before, the menu opened over the field the photos were on. Right-clicking a field without a drag works
+  as before.
+
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
   minute, even when no catalog edit occurred. This fixes stale photos remaining in the grid and stale counts for
@@ -29,8 +34,38 @@
 - In the Tone Curve's parametric mode the graph is now drawn from the renderer's own curve, so it always matches the
   photo, and the line can be dragged: pressing it picks the region under the pointer (Highlights, Lights, Darks or
   Shadows) and moving up or down changes that slider, as one undo step. Hovering the line names the region first.
+## 2026-10-24
+
+### Virtual-copy numbering stops cleanly at its limit
+- Creating a numbered virtual copy now reports when the `Copy N` sequence is exhausted, before any copies in a
+  batch are created. An explicit name remains available even when the numeric sequence is full.
+
+### A right-click while you carry photos opens no menu
+- While you drag photos from the grid, a right-click opens no context menu, on an album, folder or keyword row in
+  the sidebar or on any other row or thumbnail that has one. Before, the menu opened on the row the photos were over.
+  The menu of a text field (Cut, Copy, Paste) is not held back.
+
+### Adding photos that are already in an album no longer costs an undo step
+- Add to Album and dragging photos to an album now leave the album, the undo history and Redo alone when every
+  photo was in the album already. Before, they still recorded an undo step, so Redo was lost and Undo had a step
+  that changed nothing. Photos the library no longer has (a selection kept after an Undo took them away) are also
+  left out of a new album made from the selection, out of Add to Album, and out of the target album (B), which does
+  nothing and says nothing when none of them is left, and counts only the photos it changed.
 
 ## 2026-10-23
+
+### Videos in the grid are no longer sent to the image decoders
+- A video in the library (an MP4 or MOV brought in from a Lightroom catalog) no longer asks the image decoders for a
+  grid thumbnail (issue #2682). They can't read one, so each video failed with "unrecognised image format", showed a
+  "!" and was tried again whenever the library changed, filling the log. Its cell now keeps the plain placeholder until
+  LightCraft can show video frames. The background face search skips videos too, instead of failing on each one at
+  every launch. A video is recognised by its type, by the format `VIDEO` that Lightroom catalogs
+  give videos, or by its extension (`.mp4`, `.mov`, `.m4v`, `.avi`, `.mts`, `.m2ts`, `.3gp`, `.mkv`, `.webm`, `.wmv`,
+  `.mpg`, `.mpeg`).
+### Right-button drags no longer pick up photos in the grid
+- Dragging with the right mouse button over a photo in the grid used to pick up the photos and, on a photo that wasn't
+  selected, replace the selection with it. Now only the left button drags photos, and a right-button release while you
+  are dragging photos no longer drops them on an album, folder or keyword. Right-click still opens the photo menu.
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
 - In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
@@ -92,6 +127,25 @@
 - Photos dropped on the window while the list (or the window of a library that couldn't open) is up wait for the
   library you open and are imported into it, as files given on the command line are; presets dropped then are
   refused with a note, since they belong to a library.
+
+### Editing a smart album made from an album keeps the album
+- A smart album saved from the view of an album stays limited to that album when you edit its rules and press OK. It used to match the whole library afterwards, because the rules dialog has no album field and replaced the album along with the rules.
+### Drag photos from the filmstrip
+- You can now drag a photo from the filmstrip onto the sidebar, as you can from the grid: onto an
+  album, a folder or a keyword. Dragging a selected photo takes the whole selection; dragging one that isn't selected
+  takes just that photo and selects it. In the Compare view, a photo that isn't selected is dragged alone and the
+  selection, the active photo and the two photos on screen stay as they were. Clicking a filmstrip photo works as
+  before: outside Compare it selects the photo, and in Compare a plain click puts the photo into the active side.
+### Dropping photos on a folder or album that shares its name
+- When photos are dragged onto a Folders row and another folder has the same name (two folders called `Home` on
+  different disks), the label at the pointer, the Move Photos question and the message afterwards name the folder
+  it is in, for example `Home (/Volumes/Archive/Photos)`, so you can tell which one you are about to move them
+  into. Long parent paths keep their last names behind `…/`, unless that would read like another folder's path of the
+  same name (a mirror on another disk): then the whole path is shown. A name that nothing else uses stays as it was, except that a network share's row is now
+  named as the Folders list shows it (`photos on tokyo`) instead of by the last part of its mount path.
+- Photos dropped on an album that shares its name with an album in another folder say so too (`Garden (Travel
+  2026)`). Two albums with the same name in the same place have nothing to tell them apart by and keep the plain
+  name.
 
 ## 2026-10-22
 
@@ -167,6 +221,25 @@
   that tests it. On a synthetic library of 312,000 photos with 77 smart albums, 51 of them testing one shared album,
   the full count took about 14 s instead of about 23 s on a heavily loaded machine; the rest is the text rules of
   the albums themselves. The counts are the same as before, including for albums that loop through each other.
+
+### Selection rings you can see in the light themes
+- The active photo's white outline vanished on Silver and Paper's light grid, and told the active photo from the other
+  selected ones by lightness alone. Now the active photo has a heavier ring (3 pt, with a thin line against the photo so
+  it also shows on a white one) and the other selected photos a lighter one (1.5 pt), in colours each theme picks to
+  stand out from its grid. The filmstrip rings its photos the same way, and so do Compare, Reference and Survey (where
+  the ring is the only sign of the active photo) and the People view's chosen person.
+### Smart albums open and count faster on large libraries
+- A smart album that tests another smart album and also a file path or other text (for example "in Rejects, and the
+  path contains …") now checks the quick rules first and the slow ones last, so most photos are ruled out before the
+  other album is asked about them. The photos in the album and their order are the same, and the rules still show in
+  the order you wrote them. (A library whose smart albums test each other in a circle, which LightCraft doesn't let
+  you make, or test each other 32 deep, keeps testing the rules as written.) On a 312,000-photo test library, opening
+  51 such albums in turn went from about 19 s to about 5.8 s (about 377 ms to 113 ms each; a busy machine,
+  so rough numbers).
+### A count never covers a name in the sidebar
+- In the left panel, the count of a deeply indented row (a folder, keyword or album) no longer prints over its icon
+  and name when the panel is narrow. It follows the name, wholly past the panel's edge, and scrolling sideways
+  reaches it; so does the colour dot of a labelled folder. A row with room for its name keeps its count at the edge, as before.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a

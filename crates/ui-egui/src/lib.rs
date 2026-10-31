@@ -19,6 +19,7 @@ pub mod brush_live;
 pub mod canvas_keys;
 mod command_error;
 pub mod control;
+pub mod destination;
 pub mod dialogs;
 pub mod docking;
 mod drop_overlay;
@@ -32,6 +33,7 @@ pub mod lightroom_import;
 pub mod links;
 pub mod menus;
 mod model_setup;
+pub mod multi_select;
 pub mod panels;
 pub mod pick;
 pub mod recheck;
@@ -41,6 +43,7 @@ pub mod render;
 pub mod shortcuts;
 pub mod sidebar;
 pub mod softpaint;
+pub mod space_hand;
 pub mod state;
 pub mod sync;
 pub mod tasks;
@@ -268,6 +271,8 @@ pub struct LightcraftApp {
     next_widget_hits: Vec<(String, widgets::WidgetHit)>,
     /// In-progress on-canvas gesture (brush stroke points, gradient drag…).
     pub gesture: Option<panels::detail::Gesture>,
+    /// Space is held over a tool on the photo: the view's hand has the pointer ([`space_hand`]).
+    pub space_hand: Option<space_hand::SpaceHand>,
     /// The brush stroke being painted, as drawn on the photo until it's committed (issue #517).
     pub brush_live: Option<brush_live::LiveStroke>,
     /// What the loupe drew last frame: photo and source ("render", "cached", "embedded", "small",

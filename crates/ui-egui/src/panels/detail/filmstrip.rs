@@ -92,12 +92,11 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
             if !local.intersects(vp.expand2(vec2(cell_w * 4.0, 0.0))) {
                 continue;
             }
-            let resp = ui.interact(cr, egui::Id::unique(("film", id.0)), Sense::click());
+            let resp = ui.interact(cr, egui::Id::unique(("film", id.0)), Sense::click_and_drag());
             let failed = app.renderer.thumb(*id).is_none() && app.renderer.failure(Slot::Thumb(*id)).is_some();
             crate::widgets::announce(&resp, film_spoken(app.session.catalog.photo(*id).map_or("", |p| p.file_name.as_str()), failed));
             register(ui, format!("film:{}", id.0), cr);
             let state = app.session.selection.state_of(*id);
-            let sel = state == lightcraft_engine::SelectionState::Active;
             let p = ui.painter();
             let label = app.session.catalog.photo(*id).and_then(|ph| ph.label);
             let selected = state != lightcraft_engine::SelectionState::NotSelected;
@@ -129,11 +128,7 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 let s = (img_area.width() / tw as f32).min(img_area.height() / th as f32);
                 let fr = Rect::from_center_size(img_area.center(), vec2(tw as f32 * s, th as f32 * s));
                 p.image(tex.tex.id(), fr, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-                if sel {
-                    p.rect_stroke(fr, 0.0, Stroke::new(1.5, Color32::WHITE), StrokeKind::Outside);
-                } else if state == lightcraft_engine::SelectionState::Selected {
-                    p.rect_stroke(fr, 0.0, Stroke::new(1.5, Color32::from_gray(170)), StrokeKind::Outside);
-                }
+                crate::panels::grid::selection_ring(p, &t, fr, state);
                 if app.ui.settings.film_badges
                     && let Some(ph) = app.session.catalog.photo(*id)
                 {
@@ -184,6 +179,16 @@ pub(crate) fn filmstrip(app: &mut LightcraftApp, ui: &mut egui::Ui, r: Rect) {
                 };
                 if compare && let Err(e) = r {
                     app.toast(ui.ctx(), e);
+                }
+            }
+            // drag the selection to a sidebar row, as from the grid (a plain click never starts one); in
+            // Compare an unselected photo is dragged alone, so the pair and its active photo stay (#744).
+            // Only the primary button drags: a right-button drag must not replace the selection
+            if resp.drag_started_by(egui::PointerButton::Primary) {
+                if app.ui.view == crate::state::ViewMode::Compare && !app.session.selection.contains(*id) {
+                    app.ui.dragging_photos = Some(vec![id.0]);
+                } else {
+                    crate::panels::grid::begin_photo_drag(app, *id);
                 }
             }
             // the same photo actions as the grid and loupe (Restore / Delete Permanently in Recently Deleted)
