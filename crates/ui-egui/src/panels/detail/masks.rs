@@ -517,7 +517,15 @@ fn object_tool(
 }
 
 /// Brush tool: the cursor, the stroke being painted and its commit.
-fn brush_tool(app: &mut LightcraftApp, ui: &mut egui::Ui, resp: &egui::Response, map: &CanvasMap, p: &egui::Painter, clip: Rect, d: &DevelopSettings) {
+fn brush_tool(
+    app: &mut LightcraftApp,
+    ui: &mut egui::Ui,
+    resp: &egui::Response,
+    map: &CanvasMap,
+    p: &egui::Painter,
+    clip: Rect,
+    d: &DevelopSettings,
+) {
     let active = app.session.active_mask;
     let long = (map.rect.width().max(map.rect.height())) as f64;
     let r = (app.ui.brush_size as f64 * long) as f32;
