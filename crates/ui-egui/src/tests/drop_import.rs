@@ -131,7 +131,10 @@ fn app_with_library(dir: &Scratch) -> Headless {
 }
 
 /// Draw the launch list (`over_open_library`: Alt-at-launch over the library that opened, else the
-/// list with no library behind it).
+/// list with no library behind it), then wait until it holds still. Each recent library's row says
+/// "Checking…" until a worker answers; the answer drops that line, so the centred window shrinks and
+/// its buttons move. A click aimed before then can find its button gone from under the pointer by
+/// the release, and `ui.clickWidget` refuses it.
 fn draw_launch_list(h: &mut Headless, over_open_library: bool) {
     let mut problem = crate::panels::library_problem::LibraryProblem::choose_later(&h.app.ui.settings);
     if over_open_library && let Some(c) = problem.chooser.as_mut() {
@@ -139,6 +142,26 @@ fn draw_launch_list(h: &mut Headless, over_open_library: bool) {
     }
     h.app.library_problem = Some(problem);
     assert!(h.step_until(T, |h| h.app.widgets.iter().any(|(w, _)| w == "button:libraryOpen")), "the launch list is drawn");
+    let answered =
+        |h: &Headless| h.app.library_problem.as_ref().and_then(|p| p.chooser.as_ref()).is_some_and(|c| c.libraries.iter().all(|l| !l.checking));
+    assert!(h.step_until(T, answered), "every recent library is checked");
+    wait_until_still(h, "button:libraryOpen");
+}
+
+/// Run frames until widget `id` keeps its rect from one frame to the next (an anchored window
+/// takes a frame to move to its new size).
+fn wait_until_still(h: &mut Headless, id: &str) {
+    let rect = |h: &Headless| h.app.widgets.iter().find(|(w, _)| w == id).map(|(_, r)| *r);
+    let mut last = rect(h);
+    for _ in 0..60 {
+        h.step();
+        let now = rect(h);
+        if now.is_some() && now == last {
+            return;
+        }
+        last = now;
+    }
+    panic!("{id} never held still");
 }
 
 /// The launch list as Alt-at-launch shows it over the library that opened.

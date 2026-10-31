@@ -21,6 +21,10 @@
   or a Synchronize Folder is still running then, they now wait for it to end instead of being dropped, and a message
   says so (issue #2779).
 
+### Export sizes keep the pixels typed
+- Export ▸ Image Sizing kept pixel sizes only in steps of 16, so a typed 1080 became 1088 and 3000 became 3008. The
+  long edge, short edge, width and height fields now keep any whole number of pixels.
+
 ## 2026-10-29
 
 ### A person's page opens in seconds in a large library
@@ -135,6 +139,9 @@
 - Looking for each photo's `.xmp` sidecar, which asks the disk several names for every photo, also goes up to 16
   photos at a time.
 
+### Original export checks embedded place names when removing location
+- Original copies are refused when “Remove Location Info” is enabled and the source contains GPS or a nonblank sublocation, city, state or country. Use JPEG or TIFF for rendered output; DNG is available for raw photos.
+
 
 ### Relative-date filters and smart albums follow the clock
 - A current view or source count using “in the last” rules now refreshes when the session clock moves into a new
@@ -193,6 +200,11 @@
   still decoded, so a damaged file is caught then. A picture that is mostly blank (a run-length-encoded BMP that ends
   early, or a GIF whose first frame is smaller than the picture) still opens up to 4 megapixels; a larger one is
   refused, because opening it would still set aside memory for the whole picture.
+
+### Merge previews after a failed one
+- The HDR, Panorama and HDR Panorama dialogs make a new preview each time they open (issue #2708). After a preview
+  had failed once, for example because a photo's file was missing, opening the dialog again with the same options
+  showed neither a preview nor an error until an option was changed.
 
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts

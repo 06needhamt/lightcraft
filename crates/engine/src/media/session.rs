@@ -404,6 +404,7 @@ impl crate::Session {
 
     /// Synchronous render (CLI, MCP, tests).
     pub fn render_now(&mut self, id: PhotoId, max_w: usize, max_h: usize) -> Result<Rendered, String> {
+        lightcraft_pipeline::check_output_size(max_w, max_h)?;
         let job = self.render_job(id, max_w, max_h, false, true).ok_or("no such photo")?;
         let r = job.run();
         self.accept(&r);
@@ -434,7 +435,17 @@ impl crate::Session {
         space: lightcraft_pipeline::OutputSpace,
         depth: lightcraft_pipeline::OutputDepth,
     ) -> Result<RenderJob, String> {
+        lightcraft_pipeline::check_output_size(max_w, max_h)?;
         let mut job = self.render_job(id, max_w, max_h, false, true).ok_or("no such photo")?;
+        // An export develops from a source at least twice its size, so it is resized down with a good filter
+        // rather than made from a preview just covering it (for a raw, a binned and box-reduced image)
+        let p = self.catalog.photo(id).ok_or("no such photo")?.clone();
+        let level = SourceLevel::for_size(source_edge_needed(&p, &job.settings, true, max_w.max(max_h)).saturating_mul(2));
+        if level.max_edge() > job.level.max_edge() {
+            job.source = self.media.source_ref(&p, level);
+            job.key ^= ((job.level as u64) << 60) ^ ((level as u64) << 60);
+            job.level = level;
+        }
         // An export renders the full image: never a thumbnail's source developed from a smaller copy of the raw
         // image that the file keeps (Lightroom's merged DNGs)
         let reduced = match &job.source {

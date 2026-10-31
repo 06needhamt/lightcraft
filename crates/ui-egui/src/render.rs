@@ -290,10 +290,28 @@ impl Slot {
     }
 }
 
+/// Render workers of an app built by this crate's own tests. Most of them build an app, several
+/// run at once, and a test needs a render or two at a time, not the machine's six (issue #3067:
+/// sixteen tests at once ran about 96 render threads on 16 cores). A test that needs more asks
+/// for them with [`Renderer::with_worker_threads`].
+#[cfg(test)]
+pub(crate) const TEST_WORKERS: usize = 2;
+
+/// Render workers an app starts with: the machine's job-pool size, at most six (none on wasm).
+#[cfg(not(test))]
+fn default_workers() -> usize {
+    if cfg!(target_arch = "wasm32") { 0 } else { JobPool::<Slot, Finished>::default_threads().min(6) }
+}
+
+/// Render workers an app starts with in this crate's tests: [`TEST_WORKERS`].
+#[cfg(test)]
+fn default_workers() -> usize {
+    TEST_WORKERS
+}
+
 impl Default for Renderer {
     fn default() -> Self {
-        let threads = if cfg!(target_arch = "wasm32") { 0 } else { JobPool::<Slot, Finished>::default_threads().min(6) };
-        Self::with_worker_threads(threads)
+        Self::with_worker_threads(default_workers())
     }
 }
 

@@ -4355,13 +4355,26 @@ fn settings_dialog_by_keyboard_and_clicks() {
     assert_eq!(h.app.session.cache_mb, 512);
     h.request("ui.clickWidget", json!({"id": "button:settingsPreview-3"}), t);
     assert_eq!(h.app.ui.settings.preview_limit, 3840);
-    h.request("ui.clickWidget", json!({"id": "button:settingsMemory-2"}), t);
-    assert_eq!(h.app.ui.settings.memory_mb, 1024);
-    h.step();
-    assert_eq!(lightcraft_engine::memory::budget(), 1024 << 20, "applied through app.memoryBudget");
-    h.request("ui.clickWidget", json!({"id": "button:settingsMemory-0"}), t);
-    h.step();
-    assert_eq!(lightcraft_engine::memory::budget(), lightcraft_engine::memory::default_budget(), "back to automatic");
+    {
+        // the memory budget is process-wide: this test's turn to change it, and it goes back
+        // to what it was (not the default) when the guard drops, also on a failed assertion
+        // (issue #3065). The change lasts these few frames.
+        use lightcraft_engine::memory::{budget, cache_share, default_budget};
+        let _budget = crate::test_budget::BudgetGuard::hold();
+        // the session's own share, set apart from the 1024 MB choice's: only the command
+        // changes it, whatever another test does to the process-wide budget
+        h.app.session.media.set_budget(cache_share(1024 << 20) + (1 << 20));
+        h.request("ui.clickWidget", json!({"id": "button:settingsMemory-2"}), t);
+        assert_eq!(h.app.ui.settings.memory_mb, 1024);
+        h.step();
+        assert_eq!(h.app.session.media.budget(), cache_share(1024 << 20), "the session's caches follow");
+        assert_eq!(budget(), 1024 << 20, "applied through app.memoryBudget");
+        h.request("ui.clickWidget", json!({"id": "button:settingsMemory-0"}), t);
+        h.step();
+        let automatic = (default_budget() >> 20) << 20;
+        assert_eq!(h.app.session.media.budget(), cache_share(automatic), "back to automatic");
+        assert_eq!(budget(), automatic, "back to automatic");
+    }
     // Import: per-camera defaults
     h.request("ui.clickWidget", json!({"id": "button:settingsTab-import"}), t);
     h.request("ui.clickWidget", json!({"id": "check:settings.perCamera"}), t);
@@ -4988,4 +5001,40 @@ fn screenshot_request_is_answered_without_a_window() {
     assert_eq!(r["ok"], true);
     let r = h.request("ui.screenshot", json!({"headless": true}), SETTLE);
     assert_eq!(r["result"]["width"], 640, "{r}");
+}
+
+/// A size typed in the Export dialog is the size exported: the pixel fields kept only multiples
+/// of 16, so 1080 became 1088 and 3000 became 3008 (issue #3300).
+#[test]
+fn export_sizes_keep_the_pixels_typed() {
+    let mut h = demo([1400.0, 900.0]);
+    let t = Duration::from_secs(10);
+    h.request("engine.execute", json!({"command": "dialog.export", "params": {}}), t);
+    h.settle(SETTLE);
+    let type_value = |h: &mut Headless, id: &str, text: &str| {
+        let r = h.request("ui.clickWidget", json!({"id": id}), t);
+        assert_eq!(r["ok"], true, "{id}: {r}");
+        h.request("ui.text", json!({"text": text}), t);
+        h.request("ui.key", json!({"key": "Enter"}), t);
+        h.settle(SETTLE);
+    };
+    let resize = |h: &Headless| match &h.app.ui.dialog {
+        Some(crate::state::Dialog::Export { resize, .. }) => *resize,
+        _ => panic!("the dialog closed"),
+    };
+    if let Some(crate::state::Dialog::Export { full_size, resize, .. }) = &mut h.app.ui.dialog {
+        *full_size = false;
+        *resize = lightcraft_engine::export::Resize::long_edge(2048);
+    }
+    h.settle(SETTLE);
+    type_value(&mut h, "sliderValue:export.sizePx", "3000");
+    assert_eq!(resize(&h).value, 3000.0);
+    if let Some(crate::state::Dialog::Export { resize, .. }) = &mut h.app.ui.dialog {
+        resize.mode = lightcraft_engine::export::ResizeMode::WidthHeight;
+        resize.height = 2048;
+    }
+    h.settle(SETTLE);
+    type_value(&mut h, "sliderValue:export.sizeW", "1080");
+    type_value(&mut h, "sliderValue:export.sizeH", "1350");
+    assert_eq!((resize(&h).value, resize(&h).height), (1080.0, 1350));
 }
