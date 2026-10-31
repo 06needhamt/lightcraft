@@ -168,6 +168,13 @@
   the full count took about 14 s instead of about 23 s on a heavily loaded machine; the rest is the text rules of
   the albums themselves. The counts are the same as before, including for albums that loop through each other.
 
+### Selection rings you can see in the light themes
+- The active photo's white outline vanished on Silver and Paper's light grid, and told the active photo from the other
+  selected ones by lightness alone. Now the active photo has a heavier ring (3 pt, with a thin line against the photo so
+  it also shows on a white one) and the other selected photos a lighter one (1.5 pt), in colours each theme picks to
+  stand out from its grid. The filmstrip rings its photos the same way, and so do Compare, Reference and Survey (where
+  the ring is the only sign of the active photo) and the People view's chosen person.
+
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
   photo by half a pixel used to lose a third of its finest detail; now it keeps most of it, without halos around
