@@ -180,8 +180,11 @@ fn right_icons(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, full: Rec
         ("bell", Icon::Bell, "Activity", "panel.activity"),
     ] {
         let r = Rect::from_center_size(pos2(x, full.center().y), vec2(28.0, 28.0));
-        let resp = ui.interact(r, egui::Id::unique(("top", id)), Sense::click()).on_hover_text(crate::i18n::tr(tip));
-        crate::widgets::announce(&resp, crate::i18n::tr(tip));
+        let tip = crate::i18n::tr(tip);
+        let resp = ui.interact(r, egui::Id::unique(("top", id)), Sense::click());
+        let name = crate::widgets::accessible_label(&resp, tip);
+        let resp = resp.on_hover_text(tip);
+        crate::widgets::announce(&resp, name);
         register(ui, format!("icon:{id}"), r);
         let warn = id == "cloud" && unsaved.is_some();
         let colour = if warn {
