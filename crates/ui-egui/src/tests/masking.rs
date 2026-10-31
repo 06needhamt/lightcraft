@@ -1698,8 +1698,6 @@ fn assert_close(a: &serde_json::Value, b: &serde_json::Value) {
     assert!(a.iter().zip(&b).all(|(x, y)| (x - y).abs() < 0.05), "{a:?} vs {b:?}");
 }
 
-/// Regression: the Colour Range "Pick" button armed the eyedropper, but with the Masking panel
-/// open the loupe's clicks went to the mask overlay, so no sample was ever taken.
 #[test]
 fn adding_radial_component_disarms_color_range_picker() {
     let mut h = detail("panel.masking");
@@ -1722,6 +1720,8 @@ fn adding_radial_component_disarms_color_range_picker() {
     assert!(rx > 0.22, "dragging a radial handle resizes the component: {rx}");
 }
 
+/// Regression: the Colour Range "Pick" button armed the eyedropper, but with the Masking panel
+/// open the loupe's clicks went to the mask overlay, so no sample was ever taken.
 #[test]
 fn color_range_pick_button_samples_the_photo() {
     let mut h = detail("panel.masking");
