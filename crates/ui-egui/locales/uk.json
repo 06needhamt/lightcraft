@@ -2385,5 +2385,6 @@
   "Set up name suggestions…": "Налаштувати підказки імен…",
   "Top bar": "Верхня панель",
   "Tool strip": "Панель інструментів",
-  "Bottom bar": "Нижня панель"
+  "Bottom bar": "Нижня панель",
+  "Prevent G-SYNC/FreeSync flicker (applies at next launch)": "Запобігати мерехтінню G-SYNC/FreeSync (після перезапуску)"
 }

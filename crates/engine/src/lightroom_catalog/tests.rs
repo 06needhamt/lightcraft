@@ -421,8 +421,15 @@ fn preserves_existing_edits_and_rejects_invalid_structure_before_mutation() {
     assert!(apply(&mut s, cyclic, false).is_err());
     assert_eq!(s.catalog.to_snapshot(), before);
     assert!(
-        mapped_settings(&format!("{}0{}", "{".repeat(1000), "}".repeat(1000)), crate::crs::Target::RawAbsolute, 1.0, Orientation::Normal, 1.5)
-            .is_err()
+        mapped_settings(
+            &format!("{}0{}", "{".repeat(1000), "}".repeat(1000)),
+            crate::crs::Target::RawAbsolute,
+            1.0,
+            Orientation::Normal,
+            1.5,
+            Orientation::Normal
+        )
+        .is_err()
     );
 }
 #[test]
@@ -439,6 +446,7 @@ fn compressed_xmp_is_bounded_and_settings_are_data_only() {
         1.5,
         Orientation::Normal,
         1.5,
+        Orientation::Normal,
     )
     .unwrap();
     assert_eq!(partial["light"]["exposure"], 0.75);
@@ -450,11 +458,11 @@ fn custom_white_balance_on_relative_wb_raws_is_not_read_as_kelvin() {
     // relative to its as-shot look the edit stays As Shot and is reported; a DNG keeps the Kelvin
     let settings =
         "s = { WhiteBalance = \"Custom\", Temperature = 3578, Tint = -5, CustomTemperature = 3578.95, CustomTint = -5, Exposure2012 = 0.5 }";
-    let (partial, unknown) = mapped_settings(settings, crate::crs::Target::RawRelative, 1.5, Orientation::Normal, 1.5).unwrap();
+    let (partial, unknown) = mapped_settings(settings, crate::crs::Target::RawRelative, 1.5, Orientation::Normal, 1.5, Orientation::Normal).unwrap();
     assert_eq!(partial["wb"], json!({"mode": "asShot"}), "{partial}");
     assert_eq!(partial["light"]["exposure"], 0.5);
     assert!(unknown.iter().any(|k| k.starts_with("Temperature, Tint")), "{unknown:?}");
-    let (partial, unknown) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5).unwrap();
+    let (partial, unknown) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5, Orientation::Normal).unwrap();
     assert_eq!(
         (partial["wb"]["mode"].as_str(), partial["wb"]["temp"].as_f64(), partial["wb"]["tint"].as_f64()),
         (Some("custom"), Some(3578.0), Some(-5.0))
@@ -471,6 +479,7 @@ fn catalog_crops_without_has_crop_are_imported() {
         1.5,
         Orientation::Normal,
         1.5,
+        Orientation::Normal,
     )
     .unwrap();
     let crop = &partial["crop"]["geometry"];
@@ -481,11 +490,13 @@ fn catalog_crops_without_has_crop_are_imported() {
     assert_eq!(crop["angle"], 0.0);
     assert!(!unknown.iter().any(|k| k.starts_with("CropLeft")), "{unknown:?}");
     // an angle alone still means a crop (Lightroom's angle turns the other way to LightCraft's)
-    let (partial, unknown) = mapped_settings("s = { CropAngle = -1.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5).unwrap();
+    let (partial, unknown) =
+        mapped_settings("s = { CropAngle = -1.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5, Orientation::Normal).unwrap();
     assert_eq!(partial["crop"]["geometry"]["angle"], 1.5);
     assert!(!unknown.iter().any(|k| k.starts_with("CropAngle")), "{unknown:?}");
     // no crop fields: the crop stays untouched
-    let (partial, _) = mapped_settings("s = { Exposure2012 = 0.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5).unwrap();
+    let (partial, _) =
+        mapped_settings("s = { Exposure2012 = 0.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Normal, 1.5, Orientation::Normal).unwrap();
     assert!(partial.get("crop").is_none());
 }
 
@@ -509,7 +520,7 @@ fn lightroom_orientation_codes() {
 fn catalog_crops_follow_the_photo_orientation() {
     let crop = |o: Orientation| {
         let settings = "s = { CropLeft = 0.1, CropRight = 0.6, CropTop = 0.2, CropBottom = 0.9 }";
-        let (partial, _) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, o, 1.5).unwrap();
+        let (partial, _) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, o, 1.5, Orientation::Normal).unwrap();
         let g = &partial["crop"]["geometry"];
         let r = &g["rect"];
         [r["x0"].as_f64(), r["y0"].as_f64(), r["x1"].as_f64(), r["y1"].as_f64(), g["angle"].as_f64()].map(|v| (v.unwrap() * 1e9).round() / 1e9)
@@ -522,14 +533,72 @@ fn catalog_crops_follow_the_photo_orientation() {
     assert_eq!(crop(Orientation::FlipH), [0.4, 0.2, 0.9, 0.9, 0.0]);
     // a mirror turns the straighten the other way
     let angle = |o: Orientation| {
-        let (partial, _) = mapped_settings("s = { CropAngle = 2 }", crate::crs::Target::RawAbsolute, 1.5, o, 1.5).unwrap();
+        let (partial, _) = mapped_settings("s = { CropAngle = 2 }", crate::crs::Target::RawAbsolute, 1.5, o, 1.5, Orientation::Normal).unwrap();
         partial["crop"]["geometry"]["angle"].as_f64().unwrap()
     };
     assert_eq!(angle(Orientation::Rotate90), -2.0);
     assert_eq!(angle(Orientation::FlipH), 2.0);
     // no crop: nothing to orient
-    let (partial, _) = mapped_settings("s = { Exposure2012 = 0.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Rotate90, 1.5).unwrap();
+    let (partial, _) =
+        mapped_settings("s = { Exposure2012 = 0.5 }", crate::crs::Target::RawAbsolute, 1.5, Orientation::Rotate90, 1.5, Orientation::Normal).unwrap();
     assert!(partial.get("crop").is_none());
+}
+
+#[test]
+fn catalog_masks_follow_the_photo_orientation() {
+    // #1806, EMY_9996 (EXIF 8, shown a quarter turn counter-clockwise): a horizon gradient along
+    // the stored image's x axis runs along the shown photo's y axis
+    let s = r#"s = { MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = -0.1, CorrectionMasks = {
+        { What = "Mask/Gradient", MaskValue = 1, ZeroX = 0.362544, ZeroY = 0.481093, FullX = 0.451639, FullY = 0.480645 } } } } }"#;
+    let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.5, Orientation::Rotate270, 1.5, Orientation::Normal).unwrap();
+    let g = &partial["masks"][0]["components"][0]["shape"];
+    let close = |v: &Value, want: f64| (v.as_f64().unwrap() - want).abs() < 1e-9;
+    assert!(close(&g["start"]["x"], 0.480645) && close(&g["start"]["y"], 1.0 - 0.451639), "{g}");
+    assert!(close(&g["end"]["x"], 0.481093) && close(&g["end"]["y"], 1.0 - 0.362544), "{g}");
+
+    let masks = |o: Orientation| {
+        let s = r#"s = {
+            MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = 0.1, CorrectionMasks = {
+                { What = "Mask/Gradient", FullX = 0.1, FullY = 0.2, ZeroX = 0.3, ZeroY = 0.6 },
+                { What = "Mask/CircularGradient", Left = 0, Right = 0.2, Top = 0.1, Bottom = 0.3, Angle = 10, Feather = 50, Version = 2, Flipped = true },
+                { What = "Mask/Paint", Radius = 0.05, MaskValue = 1, Dabs = { "d 0.1 0.2", "d 0.3 0.6" } } } } } }"#;
+        let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.5, o, 1.5, Orientation::Normal).unwrap();
+        let c = &partial["masks"][0]["components"];
+        let (linear, radial, brush) = (&c[0]["shape"], &c[1]["shape"], &c[2]["shape"]["strokes"][0]["points"]);
+        [
+            &linear["start"]["x"],
+            &linear["start"]["y"],
+            &linear["end"]["x"],
+            &linear["end"]["y"],
+            &radial["center"]["x"],
+            &radial["center"]["y"],
+            &radial["rx"],
+            &radial["ry"],
+            &radial["angle"],
+            &brush[0]["x"],
+            &brush[0]["y"],
+            &brush[1]["x"],
+            &brush[1]["y"],
+        ]
+        .map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9)
+    };
+    // (x, y) of the stored image → (1 − y, x) a quarter turn clockwise, (y, 1 − x) counter-clockwise;
+    // a radial's radii (in long-edge units) swap with the axes, and a mirror turns its angle the
+    // other way
+    let r = (0.1, (0.1_f64 / 1.5 * 1e9).round() / 1e9);
+    assert_eq!(masks(Orientation::Normal), [0.1, 0.2, 0.3, 0.6, 0.1, 0.2, r.0, r.1, 10.0, 0.1, 0.2, 0.3, 0.6]);
+    assert_eq!(masks(Orientation::Rotate90), [0.8, 0.1, 0.4, 0.3, 0.8, 0.1, r.1, r.0, 10.0, 0.8, 0.1, 0.4, 0.3]);
+    assert_eq!(masks(Orientation::Rotate270), [0.2, 0.9, 0.6, 0.7, 0.2, 0.9, r.1, r.0, 10.0, 0.2, 0.9, 0.6, 0.7]);
+    assert_eq!(masks(Orientation::Rotate180), [0.9, 0.8, 0.7, 0.4, 0.9, 0.8, r.0, r.1, 10.0, 0.9, 0.8, 0.7, 0.4]);
+    assert_eq!(masks(Orientation::FlipH), [0.9, 0.2, 0.7, 0.6, 0.9, 0.2, r.0, r.1, -10.0, 0.9, 0.2, 0.7, 0.6]);
+    assert_eq!(masks(Orientation::Transpose), [0.2, 0.1, 0.6, 0.3, 0.2, 0.1, r.1, r.0, -10.0, 0.2, 0.1, 0.6, 0.3]);
+    // a photo already in the library has its shown size (portrait here), but Lightroom's edges are
+    // fractions of the stored image: a circle on a 3:2 stored image stays a circle
+    let s = r#"s = { MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = 0.1, CorrectionMasks = {
+        { What = "Mask/CircularGradient", Left = 0.3, Right = 0.5, Top = 0.3, Bottom = 0.6, Version = 2, Flipped = true } } } } }"#;
+    let (partial, _) = mapped_settings(s, crate::crs::Target::RawAbsolute, 1.0 / 1.5, Orientation::Rotate90, 1.5, Orientation::Normal).unwrap();
+    let radial = &partial["masks"][0]["components"][0]["shape"];
+    assert!(close(&radial["rx"], 0.1) && close(&radial["ry"], 0.1), "{radial}");
 }
 
 /// The `crs` corners and angle Lightroom would store for LightCraft crop `g` on a stored image
@@ -554,7 +623,8 @@ fn straightened_catalog_crops_round_trip() {
     for o in [Orientation::Normal, Orientation::Rotate90, Orientation::Rotate270, Orientation::Rotate180, Orientation::FlipH] {
         for angle in [6.5, -6.5] {
             let g = CropGeometry { angle, ..g };
-            let (partial, _) = mapped_settings(&lightroom_crop(g, o, 1.5), crate::crs::Target::RawAbsolute, 1.5, o, 1.5).unwrap();
+            let (partial, _) =
+                mapped_settings(&lightroom_crop(g, o, 1.5), crate::crs::Target::RawAbsolute, 1.5, o, 1.5, Orientation::Normal).unwrap();
             let got: CropGeometry = serde_json::from_value(partial["crop"]["geometry"].clone()).unwrap();
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
             assert!(
@@ -584,7 +654,7 @@ fn straightened_catalog_crops_match_lightroom_exports() {
             (6100.0, 9150.0),
         ),
     ] {
-        let (partial, _) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, o, 9504.0 / 6336.0).unwrap();
+        let (partial, _) = mapped_settings(settings, crate::crs::Target::RawAbsolute, 1.5, o, 9504.0 / 6336.0, Orientation::Normal).unwrap();
         let r: Rect = serde_json::from_value(partial["crop"]["geometry"]["rect"].clone()).unwrap();
         let (ow, oh) = if o.swaps_axes() { (6336.0, 9504.0) } else { (9504.0, 6336.0) };
         let (w, h) = (r.width() * ow, r.height() * oh);
@@ -607,6 +677,87 @@ fn imported_crops_use_the_catalog_orientation() {
     assert_eq!(r, [0.1, 0.1, 0.8, 0.6]);
 }
 
+/// Masks only the catalog's XMP has (the develop row has none to replace them) are on the stored
+/// image too: on a vertical shot (`DA`) they turn like the row's, and a radial keeps its shape on
+/// the 2:1 stored image, also for a photo already in the library at its shown 10 × 20.
+#[test]
+fn catalog_xmp_masks_follow_the_photo_orientation() {
+    let mut data = sample();
+    data.photos.truncate(1);
+    data.photos[0].image.remove("masterImage");
+    data.photos[0].image.insert("orientation".into(), json!("DA"));
+    data.photos[0].image.insert("fileWidth".into(), json!(20));
+    data.photos[0].image.insert("fileHeight".into(), json!(10));
+    data.photos[0].settings = "s = { Exposure2012 = 0.5 }".into();
+    data.photos[0].xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/">
+ <crs:MaskGroupBasedCorrections><rdf:Seq>
+  <rdf:li><rdf:Description crs:What="Correction" crs:CorrectionAmount="1" crs:LocalExposure2012="-0.25">
+   <crs:CorrectionMasks><rdf:Seq>
+    <rdf:li crs:What="Mask/Gradient" crs:FullX="0.1" crs:FullY="0.2" crs:ZeroX="0.3" crs:ZeroY="0.6"/>
+    <rdf:li crs:What="Mask/CircularGradient" crs:Left="0.3" crs:Right="0.5" crs:Top="0.3" crs:Bottom="0.6" crs:Flipped="true" crs:Version="2"/>
+   </rdf:Seq></crs:CorrectionMasks>
+  </rdf:Description></rdf:li>
+ </rdf:Seq></crs:MaskGroupBasedCorrections>
+</rdf:Description></rdf:RDF></x:xmpmeta>"#
+        .into();
+    let mut s = crate::Session::new();
+    let id = s.catalog.alloc_photo_id();
+    let shown = Photo::new(id, Source::File { path: "/missing/test.ARW".into() }, "test.ARW", "ARW", 10, 20, "before");
+    s.commit("Browse folder", Op::AddPhoto { photo: Box::new(shown) }).unwrap();
+    apply(&mut s, data, true).unwrap();
+    assert_eq!(s.catalog.len(), 1, "the catalog's photo is the one already in the library");
+    let p = s.catalog.photo(id).unwrap();
+    assert_eq!(p.develop.light.exposure, 0.5, "the develop row is applied too");
+    let c = &serde_json::to_value(&p.develop.masks).unwrap()[0]["components"];
+    let (linear, radial) = (&c[0]["shape"], &c[1]["shape"]);
+    let r = [&linear["start"]["x"], &linear["start"]["y"], &linear["end"]["x"], &linear["end"]["y"], &radial["center"]["x"], &radial["center"]["y"]]
+        .map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9);
+    // (x, y) → (y, 1 − x), a quarter turn counter-clockwise
+    assert_eq!(r, [0.2, 0.9, 0.6, 0.7, 0.45, 0.6], "{c}");
+    // 4 × 3 px of a 20 × 10 stored image, in long-edge units, with the axes swapped
+    let radii = [&radial["rx"], &radial["ry"]].map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9);
+    assert_eq!(radii, [0.075, 0.1], "{radial}");
+}
+
+/// A photo already in the library keeps its Rotate Left / Right on update, so the catalog's masks
+/// go through it too: an upright (`AB`) photo turned right in LightCraft gets its gradient turned.
+#[test]
+fn updated_masks_follow_the_rotation_kept_from_the_library() {
+    let mut data = sample();
+    data.photos.truncate(1);
+    data.photos[0].image.remove("masterImage");
+    data.photos[0].image.insert("orientation".into(), json!("AB"));
+    data.photos[0].settings =
+        r#"s = { MaskGroupBasedCorrections = { { What = "Correction", CorrectionAmount = 1, LocalExposure2012 = 0.1, CorrectionMasks = {
+        { What = "Mask/Gradient", FullX = 0.1, FullY = 0.2, ZeroX = 0.3, ZeroY = 0.6 } } } } }"#
+            .into();
+    data.photos[0].xmp = String::new();
+    let mut s = crate::Session::new();
+    apply(&mut s, data.clone(), false).unwrap();
+    let id = s.catalog.photos().next().unwrap().id;
+    let turned = lightcraft_develop::DevelopSettings { orientation: Orientation::Rotate90, ..Default::default() };
+    s.set_develop(id, turned, "Rotate Right").unwrap();
+    apply(&mut s, data, true).unwrap();
+    let p = s.catalog.photo(id).unwrap();
+    assert_eq!(p.develop.orientation, Orientation::Rotate90, "the update keeps the photo's rotation");
+    let g = &serde_json::to_value(&p.develop.masks).unwrap()[0]["components"][0]["shape"];
+    let r = [&g["start"]["x"], &g["start"]["y"], &g["end"]["x"], &g["end"]["y"]].map(|v| (v.as_f64().unwrap() * 1e9).round() / 1e9);
+    // (x, y) → (1 − y, x), a quarter turn clockwise
+    assert_eq!(r, [0.8, 0.1, 0.4, 0.3], "{g}");
+    // the catalog's orientation first, then the photo's own, for every pair
+    for a in 1..=8 {
+        for b in 1..=8 {
+            let (a, b) = (Orientation::from_exif(a), Orientation::from_exif(b));
+            for (x, y) in [(0.1, 0.2), (0.7, 0.4)] {
+                let (u, v) = a.map(x, y, 1.0, 1.0);
+                let ((p, q), (want_p, want_q)) = (in_photo_frame(a, b).map(x, y, 1.0, 1.0), b.map(u, v, 1.0, 1.0));
+                assert!((p - want_p).abs() < 1e-9 && (q - want_q).abs() < 1e-9, "{a:?} then {b:?}: ({p}, {q}) for ({want_p}, {want_q})");
+            }
+        }
+    }
+}
+
 #[test]
 fn deferred_auto_tone_sentinels_never_become_real_slider_values() {
     let mut data = sample();
@@ -622,8 +773,15 @@ fn deferred_auto_tone_sentinels_never_become_real_slider_values() {
     assert_eq!(p.develop.light.shadows, 65.0);
     assert_eq!(p.develop.light.blacks, -22.0);
     assert!(report["unmapped"]["2"].as_array().unwrap().iter().any(|v| v.as_str().is_some_and(|v| v.contains("Deferred"))));
-    let (partial, _) =
-        mapped_settings("s = { Exposure2012 = -5, Contrast2012 = -100 }", crate::crs::Target::RawAbsolute, 1.0, Orientation::Normal, 1.5).unwrap();
+    let (partial, _) = mapped_settings(
+        "s = { Exposure2012 = -5, Contrast2012 = -100 }",
+        crate::crs::Target::RawAbsolute,
+        1.0,
+        Orientation::Normal,
+        1.5,
+        Orientation::Normal,
+    )
+    .unwrap();
     assert_eq!(partial["light"]["exposure"], -5.0);
     assert_eq!(partial["light"]["contrast"], -100.0);
 }

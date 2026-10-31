@@ -416,6 +416,17 @@ fn connected_brush_strokes_start_where_the_last_one_ended() {
 }
 
 #[test]
+fn a_mask_id_at_the_limit_does_not_overflow_the_next_masks() {
+    let mut s = demo();
+    s.execute("develop.merge", &json!({"settings": {"masks": [{"id": u32::MAX, "name": "Pasted"}]}})).unwrap();
+    s.execute("mask.add", &json!({"kind": "radial"})).unwrap();
+    s.execute("mask.duplicate", &json!({})).unwrap();
+    let ids: Vec<u32> = active_dev(&s).masks.iter().map(|m| m.id).collect();
+    assert_eq!(ids.len(), 3);
+    assert!(ids.iter().enumerate().all(|(i, id)| !ids[..i].contains(id)), "distinct ids: {ids:?}");
+}
+
+#[test]
 fn brush_strokes_keep_pen_pressure_and_refuse_bad_lists() {
     let mut s = demo();
     s.execute("mask.add", &json!({"kind": "brush"})).unwrap();

@@ -2389,5 +2389,6 @@
   "Set up name suggestions…": "Configurar sugerencias de nombres…",
   "Top bar": "Barra superior",
   "Tool strip": "Barra de herramientas",
-  "Bottom bar": "Barra inferior"
+  "Bottom bar": "Barra inferior",
+  "Prevent G-SYNC/FreeSync flicker (applies at next launch)": "Evitar el parpadeo de G-SYNC/FreeSync (se aplica al reiniciar)"
 }

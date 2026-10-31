@@ -1,5 +1,20 @@
 use super::*;
 
+#[test]
+fn desktop_clear_color_stays_opaque_with_a_modal_open() {
+    let mut app = App(
+        LightcraftApp::new(Session::new(), Services::default()),
+        PrefsWriter::default(),
+        #[cfg(target_os = "macos")]
+        None,
+    );
+    app.0.run("app.settings", serde_json::json!({})).unwrap();
+    assert!(app.0.ui.dialog.is_some());
+    for visuals in [egui::Visuals::dark(), egui::Visuals::light()] {
+        assert_eq!(eframe::App::clear_color(&app, &visuals)[3], 1.0);
+    }
+}
+
 fn dir(tag: &str) -> std::path::PathBuf {
     let d = std::env::temp_dir().join(format!("lc-app-prefs-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&d);

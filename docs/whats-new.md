@@ -44,6 +44,24 @@
   64-bit number no longer crashes LightCraft (debug builds) when it is read: the file is refused, or read as far as
   its data go.
 
+### A colour-range mask keeps at most 64 samples, however it arrives
+- A colour-range mask compares every pixel with every colour it has sampled, so a mask with thousands of samples
+  could stall a render or export, or lose the GPU for the rest of the session. `mask.add` and `mask.update` already
+  kept the first 64; a sidecar's `lc:settings`, a preset, `develop.merge`, `render --settings` and the catalog and
+  edit history now keep the first 64 too, in order, and the extra ones are skipped as they are read. Masks made in
+  the app (up to 5 samples) are unchanged.
+
+### A SAM 3 model in the wrong format says so
+- Object and Describe need `model.safetensors` from `facebook/sam3` in the Hugging Face format. The
+  `sam3.safetensors` on community mirrors is Meta's original checkpoint, with other tensor names; installed in its
+  place, AI masks failed with "unsupported dtype C64". LightCraft now says that the file is Meta's original
+  checkpoint and which file it needs instead.
+
+### Reliability
+- A photo with a mask id at the 32-bit limit (from a damaged or hand-edited sidecar, a paste or an agent) no longer
+  breaks the masks added after it: new masks, duplicates and the masks of a preset each get an id no other mask has.
+  Before, the next id wrapped around to 0, so a second new mask shared the first one's id (debug builds crashed).
+
 ## 2026-10-29
 
 ### A person's page opens in seconds in a large library
@@ -77,6 +95,14 @@
 - The two buttons at the histogram's top corners (shadow and highlight clipping) are no longer near-black tiles with a
   grey chevron. They take the theme's own raised fill, and the chevron stands out from it in Charcoal, Midnight, Silver
   and Paper alike.
+
+### Object and Describe masks show their pins
+- With Show Pins on, an Object mask now has a pin where you first clicked the object, and a Describe mask has one in
+  the middle of what its description found. Before, these masks had no pin on the photo, so they couldn't be picked
+  there. Clicking a pin selects its mask; dragging it changes nothing, as these masks follow what they selected.
+  With the Object tool on, a click on another mask's pin selects that mask too, instead of adding a click to the
+  selected Object mask, and a click on the selected mask's own pin adds nothing. Subject, Sky, Background and the
+  range masks still have no pin.
 
 ## 2026-10-28
 
@@ -219,6 +245,15 @@
 - An EXIF capture time with extra clock components is ignored as a whole. LightCraft can use a valid DateTimeDigitized,
   IFD0 DateTime or embedded XMP value instead, while All Metadata continues to show the original tag. This also keeps
   malformed timestamps from creating false matches when geotagging from a track log.
+
+### Drags reach the screen a frame sooner
+- The window queues one frame ahead of the display again instead of two, as eframe does by default (since #136 it
+  used egui-wgpu's high-throughput setting). Sliders, crop handles, brushes and every other drag show up one display
+  frame sooner: 8.3 ms at 120 Hz, 16.7 ms at 60 Hz. On a MacBook Pro at 120 Hz, a heavy develop drag went from
+  about 18 ms to about 10 ms between a frame being handed to macOS and macOS compositing it, with the same 120 frames
+  a second. On a Mac the window also holds one drawable less: its width × height × 4 bytes, 15–22 MB for a
+  1200–1500-point-wide window on a Retina display.
+
 
 ## 2026-10-24
 
@@ -475,6 +510,13 @@
 - Saving an export, a preset or any other file as `IMG_1.xmp` or `IMG_1.jpg.xmp` in the folder of the library photo
   `IMG_1.jpg` is now refused when no sidecar is there yet, as writing over an existing one already was. The library
   would have read the new file back as that photo's edits.
+
+### Dodge and burn with the brush on the photo itself
+- With the mask overlay hidden (O, View ▸ Show Mask Overlay or the eye beside Masks, or after a mask slider hid it),
+  the brush stroke you are painting is no longer drawn in the overlay colour while you hold the button, so the photo
+  stays visible as you dodge and burn (issue #2549). The stroke's effect still appears when you let go. With the
+  overlay shown, the stroke is tinted as before; a colour overlay at opacity 0 leaves it untinted too.
+
 
 ### Reliability
 - Opening a library no longer writes through a link left at the lock's owner note (`catalog.lock.owner`): the link

@@ -1026,6 +1026,23 @@ mod tests {
         assert_eq!(sc.keywords, Some(vec!["Places|Lisbon".to_string()]));
     }
 
+    /// Issue #2556: a sidecar's `lc:settings` colour-range mask keeps at most `MAX_COLOR_RANGE_SAMPLES` samples.
+    #[test]
+    fn sidecar_color_range_samples_are_capped() {
+        use lightcraft_develop::{MAX_COLOR_RANGE_SAMPLES, Mask, MaskComponent, MaskOp, MaskShape};
+        let samples: Vec<[f64; 3]> = (0..1000).map(|i| [i as f64 / 1000.0, 0.1, -0.1]).collect();
+        let mut d = DevelopSettings::default();
+        let shape = MaskShape::ColorRange { samples: samples.clone(), refine: 50.0 };
+        d.masks.push(Mask { id: 1, components: vec![MaskComponent { name: None, op: MaskOp::Add, invert: false, shape }], ..Default::default() });
+        let xmp = lightcraft_meta::write_xmp(&lightcraft_meta::Metadata::default(), Some(&d.to_json().to_string()));
+        let sc = super::parse_sidecar(&xmp, crate::crs::Target::Rendered).unwrap();
+        let Some(DevelopPatch::Full(s)) = sc.develop else { panic!("expected full settings") };
+        let Some(MaskShape::ColorRange { samples: got, .. }) = s.masks.first().and_then(|m| m.components.first()).map(|c| &c.shape) else {
+            panic!("expected a colour range")
+        };
+        assert_eq!(got.as_slice(), &samples[..MAX_COLOR_RANGE_SAMPLES]);
+    }
+
     use super::*;
     use lightcraft_catalog::Meta;
 

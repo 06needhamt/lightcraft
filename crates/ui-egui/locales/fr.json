@@ -3572,5 +3572,6 @@
   "⇧-click and the line tapers from the old values to the new ones. The whole line is one undo step.": "⇧-clic et la ligne passe progressivement des anciennes valeurs aux nouvelles. La ligne entière forme une seule étape d'annulation.",
   "Top bar": "Barre supérieure",
   "Tool strip": "Barre d’outils",
-  "Bottom bar": "Barre inférieure"
+  "Bottom bar": "Barre inférieure",
+  "Prevent G-SYNC/FreeSync flicker (applies at next launch)": "Empêcher le scintillement G-SYNC/FreeSync (au prochain démarrage)"
 }
