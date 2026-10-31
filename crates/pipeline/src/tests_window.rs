@@ -156,7 +156,6 @@ fn windows_outside_or_degenerate_are_clamped() {
     }
 }
 
-/// A textured, noisy source: what noise reduction and edge refinement act on.
 /// A model's segmentation on a `side²` grid: an ellipse in the middle of the photo.
 fn middle_seg(side: usize) -> lightcraft_develop::SegMask {
     let logits: Vec<f32> = (0..side * side)
@@ -169,6 +168,7 @@ fn middle_seg(side: usize) -> lightcraft_develop::SegMask {
     lightcraft_develop::SegMask::from_logits(side, &logits)
 }
 
+/// A textured, noisy source: what noise reduction and edge refinement act on.
 fn noisy_scene() -> Rgb32f {
     let base = scene();
     Rgb32f::from_fn(base.width, base.height, |x, y| {
