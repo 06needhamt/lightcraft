@@ -16,11 +16,12 @@ mod rename;
 mod sam_model;
 
 pub(crate) use confirm::album_entries;
+pub(crate) use export::preset_lzw_note;
 pub use confirm::confirm_dialog;
 pub use cull::{MAX_BURST_GAP, clamp_cull_burst, cull_params, fmt_gap, parse_gap};
 use export::{
     LIMIT_KB, QUALITY, START_NUMBER, WM_IMAGE_WIDTH, WM_INSET_X, WM_INSET_Y, WM_OPACITY, WM_POSITIONS, WM_SIZE, export_dialog_params, export_size,
-    group_checklist, preset_lzw_note, tiff_lzw_note, watermark_preview,
+    group_checklist, tiff_lzw_note, watermark_preview,
 };
 pub use frame::{ConfirmStyle, confirm_style, list_height, prompt};
 use frame::{
