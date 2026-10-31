@@ -1396,3 +1396,16 @@ fn sixteen_bit_zip_tiff_export_is_never_larger_than_uncompressed() {
     eprintln!("demo photo, 16-bit TIFF: none {none} B, ZIP {zip} B, LZW {lzw} B");
     assert!(zip <= none, "16-bit ZIP {zip} B is larger than uncompressed {none} B");
 }
+
+/// An absurd export size is refused, not a multiply overflow (it panicked before the fix).
+#[test]
+fn huge_export_size_is_an_error() {
+    use lightcraft_pipeline::{OutputDepth, OutputSpace};
+    let mut s = Session::with_demo();
+    let id = s.active().unwrap();
+    let huge = usize::MAX >> 8;
+    assert!(s.render_export(id, huge, huge, OutputSpace::Srgb, OutputDepth::U8).is_err());
+    assert!(s.render_export(id, 70_000, 10, OutputSpace::Srgb, OutputDepth::U8).is_err());
+    assert!(s.render_now(id, huge, huge).is_err());
+    assert!(s.render_now(id, 10, 70_000).is_err());
+}
