@@ -127,11 +127,15 @@ pub fn parse_gpx(s: &str) -> Result<Tracklog, GpxError> {
                         for a in e.attributes().with_checks(false).flatten() {
                             match local(a.key.as_ref()) {
                                 b"lat" => {
-                                    let v = a.decode_and_unescape_value(reader.decoder()).map_err(|e| GpxError::Xml(e.to_string()))?;
+                                    let v = a
+                                        .decoded_and_normalized_value(quick_xml::XmlVersion::Implicit1_0, reader.decoder())
+                                        .map_err(|e| GpxError::Xml(e.to_string()))?;
                                     p.lat = v.trim().parse().ok();
                                 }
                                 b"lon" => {
-                                    let v = a.decode_and_unescape_value(reader.decoder()).map_err(|e| GpxError::Xml(e.to_string()))?;
+                                    let v = a
+                                        .decoded_and_normalized_value(quick_xml::XmlVersion::Implicit1_0, reader.decoder())
+                                        .map_err(|e| GpxError::Xml(e.to_string()))?;
                                     p.lon = v.trim().parse().ok();
                                 }
                                 _ => {}
