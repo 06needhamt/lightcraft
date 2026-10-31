@@ -1027,76 +1027,107 @@ pub fn specs() -> Vec<CommandSpec> {
                 Ok(json!({"changed": changed}))
             }
         ),
-        cmd!(
-            "album.addPhotos",
-            "Add to Album",
-            ["Photo"],
-            None,
-            "{id: albumId, ids?: [photoIds]} (default: selection) → {added, skipped}; Local photos are skipped (albums hold library photos), only Local ones is an error",
-            has_library_selection,
-            |s, p| {
-                let id = album_param(p, "id", "album.addPhotos")?;
-                let targets = crate::cmd::photo_ids(p, "album.addPhotos")?.unwrap_or_else(|| s.selected());
-                let al = s.catalog.album(id).ok_or_else(|| bad("album.addPhotos", "no such album"))?;
-                if al.is_smart() || al.folder {
-                    return Err(bad("album.addPhotos", "smart albums and folders can't hold photos"));
-                }
-                let (targets, skipped) = album_targets_or_err(s, "album.addPhotos", targets)?;
-                let mut photos = al.photos.clone();
-                let before = photos.len();
-                // looked up, not searched for: adding thousands to a big album stays linear
-                let mut held: std::collections::HashSet<PhotoId> = photos.iter().copied().collect();
-                for t in targets {
-                    if held.insert(t) {
-                        photos.push(t);
+        CommandSpec {
+            explicit_targets: true,
+            ..cmd!(
+                "album.addPhotos",
+                "Add to Album",
+                ["Photo"],
+                None,
+                "{id: albumId, ids?: [photoIds]} (default: selection) → {added, skipped}; Local photos are skipped (albums hold library photos), only Local ones is an error; ids the library doesn't have are dropped; nothing new to add changes nothing (no undo step)",
+                has_library_selection,
+                |s, p| {
+                    crate::cmd::enabled_unless_ids(s, p, "album.addPhotos", has_library_selection)?;
+                    let id = album_param(p, "id", "album.addPhotos")?;
+                    let targets = crate::cmd::photo_ids(p, "album.addPhotos")?.unwrap_or_else(|| s.selected());
+                    let al = s.catalog.album(id).ok_or_else(|| bad("album.addPhotos", "no such album"))?;
+                    if al.is_smart() || al.folder {
+                        return Err(bad("album.addPhotos", "smart albums and folders can't hold photos"));
                     }
-                }
-                let added = photos.len() - before;
-                let cover = al.cover.or(photos.first().copied());
-                s.commit("Add to Album", Op::Batch { ops: vec![Op::SetAlbumPhotos { id, photos }, Op::SetAlbumCover { id, cover }] })?;
-                Ok(json!({"added": added, "skipped": skipped}))
-            }
-        ),
-        cmd!(
-            "album.toggleTarget",
-            "Add to Target Album",
-            [],
-            None,
-            "{ids?} — B: adds the photos to the target album (the Quick Collection unless one is set), or removes them when they're all in it → {album, added, skipped}; Local photos are skipped",
-            has_library_selection,
-            |s, p| {
-                let targets =
-                    album_targets_or_err(s, "album.toggleTarget", crate::cmd::photo_ids(p, "album.toggleTarget")?.unwrap_or_else(|| s.selected()))?;
-                let (targets, skipped) = targets;
-                let target = s.target_album.filter(|a| s.catalog.album(*a).is_some_and(|al| !al.is_smart() && !al.folder));
-                let id = match target.or_else(|| s.catalog.quick_collection()) {
-                    Some(id) => id,
-                    None => {
-                        let id = s.catalog.alloc_album_id();
-                        let album = Album { quick: true, ..Album::new(id, "Quick Collection") };
-                        s.commit("New Quick Collection", Op::AddAlbum { album })?;
-                        id
+                    let (targets, skipped) = album_targets_or_err(s, "album.addPhotos", targets)?;
+                    let mut photos = al.photos.clone();
+                    let before = photos.len();
+                    // looked up, not searched for: adding thousands to a big album stays linear
+                    let mut held: std::collections::HashSet<PhotoId> = photos.iter().copied().collect();
+                    for t in targets {
+                        if held.insert(t) {
+                            photos.push(t);
+                        }
                     }
-                };
-                let al = s.catalog.album(id).ok_or_else(|| bad("album.toggleTarget", "no target album"))?;
-                // looked up, not searched for: thousands toggled in a big album stay linear
-                let mut held: std::collections::HashSet<PhotoId> = al.photos.iter().copied().collect();
-                let all_in = !targets.is_empty() && targets.iter().all(|t| held.contains(t));
-                let photos: Vec<PhotoId> = if all_in {
-                    let targets: std::collections::HashSet<PhotoId> = targets.iter().copied().collect();
-                    al.photos.iter().copied().filter(|x| !targets.contains(x)).collect()
-                } else {
-                    al.photos.iter().copied().chain(targets.iter().copied().filter(|t| held.insert(*t))).collect()
-                };
-                let name = al.name.clone();
-                let cover = al.cover.filter(|c| photos.contains(c)).or(photos.first().copied());
-                s.commit(
-                    if all_in { "Remove from Target Album" } else { "Add to Target Album" },
-                    Op::Batch { ops: vec![Op::SetAlbumPhotos { id, photos }, Op::SetAlbumCover { id, cover }] },
-                )?;
-                Ok(json!({"album": id.0, "name": name, "added": !all_in, "count": s.catalog.album_count(id), "skipped": skipped}))
-            }
-        ),
+                    let added = photos.len() - before;
+                    // all of them were there already (or none was left to add): the album is unchanged,
+                    // so no undo step, and redo stays
+                    if added == 0 {
+                        return Ok(json!({"added": 0, "skipped": skipped}));
+                    }
+                    let cover = al.cover.or(photos.first().copied());
+                    s.commit("Add to Album", Op::Batch { ops: vec![Op::SetAlbumPhotos { id, photos }, Op::SetAlbumCover { id, cover }] })?;
+                    Ok(json!({"added": added, "skipped": skipped}))
+                }
+            )
+        },
+        CommandSpec {
+            explicit_targets: true,
+            ..cmd!(
+                "album.toggleTarget",
+                "Add to Target Album",
+                [],
+                None,
+                "{ids?} — B: adds the photos to the target album (the Quick Collection unless one is set), or removes them when they're all in it → {album, added, toggled, skipped}; Local photos are skipped, ids the library doesn't have are dropped (none left: nothing changes and `added` is null)",
+                has_library_selection,
+                |s, p| {
+                    crate::cmd::enabled_unless_ids(s, p, "album.toggleTarget", has_library_selection)?;
+                    let targets = album_targets_or_err(
+                        s,
+                        "album.toggleTarget",
+                        crate::cmd::photo_ids(p, "album.toggleTarget")?.unwrap_or_else(|| s.selected()),
+                    )?;
+                    let (targets, skipped) = targets;
+                    // nothing left to toggle (every id named is gone): no album is made or changed
+                    if targets.is_empty() {
+                        let existing = s
+                            .target_album
+                            .filter(|a| s.catalog.album(*a).is_some_and(|al| !al.is_smart() && !al.folder))
+                            .or_else(|| s.catalog.quick_collection());
+                        let al = existing.and_then(|a| s.catalog.album(a));
+                        return Ok(
+                            json!({"album": al.map(|a| a.id.0), "name": al.map(|a| a.name.clone()), "added": null, "toggled": 0, "count": al.map_or(0, |a| s.catalog.album_count(a.id)), "skipped": skipped}),
+                        );
+                    }
+                    let target = s.target_album.filter(|a| s.catalog.album(*a).is_some_and(|al| !al.is_smart() && !al.folder));
+                    let id = match target.or_else(|| s.catalog.quick_collection()) {
+                        Some(id) => id,
+                        None => {
+                            let id = s.catalog.alloc_album_id();
+                            let album = Album { quick: true, ..Album::new(id, "Quick Collection") };
+                            s.commit("New Quick Collection", Op::AddAlbum { album })?;
+                            id
+                        }
+                    };
+                    let al = s.catalog.album(id).ok_or_else(|| bad("album.toggleTarget", "no target album"))?;
+                    // looked up, not searched for: thousands toggled in a big album stay linear
+                    let mut held: std::collections::HashSet<PhotoId> = al.photos.iter().copied().collect();
+                    let all_in = targets.iter().all(|t| held.contains(t));
+                    let photos: Vec<PhotoId> = if all_in {
+                        let targets: std::collections::HashSet<PhotoId> = targets.iter().copied().collect();
+                        al.photos.iter().copied().filter(|x| !targets.contains(x)).collect()
+                    } else {
+                        al.photos.iter().copied().chain(targets.iter().copied().filter(|t| held.insert(*t))).collect()
+                    };
+                    let name = al.name.clone();
+                    // photos that went in or came out: what a toast can say (not the ones that were in already)
+                    let toggled = al.photos.len().abs_diff(photos.len());
+                    let cover = al.cover.filter(|c| photos.contains(c)).or(photos.first().copied());
+                    s.commit(
+                        if all_in { "Remove from Target Album" } else { "Add to Target Album" },
+                        Op::Batch { ops: vec![Op::SetAlbumPhotos { id, photos }, Op::SetAlbumCover { id, cover }] },
+                    )?;
+                    Ok(
+                        json!({"album": id.0, "name": name, "added": !all_in, "toggled": toggled, "count": s.catalog.album_count(id), "skipped": skipped}),
+                    )
+                }
+            )
+        },
         cmd!("album.setTarget", "Set as Target Album", [], None, "{id: albumId | null} (null = the Quick Collection)", always, |s, p| {
             s.target_album = match p.get("id").and_then(Value::as_u64) {
                 Some(a) => {

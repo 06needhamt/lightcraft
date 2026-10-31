@@ -45,6 +45,13 @@
   the sidebar or on any other row or thumbnail that has one. Before, the menu opened on the row the photos were over.
   The menu of a text field (Cut, Copy, Paste) is not held back.
 
+### Adding photos that are already in an album no longer costs an undo step
+- Add to Album and dragging photos to an album now leave the album, the undo history and Redo alone when every
+  photo was in the album already. Before, they still recorded an undo step, so Redo was lost and Undo had a step
+  that changed nothing. Photos the library no longer has (a selection kept after an Undo took them away) are also
+  left out of a new album made from the selection, out of Add to Album, and out of the target album (B), which does
+  nothing and says nothing when none of them is left, and counts only the photos it changed.
+
 ## 2026-10-23
 
 ### Videos in the grid are no longer sent to the image decoders
