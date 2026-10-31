@@ -174,6 +174,14 @@
   it also shows on a white one) and the other selected photos a lighter one (1.5 pt), in colours each theme picks to
   stand out from its grid. The filmstrip rings its photos the same way, and so do Compare, Reference and Survey (where
   the ring is the only sign of the active photo) and the People view's chosen person.
+### Smart albums open and count faster on large libraries
+- A smart album that tests another smart album and also a file path or other text (for example "in Rejects, and the
+  path contains …") now checks the quick rules first and the slow ones last, so most photos are ruled out before the
+  other album is asked about them. The photos in the album and their order are the same, and the rules still show in
+  the order you wrote them. (A library whose smart albums test each other in a circle, which LightCraft doesn't let
+  you make, or test each other 32 deep, keeps testing the rules as written.) On a 312,000-photo test library, opening
+  51 such albums in turn went from about 19 s to about 5.8 s (about 377 ms to 113 ms each; a busy machine,
+  so rough numbers).
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
