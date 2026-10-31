@@ -1016,6 +1016,10 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
             }
             p
         };
+        // Offline videos bypass file probing; Lightroom's format still identifies their kind.
+        if text(&src.image, "fileFormat").eq_ignore_ascii_case("VIDEO") {
+            p.kind = lightcraft_catalog::MediaKind::Video;
+        }
         ids.insert(src.source_id, p.id);
         index.photos.insert(identity(&data, src), p.id.0);
         let keep_develop = existing_id.is_some() && p.edited.is_some() && !update_existing;
@@ -1080,7 +1084,14 @@ pub(crate) fn apply_prepared(s: &mut crate::Session, mut data: CatalogImport, co
         if copy_masters.contains(&src.source_id) {
             planned.insert(photo_id, p.clone());
         }
-        if s.catalog.photo(p.id).is_some() {
+        if let Some(old) = s.catalog.photo(p.id) {
+            if old.kind != p.kind {
+                // Repair older imports with existing reversible operations. Removing just the
+                // record leaves album/stack membership intact; the enclosing batch is atomic.
+                let mut repaired = (**old).clone();
+                repaired.kind = p.kind;
+                ops.extend([Op::RemovePhoto { id: p.id }, Op::AddPhoto { photo: Box::new(repaired) }]);
+            }
             if was_local && promoted.insert(p.id) {
                 imported += 1;
                 ops.push(Op::SetLocal { id: p.id, local: false });
