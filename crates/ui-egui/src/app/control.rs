@@ -54,6 +54,8 @@ impl LightcraftApp {
         if self.pending_gestures.len() >= MAX_PENDING_GESTURES {
             return Err(format!("{}: {MAX_PENDING_GESTURES} control gestures are already pending", method));
         }
+        // refused at once, without waiting for a layout or taking a pending slot
+        crate::control::check_gesture_numbers(&method, &params)?;
         let now = self.tick_now_ms();
         self.pending_gestures.push(PendingGesture {
             method,

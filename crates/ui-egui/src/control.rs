@@ -616,6 +616,30 @@ pub fn export_active(app: &mut LightcraftApp, p: &Value) -> Result<Value, String
     Ok(out)
 }
 
+/// The largest coordinate or offset a gesture takes, in points (far past any screen).
+const MAX_GESTURE_NUMBER: f64 = 1e6;
+
+/// Every number of a gesture's parameters (and of `ui.pointer`'s events) is finite and within
+/// ±[`MAX_GESTURE_NUMBER`]. A larger one turns into an infinite or NaN `f32` position or scroll
+/// delta: egui asserts on NaN positions, and a release build would hand them to every widget.
+/// `count` and `steps` are clamped where they are read instead, and `ui.zoom`'s `factor` (a
+/// multiplier, not a position) is checked and clamped by its own branch. Checked when a request
+/// is admitted and again here, for callers that resolve a gesture directly.
+pub(crate) fn check_gesture_numbers(method: &str, p: &Value) -> Result<(), String> {
+    fn check(method: &str, key: &str, v: &Value) -> Result<(), String> {
+        match v {
+            Value::Number(n) if !matches!(key, "count" | "steps" | "factor") => match n.as_f64() {
+                Some(x) if x.abs() <= MAX_GESTURE_NUMBER => Ok(()),
+                _ => Err(format!("{method}: `{key}` must be a number between -1000000 and 1000000")),
+            },
+            Value::Array(a) => a.iter().try_for_each(|v| check(method, key, v)),
+            Value::Object(o) => o.iter().try_for_each(|(k, v)| check(method, k, v)),
+            _ => Ok(()),
+        }
+    }
+    check(method, "", p)
+}
+
 /// Resolve one queued synthetic-input control request against the **current** layout.
 ///
 /// Called by the app only after a completed UI pass newer than admission (plan §4.5). Widget rects
@@ -623,6 +647,7 @@ pub fn export_active(app: &mut LightcraftApp, p: &Value) -> Result<Value, String
 /// has pushed the events onto `app.synthetic`; the app answers the request once the UI consumed
 /// them.
 pub(crate) fn gesture_events(app: &mut LightcraftApp, ctx: &egui::Context, method: &str, p: &Value) -> Result<GestureOutcome, String> {
+    check_gesture_numbers(method, p)?;
     let s = |k: &str| p.get(k).and_then(Value::as_str);
     let f = |k: &str| p.get(k).and_then(Value::as_f64);
     match method {
