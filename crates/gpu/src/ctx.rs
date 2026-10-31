@@ -937,15 +937,24 @@ mod tests {
             println!("CHILD: no GPU");
             return;
         };
-        // hold device memory until an allocation fails: 1 GiB at a time, then smaller, so little is left
+        // hold device memory until an allocation fails: 1 GiB at a time, then smaller, so little is
+        // left; no larger than the device allows in one buffer, which would be a validation error
+        let max = g.device.limits().max_buffer_size & !(wgpu::COPY_BUFFER_ALIGNMENT - 1);
+        let mut sizes: Vec<u64> = [1u64 << 30, 1 << 28, 1 << 26].into_iter().map(|s| s.min(max)).collect();
+        sizes.dedup();
         let mut held = Vec::new();
         let mut full = false;
-        for size in [1u64 << 30, 1 << 28, 1 << 26] {
+        for size in sizes {
             for _ in 0..128 {
-                let scope = g.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+                let validation = g.device.push_error_scope(wgpu::ErrorFilter::Validation);
+                let oom = g.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
                 let usage = wgpu::BufferUsages::STORAGE;
                 let buf = g.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
-                if pollster::block_on(scope.pop()).is_some() {
+                let ran_out = pollster::block_on(oom.pop()).is_some();
+                if let Some(e) = pollster::block_on(validation.pop()) {
+                    panic!("holding {size} bytes of device memory: {e}");
+                }
+                if ran_out {
                     full = true;
                     break;
                 }
