@@ -9,6 +9,12 @@
   edit history now keep the first 64 too, in order, and the extra ones are skipped as they are read. Masks made in
   the app (up to 5 samples) are unchanged.
 
+### A SAM 3 model in the wrong format says so
+- Object and Describe need `model.safetensors` from `facebook/sam3` in the Hugging Face format. The
+  `sam3.safetensors` on community mirrors is Meta's original checkpoint, with other tensor names; installed in its
+  place, AI masks failed with "unsupported dtype C64". LightCraft now says that the file is Meta's original
+  checkpoint and which file it needs instead.
+
 ## 2026-10-29
 
 ### Object and Describe masks show their pins
