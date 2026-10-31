@@ -179,6 +179,22 @@ fn non_positive_iso_is_ignored() {
 }
 
 #[test]
+fn negative_xmp_pixel_width_is_ignored() {
+    let read = |attrs: &str| {
+        let x = format!(
+            r#"<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+                <rdf:Description xmlns:tiff="http://ns.adobe.com/tiff/1.0/" xmlns:exif="http://ns.adobe.com/exif/1.0/" {attrs}/>
+            </rdf:RDF>"#
+        );
+        parse_xmp(&x).unwrap().metadata.width
+    };
+
+    assert_eq!(read(r#"tiff:ImageWidth="-1""#), None);
+    assert_eq!(read(r#"tiff:ImageWidth="-1" exif:PixelXDimension="640""#), Some(640));
+    assert_eq!(read(r#"exif:PixelXDimension="-1""#), None);
+}
+
+#[test]
 fn malformed_inputs() {
     assert!(parse_xmp("<a><b></a>").is_ok() || parse_xmp("<a><b></a>").is_err());
     assert_eq!(parse_xmp("").unwrap().metadata, Metadata::default());
