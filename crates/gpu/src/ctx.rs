@@ -3,8 +3,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
-use wgpu::util::DeviceExt;
-
 /// A kernel module: WGSL source, its storage bindings (name, writable, element type) after the
 /// parameter block `P` (binding 0), and its entry points.
 struct Module {
@@ -592,11 +590,39 @@ impl Gpu {
                 }
                 // (dropping the view schedules the copy)
                 drop(view);
-                return Buf { buf: Some(Tracked::new(buf)), len };
+            } else {
+                // recorded now, not only when the error scope pops: the zeroed buffer must not be
+                // shared before then (`render::shared_source`)
+                fail(FailKind::OutOfMemory, "out of device memory: the upload's staging buffer couldn't be allocated".into());
             }
+            // no view: the buffer couldn't be allocated (out of device memory). The error scope has recorded why and
+            // the render fails over to the CPU; allocating it again would only fail again (issue #1764)
+            return Buf { buf: Some(Tracked::new(buf)), len };
         }
-        let buf = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytes, usage });
+        let buf = self.init_buffer(bytes, usage);
         Buf { buf: Some(Tracked::new(buf)), len }
+    }
+
+    /// A buffer holding `contents` (zero-padded to the copy alignment), written through the queue. Not
+    /// `create_buffer_init`: it maps the new buffer, and mapping one that couldn't be allocated (out of device
+    /// memory) panics inside wgpu instead of raising an error the render's scopes catch (issue #1764).
+    fn init_buffer(&self, contents: &[u8], usage: wgpu::BufferUsages) -> wgpu::Buffer {
+        let align = wgpu::COPY_BUFFER_ALIGNMENT as usize;
+        let size = contents.len().max(align).next_multiple_of(align);
+        let buf = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: size as u64,
+            usage: usage | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        if size == contents.len() {
+            self.queue.write_buffer(&buf, 0, contents);
+        } else {
+            let mut padded = contents.to_vec();
+            padded.resize(size, 0);
+            self.queue.write_buffer(&buf, 0, &padded);
+        }
+        buf
     }
 
     fn over_limit(&self, size: u64) {
@@ -642,11 +668,7 @@ impl Gpu {
             return;
         };
         assert_eq!(bufs.len(), k.nbuf, "{name}: binding count");
-        let params = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::cast_slice(if p.is_empty() { &[0u32] } else { p }),
-            usage: wgpu::BufferUsages::STORAGE,
-        });
+        let params = self.init_buffer(bytemuck::cast_slice(if p.is_empty() { &[0u32] } else { p }), wgpu::BufferUsages::STORAGE);
         let mut entries = vec![wgpu::BindGroupEntry { binding: 0, resource: params.as_entire_binding() }];
         for (i, b) in bufs.iter().enumerate() {
             let buf = b.map(|b| b.raw()).unwrap_or(&self.dummy);
@@ -996,6 +1018,74 @@ mod tests {
         assert!(!crate::available());
         drop(g.upload(&[1u32; 1024]));
         g.poll(wgpu::PollType::Poll).unwrap();
+        println!("CHILD: survived");
+    }
+
+    /// A render that runs out of device memory falls back to the CPU and leaves the GPU in use: the upload
+    /// whose buffer couldn't be allocated used to try again through `create_buffer_init`, which panicked
+    /// mapping the second failed buffer, and the panic stopped GPU use for the session (issue #1764).
+    #[test]
+    fn running_out_of_device_memory_falls_back_without_stopping_the_gpu() {
+        if run_child("out_of_memory_child").is_none() {
+            lightcraft_testkit::skip!(Gpu, "no GPU device, or its memory never ran out");
+        }
+    }
+
+    #[test]
+    #[ignore = "run in its own process by running_out_of_device_memory_falls_back_without_stopping_the_gpu"]
+    fn out_of_memory_child() {
+        let Some(g) = crate::device() else {
+            println!("CHILD: no GPU");
+            return;
+        };
+        // hold device memory until an allocation fails: 1 GiB at a time, then smaller, so little is
+        // left; no larger than the device allows in one buffer, which would be a validation error
+        let max = g.device.limits().max_buffer_size & !(wgpu::COPY_BUFFER_ALIGNMENT - 1);
+        let mut sizes: Vec<u64> = [1u64 << 30, 1 << 28, 1 << 26].into_iter().map(|s| s.min(max)).collect();
+        sizes.dedup();
+        let mut held = Vec::new();
+        let mut full = false;
+        for size in sizes {
+            for _ in 0..128 {
+                let validation = g.device.push_error_scope(wgpu::ErrorFilter::Validation);
+                let oom = g.device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+                let usage = wgpu::BufferUsages::STORAGE;
+                let buf = g.device.create_buffer(&wgpu::BufferDescriptor { label: None, size, usage, mapped_at_creation: false });
+                let ran_out = pollster::block_on(oom.pop()).is_some();
+                if let Some(e) = pollster::block_on(validation.pop()) {
+                    panic!("holding {size} bytes of device memory: {e}");
+                }
+                if ran_out {
+                    full = true;
+                    break;
+                }
+                held.push(buf);
+            }
+        }
+        if !full {
+            println!("CHILD: no GPU (its memory never ran out)");
+            return;
+        }
+        // a render that needs more than is left: a larger one when the driver still finds room for the first
+        let s = lightcraft_develop::DevelopSettings::default();
+        let mut ran_out = false;
+        for (w, h) in [(4000, 3000), (8000, 6000)] {
+            let src = std::sync::Arc::new(lightcraft_raster::Rgb32f { width: w, height: h, data: vec![[0.18, 0.18, 0.18]; w * h] });
+            let req = lightcraft_pipeline::RenderRequest::fit(w, h);
+            match crate::try_render(&src, &lightcraft_pipeline::SourceInfo::default(), &s, &req, None) {
+                Ok(_) => continue,
+                Err(crate::Fallback::Failed(reason)) => assert!(reason.contains("out of device memory"), "{reason}"),
+                Err(crate::Fallback::NotTried) => panic!("the GPU wasn't tried"),
+            }
+            ran_out = true;
+            break;
+        }
+        assert_eq!(crate::unavailable_reason(), None, "the GPU stays in use");
+        drop(held);
+        if !ran_out {
+            println!("CHILD: no GPU (the renders found room anyway)");
+            return;
+        }
         println!("CHILD: survived");
     }
 

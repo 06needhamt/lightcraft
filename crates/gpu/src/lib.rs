@@ -542,6 +542,9 @@ pub fn try_render(
                         format!("{what}: {}; the GPU is not used again", f.reason)
                     }
                     ctx::FailKind::OutOfMemory => {
+                        // an upload that ran out of memory left a zeroed buffer; the shared source
+                        // may be one, and the next render of the photo would reuse it
+                        render::release_shared_source();
                         gpu.trim(0);
                         format!("{what}: {}", f.reason)
                     }
