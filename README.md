@@ -259,7 +259,8 @@ lightcraft --control 7980 ~/Pictures/trip
 - **Command registry.** `engine.commands` lists the available commands; `develop.controls` lists every slider's
   range, default and current value.
 - **MCP server.** `lightcraft-cli mcp` exposes the command registry to Claude (or any MCP client), alongside
-  helpers for import, query, develop, mask, render (returned as an image) and export. It runs headless, or attached
+  helpers for import, query, develop, render (returned as an image) and export. Masks have no helper of their own:
+  create and edit them through `run_command` (e.g. `mask.add`). It runs headless, or attached
   to the running app with screenshots, clicks and gestures. See [docs/mcp.md](docs/mcp.md).
 
   ```sh

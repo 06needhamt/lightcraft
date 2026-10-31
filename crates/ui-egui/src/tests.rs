@@ -55,6 +55,7 @@ mod masking;
 mod masking_layout;
 mod menubar;
 mod merge_preview;
+mod missing_sweep;
 mod model_setup;
 mod move_folder;
 mod offline;

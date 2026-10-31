@@ -241,7 +241,7 @@ lightcraft --control 7980 ~/Pictures/trip
 - **命令注册表。** `engine.commands` 列出可用命令；`develop.controls` 列出每个滑块的范围、
   默认值和当前值。
 - **MCP 服务器。** `lightcraft-cli mcp` 把命令注册表开放给 Claude（或任何 MCP 客户端），
-  同时提供导入、查询、显影、蒙版、渲染（以图像返回）和导出的辅助工具。它既能无界面运行，也能附着
+  同时提供导入、查询、显影、渲染（以图像返回）和导出的辅助工具。蒙版没有专门的辅助工具，请通过 `run_command` 使用（例如 `mask.add`）。它既能无界面运行，也能附着
   到正在运行的应用上，支持截图、点击和手势。见 [docs/mcp.md](docs/mcp.md)。
 
   ```sh

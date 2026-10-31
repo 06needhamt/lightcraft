@@ -25,6 +25,11 @@
 - Export ▸ Image Sizing kept pixel sizes only in steps of 16, so a typed 1080 became 1088 and 3000 became 3008. The
   long edge, short edge, width and height fields now keep any whole number of pixels.
 
+### The control channel refuses pointer positions that aren't on any screen
+- `ui.click`, `ui.move`, `ui.drag`, `ui.dragWidget`, `ui.pointer` and `ui.scroll` with a coordinate or delta far past
+  any screen (such as `1e308`) used to queue an infinite or NaN position. A debug build panicked on it and a release
+  build handed it to every widget. Numbers outside ±1,000,000 are now an error, and nothing is queued.
+
 ## 2026-10-29
 
 ### A person's page opens in seconds in a large library
@@ -249,6 +254,18 @@
   program that has the library open, stayed behind after Quit and the window's close button, pointing at a process
   that no longer existed. The library's lock is now released as soon as everything is saved, as it already was on
   the other systems.
+
+### Asking for the missing photos no longer freezes the window
+- `library.missing` (the control channel and `mcp --connect`) looked at every photo's file on the thread that draws
+  the window, so on a library of hundreds of thousands of photos on a network share the app stopped answering for
+  minutes. The files are now checked in the background: a "Missing Photos" row in the activity stack counts them and
+  its ✕ stops the check, and the request is answered with the same list when the check ends. A second request meanwhile
+  shares the running check. A caller that stops waiting (the control server gives a request 60 s) gets the answer of
+  that check when it asks again within ten minutes, instead of another walk of the share, as long as the photos have
+  not changed since; otherwise the files are checked again. If photos change while the files are being checked (an
+  import adds some, others are removed, moved to Recently Deleted or relinked), the answer leaves out the photos that
+  no longer apply, a photo added meanwhile is not part of that check, and the answer is not kept for a later request.
+
 
 ### Choose where a Lightroom catalog goes
 - File ▸ Import Lightroom Catalog… now asks first: merge the catalog's photos, collections and edits into the
