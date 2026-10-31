@@ -18,6 +18,11 @@
 - With VoiceOver, the photo in Detail view is now announced with its file name, rating, flag and colour label ("Photo:
   IMG_0042.JPG, 4 stars, picked") instead of only "Photo", as the grid names the same photo.
 
+### The grid's thumbnail size slider is a slider to screen readers
+- With VoiceOver, the Thumbnail size control at the right of the grid's bottom bar is now announced as a slider with its
+  value and range, instead of a button with no value. Increment and Decrement (VoiceOver's Control-Option-Up and Down) and,
+  while it has the keyboard focus, the Up and Down arrow keys change it by one step, as the `=` and `-` keys do.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
