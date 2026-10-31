@@ -1,5 +1,15 @@
 # What's new in LightCraft
 
+## 2026-10-29
+
+### Object and Describe masks show their pins
+- With Show Pins on, an Object mask now has a pin where you first clicked the object, and a Describe mask has one in
+  the middle of what its description found. Before, these masks had no pin on the photo, so they couldn't be picked
+  there. Clicking a pin selects its mask; dragging it changes nothing, as these masks follow what they selected.
+  With the Object tool on, a click on another mask's pin selects that mask too, instead of adding a click to the
+  selected Object mask, and a click on the selected mask's own pin adds nothing. Subject, Sky, Background and the
+  range masks still have no pin.
+
 ## 2026-10-27
 
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
