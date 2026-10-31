@@ -93,8 +93,11 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
     let t = Tokens::get(ctx);
     let screen = ctx.content_rect();
     // The backdrop is an area below the dialog window (a bare `Middle` layer painter would be
-    // painted after every area — i.e. over the dialog too).
+    // painted after every area — i.e. over the dialog too). Like a macOS sheet, the dialog leaves
+    // the integrated title bar lit: the window buttons the OS draws over it do not dim.
+    let title_bar = title_bar_band(app);
     egui::Area::new(egui::Id::unique("dialog-dim")).order(egui::Order::Middle).fixed_pos(screen.min).interactable(false).show(ctx, |ui| {
+        let screen = below_title_bar(screen, title_bar);
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(140));
     });
     let mut close = false;
@@ -189,7 +192,7 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
     }
     if let Some(w) = &shown {
         // (the import review keeps its hand-picked photos however the click lands)
-        if !raw_blocked && app.ui.settings.close_dialogs_outside && !import && clicked_backdrop(ctx, w.response.rect, popup_was_open) {
+        if !raw_blocked && app.ui.settings.close_dialogs_outside && !import && clicked_backdrop(ctx, w.response.rect, title_bar, popup_was_open) {
             close = true;
         } else if raw_blocked {
             // A press made under the prompt or library window must not be remembered as a
@@ -209,6 +212,9 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         }
         ctx.move_to_top(w.response.layer_id);
         crate::widgets::register_response("dialog:window", w.response.rect, &w.response);
+        if let Some(band) = title_bar {
+            title_bar_handle(ctx, band, w.response.rect);
+        }
     }
     // (while the shortcuts editor records a key, it takes Esc itself to cancel; an open popup in
     // the dialog, such as a date picker's calendar, takes it to close itself)
@@ -227,6 +233,43 @@ pub fn show(app: &mut LightcraftApp, ctx: &egui::Context, blocked: bool) {
         ctx.data_mut(|d| d.insert_temp(egui::Id::unique(BACKDROP_SHOWN), frame));
     }
     app.ui.dialog = if close { None } else { Some(dlg) };
+}
+
+/// The band of the top bar that doubles as the window's title bar, as drawn last frame: `None`
+/// without the integrated title bar (Windows, Linux, the web), in macOS full screen, and while the
+/// bar isn't on screen (the full-screen photo view).
+fn title_bar_band(app: &LightcraftApp) -> Option<egui::Rect> {
+    // (the full-screen photo view draws no top bar, so the frame it is entered on still holds last frame's region)
+    if !app.integrated_titlebar || app.window_is_fullscreen || app.ui.fullscreen {
+        return None;
+    }
+    app.widgets.iter().find(|(id, _)| id == "region:titlebar").map(|(_, r)| *r)
+}
+
+/// `screen` less the title bar band across its top.
+fn below_title_bar(screen: egui::Rect, band: Option<egui::Rect>) -> egui::Rect {
+    band.map_or(screen, |b| egui::Rect::from_min_max(egui::pos2(screen.min.x, b.max.y.clamp(screen.min.y, screen.max.y)), screen.max))
+}
+
+/// The bar's controls are disabled under a dialog, and the modal layer takes the hits of the layers
+/// below it: this keeps the bar a window handle (drag to move, double-click to zoom), above the
+/// modal like a sheet's title bar. A tall dialog reaching into the band keeps its own clicks: the
+/// handle is the band on either side of it, and isn't run while the pointer is on the dialog (each
+/// handle records whether the window may move, and one the pointer isn't in would say yes).
+fn title_bar_handle(ctx: &egui::Context, band: egui::Rect, dialog: egui::Rect) {
+    // (egui lifts an area that wasn't there the frame before above the rest: a handle drawn again as the pointer leaves
+    // the dialog would sit over an open dropdown and take the press meant for its item)
+    if egui::Popup::is_any_open(ctx) || ctx.pointer_hover_pos().is_some_and(|p| dialog.contains(p)) {
+        return;
+    }
+    let sides =
+        if band.intersects(dialog) { [(band.min.x, dialog.min.x), (dialog.max.x, band.max.x)] } else { [(band.min.x, band.max.x), (0.0, 0.0)] };
+    for (i, (from, to)) in sides.into_iter().enumerate().filter(|(_, (from, to))| to - from > 1.0) {
+        let part = egui::Rect::from_x_y_ranges(from..=to, band.y_range());
+        egui::Area::new(egui::Id::unique("dialog-title-bar").with(i)).order(egui::Order::Foreground).fixed_pos(part.min).show(ctx, |ui| {
+            craft_window::title_bar::empty_area(ui, part);
+        });
+    }
 }
 
 /// The title of a dialog.

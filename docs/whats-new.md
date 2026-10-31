@@ -26,6 +26,14 @@
   drag to change it" is its description. It was named "Exposure: Click to type a value, drag to change it", so
   VoiceOver read the whole sentence each time it reached the field, once for every slider in the Edit panel.
 
+## 2026-10-29
+
+### A dialog no longer dims the macOS title bar
+- On macOS the top bar is the window's title bar, and the window buttons drawn over it stayed bright while a dialog dimmed
+  the bar under them. As under a macOS sheet, the dialog's backdrop now leaves the bar alone: its buttons are inactive, a
+  click on it does not close the dialog, and dragging its empty space still moves the window. Windows, Linux and full
+  screen are unchanged.
+
 ## 2026-10-28
 
 ### The window's parts are named for screen readers
