@@ -224,6 +224,52 @@ fn radial_inside_and_invert() {
     assert!(e[0].alpha.get(50, 50) < 0.01);
 }
 
+/// #1520: a caller that will not look past its own threshold builds to that threshold, not to
+/// the stroke budget. Each segment here is admissible on its own and together they want far
+/// more than any threshold the callers apply, which is the aggregate the issue describes
+/// rather than one hostile segment.
+#[test]
+fn a_stroke_is_built_only_as_far_as_the_caller_will_look() {
+    let f = frame(4000, 4000);
+    // Twenty long sweeps across the output: tens of thousands of dabs between them.
+    let points: Vec<Point> =
+        (0..20).map(|i| if i % 2 == 0 { Point::new(0.02, 0.02 + i as f64 * 0.04) } else { Point::new(0.98, 0.02 + i as f64 * 0.04) }).collect();
+    let s = BrushStroke { points, size: 0.002, feather: 50.0, flow: 100.0, density: 100.0, ..Default::default() };
+
+    let whole = brush_dabs(&s, &f, 4000, 4000);
+    assert!(whole.dabs.len() > 20_000, "the stroke really is large: {}", whole.dabs.len());
+    assert!(whole.dabs.len() <= MAX_STROKE_DABS);
+
+    // Each caller gets what it asked for and no more, however large the stroke is. 4097 and
+    // 200_001 are what the GPU path and the Auto Mask spot window now ask for.
+    for max in [1usize, 2, 4097, 200_001] {
+        let got = brush_dabs_within(&s, &f, 4000, 4000, max);
+        assert!(got.dabs.len() <= max, "asked for at most {max}, built {}", got.dabs.len());
+        assert_eq!(got.r, whole.r, "the brush itself is unchanged");
+    }
+
+    // A budget the stroke never reaches changes nothing: it only ever truncates.
+    let generous = brush_dabs_within(&s, &f, 4000, 4000, whole.dabs.len() + 1000);
+    assert_eq!(generous.dabs, whole.dabs, "an unreached budget leaves the stroke alone");
+
+    // The guarantee the callers rely on: a result short of the budget was never truncated,
+    // so it is the stroke itself. Both callers ask for one more than they will accept, so
+    // anything they keep is identical to what they drew before this change, and anything
+    // truncated is something they were going to reject anyway.
+    //
+    // A truncated one is not a prefix: running out of room makes a segment lay its remaining
+    // dabs further apart rather than stop mid-segment, which is how `push_dabs_counted`
+    // already behaved at MAX_STROKE_DABS. That only ever reaches a caller that rejects it.
+    let cut = brush_dabs_within(&s, &f, 4000, 4000, 500);
+    assert_eq!(cut.dabs.len(), 500, "a stroke past the budget fills it exactly");
+    for max in [700usize, 5_000, whole.dabs.len()] {
+        let got = brush_dabs_within(&s, &f, 4000, 4000, max);
+        if got.dabs.len() < max {
+            assert_eq!(got.dabs, whole.dabs, "a result short of its budget is the whole stroke");
+        }
+    }
+}
+
 /// Issue #517: dabs along a long segment (a fast stroke: two pointer samples far apart) are at
 /// most [`dab_spacing`] apart, painting dab by dab (the live stroke) or the whole path at once
 /// (the committed one).

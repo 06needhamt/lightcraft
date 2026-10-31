@@ -558,6 +558,19 @@ pub const MAX_STROKE_DABS: usize = 2_000_000;
 
 /// The dabs of stroke `s` in a `w × h` output.
 pub fn brush_dabs(s: &BrushStroke, frame: &Frame, w: usize, h: usize) -> BrushDabs {
+    brush_dabs_within(s, frame, w, h, MAX_STROKE_DABS)
+}
+
+/// [`brush_dabs`] stopping at `max` dabs instead of [`MAX_STROKE_DABS`].
+///
+/// For a caller that discards a stroke past a threshold of its own: it builds to that threshold
+/// rather than to the stroke budget and throws the difference away. The GPU path rejects a brush
+/// mask past 4096 dabs in total and the Auto Mask spot window past 200,000, both far below the
+/// two million a single stroke may otherwise construct first (#1520).
+///
+/// Ask for one more than the threshold to tell "at it" from "past it": a result shorter than
+/// `max` is the whole stroke.
+pub fn brush_dabs_within(s: &BrushStroke, frame: &Frame, w: usize, h: usize, max: usize) -> BrushDabs {
     let to_out = frame.norm_to_out(w, h);
     let ppl = frame.px_per_long(w);
     let r = (s.size * ppl).max(0.5);
@@ -570,10 +583,14 @@ pub fn brush_dabs(s: &BrushStroke, frame: &Frame, w: usize, h: usize) -> BrushDa
     let with_pressure = !s.pressure.is_empty();
     let mut prev = None;
     let mut prev_p = 1.0;
+    let mut emitted = 0usize;
     for (i, p) in s.points.iter().enumerate() {
+        if emitted >= max {
+            break;
+        }
         let q = to_out.apply(*p);
         let before = dabs.len();
-        if push_dabs(&mut dabs, prev, q, r) {
+        if push_dabs_within(&mut dabs, &mut emitted, prev, q, r, max) {
             let pq = s.pressure_at(i);
             if with_pressure {
                 // the first dab of the stroke has nothing to interpolate from
@@ -619,7 +636,16 @@ pub fn push_dabs(dabs: &mut Vec<Point>, prev: Option<Point>, q: Point, r: f64) -
 /// dabs no longer held in `dabs`. Incremental callers retain `emitted` when clearing their buffer;
 /// it advances only by the number actually appended. Acceptance and spacing match [`push_dabs`].
 pub fn push_dabs_counted(dabs: &mut Vec<Point>, emitted: &mut usize, prev: Option<Point>, q: Point, r: f64) -> bool {
-    let room = MAX_STROKE_DABS.saturating_sub(*emitted);
+    push_dabs_within(dabs, emitted, prev, q, r, MAX_STROKE_DABS)
+}
+
+/// [`push_dabs_counted`] against a caller's own budget rather than [`MAX_STROKE_DABS`].
+///
+/// A caller that will not look at more than `max` dabs should build no more than `max`: a length
+/// check after the vector exists bounds nothing, it only throws away what was already paid for
+/// (#1520).
+pub fn push_dabs_within(dabs: &mut Vec<Point>, emitted: &mut usize, prev: Option<Point>, q: Point, r: f64, max: usize) -> bool {
+    let room = max.min(MAX_STROKE_DABS).saturating_sub(*emitted);
     if room == 0 || !(q.x.is_finite() && q.y.is_finite()) {
         return false;
     }
