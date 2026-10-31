@@ -28,6 +28,24 @@
 
 ## 2026-10-25
 
+### A one-field white balance edit no longer shifts the other one
+- Settings that name only a white balance temperature, or only a tint — `develop.merge`,
+  `lightcraft-cli render --settings <partial JSON>`, an MCP `set_develop {settings: …}` call, or a hand-written
+  preset naming one of the two — used to change the colour balance of photos they never mentioned. On a raw edited in
+  Kelvin the field the partial left out was re-read on the other scale: `wb {temp: 5800}` on a photo at 5000 K /
+  +12 tint came back at 5800 K with the +12 read as a relative shift, moving the green–magenta balance by a visible
+  amount. The kept field now carries the look the photo had, and the result is stored on the scale that photo is
+  edited on.
+- The same partial on a photo still on As Shot — or on a named white balance preset, on a raw with a Kelvin scale —
+  stored the number without any render ever reading it: those modes answer their own white, so the panel showed
+  5800 K over a picture still at the file's white. That white is now written out as Custom values before the partial
+  lands; a partial that names a mode itself still gets that mode.
+- Presets made from a photo and the crs / XMP and Luminar importers name mode, temperature, tint and scale together,
+  and partials naming both fields (or neither) behave exactly as before; a partial that says `"scale": "kelvin"` is
+  still read in Kelvin.
+
+## 2026-10-25
+
 ### JPEG ICC chunks are validated before colour conversion
 - JPEG ICC profiles are assembled only when every chunk is present exactly once, the sequence numbers and
   declared totals agree, and every APP2 segment is complete. Reordered valid chunks still work. An invalid
