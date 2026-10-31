@@ -274,7 +274,9 @@ pub const ALT_SECONDS: f64 = 2.0;
 pub enum Launch {
     /// Open this library folder (`None`: there is nowhere to keep one; the problem window says
     /// so). `alt_asks`: holding Alt/Option as the window appears offers the recent libraries.
-    Open { dir: Option<PathBuf>, alt_asks: bool },
+    /// `remembered`: `dir` is the library last opened (Settings), not the default location, so a
+    /// missing one is reported instead of created anew (issue #3239).
+    Open { dir: Option<PathBuf>, alt_asks: bool, remembered: bool },
     /// Open nothing yet: the window lists the recent libraries ([`LibraryProblem::choose`]).
     Ask,
 }
@@ -284,16 +286,18 @@ pub enum Launch {
 /// `settings` is `None` without a settings file; `memory` (`--memory`) never asks.
 pub fn launch_plan(memory: bool, flag: Option<PathBuf>, env: Option<PathBuf>, settings: Option<&AppSettings>, default: Option<PathBuf>) -> Launch {
     if memory {
-        return Launch::Open { dir: None, alt_asks: false };
+        return Launch::Open { dir: None, alt_asks: false, remembered: false };
     }
     if let Some(dir) = flag.or(env) {
-        return Launch::Open { dir: Some(dir), alt_asks: false };
+        return Launch::Open { dir: Some(dir), alt_asks: false, remembered: false };
     }
     if settings.is_some_and(|s| s.at_launch == LaunchLibrary::Ask) {
         return Launch::Ask;
     }
     let last = settings.map(|s| s.library_path.clone()).filter(|p| !p.is_empty()).map(PathBuf::from);
-    Launch::Open { dir: last.or(default), alt_asks: true }
+    // the default location is made when it's missing (first launch); a remembered library isn't
+    let remembered = last.as_ref().is_some_and(|l| default.as_ref() != Some(l));
+    Launch::Open { dir: last.or(default), alt_asks: true, remembered }
 }
 
 /// One library in the launch window's list.
@@ -341,6 +345,11 @@ pub struct LibraryProblem {
     /// Try Again reopens `path` as a library folder (`false` in the browser, whose storage isn't
     /// a folder: reloading the page tries again).
     pub can_retry: bool,
+    /// Try Again opens `path` only once it holds a library again, and never makes one there: set
+    /// for the library remembered in Settings that was missing at launch, whose folder can be
+    /// the empty mount point of a share that isn't connected yet (issue #3239). Choose Another
+    /// Library… still creates one where asked.
+    pub existing_only: bool,
     /// The window lists the recent libraries to choose from instead (issue #1290); `error` then
     /// says why the last one tried didn't open.
     pub chooser: Option<Chooser>,
@@ -710,6 +719,37 @@ fn unavailable(path: &str) -> Option<Unavailable> {
     None
 }
 
+/// Why the library at `dir` that has to exist already (a remembered one, issue #3239) can't be
+/// opened (`None`: it's there): the folder is there without a catalog, or the folder itself is
+/// missing. A folder that can't be looked into (no permission, a share that timed out) says so
+/// instead: the library may well be there.
+pub fn missing_library_reason(dir: &Path) -> Option<String> {
+    match lightcraft_engine::library::library_state(dir) {
+        Ok(true) => None,
+        Ok(false) if dir.exists() => Some(crate::i18n::tr("There is no LightCraft library in this folder any more.").to_string()),
+        Ok(false) => {
+            Some(crate::i18n::tr("The library isn't there: it was moved or renamed, or its drive or network share isn't connected.").to_string())
+        }
+        Err(e) => Some(format!("{} {e}", crate::i18n::tr("This folder can't be read:"))),
+    }
+}
+
+/// Try Again: reopen the problem's library. One that must exist already (`existing_only`) is
+/// opened only once its folder holds a library again (a share remounted): until then the window
+/// stays with the reason, and nothing is created there (issue #3239).
+fn retry(app: &mut LightcraftApp, problem: LibraryProblem) {
+    if problem.existing_only
+        && let Some(why) = missing_library_reason(Path::new(&problem.path))
+    {
+        if let Some(p) = app.library_problem.as_mut() {
+            p.error = why;
+            p.dismissed = false;
+        }
+        return;
+    }
+    open(app, Some(problem.path));
+}
+
 /// What the user chose.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Choice {
@@ -807,6 +847,10 @@ fn open(app: &mut LightcraftApp, path: Option<String>) {
                     }
                 }
                 if let Some(path) = path {
+                    // another library failed: Try Again may make that one, as it always could
+                    if p.path != path {
+                        p.existing_only = false;
+                    }
                     p.path = path;
                 }
                 p.error = e;
@@ -1073,7 +1117,7 @@ fn act(app: &mut LightcraftApp, choice: Choice) {
     let Some(problem) = app.library_problem.clone() else { return };
     let chosen = problem.chooser.as_ref().and_then(|c| c.selected.and_then(|i| c.libraries.get(i)).map(|l| (l.clone(), c.over)));
     match choice {
-        Choice::Retry => open(app, Some(problem.path)),
+        Choice::Retry => retry(app, problem),
         Choice::Choose => open(app, None),
         Choice::Open => {
             let Some((library, over)) = chosen.filter(|(l, _)| l.unavailable.is_none()) else { return };

@@ -759,6 +759,8 @@
   "LightCraft could not start": "LightCraft n'a pas pu démarrer",
   "LightCraft couldn't find where to keep your library.": "LightCraft n'a pas trouvé où conserver votre bibliothèque.",
   "LightCraft couldn't open the library at": "LightCraft n'a pas pu ouvrir la bibliothèque à l'emplacement",
+  "There is no LightCraft library in this folder any more.": "Ce dossier ne contient plus de bibliothèque LightCraft.",
+  "The library isn't there: it was moved or renamed, or its drive or network share isn't connected.": "La bibliothèque est introuvable : elle a été déplacée ou renommée, ou son disque ou son partage réseau n'est pas connecté.",
   "LightCraft on GitHub": "LightCraft sur GitHub",
   "LightCraft website": "Site web de LightCraft",
   "LightCraft — Second Window": "LightCraft : deuxième fenêtre",

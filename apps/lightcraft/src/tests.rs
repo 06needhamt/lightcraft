@@ -69,7 +69,7 @@ fn a_librarys_catalog_given_at_launch_opens_that_library() {
 /// adds to Apple Photos on a worker (headless sessions wait instead).
 #[test]
 fn the_desktop_session_adds_to_apple_photos_in_the_background() {
-    let (s, problem) = open_session(true, &Launch::Open { dir: None, alt_asks: false }, false);
+    let (s, problem) = open_session(true, &Launch::Open { dir: None, alt_asks: false, remembered: false }, false);
     assert!(problem.is_none());
     assert!(s.apple_photos_background);
     assert!(!lightcraft_engine::Session::new().apple_photos_background);
@@ -100,6 +100,74 @@ fn asking_at_launch_opens_nothing_and_still_saves_the_settings() {
     w.save(&app).unwrap();
     let saved: UiState = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     assert_eq!(saved.settings.recent_libraries, ["/gone/b"]);
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Issue #3239: the library remembered in Settings whose folder is missing at launch (a disk or
+/// network share not connected) is reported in the library problem window. Nothing is created
+/// there (not the folder, not its parents) and no demo photos are added.
+#[test]
+fn a_remembered_library_missing_at_launch_is_reported_not_made_anew() {
+    let d = dir("missing-library");
+    let gone = d.join("gone");
+    let lib = gone.join("Lib");
+    let launch = Launch::Open { dir: Some(lib.clone()), alt_asks: true, remembered: true };
+    let (s, problem) = open_session(false, &launch, true);
+    let problem = problem.expect("the missing library is reported");
+    assert_eq!(problem.path, lib.to_string_lossy());
+    assert!(problem.can_retry, "Try Again once the drive is back");
+    assert!(problem.existing_only, "Try Again makes no library there either");
+    assert!(!gone.exists(), "nothing is created where the library was");
+    assert!(s.library.is_none() && s.catalog.is_empty(), "no library, no demo photos");
+    // a remembered folder that is there but holds no library is reported too
+    std::fs::create_dir_all(&lib).unwrap();
+    let (s, problem) = open_session(false, &launch, true);
+    assert!(problem.as_ref().is_some_and(|p| p.existing_only) && s.library.is_none() && s.catalog.is_empty(), "{problem:?}");
+    assert!(!lightcraft_engine::library::is_library(&lib), "nothing written in it");
+    // the default location (or --library) is still made when it's missing, with the demo photos
+    let fresh = d.join("fresh").join("Lib");
+    let (s, problem) = open_session(false, &Launch::Open { dir: Some(fresh.clone()), alt_asks: true, remembered: false }, true);
+    assert!(problem.is_none() && s.library.is_some() && !s.catalog.is_empty(), "{problem:?}");
+    assert!(lightcraft_engine::library::is_library(&fresh));
+    drop(s);
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Issue #3239: a remembered library whose folder can't be looked into (no permission) is
+/// reported as unreadable at launch, not as gone, and nothing is opened or written there.
+#[cfg(unix)]
+#[test]
+fn a_remembered_library_it_may_not_read_at_launch_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = dir("denied-library");
+    let lib = d.join("Lib");
+    let mut s = lightcraft_engine::Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    s.close_library().unwrap();
+    drop(s);
+    let names = |dir: &std::path::Path| {
+        let mut names: Vec<_> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name()).collect();
+        names.sort();
+        names
+    };
+    let before = names(&lib);
+    std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o000)).unwrap();
+    if std::fs::read_dir(&lib).is_ok() {
+        std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let _ = std::fs::remove_dir_all(&d);
+        lightcraft_testkit::skip!(System, "running as root: a folder with mode 000 is still readable");
+        return;
+    }
+    let launch = Launch::Open { dir: Some(lib.clone()), alt_asks: true, remembered: true };
+    let (s, problem) = open_session(false, &launch, true);
+    std::fs::set_permissions(&lib, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let problem = problem.expect("the unreadable library is reported");
+    assert!(problem.error.starts_with("This folder can't be read:"), "{}", problem.error);
+    assert!(problem.error.to_lowercase().contains("permission denied"), "{}", problem.error);
+    assert!(problem.existing_only, "Try Again makes no library there either");
+    assert!(s.library.is_none() && s.catalog.is_empty(), "no library, no demo photos");
+    assert_eq!(names(&lib), before, "nothing written there");
+    drop(s);
     let _ = std::fs::remove_dir_all(&d);
 }
 
