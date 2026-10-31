@@ -227,6 +227,10 @@ impl LightcraftApp {
             // menu), it must not keep a search that no longer applies (issue #1648)
             self.ui.search.clear();
         }
+        if r.is_ok() && id == "mask.addComponent" && params.get("kind").and_then(Value::as_str) != Some("colorRange") && self.ui.tool == "colorRange"
+        {
+            self.ui.tool.clear();
+        }
         if r.is_ok() && id == "mask.adjust" {
             // Judge local adjustments on the photo, without the selection overlay obscuring them.
             // Keep it hidden after release; O / the overlay eye can show it again.
