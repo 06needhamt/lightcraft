@@ -1686,7 +1686,6 @@
   "Moves the photos imported from this folder to Recently Deleted; no file is touched": "将从此文件夹导入的照片移到“最近删除”；不会改动任何文件",
   "Remove Disk from Library…": "从图库中移除磁盘…",
   "Moves every photo imported from this disk to Recently Deleted; no file is touched": "将从此磁盘导入的所有照片移到“最近删除”；不会改动任何文件",
-  "Collapse": "折叠",
   "Expand": "展开",
   "Remove Disk from Library": "从图库中移除磁盘",
   "All the photos imported from this disk are included.": "包括从此磁盘导入的所有照片。",

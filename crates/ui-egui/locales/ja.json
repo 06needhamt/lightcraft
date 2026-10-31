@@ -1661,7 +1661,6 @@
   "Moves the photos imported from this folder to Recently Deleted; no file is touched": "このフォルダから読み込んだ写真を「最近削除した写真」に移動します。ファイルには手を加えません",
   "Remove Disk from Library…": "ディスクをライブラリから除去…",
   "Moves every photo imported from this disk to Recently Deleted; no file is touched": "このディスクから読み込んだすべての写真を「最近削除した写真」に移動します。ファイルには手を加えません",
-  "Collapse": "折りたたむ",
   "Expand": "展開",
   "Remove Disk from Library": "ディスクをライブラリから除去",
   "All the photos imported from this disk are included.": "このディスクから読み込んだすべての写真が対象です",

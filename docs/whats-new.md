@@ -14,6 +14,11 @@
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
 - Select Only Active Photo now sits under Deselect All, and Paste Settings from Previous under Paste Selected Settings…, instead of both after Settings…, near the end of the Edit menu. On macOS, where Settings… lives in the application menu, the Edit menu no longer shows two separator lines in a row.
 
+### Screen readers name the sidebar's disclosure triangles
+- Each triangle in the left sidebar (album folders, local folders, By Date, imported folders, keywords) and in the
+  keyword list now says which row it opens or closes: "Expand Travel", "Collapse 2026". They were all named just
+  "Expand" or "Collapse", so VoiceOver read a list of identical buttons.
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
