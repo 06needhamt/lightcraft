@@ -9,6 +9,16 @@
   the selected photos as one undo step, only the active photo in Compare and Survey, and moves on with Auto Advance,
   as the other label keys do.
 
+## 2026-10-29
+
+### A person's page opens in seconds in a large library
+- Finding the unnamed faces that look like a person (a person's page, and again after each face confirmed there) now
+  runs on every processor core, and each comparison of two faces uses the processor's vector instructions. In a
+  library of 92 000 unnamed faces, a person with 4 100 named ones is estimated to have taken about 2 minutes 40 seconds
+  on one core of an Apple M1 Pro, with the window frozen, and now about 3 seconds (both measured on 3 000 of those
+  faces, 5.3 s and 0.1 s, and scaled up). Name suggestions and the order of the unnamed
+  faces get the faster comparison too.
+
 ## 2026-10-28
 
 ### The empty photo grid names Import Photos' shortcut as it is bound
