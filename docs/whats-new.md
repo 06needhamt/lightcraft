@@ -11,6 +11,11 @@
 - Fielded search tokens now take inclusive comparisons: `rating:>=3`, `iso:<=400`, `f:>=2.8`, `focal:<=50`. Before,
   the `=` was read as part of the number, so such a search quietly showed no photos at all.
 
+### Import rename numbering stops safely at its limit
+- Copy and Move imports can use the last representable rename number once. If more renamed files remain, each is
+  reported as failed with guidance to lower `renameStart` or leave `rename` blank; completed transfers stay
+  accounted for and catalogued. A `renameStart` value outside this platform's range is rejected before setup.
+
 ## 2026-10-24
 
 ### A refused move no longer switches the Move Photos question off

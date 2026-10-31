@@ -18,6 +18,8 @@
 //! 7. Optionally apply a preset and add keywords (the import dialog's options).
 //! 8. Commit all new photos as one undoable op. (Undoing a move removes the catalog records;
 //!    the files stay at the destination — undo never moves files back over a card.)
+//! 9. Copy and Move rename sequences use checked platform-sized numbers: the last number is usable once, and any
+//!    further renamed files are reported as failed without losing earlier completed transfers.
 //!
 //! The import dialog first calls [`scan`] (`library.importPreview`): the same expansion, probing
 //! and duplicate detection without adding anything, so the user can review the candidates. The

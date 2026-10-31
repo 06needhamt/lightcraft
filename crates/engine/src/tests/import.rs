@@ -465,6 +465,210 @@ fn copy_with_destination_organize_rename_and_metadata_preset() {
     }
 }
 
+#[test]
+fn import_rename_sequence_uses_the_last_value_once() {
+    let base = temp_dir("rename-sequence-last");
+    let (src, dest, lib) = (base.join("source"), base.join("destination"), base.join("library"));
+    write_png(&src.join("one.png"), 1);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+
+    let last = usize::MAX;
+    let r = s
+        .execute(
+            "library.import",
+            &json!({
+                "paths": [src.join("one.png").to_string_lossy()],
+                "mode": "copy", "destination": dest.to_string_lossy(), "organize": "flat",
+                "rename": "Shot-{seq}", "renameStart": last as u64
+            }),
+        )
+        .unwrap();
+
+    assert_eq!(ids(&r, "imported"), 1, "{r}");
+    assert_eq!(r["failed"].as_array().map(Vec::len), Some(0), "{r}");
+    assert!(dest.join(format!("Shot-{last}.png")).is_file());
+    assert_eq!(s.catalog.len(), 1);
+    s.execute("edit.undo", &json!({})).unwrap();
+    assert_eq!(s.catalog.len(), 0, "the import remains one undo step");
+    assert!(dest.join(format!("Shot-{last}.png")).is_file(), "undo leaves a successful copy on disk");
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn import_rename_sequence_reports_exhaustion_and_keeps_prior_successes() {
+    let base = temp_dir("rename-sequence-exhausted");
+    let (src, dest, lib) = (base.join("source"), base.join("destination"), base.join("library"));
+    let paths: Vec<_> = (1..=3)
+        .map(|i| {
+            let path = src.join(format!("{i:02}.png"));
+            write_png(&path, i as u8);
+            path
+        })
+        .collect();
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+
+    let start = usize::MAX - 1;
+    let r = s
+        .execute(
+            "library.import",
+            &json!({
+                "paths": paths.iter().map(|p| p.to_string_lossy()).collect::<Vec<_>>(),
+                "mode": "copy", "destination": dest.to_string_lossy(), "organize": "flat",
+                "rename": "Shot-{seq}", "renameStart": start as u64
+            }),
+        )
+        .unwrap();
+
+    assert_eq!(ids(&r, "imported"), 2, "the final two representable values are used: {r}");
+    assert_eq!(r["failed"].as_array().map(Vec::len), Some(1), "{r}");
+    let failure = r["failed"][0][1].as_str().unwrap_or_default();
+    assert!(failure.contains("sequence") && failure.contains("renameStart"), "actionable failure: {failure}");
+    assert_eq!(s.catalog.len(), 2);
+    assert!(dest.join(format!("Shot-{start}.png")).is_file());
+    assert!(dest.join(format!("Shot-{}.png", usize::MAX)).is_file());
+    assert_eq!(std::fs::read_dir(&dest).unwrap().count(), 2, "the exhausted file gets no destination entry");
+    assert!(!paths[2].file_name().is_some_and(|name| dest.join(name).exists()), "the exhausted source gets no copy");
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn import_rename_sequence_keeps_flushed_copy_and_move_results() {
+    for mode in ["copy", "move"] {
+        let base = temp_dir(&format!("rename-sequence-flush-{mode}"));
+        let (src, dest, lib) = (base.join("source"), base.join("destination"), base.join("library"));
+        let paths: Vec<_> = (1..=4)
+            .map(|i| {
+                let path = src.join(format!("{i:02}.png"));
+                write_png(&path, i as u8);
+                path
+            })
+            .collect();
+        let mut s = Session::new().with_fs();
+        s.open_library(&lib, false).unwrap();
+
+        let start = usize::MAX - 2;
+        let r = s
+            .execute(
+                "library.import",
+                &json!({
+                    "paths": paths.iter().map(|p| p.to_string_lossy()).collect::<Vec<_>>(),
+                    "mode": mode, "destination": dest.to_string_lossy(), "organize": "flat",
+                    "rename": "Holiday", "renameStart": start as u64
+                }),
+            )
+            .unwrap();
+
+        assert_eq!(ids(&r, "imported"), 3, "{mode}: earlier transfers survive sequence exhaustion: {r}");
+        assert_eq!(r["failed"].as_array().map(Vec::len), Some(1), "{mode}: {r}");
+        assert_eq!(s.catalog.len(), 3, "{mode}: all successful transfers are catalogued");
+        let mut output_names: Vec<_> = std::fs::read_dir(&dest)
+            .unwrap()
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        output_names.sort();
+        assert_eq!(output_names, ["Holiday-1.png", "Holiday-2.png", "Holiday.png"], "{mode}");
+        match mode {
+            "copy" => assert!(paths.iter().all(|path| path.is_file()), "copy leaves every source in place"),
+            "move" => {
+                assert!(paths.iter().take(3).all(|path| !path.exists()), "successful moves remove sources after cataloguing");
+                assert!(paths[3].is_file(), "the failed source remains in place");
+                assert_eq!(r["moved"].as_array().map(Vec::len), Some(3), "{r}");
+            }
+            _ => unreachable!(),
+        }
+        let _ = std::fs::remove_dir_all(base);
+    }
+}
+
+#[test]
+fn import_rename_sequence_exhaustion_persists_across_batches() {
+    let base = temp_dir("rename-sequence-batches");
+    let (src, dest, lib) = (base.join("source"), base.join("destination"), base.join("library"));
+    let first = src.join("one.png");
+    let second = src.join("two.png");
+    write_png(&first, 1);
+    write_png(&second, 2);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+    let opts = crate::import::ImportOptions {
+        mode: crate::import::ImportMode::Copy,
+        destination: Some(dest.to_string_lossy().into_owned()),
+        organize: crate::import::Organize::Flat,
+        rename: Some("Shot-{seq}".into()),
+        rename_start: usize::MAX,
+        ..Default::default()
+    };
+    let mut job = crate::import::ImportJob::new(&mut s, opts).unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+
+    let prepared = job.prepare(std::slice::from_ref(&first.to_string_lossy().to_string()), &cancel);
+    let first_result = crate::import::commit_prepared(&mut s, &job.opts, job.now(), prepared).unwrap();
+    assert_eq!(ids(&serde_json::to_value(first_result).unwrap(), "imported"), 1);
+    let prepared = job.prepare(std::slice::from_ref(&second.to_string_lossy().to_string()), &cancel);
+    let second_result = crate::import::commit_prepared(&mut s, &job.opts, job.now(), prepared).unwrap();
+    let second_result = serde_json::to_value(second_result).unwrap();
+
+    assert_eq!(ids(&second_result, "imported"), 0, "the exhausted job does not restart its sequence");
+    assert_eq!(second_result["failed"].as_array().map(Vec::len), Some(1), "{second_result}");
+    assert_eq!(s.catalog.len(), 1);
+    assert!(dest.join(format!("Shot-{}.png", usize::MAX)).is_file());
+    assert!(!dest.join("Shot-1.png").exists(), "no wraparound or reuse");
+    assert_eq!(
+        (job.done.load(std::sync::atomic::Ordering::Relaxed), job.total.load(std::sync::atomic::Ordering::Relaxed)),
+        (2, 2),
+        "both the copied and exhausted files advance import progress"
+    );
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[test]
+fn import_rename_sequence_controls_ignore_the_counter_when_not_renaming() {
+    let base = temp_dir("rename-sequence-controls");
+    let (src, dest, lib) = (base.join("source"), base.join("destination"), base.join("library"));
+    let added = src.join("add.png");
+    let copied = src.join("copy.png");
+    write_png(&added, 1);
+    write_png(&copied, 2);
+    let mut s = Session::new().with_fs();
+    s.open_library(&lib, false).unwrap();
+
+    let added_report = s
+        .execute(
+            "library.import",
+            &json!({
+                "paths": [added.to_string_lossy()], "mode": "add", "rename": "Ignored-{seq}", "renameStart": usize::MAX as u64
+            }),
+        )
+        .unwrap();
+    let copied_report = s
+        .execute(
+            "library.import",
+            &json!({
+                "paths": [copied.to_string_lossy()], "mode": "copy", "destination": dest.to_string_lossy(), "organize": "flat",
+                "renameStart": usize::MAX as u64
+            }),
+        )
+        .unwrap();
+
+    assert_eq!(ids(&added_report, "imported"), 1, "Add does not use rename numbering: {added_report}");
+    assert_eq!(ids(&copied_report, "imported"), 1, "an empty rename template does not use the counter: {copied_report}");
+    assert!(dest.join("copy.png").is_file());
+    assert_eq!(s.catalog.len(), 2);
+    let _ = std::fs::remove_dir_all(base);
+}
+
+#[cfg(target_pointer_width = "32")]
+#[test]
+fn import_rename_sequence_rejects_a_start_outside_usize() {
+    let s = Session::new();
+    let too_large = u64::from(u32::MAX) + 1;
+    let parsed = crate::cmd::library::import_params(&s, &json!({"paths": ["unused.png"], "renameStart": too_large}));
+    assert!(parsed.is_err(), "32-bit import parameters must not truncate renameStart");
+}
+
 /// Copy with a custom folder template: `{date:%Y}/{date:%Y%m%d}` files a photo under
 /// `2026/20260114/` (an undated file by the import time); templates that would leave the
 /// destination are refused.
