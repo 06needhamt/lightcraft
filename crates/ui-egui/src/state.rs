@@ -287,6 +287,9 @@ pub struct UiState {
     /// The keyword painter: clicking a photo in the grid toggles this keyword on it.
     #[serde(skip)]
     pub keyword_painter: Option<String>,
+    /// The text of the Keywords panel's painter box: the keyword Enable Painting paints.
+    #[serde(skip)]
+    pub keyword_painter_text: String,
     /// What the Keywording box shows (Lightroom Classic's Keyword Tags views).
     pub keywording_view: KeywordingView,
     /// The Keywording box, grouped: every keyword of this selection (its hash) is shown, however
@@ -467,6 +470,7 @@ impl Default for UiState {
             slideshow: None,
             second_window: false,
             keyword_painter: None,
+            keyword_painter_text: String::new(),
             keywording_view: KeywordingView::default(),
             keyword_chips_all: None,
             folded_sections: Vec::new(),

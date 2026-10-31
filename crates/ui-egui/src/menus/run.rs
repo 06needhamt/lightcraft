@@ -222,9 +222,36 @@ fn ui_commands_1(app: &mut LightcraftApp, ctx: &egui::Context, id: &str, p: &Val
                 app.ui.view = ViewMode::PhotoGrid;
             }
             if let Some(k) = app.ui.keyword_painter.clone() {
+                app.ui.keyword_painter_text = k.clone();
                 app.toast(ctx, crate::i18n::tr_format!("Painting “{k}”: click photos to add or remove it · Esc stops", k = k));
             }
             Ok(json!({"keyword": app.ui.keyword_painter}))
+        }
+        "tool.enablePainting" => {
+            let k = app.ui.keyword_painter_text.trim().to_string();
+            if app.ui.keyword_painter.is_some() {
+                app.ui.keyword_painter = None;
+                Ok(json!({"keyword": null}))
+            } else {
+                // the full-screen preview covers both the grid and the Keywords panel
+                if app.ui.fullscreen {
+                    crate::panels::slideshow::end(app);
+                }
+                if k.is_empty() {
+                    app.ui.right = RightPanel::Keywords;
+                    if app.ui.tool != "wbPicker" {
+                        app.ui.tool.clear();
+                    }
+                    let _ = app.session.end_interaction();
+                    if app.ui.section_folded("keywording") {
+                        app.ui.toggle_folded("keywording");
+                    }
+                    app.toast(ctx, crate::i18n::tr("Type a keyword to paint in the Keywords panel"));
+                    Ok(json!({"keyword": null}))
+                } else {
+                    run_ui_command(app, "tool.keywordPainter", &json!({"keyword": k})).unwrap_or(Ok(Value::Null))
+                }
+            }
         }
         "view.secondWindow" => {
             app.ui.second_window = p.get("show").and_then(Value::as_bool).unwrap_or(!app.ui.second_window);

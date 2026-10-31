@@ -283,6 +283,7 @@ const LAYOUT: &[(&str, &[&str])] = &[
             "dialog.rename",
             "dialog.captureTime",
             "photo.tagFromTracklog",
+            "tool.enablePainting",
             "---",
             "album.removePhotos",
             "photo.delete",
