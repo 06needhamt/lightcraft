@@ -40,6 +40,10 @@
   every launch. A video is recognised by its type, by the format `VIDEO` that Lightroom catalogs
   give videos, or by its extension (`.mp4`, `.mov`, `.m4v`, `.avi`, `.mts`, `.m2ts`, `.3gp`, `.mkv`, `.webm`, `.wmv`,
   `.mpg`, `.mpeg`).
+### Right-button drags no longer pick up photos in the grid
+- Dragging with the right mouse button over a photo in the grid used to pick up the photos and, on a photo that wasn't
+  selected, replace the selection with it. Now only the left button drags photos, and a right-button release while you
+  are dragging photos no longer drops them on an album, folder or keyword. Right-click still opens the photo menu.
 
 ### Tab leaves the name field in New Album, New Smart Album and the name prompts
 - In New Album, New Smart Album, Save Metadata Preset and the other dialogs with one name field, the field has the
