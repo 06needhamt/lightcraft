@@ -5,3 +5,4 @@ mod accessibility;
 mod docking_workflows;
 mod sidebar_names;
 mod grid_names;
+mod photo_name;
