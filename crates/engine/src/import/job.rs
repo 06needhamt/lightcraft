@@ -431,6 +431,11 @@ impl ImportJob {
     }
 }
 
+/// Identity of a candidate preview at the bounded requested edge, without constructing a job.
+pub fn candidate_thumb_key(c: &ImportCandidate, edge: usize) -> u64 {
+    lightcraft_preview::Hasher128::new().str(&c.path).u64(c.file_size).u64(edge.clamp(64, 1024) as u64).finish().0 as u64
+}
+
 impl Session {
     /// A thumbnail for an import candidate (not in the catalog): a raw's embedded preview, else a
     /// small render of the file. `slot` makes the job's photo id unique (`u64::MAX - slot`).
@@ -447,10 +452,13 @@ impl Session {
             p.preview_only = info.preview_only.clone();
         }
         p.develop = std::sync::Arc::new(p.import_defaults());
-        let edge = edge.clamp(64, crate::media::SourceLevel::Thumb.max_edge());
-        let level = crate::media::SourceLevel::Thumb;
+        let edge = edge.clamp(64, 1024);
+        let level = crate::media::SourceLevel::for_size(edge);
         let source = self.media.origin_ref(&p.source, level.max_edge());
-        let key = lightcraft_preview::Hasher128::new().str(&c.path).u64(c.file_size).u64(edge as u64).finish().0 as u64;
+        let key = candidate_thumb_key(c, edge);
+        // A small original already supplies all its detail; do not enlarge it to the bucket.
+        let native_edge = c.width.max(c.height) as usize;
+        let render_edge = if native_edge > 0 { edge.min(native_edge) } else { edge };
         let small = crate::media::RenderJob {
             request_id: 0,
             cache_generation: self.media.rendered.generation(),
@@ -461,7 +469,7 @@ impl Session {
             origin: p.source.clone(),
             info: crate::media::source_info(&p),
             settings: p.develop.clone(),
-            request: lightcraft_pipeline::RenderRequest::fit(edge, edge),
+            request: lightcraft_pipeline::RenderRequest::fit(render_edge, render_edge),
             key,
             cache: None,
             stages: None,
@@ -475,7 +483,16 @@ impl Session {
             (Some(l), MediaKind::Raw) => Some((c.path.clone(), l.clone(), edge)),
             _ => None,
         };
-        Some(crate::media::QuickJob { request_id: 0, photo: id, key, cached: Vec::new(), embedded, small: Some(Box::new(small)) })
+        let minimum_embedded_edge = (c.preview_only.is_none() && p.preview_only.is_none()).then_some(render_edge);
+        Some(crate::media::QuickJob {
+            request_id: 0,
+            photo: id,
+            key,
+            cached: Vec::new(),
+            embedded,
+            minimum_embedded_edge,
+            small: Some(Box::new(small)),
+        })
     }
 
     /// Use the system clock for import/edit times (native hosts).
@@ -484,3 +501,6 @@ impl Session {
         self
     }
 }
+
+#[cfg(test)]
+mod tests;

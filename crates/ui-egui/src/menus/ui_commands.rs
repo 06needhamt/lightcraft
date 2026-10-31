@@ -99,6 +99,7 @@ pub const UI_COMMANDS: &[UiCommand] = &[
     ("view.zoomOut", "Zoom Out", Some("Cmd+-"), "View"),
     // Library grids only (Photo Grid, Square Grid, People): the bottom-bar slider's step by key
     ("view.thumbSizeUp", "Increase Grid Thumbnail Size", Some("="), "View"),
+    ("view.importThumbSize", "Import Thumbnail Size", None, ""),
     ("view.thumbSizeDown", "Decrease Grid Thumbnail Size", Some("-"), "View"),
     ("view.clipping", "Clipping", Some("J"), "View"),
     ("view.visualizeHdr", "Visualize HDR", None, "View"),

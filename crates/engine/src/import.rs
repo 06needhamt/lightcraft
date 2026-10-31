@@ -47,7 +47,7 @@ pub use files::{EXTENSIONS, LaunchPath, accept_list, expand, expand_within, is_s
 pub(crate) use files::{expand_noting, probe_all, probe_paths, probe_with};
 #[cfg(test)]
 use job::PreparedItem;
-pub use job::{ImportJob, Prepared, import, import_with};
+pub use job::{ImportJob, Prepared, candidate_thumb_key, import, import_with};
 pub(crate) use scan::scan_files;
 pub use scan::{ScanInput, ScanOutput, ScanProgress, scan, scan_with};
 #[cfg(test)]

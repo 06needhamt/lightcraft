@@ -1,6 +1,6 @@
 # Gaps: where LightCraft falls short of Lightroom
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-24 · **Change:** minor (gap 8: lens profile work is tracked in #329; gap 30: the Info panel shows the selected photos' shared metadata and marks mixed fields; gap 28: ⌘⌥⇧C / ⌘⌥⇧V copy and paste metadata; gap 13: before a Lightroom catalog import the app asks merge or new library, #2672; gap 28: F8 shows / hides the right panel; import review album hierarchy, #2362; gap 20: Minolta MRW decodes; gap 10: 551 models verified; gap 15: Print Page Options — page numbers, page info, crop marks; gap 28: `\` shows / hides the Filter Bar in the grids; gap 21: Indonesian interface shipped, every message but What's New; gap 27: the Windows x64 installer verified on Windows 11; the Settings → Apps uninstall confirmation remains; gap 28: ⌘L Enable Filters switches the filter off and on; gap 15: Japanese photo and postcard paper sizes in the Print page setup and PDF)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-29 · **Change:** minor (import review: remembered thumbnail size and density-aware previews (#2237, part of #2056); pre-import loupe/keyboard culling remains open; no ranked gap closes; gap 8: lens profile work is tracked in #329; gap 30: the Info panel shows the selected photos' shared metadata and marks mixed fields; gap 28: ⌘⌥⇧C / ⌘⌥⇧V copy and paste metadata; gap 13: before a Lightroom catalog import the app asks merge or new library, #2672; gap 28: F8 shows / hides the right panel; import review album hierarchy, #2362; gap 20: Minolta MRW decodes; gap 10: 551 models verified; gap 15: Print Page Options — page numbers, page info, crop marks; gap 28: `\` shows / hides the Filter Bar in the grids; gap 21: Indonesian interface shipped, every message but What's New; gap 27: the Windows x64 installer verified on Windows 11; the Settings → Apps uninstall confirmation remains; gap 28: ⌘L Enable Filters switches the filter off and on; gap 15: Japanese photo and postcard paper sizes in the Print page setup and PDF)
 
 Every known shortfall, one entry each, ranked by user impact (how many Lightroom users hit it, and
 how hard it blocks them), then by effort. **Agents pick work from the top** (the first entry nobody is
@@ -61,6 +61,8 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 ## Closed recently (kept for calibration)
 
+- 2026-10-29: the import review has a remembered 80–320 pt thumbnail-size slider, density-aware previews and bounded visible retention (#2237, part of #2056). Small sources do not reconstruct the same preview job every frame. The pre-import loupe and keyboard culling remain open in #2056; no ranked gap or headline feature count closes.
+
 - 2026-10-22: saving XMP preserves foreign namespaces even when they use `lc:` or `xmp:` prefixes; importing them no longer interprets their properties as native settings or ratings. Parser, merge and save-command regressions cover the correction; no ranked gap or readiness estimate changes.
 
 - 2026-10-22: PSD/PSB imports and metadata readers now expose embedded EXIF resource 1058 and XMP resource 1060 for capture dates, GPS and All Metadata (#2519); imported PSD edit copies retain their capture date, and the `removeLocation` Original-export guard sees embedded PSD/PSB GPS. No ranked gap or headline feature count closes.
@@ -84,6 +86,7 @@ Beta-blocking gaps (B) total **~230–430 h**; with the stability and platform w
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-29 | minor | Import thumbnails render when the camera JPEG is too small, retaining preview-only/error fallbacks; import review: remembered thumbnail size and density-aware previews (#2237, part of #2056); pre-import loupe/keyboard culling remains open; no ranked gap closes |
 | 2026-10-24 | minor | Gap 8: lens profile work is tracked in #329; hours unchanged |
 | 2026-10-24 | minor | Gap 28: ⌘⌥⇧C / ⌘⌥⇧V (Ctrl+Alt+Shift+C / V on Windows and Linux) copy and paste metadata; no key leaves the entry; hours unchanged |
 | 2026-10-24 | minor | Gap 30 shrinks: the Info panel's Show Metadata For (Target Photo / Selected Photos, `view.infoSelectedPhotos`) shows the selected photos' shared values and marks fields that differ as Mixed; the All Metadata dialog remains; 1–3 h (was 4–8) |

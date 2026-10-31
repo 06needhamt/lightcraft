@@ -342,7 +342,7 @@ impl crate::Session {
         let h = Hasher128::new().str(&content_key(&p)).str("quick").u64(p.develop.hash64()).u64(apply_crop as u64).finish();
         let key = h.0 as u64;
         let embedded = self.embedded_of(&p).map(|(path, l)| (path, l, max_edge.clamp(1, SourceLevel::Preview.max_edge())));
-        Some(QuickJob { request_id: 0, photo: id, key, cached, embedded, small: apply_crop.then(|| Box::new(small)) })
+        Some(QuickJob { request_id: 0, photo: id, key, cached, embedded, minimum_embedded_edge: None, small: apply_crop.then(|| Box::new(small)) })
     }
 
     /// A first grid thumbnail for an unedited raw: the cached render for `job` (the real
@@ -361,6 +361,7 @@ impl crate::Session {
             key: job.key,
             cached: job.cache.clone().into_iter().collect(),
             embedded: Some((path, l, edge)),
+            minimum_embedded_edge: None,
             small: Some(Box::new(job.clone())),
         })
     }

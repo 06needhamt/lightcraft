@@ -207,6 +207,8 @@ const VARIANT_PRIORITY: u32 = 6;
 pub struct Renderer {
     #[cfg(test)]
     pub(crate) thumb_jobs_built: usize,
+    #[cfg(test)]
+    pub(crate) import_jobs_built: usize,
     requests: HashMap<Slot, Requested>,
     /// Only jobs actually accepted by an offload: queued replacements retain identity in the job.
     offload_looks: HashMap<u64, (u64, bool)>,
@@ -303,6 +305,8 @@ impl Renderer {
         Renderer {
             #[cfg(test)]
             thumb_jobs_built: 0,
+            #[cfg(test)]
+            import_jobs_built: 0,
             requests: HashMap::new(),
             offload_looks: HashMap::new(),
             #[cfg(test)]
@@ -603,6 +607,26 @@ impl Renderer {
                 Finished { look, ..Self::run_for(run, &display) }
             }),
         );
+    }
+
+    /// Prepare a visible import preview at its size bucket, retaining a sharper existing texture.
+    pub fn import_preview(&mut self, session: &mut Session, candidate: &lightcraft_engine::import::ImportCandidate, index: u32, edge: usize) {
+        let slot = Slot::Import(index);
+        let edge = edge.clamp(64, 1024);
+        if candidate.error.is_some() || self.textures.get(&slot).is_some_and(|tex| tex.size.into_iter().max().unwrap_or(0) >= edge) {
+            return;
+        }
+        let key = lightcraft_engine::import::candidate_thumb_key(candidate, edge);
+        if self.quick_tried.get(&slot) == Some(&key) {
+            return;
+        }
+        #[cfg(test)]
+        {
+            self.import_jobs_built += 1;
+        }
+        if let Some(job) = session.candidate_thumb_job(candidate, edge, u64::from(index)) {
+            self.request_quick(slot, job, 4);
+        }
     }
 
     /// Request a stand-in for `slot` (once per job key).
@@ -1144,12 +1168,20 @@ impl Renderer {
 
     /// Drop the import review thumbnails (a new review, or the dialog closed).
     pub fn forget_imports(&mut self) {
-        self.pool.reprioritize(|s, p| if matches!(s, Slot::Import(_)) { None } else { Some(p) });
-        self.queue.retain(|q| !matches!(q.slot, Slot::Import(_)));
-        self.pending.retain(|s, _| !matches!(s, Slot::Import(_)));
-        self.requests.retain(|s, _| !matches!(s, Slot::Import(_)));
-        self.textures.retain(|s, _| !matches!(s, Slot::Import(_)));
-        self.quick_tried.retain(|s, _| !matches!(s, Slot::Import(_)));
+        self.retain_imports(&Default::default());
+    }
+
+    /// Keep only the import tiles near the viewport, including queued work. Large thumbnails
+    /// must not accumulate for every candidate while scrolling through a whole card.
+    pub fn retain_imports(&mut self, keep: &std::collections::HashSet<u32>) {
+        let retained = |s: &Slot| !matches!(s, Slot::Import(i) if !keep.contains(i));
+        self.pool.reprioritize(|s, p| retained(s).then_some(p));
+        self.queue.retain(|q| retained(&q.slot));
+        self.pending.retain(|s, _| retained(s));
+        self.requests.retain(|s, _| retained(s));
+        self.textures.retain(|s, _| retained(s));
+        self.quick_tried.retain(|s, _| retained(s));
+        self.failed.retain(|s, _| retained(s));
     }
 
     /// Drop thumbnails that aren't in `keep` (bounded memory for huge libraries), and queued
