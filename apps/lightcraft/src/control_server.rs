@@ -204,15 +204,40 @@ fn parse_line(bytes: &[u8]) -> Line {
     }
 }
 
+/// The error of the notice sent when an idle connection is closed. Clients match the reply's
+/// `"closed": "idle"` marker; `crates/mcp/src/backend.rs` also matches this text, for apps from
+/// before the marker, so keep the two in step.
+const IDLE_CLOSE_ERROR: &str = "control connection idle read timed out; closing the connection";
+
+/// Why the server closes a connection; its error reply says so.
+#[derive(Debug, PartialEq)]
+enum Closing {
+    /// Nothing complete arrived within the idle timeout. Nothing more is read, so a request that
+    /// crosses the notice is never run: the reply carries `"closed": "idle"` to tell clients it is
+    /// safe to send that request again on a new connection.
+    Idle,
+    /// Junk, an overlong line or a failed read.
+    Error(String),
+}
+
+impl Closing {
+    fn reply(&self) -> Value {
+        match self {
+            Self::Idle => json!({"ok": false, "error": IDLE_CLOSE_ERROR, "closed": "idle"}),
+            Self::Error(e) => json!({"ok": false, "error": e}),
+        }
+    }
+}
+
 /// Read one `\n`-terminated line of at most `max` bytes into `buf` (newline stripped).
 /// `Ok(false)` at end of stream; `Err` when the line is too long or the read fails.
-fn read_bounded_line(reader: &mut impl BufRead, buf: &mut Vec<u8>, max: usize) -> Result<bool, String> {
+fn read_bounded_line(reader: &mut impl BufRead, buf: &mut Vec<u8>, max: usize) -> Result<bool, Closing> {
     buf.clear();
     // `take` bounds the bytes buffered for one line: a peer can't make us allocate more than `max`.
     let limit = u64::try_from(max).unwrap_or(u64::MAX).saturating_add(1);
     let n = reader.take(limit).read_until(b'\n', buf).map_err(|e| match e.kind() {
-        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => "control connection idle read timed out; closing the connection".to_string(),
-        _ => e.to_string(),
+        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut => Closing::Idle,
+        _ => Closing::Error(e.to_string()),
     })?;
     if n == 0 {
         return Ok(false);
@@ -225,7 +250,7 @@ fn read_bounded_line(reader: &mut impl BufRead, buf: &mut Vec<u8>, max: usize) -
         return Ok(true);
     }
     if buf.len() > max {
-        return Err(format!("request line longer than {max} bytes; closing the connection"));
+        return Err(Closing::Error(format!("request line longer than {max} bytes; closing the connection")));
     }
     // Last line without a newline, then end of stream.
     Ok(true)
@@ -238,12 +263,12 @@ fn serve_lines<R: Read, W: Write>(read: R, mut out: W, mut handle: impl FnMut(St
     let mut reader = BufReader::new(read);
     let mut buf = Vec::new();
     loop {
-        let reject = match read_bounded_line(&mut reader, &mut buf, MAX_LINE) {
+        let closing = match read_bounded_line(&mut reader, &mut buf, MAX_LINE) {
             Ok(false) => return,
-            Err(e) => e,
+            Err(closing) => closing,
             Ok(true) => match parse_line(&buf) {
                 Line::Blank => continue,
-                Line::Reject(e) => e,
+                Line::Reject(e) => Closing::Error(e),
                 Line::Request { id, method, params } => {
                     let Some(mut r) = handle(method, params) else { return };
                     if let Some(o) = r.as_object_mut() {
@@ -256,7 +281,7 @@ fn serve_lines<R: Read, W: Write>(read: R, mut out: W, mut handle: impl FnMut(St
                 }
             },
         };
-        let _ = writeln!(out, "{}", json!({"ok": false, "error": reject})).and_then(|()| out.flush());
+        let _ = writeln!(out, "{}", closing.reply()).and_then(|()| out.flush());
         return;
     }
 }
@@ -321,7 +346,9 @@ mod tests {
             assert!(connection.requests.try_recv().is_err(), "incomplete input never runs");
             let reply: Value = serde_json::from_str(&reply).unwrap();
             assert_eq!(reply["ok"], false);
-            assert!(reply["error"].as_str().unwrap().contains("idle read timed out"));
+            assert_eq!(reply["error"], IDLE_CLOSE_ERROR);
+            assert_eq!(reply["closed"], "idle", "clients may resend a request that crossed this notice");
+            assert!(reply.get("id").is_none());
 
             // A subsequent connection is admitted through the same accounting path.
             let mut next = Connection::new(&open, Duration::from_secs(1), |c| c.shutdown(std::net::Shutdown::Write).unwrap());
@@ -447,6 +474,7 @@ mod tests {
         assert_eq!(r.len(), 1);
         assert_eq!(r[0]["ok"], false);
         assert!(r[0]["error"].as_str().unwrap().contains("closing the connection"));
+        assert!(r[0].get("closed").is_none(), "only an idle close invites a resend: {}", r[0]);
     }
 
     #[test]

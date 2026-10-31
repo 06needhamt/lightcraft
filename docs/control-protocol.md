@@ -21,15 +21,25 @@ headless snapshots or `lightcraft-cli mcp` without `--connect`. A request that h
 
 Connections close after five minutes without incoming bytes while the server is waiting for
 input, including in the middle of an unfinished request line. This allows pauses between
-automation commands while releasing abandoned connection slots. An idle read timeout gets an
-`ok: false` error saying the connection is closing; incomplete input is never dispatched.
+automation commands while releasing abandoned connection slots. An idle read timeout gets one
+reply without an `id`, then the connection closes; incomplete input is never dispatched:
+
+```text
+← {"ok": false, "error": "control connection idle read timed out; closing the connection", "closed": "idle"}
+```
+
 This is a socket read inactivity limit, not a total connection lifetime: a peer that keeps
 sending bytes can keep it open. Waiting for an already-dispatched command's reply does not
 count as idle reading and retains the request timeout above.
 
-Reconnect before sending another request after an idle close. MCP connect mode detects closed
-connections before sending and reconnects; if a connection is lost after sending a request,
-its outcome remains unknown and the client must not blindly replay it.
+Reconnect before sending another request after an idle close. A request sent just as the
+connection expires crosses the notice: the client reads the notice where it expects the reply.
+The server reads nothing after its idle timeout, so that request never ran, and `"closed": "idle"`
+(only on this notice) says it is safe to send it again, once, on a new connection. Apps from
+before the marker send the same notice without it; match its exact `error` text for them. MCP
+connect mode does both: it detects closed connections before sending and reconnects, and
+resends a request that crossed the idle notice once. Any other lost connection after sending a
+request leaves its outcome unknown, and the client must not blindly replay it.
 
 **Only requests are read.** Every line must be a JSON object with a string `method` (`id` and `params` are
 optional; blank lines are skipped). Anything else — text that isn't JSON, a JSON array or number, an object without
