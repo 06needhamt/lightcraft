@@ -517,3 +517,22 @@ fn variant_jobs_have_their_own_keys_and_hit_the_cache() {
     assert_ne!(pv.key, s.render_job(id, 800, 600, false, true).unwrap().key);
     assert_eq!(*pv.settings, a);
 }
+
+/// An export develops from a source at least twice its long edge (a 2000 px export of a 6000 px
+/// photo from the original, not the 2560 px preview, which for a raw is binned and box-reduced),
+/// while on-screen views keep the cheap preview.
+#[test]
+fn an_export_develops_from_a_source_twice_its_size() {
+    use lightcraft_pipeline::{OutputDepth, OutputSpace};
+    let mut s = crate::Session::with_demo();
+    let id = s.active().unwrap();
+    let p = s.catalog.photo(id).unwrap().clone();
+    assert!(p.width.max(p.height) >= 6000, "a camera-sized demo: {}×{}", p.width, p.height);
+    let job = s.export_job(id, 2000, 2000, OutputSpace::Srgb, OutputDepth::U8).unwrap();
+    assert_eq!(job.level, SourceLevel::Full, "2000 px export");
+    for edge in [200, 600, 1280, 1281, 2560] {
+        let job = s.export_job(id, edge, edge, OutputSpace::Srgb, OutputDepth::U8).unwrap();
+        assert!(job.level.max_edge() >= 2 * edge, "{edge} px export from {:?}", job.level);
+    }
+    assert_eq!(s.render_job(id, 1600, 1600, false, true).unwrap().level, SourceLevel::Preview, "a view keeps the preview");
+}
