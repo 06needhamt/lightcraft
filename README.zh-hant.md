@@ -240,7 +240,7 @@ lightcraft --control 7980 ~/Pictures/trip
 - **指令註冊表。** `engine.commands` 列出可用的指令；`develop.controls` 列出每個滑桿的範圍、
   預設值與目前值。
 - **MCP 伺服器。** `lightcraft-cli mcp` 把指令註冊表開放給 Claude（或任何 MCP 用戶端），
-  同時提供匯入、查詢、顯影、遮色片、算繪（以影像回傳）與匯出的輔助工具。它可以無介面執行，也可以附掛
+  同時提供匯入、查詢、顯影、算繪（以影像回傳）與匯出的輔助工具。遮色片沒有專屬的輔助工具，請透過 `run_command` 使用（例如 `mask.add`）。它可以無介面執行，也可以附掛
   到正在執行的應用程式上，支援截圖、點擊與手勢。詳見 [docs/mcp.md](docs/mcp.md)。
 
   ```sh
