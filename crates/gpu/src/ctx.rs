@@ -518,6 +518,10 @@ impl Gpu {
                 }
                 // (dropping the view schedules the copy)
                 drop(view);
+            } else {
+                // recorded now, not only when the error scope pops: the zeroed buffer must not be
+                // shared before then (`render::shared_source`)
+                fail(FailKind::OutOfMemory, "out of device memory: the upload's staging buffer couldn't be allocated".into());
             }
             // no view: the buffer couldn't be allocated (out of device memory). The error scope has recorded why and
             // the render fails over to the CPU; allocating it again would only fail again (issue #1764)

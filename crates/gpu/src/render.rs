@@ -466,6 +466,10 @@ fn shared_source(src: &Arc<Rgb32f>, upload: impl FnOnce() -> Buf) -> Arc<Buf> {
     *g = None;
     SOURCE_UPLOADS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let buf = Arc::new(upload());
+    // a failed upload's buffer holds zeros: this render falls back, and no other may reuse it
+    if crate::ctx::failed() {
+        return buf;
+    }
     *g = Some((Arc::downgrade(src), buf.clone()));
     buf
 }
