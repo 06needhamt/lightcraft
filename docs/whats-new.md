@@ -11,6 +11,9 @@
   you typed and shows the reason, so you can change the name. Before, it closed without a word. A New Folder on Disk
   that works now says so: “Created folder “Selects” in “2026/Shoot””. Cancel and Esc still close the prompt.
 
+### The macOS menu bar shows every row
+- File ▸ Export… no longer reads “Custom…”, File ▸ Export with Preset keeps its Custom… row, and Photo ▸ Add to Album keeps New Album…. When two menu rows ran the same command, the menu bar left the second one out and gave the first one its label; now each row is its own item and a click on either one runs the command. The View menu now also lists its second Layout Image row (without a key), as the in-window menu does.
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
