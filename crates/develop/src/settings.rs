@@ -134,6 +134,7 @@ pub struct DevelopSettings {
     pub orientation: Orientation,
     pub masks: Vec<Mask>,
     pub spots: Vec<Spot>,
+    /// Red eye corrections; the first [`MAX_RED_EYES`] render.
     pub red_eye: Vec<RedEye>,
     pub lens_blur: LensBlur,
     pub enhance: Enhance,
@@ -1068,6 +1069,10 @@ impl Default for Spot {
         Self { mode: SpotMode::Remove, points: Vec::new(), size: 0.02, feather: 50.0, opacity: 100.0, source_offset: None }
     }
 }
+
+/// Most red eye / pet eye corrections a photo renders. Every output pixel goes through every eye, so render cost is
+/// pixels x eyes; a sidecar, preset or agent with thousands could stall a render for hours (issue #2556).
+pub const MAX_RED_EYES: usize = 64;
 
 /// A red eye / pet eye correction: the user's ellipse (centre normalized, radii as fractions of
 /// the long edge); the pupil inside it is found automatically.

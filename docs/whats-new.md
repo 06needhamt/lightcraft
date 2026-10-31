@@ -7,6 +7,10 @@
   SDR / HDR colour bar) again until the drag ended. The histogram now follows the edit: an SDR edit shows the SDR
   histogram while you drag, too.
 
+### At most 64 red eye corrections per photo
+- Every pixel of a render goes through every red eye correction, so a sidecar, preset or agent with thousands of
+  them could stall a preview or export for hours. A photo now renders its first 64, and Red Eye refuses a 65th.
+
 ## 2026-10-29
 
 ### The histogram's clipping buttons read in light themes
