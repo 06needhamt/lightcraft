@@ -3567,6 +3567,7 @@ version = "0.16.0"
 dependencies = [
  "chrono",
  "crc32fast",
+ "dhat",
  "lightcraft-develop",
  "lightcraft-geom",
  "lightcraft-meta",
@@ -3593,6 +3594,7 @@ dependencies = [
  "lightcraft-merge",
  "lightcraft-raster",
  "lightcraft-sysmem",
+ "lightcraft-testkit",
  "lightcraft-ui-egui",
  "serde_json",
 ]
@@ -3845,6 +3847,7 @@ version = "0.16.0"
 dependencies = [
  "chrono",
  "lightcraft-geom",
+ "lightcraft-heif",
  "lightcraft-tiff",
  "proptest",
  "quick-xml 0.41.0",
