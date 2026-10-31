@@ -11,6 +11,11 @@
 - Every pixel of a render goes through every red eye correction, so a sidecar, preset or agent with thousands of
   them could stall a preview or export for hours. A photo now renders its first 64, and Red Eye refuses a 65th.
 
+### Reliability
+- A damaged or crafted Olympus ORF, Samsung SRW, Sony ARW or Pentax PEF whose strip sizes add up past the largest
+  64-bit number no longer crashes LightCraft (debug builds) when it is read: the file is refused, or read as far as
+  its data go.
+
 ## 2026-10-29
 
 ### The histogram's clipping buttons read in light themes
@@ -53,6 +58,7 @@
 ### The histogram stays in view
 - The histogram stays at the top of the Edit panel while its sliders scroll under it (issue #2679). It used to scroll
   away with them, so it was out of sight while using the sliders further down the panel.
+
 ### No maze pattern in noisy raws
 - Flat areas of high-ISO raws, such as a dim wall or a blurred background, could show short horizontal and vertical
   strokes instead of grain, often orange and blue under warm light. Noise reduction made them stand out more, because
