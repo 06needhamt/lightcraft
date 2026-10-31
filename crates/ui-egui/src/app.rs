@@ -251,8 +251,9 @@ impl LightcraftApp {
                 self.ui.toast = Some((message, now + TOAST_SECONDS, None));
             }
         }
-        if r.is_ok() && id == "photo.label" {
-            let label = params.get("label").and_then(Value::as_str).and_then(lightcraft_catalog::ColorLabel::parse);
+        if r.is_ok() && matches!(id, "photo.label" | "photo.clearLabel") {
+            // Clear Color Label takes no colour: whatever `label` it is given, the photo's label is cleared
+            let label = params.get("label").and_then(Value::as_str).and_then(lightcraft_catalog::ColorLabel::parse).filter(|_| id == "photo.label");
             let text = match label {
                 Some(label) => {
                     let name =
