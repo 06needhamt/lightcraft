@@ -43,6 +43,7 @@ mod process;
 mod recheck;
 mod segment;
 mod settings_files;
+mod shelved_folder;
 mod slide;
 mod slideshow_export;
 mod spots;
