@@ -5,6 +5,13 @@
 ### The Edit menu groups Select Only Active Photo and Paste Settings from Previous with their kin
 - Select Only Active Photo now sits under Deselect All, and Paste Settings from Previous under Paste Selected Settings…, instead of both after Settings…, near the end of the Edit menu. On macOS, where Settings… lives in the application menu, the Edit menu no longer shows two separator lines in a row.
 
+### Reading a photo from a network share asks the server less
+- Checking a photo (before an import, and for Reload, Recheck, Relink and Convert) asked for the file's size, then
+  opened it, then asked for its modification time as a question of its own. It now opens the file once and reads
+  both from the open file, so each photo costs the server fewer round trips (about a quarter less time to read a
+  set of photos from an SMB share, in one measurement on one share). What is imported and the messages for a file
+  that can't be read are the same.
+
 ## 2026-10-25
 
 ### `>=` and `<=` work in the search box
