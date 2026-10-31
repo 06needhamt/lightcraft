@@ -18,6 +18,7 @@ impl LightcraftApp {
                 control::Outcome::Done(v) => {
                     let _ = reply.send(v);
                 }
+                control::Outcome::Later => {}
                 control::Outcome::Screenshot { target, headless } => {
                     if let Err(error) = self.admit_shot(ctx, target, headless, reply.clone()) {
                         let _ = reply.send(serde_json::json!({"ok": false, "error": error}));

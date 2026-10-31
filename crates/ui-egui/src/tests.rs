@@ -50,6 +50,7 @@ mod masking;
 mod masking_layout;
 mod menubar;
 mod merge_preview;
+mod missing_sweep;
 mod model_setup;
 mod offline;
 mod open_lightroom;
