@@ -95,6 +95,12 @@
 
 ### Editing a smart album made from an album keeps the album
 - A smart album saved from the view of an album stays limited to that album when you edit its rules and press OK. It used to match the whole library afterwards, because the rules dialog has no album field and replaced the album along with the rules.
+### Drag photos from the filmstrip
+- You can now drag a photo from the filmstrip onto the sidebar, as you can from the grid: onto an
+  album, a folder or a keyword. Dragging a selected photo takes the whole selection; dragging one that isn't selected
+  takes just that photo and selects it. In the Compare view, a photo that isn't selected is dragged alone and the
+  selection, the active photo and the two photos on screen stay as they were. Clicking a filmstrip photo works as
+  before: outside Compare it selects the photo, and in Compare a plain click puts the photo into the active side.
 
 ## 2026-10-22
 
