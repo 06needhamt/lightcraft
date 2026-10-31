@@ -185,6 +185,10 @@
   you make, or test each other 32 deep, keeps testing the rules as written.) On a 312,000-photo test library, opening
   51 such albums in turn went from about 19 s to about 5.8 s (about 377 ms to 113 ms each; a busy machine,
   so rough numbers).
+### A count never covers a name in the sidebar
+- In the left panel, the count of a deeply indented row (a folder, keyword or album) no longer prints over its icon
+  and name when the panel is narrow. It follows the name, wholly past the panel's edge, and scrolling sideways
+  reaches it; so does the colour dot of a labelled folder. A row with room for its name keeps its count at the edge, as before.
 
 ### Sharper resampling in HDR and panorama merges
 - Merged photos (HDR and panorama) are resampled with a sharper filter (Lanczos-3 instead of bilinear). Moving a
