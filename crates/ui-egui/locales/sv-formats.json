@@ -162,6 +162,7 @@
   "Rendering on the CPU: {why}": "Renderar på processorn: {why}",
   "Replace {} with:": "Ersätt {} med:",
   "Reset {name}": "Återställ {name}",
+  "{name} value": "{name}: värde",
   "Reset {} Channel": "Återställ kanalen {}",
   "Restore {}": "Återställ {}",
   "Restore {} Photo{}": "Återställ {} foto{}",

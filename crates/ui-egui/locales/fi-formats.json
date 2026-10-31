@@ -167,6 +167,7 @@
   "Rendering on the CPU: {why}": "Renderöidään suorittimella: {why}",
   "Replace {} with:": "Korvaa {} seuraavalla:",
   "Reset {name}": "Nollaa {name}",
+  "{name} value": "{name}: arvo",
   "Reset {} Channel": "Nollaa kanava {}",
   "Restore {}": "Palauta {}",
   "Restore {} Photo{}": "Palauta kuvia: {}{:.0}",

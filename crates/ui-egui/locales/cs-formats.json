@@ -139,6 +139,7 @@
   "Rendering on the CPU: {why}": "Vykreslování na CPU: {why}",
   "Replace {} with:": "Nahradit {} za:",
   "Reset {name}": "Obnovit {name}",
+  "{name} value": "{name} – hodnota",
   "Reset {} Channel": "Obnovit kanál {}",
   "Restore {}": "Obnovit {}",
   "Restore {} Photo{}": "Obnovit fotografie: {}{:.0}",

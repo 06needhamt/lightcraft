@@ -116,6 +116,7 @@
   "Rendering on the CPU: {why}": "Рендеринг на ЦП: {why}",
   "Replace {} with:": "Замінити {} на:",
   "Reset {name}": "Скинути: {name}",
+  "{name} value": "{name}: значення",
   "Reset {} Channel": "Скинути канал: {}",
   "Restore {}": "Відновити {}",
   "Restore {} Photo{}": "Відновити фото: {}{:.0}",

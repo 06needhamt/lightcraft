@@ -116,6 +116,7 @@
   "Rendering on the CPU: {why}": "Rendering auf der CPU: {why}",
   "Replace {} with:": "{} ersetzen durch:",
   "Reset {name}": "{name} zurücksetzen",
+  "{name} value": "{name}: Wert",
   "Reset {} Channel": "Kanal {} zurücksetzen",
   "Restore {}": "{} wiederherstellen",
   "Restore {} Photo{}": "{} Foto{} wiederherstellen",

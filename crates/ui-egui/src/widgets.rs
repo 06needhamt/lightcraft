@@ -418,7 +418,8 @@ pub fn slider(ui: &mut Ui, spec: &ControlSpec, value: f64, enabled: bool, label_
     // the value: click it to type an exact one, drag it sideways to scrub (over the label, so it
     // takes the click)
     let value_resp = ui.interact(value_rect, id.with("value"), if enabled { Sense::click_and_drag() } else { Sense::hover() });
-    crate::widgets::announce(&value_resp, format!("{label_text}: {}", crate::i18n::tr("Click to type a value, drag to change it")));
+    // the name is short ("Exposure value"); how to use it is the description the hover text below gives
+    crate::widgets::announce(&value_resp, crate::i18n::tr_format!("{name} value", name = label_text.clone()));
     register(ui, format!("sliderValue:{}", spec.id), value_rect);
     // say that an exact value can be typed here (issue #534: an exact crop angle was hard to find)
     let value_resp = if enabled { value_resp.on_hover_text(crate::i18n::tr("Click to type a value, drag to change it")) } else { value_resp };

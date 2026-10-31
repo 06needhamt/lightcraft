@@ -167,6 +167,7 @@
   "Rendering on the CPU: {why}": "Đang kết xuất trên CPU: {why}",
   "Replace {} with:": "Thay {} bằng:",
   "Reset {name}": "Đặt lại {name}",
+  "{name} value": "Giá trị {name}",
   "Reset {} Channel": "Đặt lại kênh {}",
   "Restore {}": "Khôi phục {}",
   "Restore {} Photo{}": "Khôi phục {} ảnh{:.0}",

@@ -139,6 +139,7 @@
   "Rendering on the CPU: {why}": "რენდერი CPU-ზე: {why}",
   "Replace {} with:": "{}-ის ჩანაცვლება:",
   "Reset {name}": "ჩამოყრა: {name}",
+  "{name} value": "{name}: მნიშვნელობა",
   "Reset {} Channel": "არხის ჩამოყრა: {}",
   "Restore {}": "აღდგენა: {}",
   "Restore {} Photo{}": "ფოტოს აღდგენა: {}{:.0}",
