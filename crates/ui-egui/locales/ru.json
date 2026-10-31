@@ -2571,6 +2571,5 @@
   "An import is running. Drop photos when it has finished": "Импорт уже выполняется. Перетащите фото, когда он закончится",
   "Finish Lightroom catalog import before adding photos": "Завершите импорт каталога Lightroom, прежде чем добавлять фото",
   "★ Favorites": "★ Избранное",
-  "Thumbnail size": "Размер миниатюр",
   "Import Thumbnail Size": "Размер миниатюр при импорте"
 }
