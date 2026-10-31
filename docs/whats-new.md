@@ -26,6 +26,13 @@
   drag to change it" is its description. It was named "Exposure: Click to type a value, drag to change it", so
   VoiceOver read the whole sentence each time it reached the field, once for every slider in the Edit panel.
 
+## 2026-10-25
+
+### JPEG ICC chunks are validated before colour conversion
+- JPEG ICC profiles are assembled only when every chunk is present exactly once, the sequence numbers and
+  declared totals agree, and every APP2 segment is complete. Reordered valid chunks still work. An invalid
+  sequence uses the existing unsupported-profile sRGB fallback, including when the JPEG is a raw preview.
+
 ## 2026-10-29
 
 ### A dialog no longer dims the macOS title bar
