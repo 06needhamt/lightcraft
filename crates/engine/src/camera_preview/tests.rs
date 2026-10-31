@@ -1,3 +1,4 @@
+use super::tone::{ELASTICITY_BLACK, MAX_TONE_ELASTICITY, TONE_REPAIR_ELASTICITY, limit_elasticity};
 use super::*;
 
 fn steep_toe_scene() -> (Rgb32f, Rgb32f) {
@@ -24,6 +25,74 @@ fn camera_tone_follows_the_jpegs_deep_shadows() {
     let error = dark.iter().map(|(x, y)| (look.tone.apply(luminance_2020(**x)) - luminance_2020(**y)).abs()).sum::<f32>() / dark.len() as f32;
     assert!(error < 0.001, "deep-shadow luminance error {error}");
     assert_eq!(look.matrix, Mat3::IDENTITY);
+}
+
+/// Issue #1904: two populations the camera renders at different brightness for the same scene luminance (saturated
+/// blue at 1.7x, red at 2.64x) made quantile matching join them with a near-vertical step.
+#[test]
+fn tone_fit_does_not_step_between_two_pixel_populations() {
+    let mut pairs = Vec::new();
+    for i in 0..620 {
+        let x = 0.040 + 0.012 * f64::from(i) / 620.0;
+        pairs.push((x, 1.7 * x));
+    }
+    for i in 0..380 {
+        let x = 0.02 * (10.0f64).powf(f64::from(i) / 380.0);
+        pairs.push((x, 2.64 * x));
+    }
+    let elasticity = |k: &[[f32; 2]; 32]| {
+        k.windows(2)
+            .map(|w| {
+                ((f64::from(w[1][1]) + ELASTICITY_BLACK) / (f64::from(w[0][1]) + ELASTICITY_BLACK)).ln()
+                    / (f64::from(w[1][0]) / f64::from(w[0][0])).ln()
+            })
+            .fold(0.0, f64::max)
+    };
+    let mut xs: Vec<f64> = pairs.iter().map(|p| p.0).collect();
+    let mut ys: Vec<f64> = pairs.iter().map(|p| p.1).collect();
+    xs.sort_by(f64::total_cmp);
+    ys.sort_by(f64::total_cmp);
+    let raw: [[f32; 2]; 32] = std::array::from_fn(|i| {
+        let mid = (i * xs.len() / 32 + (i + 1) * xs.len() / 32) / 2;
+        [xs[mid] as f32, ys[mid] as f32]
+    });
+    assert!(elasticity(&raw) > 10.0, "the synthetic scene must reproduce the step: {}", elasticity(&raw));
+    let tone = fit_tone(pairs).unwrap();
+    let knots = tone.knots();
+    assert!(elasticity(knots) <= MAX_TONE_ELASTICITY + 1e-3, "{}", elasticity(knots));
+    assert!(knots.iter().zip(&raw).all(|(a, b)| a[0] == b[0]), "only the outputs move");
+    for w in knots.windows(2) {
+        assert!(w[1][1] >= w[0][1]);
+    }
+    // A curve within the bound is left alone.
+    let smooth: [[f32; 2]; 32] = std::array::from_fn(|i| {
+        let x = 0.01 * 1.15f32.powi(i as i32);
+        [x, 0.9 * (x / (x + 0.18))]
+    });
+    assert_eq!(limit_elasticity(smooth, &[]), Some(smooth));
+}
+
+/// A step at the top of the curve reaches its end: the pinned window and the free end are both under the bound, and
+/// the pixel pairs choose between them.
+#[test]
+fn a_step_at_the_curves_end_is_repaired_from_the_side_the_pixels_support() {
+    let x = |i: usize| 0.01 * 1.15f64.powi(i as i32);
+    let stepped: [[f32; 2]; 32] = std::array::from_fn(|i| [x(i) as f32, (0.3 * x(i) * if i >= 30 { 3.0 } else { 1.0 }) as f32]);
+    let pairs = |gain: f64| -> Vec<(f64, f64)> {
+        (0..4000).map(|j| x(0) * (x(31) / x(0)).powf(f64::from(j) / 3999.0)).map(|x| (x, 0.3 * x * if x >= 0.62 { gain } else { 1.0 })).collect()
+    };
+    // The pixels follow the curve below the step: the end is left free and the top knots drop to the repair slope.
+    let free = limit_elasticity(stepped, &pairs(1.0)).unwrap();
+    assert_eq!(free[..30], stepped[..30], "the curve up to the step is kept");
+    let (u29, v29) = (x(29).ln(), (f64::from(stepped[29][1]) + ELASTICITY_BLACK).ln());
+    for k in 30..32 {
+        let limit = (v29 + TONE_REPAIR_ELASTICITY * (x(k).ln() - u29)).exp() - ELASTICITY_BLACK;
+        assert!(f64::from(free[k][1]) <= limit + 1e-6, "knot {k}: {} over {limit}", free[k][1]);
+    }
+    // The pixels do sit above the step: the window stays pinned to the top knot.
+    let pinned = limit_elasticity(stepped, &pairs(3.0)).unwrap();
+    assert_eq!(pinned[31], stepped[31], "the end the pixels support is kept");
+    assert!(pinned[29][1] > stepped[29][1] && pinned[30][1] < stepped[30][1], "the step is spread over the window");
 }
 
 #[test]
